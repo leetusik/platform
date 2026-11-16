@@ -1,0 +1,39 @@
+/* The Shell's own rules beyond the signed bundle (src/hi2vi/styles/bundle.css sections 4 and 5 draw it).
+   None of them is a look: they keep three things the product already did, inside the new frame.
+   Imported by components/app-shell/app-shell.tsx, outside Tailwind. No theme variable is named here.
+
+   1. An old page (`LegacyPage`, `[data-ui-legacy].kb-legacy-page`) fills the main column edge to edge
+      with its own `.kb-app-main` padding, as it did in the old frame, and drops `.kb-app`'s 100dvh height
+      (the Shell's bar is above it). These two rules sit outside @scope: the old page is the scope's limit.
+   2. The chrome-less document view (`?view=full`, round 06 §4.4): the bar and the rail are hidden and the
+      main column takes the whole width; nothing unmounts.
+   3. Print drops the chrome, as kb-print.css does for the old frame. */
+
+.kb-app.kb-legacy-page {
+  min-height: 0;
+  flex: 1 0 auto;
+}
+.ui .app-main:has(> .kb-legacy-page) {
+  padding: 0;
+}
+
+@scope (.ui) to ([data-ui-legacy]) {
+  .app[data-view="full"] > .app-frame > .top,
+  .app[data-view="full"] > .app-frame > .rail {
+    display: none;
+  }
+  .app[data-view="full"] > .app-frame > .app-main {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    padding: 0;
+  }
+
+  @media print {
+    .app-frame > .top,
+    .app-frame > .rail,
+    .menu-scrim,
+    .toast-region {
+      display: none;
+    }
+  }
+}

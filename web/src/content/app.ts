@@ -94,3 +94,39 @@ export const APP_SHELL = {
   /** Fallback when a user somehow has no tenant (signup always provisions one). */
   noTenant: "—",
 } as const;
+
+/**
+ * The hi2vi Shell's words (P58: job 01 round 03-instrument `Shell.dc.html`, the org rail as job 03
+ * round 02 revised it, F320; Workspace's `Coming` badge, operator D1), verbatim. Imported by path
+ * (`@/content/app`) by `src/hi2vi/shell/`; the barrel's keys above stay for the files that still read them.
+ */
+export const SHELL = {
+  wordmark: "hi2vi",
+  homeLabel: (org: string) => `hi2vi, ${org} overview`,
+  orgPlainLabel: (org: string) => `Org: ${org}. Overview`,
+  orgLabel: (org: string) => `Org: ${org}. Switch org`,
+  switchOrg: "Switch org",
+  noPublicUrl: "No public URL",
+  project: "project",
+  selectProject: "Select project",
+  projectLabel: (project: string) => `Project: ${project}. Switch project`,
+  selectProjectIn: (org: string) => `Select a project in ${org}`,
+  projects: "Projects",
+  findProject: "Find a project",
+  noMatch: (q: string) => `No project name contains “${q}”.`,
+  visibility: { public: "Public", private: "Private" },
+  accountLabel: (email: string) => `Account: ${email}`,
+  account: "Account",
+  signOut: "Sign out",
+  sections: "Sections",
+  rail: {
+    overview: "Overview",
+    workspace: "Workspace",
+    library: "Library",
+    feedback: "Feedback",
+    review: "Review",
+  },
+  card: "card",
+  reviewDueLabel: (cards: string) => `Review, ${cards} due`,
+  coming: "Coming",
+} as const;
