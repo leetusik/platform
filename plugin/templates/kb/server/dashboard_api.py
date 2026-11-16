@@ -16,10 +16,12 @@ so no cross-tenant data can leak.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from server import db
 from server.accounts.auth import AuthContext, require_user
 from server.accounts.service import get_accounts_service
 from server.usage import UsageReadError, get_usage_service
@@ -44,8 +46,8 @@ async def get_dashboard(
         {
           "projects": [
             {"id": str, "name": str, "created_at": ISO,
-             "documents": int, "keys": int, "last_used_at": ISO|null,
-             "visibility": "private"|"public"}
+             "documents": int, "active_documents": int|null, "keys": int,
+             "last_used_at": ISO|null, "visibility": "private"|"public"}
           ],
           "activity": [
             {"type": "project_created"|"key_minted"|"key_revoked",
@@ -55,7 +57,12 @@ async def get_dashboard(
 
     Per project: ``documents`` is ``documents_created`` over the last ``days`` window
     (the page is framed "over the last 30 days") — **not** a live per-project document
-    total, which needs the content-plane UUID<->name bridge and is deferred to S5;
+    total; that is ``active_documents`` (P63, D246-p7): the project's documents in the
+    content store now, the very number ``GET /app/documents?project=<id>`` answers as
+    ``total`` (the same tenant scope, the project bridged by name, a deleted document
+    gone with its row), read for every project at once in **one** grouped query.
+    When that one read fails, every ``active_documents`` is ``null`` and the rest of
+    the dashboard still answers, so a count can never take the Projects panel down;
     ``keys`` counts only non-revoked credentials; ``last_used_at`` is the most-recent
     ingest recency across the project's credentials (null when none has been used).
 
@@ -76,6 +83,7 @@ async def get_dashboard(
     usage = get_usage_service()
 
     projects = await accounts.list_projects_for_tenant(ctx.tenant.id)
+    active = _active_documents(str(ctx.tenant.id))
 
     project_rows: list[dict[str, object]] = []
     # (sort key, event) pairs so the feed can be ordered newest-first across projects.
@@ -102,6 +110,9 @@ async def get_dashboard(
                 "name": project.name,
                 "created_at": project.created_at.isoformat(),
                 "documents": metrics.totals.documents_created,
+                "active_documents": (
+                    None if active is None else active.get(project.name, 0)
+                ),
                 "keys": sum(1 for c in credentials if c.revoked_at is None),
                 "last_used_at": last_used_at.isoformat() if last_used_at else None,
                 "visibility": project.visibility,
@@ -150,3 +161,25 @@ async def get_dashboard(
         "projects": project_rows,
         "activity": [event for _, event in activity[:_ACTIVITY_LIMIT]],
     }
+
+
+def _active_documents(tenant_id: str) -> dict[str, int] | None:
+    """Every project's live document count for one tenant, by project name, in one
+    grouped query over the content store; ``None`` when the store cannot be read.
+
+    ``db.list_projects`` counts exactly the rows ``db.count_documents`` counts for
+    ``/app/documents``' ``total`` (tenant-scoped, by project name), so the two always
+    agree. A project with no document is absent here and reads ``0``.
+    """
+
+    try:
+        conn = db.connect()
+    except sqlite3.Error:
+        return None
+    try:
+        rows = db.list_projects(conn, tenant_id=tenant_id)
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    return {row["project"]: int(row["count"]) for row in rows}

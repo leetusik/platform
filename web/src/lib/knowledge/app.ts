@@ -139,7 +139,8 @@ export async function getUsage(
 
 /**
  * `GET /app/dashboard` (bearer) → 200 `{projects, activity}` — the P12.S3 tenant
- * rollup: per-project `documents`/`keys`/`last_used_at` plus a newest-first
+ * rollup: per-project `documents`/`active_documents`/`keys`/`last_used_at` (the live
+ * `active_documents` since P63, so org home makes no per-project count read) plus a newest-first
  * lifecycle activity feed, assembled server-side so the browser makes one
  * round-trip. Called BARE (30-day window). No envelope — the payload IS the
  * response. Tenant-scoped + unmetered on the backend.
@@ -478,7 +479,8 @@ export async function getBook(
 }
 
 /**
- * `GET /app/orgs/{org}/library` → 200 the org's books and loose documents (P30.S22).
+ * `GET /app/orgs/{org}/library` → 200 the org's books and loose documents (P30.S22),
+ * each document and chapter variant with its `reading_minutes` (P63).
  * `org` is the BARE slug, or the tenant id for a tenant without one. OPTIONAL-IDENTITY: a
  * member reads every project (`scope: "all"`) or only the public ones (`"public"`, the
  * org's public page); anyone else reads the public ones. Every miss, an unknown org or an

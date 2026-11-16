@@ -119,9 +119,10 @@ def _app_doc(doc: dict, *, include_markdown: bool) -> dict:
     drop = set(_DROP)
     if not include_markdown:
         # The list shape carries neither the body nor the asset map (P30.S4) nor the
-        # native source (P30.S5): all are detail-level, and the list's key set stays
-        # what it was.
-        drop |= {"markdown", "assets", "source"}
+        # native source (P30.S5) nor the reading time (P63: the Library reads it from
+        # the org library and the book reads): all are detail-level, and the list's
+        # key set stays what it was.
+        drop |= {"markdown", "assets", "source", "reading_minutes"}
     return {k: v for k, v in doc.items() if k not in drop}
 
 

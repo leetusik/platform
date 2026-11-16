@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 from server import config
+from server import reading_time
 
 # Idempotent schema. The trigger trio mirrors documents into documents_fts using
 # the external-content 'delete' protocol (an INSERT of the OLD row values with the
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS documents (
   translated_from TEXT,                      -- the header's `translated_from: {lang, version}` as JSON (P30.S2); NULL = an original
   assets      TEXT,                          -- the header's `assets:` map as JSON (P30.S4); NULL = no images
   source      TEXT,                          -- the whole stored native file (P30.S5; header + body, ids written in); NULL unless format='native'
+  reading_minutes INTEGER,                   -- whole minutes to read the text (P63; server/reading_time.py), written by every upsert
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
   UNIQUE (tenant_id, rel_path)
@@ -232,7 +234,29 @@ def init_db(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE documents ADD COLUMN source TEXT")
     if "source" not in vcols:
         conn.execute("ALTER TABLE document_versions ADD COLUMN source TEXT")
+    # P63: a document's reading time, derived from its own text by every upsert. A
+    # store that predates the column is filled once, here, from the text it already
+    # holds, so the Library reads a number before the next reindex comes round.
+    if "reading_minutes" not in cols:
+        try:
+            conn.execute("ALTER TABLE documents ADD COLUMN reading_minutes INTEGER")
+        except sqlite3.OperationalError as exc:
+            # Another connection added it between our read of the columns and now.
+            if "duplicate column" not in str(exc):
+                raise
+        _fill_reading_minutes(conn)
     conn.commit()
+
+
+def _fill_reading_minutes(conn: sqlite3.Connection) -> None:
+    """Compute ``reading_minutes`` for every row that has none (a pre-P63 store)."""
+    rows = conn.execute(
+        "SELECT id, markdown, format FROM documents WHERE reading_minutes IS NULL"
+    ).fetchall()
+    conn.executemany(
+        "UPDATE documents SET reading_minutes = ? WHERE id = ?",
+        [(reading_time.minutes(r["markdown"], r["format"]), r["id"]) for r in rows],
+    )
 
 
 def connect(path: Optional[Path] = None) -> sqlite3.Connection:
@@ -331,8 +355,13 @@ def upsert_document(
     ``source`` (P30.S5) is the whole stored native file, for ``format='native'``
     only; ``markdown`` then holds the native search projection (what FTS and the
     embeddings read).
+
+    ``reading_minutes`` (P63) is derived here from ``markdown`` and ``format``
+    (``server/reading_time.py``), so a publish and a reindex of the same file store
+    the same number.
     """
     ts = now or _now()
+    minutes = reading_time.minutes(markdown, format)
     tags = list(tags)
     tags_json = json.dumps(tags, ensure_ascii=False)
     tags_text = " ".join(tags)
@@ -347,8 +376,8 @@ def upsert_document(
         INSERT INTO documents
           (tenant_id, project, slug, date, title, tags, tags_text, source_repo, rel_path,
            markdown, related, format, raw_html, version, lang, subject, translated_from,
-           assets, source, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           assets, source, reading_minutes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, rel_path) DO UPDATE SET
           project     = excluded.project,
           slug        = excluded.slug,
@@ -367,11 +396,12 @@ def upsert_document(
           translated_from = excluded.translated_from,
           assets      = excluded.assets,
           source      = excluded.source,
+          reading_minutes = excluded.reading_minutes,
           updated_at  = excluded.updated_at
         """,
         (tenant_id, project, slug, date, title, tags_json, tags_text, source_repo, rel_path,
          markdown, related_json, format, raw_html, int(version), lang, subject,
-         translated_json, _assets_to_column(assets), source, ts, ts),
+         translated_json, _assets_to_column(assets), source, minutes, ts, ts),
     )
     conn.commit()
     row = conn.execute(
@@ -1035,7 +1065,7 @@ def get_book(
     A variant is resolved against ``documents`` on ``(tenant_id, rel_path)`` and
     carries what the reader's language switch needs (P29 *Versions × variants*):
     ``{lang, doc_id, rel_path, title, version, format, updated_at,
-    translated_from}``. A binding whose document no longer exists is left out of the
+    translated_from, reading_minutes}``. A binding whose document no longer exists is left out of the
     payload (it stays in the manifest until the next ``PUT`` drops it). ``None`` when
     the book does not exist (for this tenant).
     """
@@ -1056,7 +1086,7 @@ def get_book(
     ).fetchall()
     variants = conn.execute(
         "SELECT cv.chapter_key, cv.lang, cv.rel_path, d.id AS doc_id, d.title, d.slug, "
-        "d.version, d.format, d.updated_at, d.translated_from "
+        "d.version, d.format, d.updated_at, d.translated_from, d.reading_minutes "
         "FROM chapter_variants cv JOIN documents d "
         "ON d.tenant_id = cv.tenant_id AND d.rel_path = cv.rel_path "
         "WHERE cv.tenant_id = ? AND cv.project = ? AND cv.book = ? "
@@ -1111,14 +1141,15 @@ def list_loose_documents(
     """The tenant's loose documents (not a chapter variant), newest first, lean rows.
 
     P30.S22 (the library). Carries no body, source or asset map: the shelves need the
-    title, date, format, language, subject and the document's pretty-path parts.
+    title, date, format, language, subject, reading time (P63) and the document's
+    pretty-path parts.
     ``projects`` is a project-name allowlist (an empty one matches nothing, fail-closed).
     A superseded duplicate of ``(project, slug)`` (a re-publish that computed another
     date) is left out, as the pretty path belongs to the newest row only.
     """
     sql = (
         "SELECT d.id, d.project, d.slug, d.date, d.title, d.rel_path, d.format, d.version, "
-        "d.lang, d.subject, d.updated_at "
+        "d.lang, d.subject, d.updated_at, d.reading_minutes "
         "FROM documents d WHERE d.tenant_id = ? "
         "AND NOT EXISTS (SELECT 1 FROM chapter_variants cv "
         "WHERE cv.tenant_id = d.tenant_id AND cv.rel_path = d.rel_path)"

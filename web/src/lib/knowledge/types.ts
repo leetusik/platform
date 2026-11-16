@@ -126,14 +126,21 @@ export interface KbUsage {
 
 /**
  * One project row in the dashboard rollup (`GET /app/dashboard`, P12.S3). NOTE:
- * `documents` is `documents_created` over the window, NOT a live per-project total
- * (the content-plane bridge is S5).
+ * `documents` is `documents_created` over the window, NOT a live per-project total;
+ * the live total is `active_documents` (P63).
  */
 export interface KbDashboardProject {
   id: string;
   name: string;
   created_at: string;
   documents: number;
+  /**
+   * The project's documents in the library now (P63, D246-p7): the same number
+   * `GET /app/documents?project=<id>` answers as `total`, read for every project in
+   * one query. `null` when that one read failed; the rest of the row still stands.
+   * Optional so an older backend (and existing fixtures) still type-check.
+   */
+  active_documents?: number | null;
   /** Non-revoked credential count. */
   keys: number;
   /** Most-recent ingest recency across the project's credentials, or null. */
@@ -330,6 +337,12 @@ export interface KbDocument extends KbDocumentListItem {
    * older backend still type-checks.
    */
   chapter?: { book: string; chapter_key: string; lang: string } | null;
+  /**
+   * Whole minutes to read the document (P63; at least 1), on the two detail reads
+   * only: the list projection does not carry it. `null` only on a store that has
+   * not computed it yet. Optional so an older backend still type-checks.
+   */
+  reading_minutes?: number | null;
 }
 
 /** `GET /app/documents` → `{total, items}` (offset-paged; `total` is the full count). */
@@ -474,6 +487,8 @@ export interface KbBookVariant {
   updated_at: string;
   /** `{lang, version}` of the source it was translated from, or null. */
   translated_from: { lang: string; version: number } | null;
+  /** Whole minutes to read this variant (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
 }
 
 export interface KbBookChapter {
@@ -491,6 +506,11 @@ export interface KbBook {
   title: string;
   kind: string;
   subject: string | null;
+  /**
+   * The book's second title (P63, D248-j7): drawn under the title. Optional and
+   * unset until the book manifest carries it.
+   */
+  sub?: string | null;
   description: string | null;
   chapters: KbBookChapter[];
   /** `/@{org}/{project}/books/{book}`, on the slug (or the tenant id when it has none). */
@@ -506,6 +526,8 @@ export interface KbLibraryVariant {
   title: string;
   version: number;
   format: "md" | "html" | "native";
+  /** Whole minutes to read this variant (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
 }
 
 export interface KbLibraryBook {
@@ -514,6 +536,8 @@ export interface KbLibraryBook {
   title: string;
   kind: string;
   subject: string | null;
+  /** The book's second title (P63, D248-j7); optional and unset until the manifest carries it. */
+  sub?: string | null;
   chapters: {
     key: string;
     position: number;
@@ -534,6 +558,8 @@ export interface KbLibraryDocument {
   lang: string;
   version: number;
   subject: string | null;
+  /** Whole minutes to read the document (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
   /** `/@{org}/{project}/{slug}`, or null for a slug-less org. */
   canonical_path: string | null;
 }

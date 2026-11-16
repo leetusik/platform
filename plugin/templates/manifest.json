@@ -211,7 +211,10 @@
       "server/waitlist.py",
       "tests/test_waitlist.py",
       "server/email_address.py",
-      "tests/test_email_address.py"
+      "tests/test_email_address.py",
+      "server/reading_time.py",
+      "tests/test_reading_time.py",
+      "tests/test_library_reads.py"
     ],
     "parameterized": [
       "mkdocs.yml",

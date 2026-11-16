@@ -168,6 +168,8 @@ async def org_library(
     a 403. A member's response also carries their private projects, flagged by
     ``visibility``; they are the only ones that name it. ``projects`` lists every
     project the response is over, so a project with nothing to read is countable.
+    Each loose document and each chapter variant carries ``reading_minutes`` (P63,
+    ``server/reading_time.py``), stored with the document, so no body is read here.
     """
 
     if config.database_url() is None:
@@ -214,6 +216,7 @@ async def org_library(
                                 "title": v["title"],
                                 "version": v["version"],
                                 "format": v["format"],
+                                "reading_minutes": v["reading_minutes"],
                             }
                             for v in ch["variants"]
                         ],
@@ -234,6 +237,7 @@ async def org_library(
             "lang": d["lang"] or "en",
             "version": int(d["version"] or 1),
             "subject": d["subject"],
+            "reading_minutes": d["reading_minutes"],
             "canonical_path": (
                 f"/@{tenant.slug}/{d['project']}/{d['slug']}" if tenant.slug else None
             ),
