@@ -175,7 +175,8 @@ export const DASHBOARD = {
     /** Mono eyebrow beside the org's public library URL (`/@{slug}`, P37-1p). */
     libraryUrlLabel: "Public library",
     /** Shown in place of that URL while no slug is claimed. */
-    empty: "No public URL yet. Shared links keep using ids until you claim one.",
+    empty:
+      "No public URL yet. Shared links keep using ids until you claim one.",
   },
 
   /**
@@ -198,7 +199,8 @@ export const DASHBOARD = {
       actions: "Actions",
     },
     /** Overrides `DataTable`'s built-in default so the empty state stays copy-as-data. */
-    empty: "No org keys yet. Create one to start ingesting documents from anywhere.",
+    empty:
+      "No org keys yet. Create one to start ingesting documents from anywhere.",
     /** `name === null` — the key was minted without a label. */
     unnamed: "Unnamed key",
     /** The Badge beside a `capture`-scope key's name (a `full` key shows none). */
@@ -258,3 +260,70 @@ export const DASHBOARD = {
 } as const;
 
 export type DashboardCopy = typeof DASHBOARD;
+
+// ── Org home (P58: job 01 round 03-instrument, `OrgHome.dc.html`, `OrgHomeProjects.dc.html`,
+// `OrgHomeUrl.dc.html`, `OrgHomeActivity.dc.html`) ─────────────────────────────────────────
+// The signed words, verbatim. Imported by its own path (`@/content/dashboard`), never through
+// `content/index.ts`. The keys above stay for the barrel's re-exports.
+
+export const ORG_HOME = {
+  loading: "Loading…",
+  projects: {
+    heading: "Projects",
+    /** The head's count: `3 projects`, `1 project`, `0 projects` (`plural`). */
+    unit: "project",
+    newProject: "New project",
+    columns: {
+      project: "Project",
+      documents: "Documents",
+      keys: "Keys",
+      visibility: "Visibility",
+      created: "Created",
+      lastUsed: "Last used",
+    },
+    visibility: { public: "Public", private: "Private" },
+    nameLabel: "Project name",
+    namePlaceholder: "e.g. changple",
+    cancel: "Cancel",
+    create: "Create",
+    creating: "Creating…",
+    nameError: "Enter a project name of 1–200 characters.",
+    createFailed: "Could not create the project. Try again.",
+    empty:
+      "No projects yet. Create one to give your agents a place to publish.",
+    failed: "Projects did not load.",
+    retry: "Try again",
+    /** The toast on a created project. */
+    created: (name: string) => `Project ${name} created.`,
+  },
+  url: {
+    heading: "Public URL",
+    change: "Change",
+    /** The claimed address: `hi2vi.com/@<slug>`. */
+    address: (slug: string) => `hi2vi.com/@${slug}`,
+    copyLabel: "Copy public URL",
+    empty:
+      "No public URL. Claim a name and shared documents get a readable address.",
+    label: "Org slug",
+    prefix: "hi2vi.com/@",
+    placeholder: "e.g. hi2vi",
+    cancel: "Cancel",
+    save: "Save",
+    saving: "Saving…",
+    invalid:
+      "Use 2–40 characters: lowercase letters, numbers and single hyphens.",
+    taken: "That URL name is already taken. Try another one.",
+    changeHint: "Changing the name breaks links you have already shared.",
+    saveFailed: "Could not save your public URL. Try again.",
+  },
+  activity: {
+    heading: "Recent activity",
+    text: {
+      project_created: "Project created",
+      key_minted: "Key minted",
+      key_revoked: "Key revoked",
+    },
+    unnamedKey: "Unnamed key",
+    empty: "No activity yet. New projects and keys are listed here.",
+  },
+} as const;

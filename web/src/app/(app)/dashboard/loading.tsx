@@ -1,51 +1,61 @@
+import { Keys, Trend, Usage } from "@/hi2vi/frame";
+import { Grid, Stack } from "@/hi2vi/ui";
+import { requireIdentity } from "@/lib/auth-guards";
+
+import { mintOrgKey, revokeOrgKey } from "./actions";
+import "./org-home.css";
 import {
-  LoadingRegion,
-  SkelBlock,
-  SkelPageHead,
-  SkelPanel,
-  SkelTable,
-  SkelTiles,
-} from "@/components/states";
+  ActivityLoading,
+  ProjectsLoading,
+  UrlLoading,
+} from "./org-home-loading";
+import { ORG_KEYS_HEAD_ID } from "./org-home-model";
 
-// Round 03 §5.4 (P28.S3) — the dashboard's streaming skeleton. It mirrors the
-// layout it replaces, block for block: the `.kb-pageframe` head with its action
-// slot (the create-project disclosure), the four usage tiles in the very grid
-// `<StatTiles>` uses — so they are 4-up on a desktop and 2-up on a phone with no
-// new rule — the trend figure at its real 120px, and the two `.kb-app-cols`
-// panels, which stack when `kbmain` crosses 64rem exactly as the real page does.
-//
-// `aria-busy` is on the region, not on each block (§5.4). The shimmer is already
-// reduced-motion-safe at `kb-console.css:172`, so nothing extra is guarded here.
-export default function DashboardLoading() {
+/** The moment the skeleton's trend axis is drawn for. */
+function loadingNow(): number {
+  return Date.now();
+}
+
+/**
+ * Org home's Loading (`OrgHome.dc.html` Loading, frame.md F31): the Shell and the `h1` are complete
+ * (the session knows the org; `requireIdentity` is the layout's cached read); the four figures are bars
+ * under both headings; Projects, Trend, Public URL and Recent activity draw their own skeletons; the
+ * keys panel is `Keys`' own (F21). The same structure and sizes as the page, so nothing moves when the
+ * data lands but the rows a table gains or loses after its third.
+ */
+export default async function DashboardLoading() {
+  const { identity } = await requireIdentity();
+  const orgName = identity.tenant?.name ?? "";
+  const now = loadingNow();
+  const lastDay = new Date(now).toISOString().slice(0, 10);
+
   return (
-    <LoadingRegion>
-      <SkelPageHead withAction />
-
-      <SkelTiles />
-
-      <div className="kb-panel" style={{ marginTop: "var(--kb-space-md)" }}>
-        <div className="mb-[0.3rem] flex items-baseline justify-between gap-4">
-          <div className="kb-skel kb-skel-line w-[7rem]" />
-          <div className="kb-skel kb-skel-line w-[9rem]" />
+    <div className="column">
+      <header className="page-top">
+        <div className="page-head">
+          <div className="page-title">
+            <h1>{orgName}</h1>
+          </div>
         </div>
-        {/* The real figure wears round 04 §4.3's `.kb-trend-wrap` on both the
-            dashboard and the project page, so the skeleton wears it too: the clamp
-            (136px desktop / 96px at 390) is the height being waited for, and a
-            fixed 120px here would hand back a 16-24px jump on arrival. */}
-        <SkelBlock className="mt-[0.3rem] kb-trend-wrap" />
-      </div>
-
-      <div className="kb-app-cols mt-[var(--kb-space-md)]">
-        <SkelPanel>
-          <SkelTable rows={4} />
-        </SkelPanel>
-        <SkelPanel>
-          <div className="kb-skel kb-skel-line mt-[0.2rem] w-full" />
-          <div className="kb-skel kb-skel-line w-[80%]" />
-          <div className="kb-skel kb-skel-line w-[90%]" />
-          <div className="kb-skel kb-skel-line w-[70%]" />
-        </SkelPanel>
-      </div>
-    </LoadingRegion>
+      </header>
+      <Usage loading />
+      <ProjectsLoading />
+      <Grid className="orghome-pair">
+        <Stack gap={5}>
+          <Trend series={[]} lastDay={lastDay} loading format={{ now }} />
+          <UrlLoading />
+        </Stack>
+        <ActivityLoading />
+      </Grid>
+      <Keys
+        loading
+        scope="org"
+        subject={orgName}
+        rows={[]}
+        mint={mintOrgKey}
+        revoke={revokeOrgKey}
+        headId={ORG_KEYS_HEAD_ID}
+      />
+    </div>
   );
 }
