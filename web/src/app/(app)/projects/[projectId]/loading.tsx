@@ -1,35 +1,39 @@
-import {
-  LoadingRegion,
-  SkelBlock,
-  SkelPageHead,
-  SkelPanel,
-  SkelTable,
-  SkelTiles,
-} from "@/components/states";
+import { Trend, Usage } from "@/hi2vi/frame";
+import { Grid } from "@/hi2vi/ui";
+import { requireIdentity } from "@/lib/auth-guards";
 
-// Round 03 §5.4 (P28.S3) — the project detail skeleton, mirroring the page it
-// replaces: the `.kb-pageframe` head with its actions slot (visibility toggle +
-// mint), the project's own four usage tiles in the real `.kb-tile-grid`, the
-// 120px trend figure, and the credentials table panel.
-export default function ProjectLoading() {
+import { FeedbackPanel, LibraryPanel, WorkspacePanel } from "./parts";
+import { ProjectHeadLoading } from "./project-head";
+import { ProjectKeysLoading } from "./project-keys";
+
+import "./project-home.css";
+
+// Project home while it loads (`ProjectHome.dc.html`, Loading): every part keeps its head. The back
+// link reads the org (the session read is per-request cached; the layout already made it); the `h1`
+// holds a 7em skeleton; Workspace is its signed empty form (operator D1: no workspace data, so no
+// loading form); Library is its first load (no count); Feedback, Usage, Trend and the keys load.
+export default async function ProjectHomeLoading() {
+  const { identity } = await requireIdentity();
+  const org = identity.tenant?.name ?? "—";
+  const today = new Date().toISOString().slice(0, 10);
   return (
-    <LoadingRegion>
-      <SkelPageHead withAction />
-
-      <SkelTiles />
-
-      <div className="kb-panel" style={{ marginTop: "var(--kb-space-md)" }}>
-        <div className="mb-[0.3rem] flex items-baseline justify-between gap-4">
-          <div className="kb-skel kb-skel-line w-[7rem]" />
-          <div className="kb-skel kb-skel-line w-[9rem]" />
-        </div>
-        {/* `.kb-trend-wrap`, not a fixed 120px — see the dashboard skeleton. */}
-        <SkelBlock className="mt-[0.3rem] kb-trend-wrap" />
+    <div className="column">
+      <ProjectHeadLoading org={org} />
+      <WorkspacePanel />
+      <Grid min="26em">
+        <LibraryPanel count={null} state={{ kind: "first-load" }} />
+        <FeedbackPanel projectId="" rows={null} />
+      </Grid>
+      <div className="section">
+        <Usage loading />
+        <Trend
+          series={[]}
+          lastDay={today}
+          loading
+          format={{ timeZone: "UTC" }}
+        />
       </div>
-
-      <SkelPanel className="mt-[var(--kb-space-md)]">
-        <SkelTable rows={4} />
-      </SkelPanel>
-    </LoadingRegion>
+      <ProjectKeysLoading />
+    </div>
   );
 }
