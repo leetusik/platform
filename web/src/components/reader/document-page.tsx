@@ -1,9 +1,8 @@
 import "server-only";
 
-import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
 import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { READER_DOCUMENT } from "@/content/reader-document";
-import { DocumentReader } from "@/hi2vi/reader/document";
+import { DocumentOriginal, DocumentReader } from "@/hi2vi/reader/document";
 import { documentMarks, type DocMark } from "@/hi2vi/reader/document/model";
 import { ChapterBody } from "@/hi2vi/reader/body/body";
 import { ApiError } from "@/lib/knowledge/client";
@@ -13,8 +12,9 @@ import type { LoadedReader, ReaderLoad } from "@/lib/reader/load";
  * P63-fk.S12 — what both addresses of a loose document render (`/documents/<id>` and
  * `/@<org>/<project>/<slug>`), once the page has read it:
  *
- *  - an html document, or an html version (`loadLooseReader`'s `kind: "legacy"`), opens in the legacy reader,
- *    exactly as before (the Original layout: the next slice's);
+ *  - an html document, or an html version (`loadLooseReader`'s `kind: "legacy"`), opens in its Original layout
+ *    (`DocumentOriginal`, P63-fk.S13): the document page's frame around the html as it renders today. The org of a
+ *    visitor's way back is the address's, else the document's own write target's;
  *  - a Markdown or native document opens in the Library's reader (`DocumentReader`), its text the Library's
  *    body (`ChapterBody`). Its marks follow its format (OQ14, `documentMarks`): a Markdown document's Notes
  *    sheet is DocumentNotes (bookmarks only), so the text is handed over with no annotation layer; a native one
@@ -30,7 +30,21 @@ export function renderDocument(
   },
 ) {
   if (loaded.kind === "legacy") {
-    return <LegacyReaderPage legacy={loaded.legacy} />;
+    const legacy = loaded.legacy;
+    // Keyed by what is on screen (the document and its version), as the legacy reader was: another version
+    // starts the frame, its bridge and its place fresh.
+    return (
+      <DocumentOriginal
+        key={`${legacy.docId}:${legacy.view.version}`}
+        view={legacy.view}
+        frame={legacy.frame}
+        marks={legacy.marks ?? []}
+        from={p.from}
+        org={p.org ?? legacy.view.write?.org ?? null}
+        nonce={p.nonce}
+        timeZone={p.timeZone}
+      />
+    );
   }
   const reader = loaded.reader;
   const marks = documentMarks(reader);

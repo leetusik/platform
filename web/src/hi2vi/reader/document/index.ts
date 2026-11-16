@@ -17,3 +17,10 @@ export {
   missingDocument,
 } from "./document-states";
 export * from "./model";
+// An html document's Original layout (P63-fk.S13): the same frame around the html as it renders today.
+export {
+  DocumentOriginal,
+  OriginalBookmarks,
+  type DocumentOriginalProps,
+} from "./original";
+export * from "./original-parts";

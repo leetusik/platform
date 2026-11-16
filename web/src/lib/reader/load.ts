@@ -111,6 +111,25 @@ export interface LoadedLegacy {
   frame: LegacyFrame;
   /** The document id the relay and the view are keyed by. */
   docId: number;
+  /**
+   * P63-fk.S13 — a loose html document's bookmarks as its Notes sheet lists them (the Original layout,
+   * `hi2vi/reader/document/original.tsx`): each a position, with its label, version and language, and the
+   * bridge's anchor it was made at. The same bookmarks as `frame.bookmarks`, read by the same rule; absent on a
+   * chapter (the legacy reader there lists none).
+   */
+  marks?: LegacyMark[];
+}
+
+/** One bookmark of an html document, as its Notes sheet keeps it (P63-fk.S13). */
+export interface LegacyMark {
+  id: string;
+  /** How far through the document, 0..1: where the bridge lands it. */
+  fraction: number;
+  /** The heading id the bridge reported when it was made, or null. */
+  anchor: string | null;
+  label: string;
+  lang: string;
+  version: number;
 }
 
 /** The result of loading: the reader (native and md), or the legacy reader (html). */
@@ -567,7 +586,30 @@ function legacyBookmarks(
   const out: { id: string; fraction: number }[] = [];
   for (const b of state?.bookmarks ?? []) {
     const f = b.place?.fraction ?? b.anchor?.fraction;
-    if (typeof f === "number" && f >= 0 && f <= 1) out.push({ id: b.id, fraction: f });
+    if (typeof f === "number" && f >= 0 && f <= 1)
+      out.push({ id: b.id, fraction: f });
+  }
+  return out;
+}
+
+/**
+ * P63-fk.S13 — a loose html document's bookmarks for its Notes sheet: `legacyBookmarks`' rule (a fraction
+ * from the server's place, else the one it was saved with; nothing outside 0..1), plus what a row shows.
+ */
+export function legacyMarks(state: KbVariantState | null): LegacyMark[] {
+  const out: LegacyMark[] = [];
+  for (const b of state?.bookmarks ?? []) {
+    const f = b.place?.fraction ?? b.anchor?.fraction;
+    if (typeof f !== "number" || f < 0 || f > 1) continue;
+    const anchor = b.anchor?.anchor;
+    out.push({
+      id: b.id,
+      fraction: f,
+      anchor: typeof anchor === "string" && anchor !== "" ? anchor : null,
+      label: b.label ?? "",
+      lang: b.lang,
+      version: b.version,
+    });
   }
   return out;
 }
@@ -801,7 +843,8 @@ export async function loadChapterReader(args: {
 /**
  * A loose document that the page has already read (by id or by its pretty URL): native
  * and md in the reader with no book navigation, html (or an html version) in the legacy
- * reader (P30.S25), noun "document", back to the library.
+ * reader (P30.S25), noun "document", back to the library. P63-fk.S13: the html one now opens in its
+ * Original layout on the Library's frame (`kind: "legacy"` still names it), with its bookmarks' rows.
  */
 export async function loadLooseReader(args: {
   token: string | undefined;
@@ -878,6 +921,7 @@ export async function loadLooseReader(args: {
           missing: raw.missing,
           bookmarks: token && org ? legacyBookmarks(variantState) : [],
         },
+        marks: token && org ? legacyMarks(variantState) : [],
       },
     };
   }

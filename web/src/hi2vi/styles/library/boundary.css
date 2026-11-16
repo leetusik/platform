@@ -30,6 +30,7 @@
   --hi2vi-legacy-blocks-win: var(--blocks-win);
   --hi2vi-legacy-blocks-cap: var(--blocks-cap);
   --hi2vi-legacy-lx-line: var(--lx-line);
+  --hi2vi-legacy-original-bar: var(--original-bar);
 }
 
 .ui [data-ui-legacy] {
@@ -49,4 +50,5 @@
   --blocks-win: var(--hi2vi-legacy-blocks-win);
   --blocks-cap: var(--hi2vi-legacy-blocks-cap);
   --lx-line: var(--hi2vi-legacy-lx-line);
+  --original-bar: var(--hi2vi-legacy-original-bar);
 }
