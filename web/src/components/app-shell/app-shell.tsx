@@ -26,7 +26,7 @@ import "@/hi2vi/shell/shell.css";
  * current project follow the path in the client, so the frame persists across client navigation.
  *
  * `legacy` (default on) puts the page inside `LegacyPage`, the old-page boundary: the `(public)` shells,
- * the versions page, `/review` and the not-founds get it this way. The `(app)` layout passes
+ * the versions page and the not-founds get it this way. The `(app)` layout passes
  * `legacy={false}` and lets each old route folder's own `layout.tsx` wrap its pages, so a route turns
  * into a system page by deleting that one file (org home S7, project home S8).
  *
@@ -42,8 +42,7 @@ export async function AppShell({
   /**
    * Round 06 §4.4 — the chrome-less document view (`?view=full`): the bar and the rail are hidden by
    * CSS (`shell.css`), the old page carries `data-kb-view="full"` for `kb-docview.css`, and the exit
-   * pill is mounted outside the old page, whose box contains its `position: fixed` parts (`shell.css`),
-   * so the pill pins to the screen. Nothing unmounts.
+   * pill (`position: fixed`) is mounted outside the old page and pins to the screen. Nothing unmounts.
    */
   fullWidth?: boolean;
   /** Wrap the page in the old-page boundary (default). `false`: the route decides, per folder. */
