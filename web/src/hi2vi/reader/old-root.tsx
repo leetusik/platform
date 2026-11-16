@@ -25,8 +25,8 @@ import "@/app/reader.css";
  *
  *   Legacy ([data-ui-legacy]: no rule of the system reaches in)
  *     > div.rd-root.rd-size-N[data-md-color-scheme] (the old tokens, the text sizes and the schemes
- *       of `app/reader.css`, from the same `kb_reader` settings as the frame; the annotation layer
- *       portals its bottom slot here, `math-layer` and `scroll-box` watch its class)
+ *       of `app/reader.css`, from the same `kb_reader` settings as the frame; `math-layer` and
+ *       `scroll-box` watch its class; the annotation layer left it in P63-fk.S11)
  *       > the old body, then `after` (the Listen slot and the player: `position: fixed`, placed against
  *         the window, since no ancestor of this root has a transform or layout containment).
  *

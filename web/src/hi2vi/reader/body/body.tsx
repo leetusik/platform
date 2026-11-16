@@ -22,14 +22,14 @@ import { PaperLight } from "./paper";
  *       ChapterView look="library"                div.read[data-reader-body]: the text, its blocks, its islands
  *     OldRoot (still) > PrintColophon             paper's colophon, as today (print only)
  *     MathLayer                                   the math's measures (renders nothing)
- *     OldRoot (still, with the Listen slot and the player)
- *       AnnotationLayer                           highlights, notes and bookmarks (S11): old look
+ *     AnnotationLayer look="library"              highlights, notes and bookmarks (P63-fk.S11), out of the old root
+ *     OldRoot (still) > Listen's slot and player  their old look (decision 3)
  *     LibraryTermLayer                            the terms' windows and the glossary's way back (S10)
  *     PaperLight                                  the light scheme for a print
  *
- * The annotation layer keeps its old look until its slice (S11); the layers find the body by its hooks (`HOOK`). Its
- * elements sit in the old root, which adds no box (`still`), so they place their windows and bars against this
- * article, as they did against the old one. The text itself is the Library's look only: no class the old sheets
+ * The layers find the body by its hooks (`HOOK`) and place their floating parts against this article (`.blocks-host`),
+ * as the old ones did against the old article; the marks' bottom slot and the Notes sheet's body are the frame's
+ * (`ChapterReader`, through the notes bridge). The text itself is the Library's look only: no class the old sheets
  * style (`tests/reader-body.test.ts`), but inside its islands.
  */
 export function ChapterBody({ reader }: { reader: LoadedReader }) {
@@ -76,19 +76,20 @@ export function ChapterBody({ reader }: { reader: LoadedReader }) {
         <PrintColophon view={view} />
       </OldRoot>
       <MathLayer chapter={chapter} />
-      <OldRoot still>
-        {reader.notes && layerOn(reader) ? (
-          <AnnotationLayer
-            notes={reader.notes}
-            write={view.write}
-            version={view.version}
-            lang={view.lang}
-            chapterTitle={view.title}
-            place={loose ? "document" : "chapter"}
-            target={view.target}
-          />
-        ) : null}
-      </OldRoot>
+      {reader.notes && layerOn(reader) ? (
+        <AnnotationLayer
+          notes={reader.notes}
+          write={view.write}
+          version={view.version}
+          lang={view.lang}
+          chapterTitle={view.title}
+          place={loose ? "document" : "chapter"}
+          target={view.target}
+          look="library"
+        />
+      ) : null}
+      {/* Listen's slot and player keep their old look (decision 3), in the old root that adds no box. */}
+      <OldRoot still>{null}</OldRoot>
       <LibraryTermLayer chapter={chapter} />
       <PaperLight />
     </div>

@@ -16,6 +16,9 @@
  * they were (the chapter is static markup; the paint is redone from scratch each time).
  * The CSS Custom Highlight API cannot take a tab stop or a click, so the signed markup is
  * built as drawn (P30.S20, decided).
+ *
+ * P63-fk.S11: the classes are the look's (`classes`; the old look's by default, byte for byte as before); where a
+ * run is cut, which piece is a stop and every attribute are the same in both looks.
  */
 import { segments, units, verified, type ANode } from "./anchor";
 
@@ -33,7 +36,30 @@ export interface PaintInput {
   active: string | null;
   /** The ids of the three hidden descriptions (round 02). */
   desc: { one: string; note: string; many: string };
+  /**
+   * P63-fk.S11: the classes a run is drawn with. The old look's by default (`OLD_PAINT`); the Library's reader
+   * passes the signed ones (`AnnotationsPaint`: `an-m`, `is-2`, `has-note`, `is-open`, `an-pending`). The marks'
+   * hooks do not change with the look: `data-an`, `data-an-key` and the stop's attributes.
+   */
+  classes?: PaintClasses;
 }
+
+export interface PaintClasses {
+  mark: string;
+  two: string;
+  note: string;
+  open: string;
+  pending: string;
+}
+
+/** The old look's paint (P30.S20): `an-m`, `an-m--2`, `an-m--note`, `is-active`, `an-pending`. */
+export const OLD_PAINT: PaintClasses = {
+  mark: "an-m",
+  two: "an-m--2",
+  note: "an-m--note",
+  open: "is-active",
+  pending: "an-pending",
+};
 
 /** What a paint did, so `unpaint` can put the text back exactly. */
 export interface Painted {
@@ -134,6 +160,7 @@ export function paint(
   }
 
   const noted = new Set(ranges.filter((r) => r.note).map((r) => r.id));
+  const look = input.classes ?? OLD_PAINT;
   // Wrap, one text node at a time (its pieces are in order; split it once at every edge).
   const byNode = new Map<Text, Piece[]>();
   for (const p of pieces)
@@ -168,13 +195,13 @@ export function paint(
       if (!part) continue;
       const mark = document.createElement("mark");
       if (p.pending) {
-        mark.className = "an-pending";
+        mark.className = look.pending;
         mark.setAttribute("data-an", "pending");
       } else {
-        const cls = ["an-m"];
-        if (p.ids.length > 1) cls.push("an-m--2");
-        if (p.ids.some((id) => noted.has(id))) cls.push("an-m--note");
-        if (input.active && p.ids.includes(input.active)) cls.push("is-active");
+        const cls = [look.mark];
+        if (p.ids.length > 1) cls.push(look.two);
+        if (p.ids.some((id) => noted.has(id))) cls.push(look.note);
+        if (input.active && p.ids.includes(input.active)) cls.push(look.open);
         mark.className = cls.join(" ");
         mark.setAttribute("data-an", p.ids.join(" "));
         const stop = stopIds.get(p);

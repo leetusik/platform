@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { READER_BLOCKS } from "@/content/reader-blocks";
 import { MissingMedia } from "@/hi2vi/reader/body";
+import { LIBRARY_PAINT } from "@/hi2vi/reader/marks/model";
 import { NativeChapter, type NativeChapterProps } from "@/lib/native";
 import {
   BODY_HOOKS,
@@ -446,6 +447,30 @@ describe("the Library's body is out of the old sheets' reach", () => {
     expect(carried.has("read")).toBe(true);
     const styled = [...carried].filter((c) => old.has(c) && !SHARED.has(c));
     expect(styled).toEqual([]);
+    const reaching = oldSelectors.filter((s) => {
+      const names = classNames(s);
+      return names.length > 0 && names.every((c) => carried.has(c));
+    });
+    expect(reaching).toEqual([]);
+  });
+
+  it("the marks painted into it are out of reach too (P63-fk.S11): the paint's classes, with the body's", () => {
+    // `an-m` and `an-pending` are the signed paint's names, shared with the old sheets: every old rule naming one
+    // also names the old root (`rd-root`, `kb-ch`, …), which the body never carries. The parts drawn beside the
+    // text (`marks-*`) are held out of every old sheet in ./reader-marks.test.ts.
+    const paintShared = new Set(["an-m", "an-pending"]);
+    const carried = new Set<string>(Object.values(LIBRARY_PAINT));
+    for (const [, source] of FIXTURES) {
+      const root = parse(html({ source, look: "library", hooks: true }));
+      for (const e of elements(root, inIsland))
+        classes(e).forEach((c) => carried.add(c));
+    }
+    const old = new Set(oldSelectors.flatMap(classNames));
+    expect(
+      Object.values(LIBRARY_PAINT).filter(
+        (c) => old.has(c) && !paintShared.has(c),
+      ),
+    ).toEqual([]);
     const reaching = oldSelectors.filter((s) => {
       const names = classNames(s);
       return names.length > 0 && names.every((c) => carried.has(c));

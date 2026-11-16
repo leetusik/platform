@@ -136,6 +136,8 @@ export function ChapterReader({
   const [os, setOs] = useState<"light" | "dark">("light");
   const [asking, setAsking] = useState(false);
   const [notesHost, setNotesHost] = useState<HTMLElement | null>(null);
+  // The marks' bottom slot (P63-fk.S11): the undo line, Sign in to save and the place bar, above the foot bar.
+  const [slotHost, setSlotHost] = useState<HTMLElement | null>(null);
   const [past, setPast] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -406,8 +408,10 @@ export function ChapterReader({
       sheetOpen: sheet !== null,
       pillUp: pill,
       bookHref: notesBookHref,
+      slot: slotHost,
+      barsHidden: hidden,
     }),
-    [sheet, notesHost, closeSheet, pill, notesBookHref],
+    [sheet, notesHost, closeSheet, pill, notesBookHref, slotHost, hidden],
   );
   const docked = useListen() !== null;
   const listenUnit = listen ? unitOfSeed(listen) : null;
@@ -590,6 +594,13 @@ export function ChapterReader({
                       </article>
                     </main>
                   </div>
+                  {notes ? (
+                    <div
+                      className="marks-slot"
+                      data-an-ui=""
+                      ref={setSlotHost}
+                    />
+                  ) : null}
                 </OldBodyContext.Provider>
               </ListenPageContext.Provider>
             </NotesBridgeContext.Provider>
@@ -643,13 +654,9 @@ export function ChapterReader({
             title={READER_FRAME.sheets.notes}
             onClose={() => closeSheet("notes")}
           >
-            {/* The Notes sheet's body is the annotation layer's (S11 rebuilds it): it mounts its old list
-                here, in the old root's tokens (the bridge, `./old-root`). */}
-            {notes ? (
-              <OldRoot slot={false}>
-                <div ref={setNotesHost} />
-              </OldRoot>
-            ) : null}
+            {/* The Notes sheet's body is the annotation layer's (P63-fk.S11, `@/hi2vi/reader/marks`): the marks
+                live there, so it mounts the sheet's body, and its count beside the title, here. */}
+            {notes ? <div ref={setNotesHost} /> : null}
           </Sheet>
           <Sheet
             open={sheet === "versions"}

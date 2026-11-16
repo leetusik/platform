@@ -16,8 +16,9 @@
    - section 8: a gap with the characters that touch its end (a comma, a Korean particle) sits in `.blocks-gap-w`,
      which takes the field's rules as `.blocks-gap > .input` does.
    Section B is the build's own: what the boards leave to the build (the article, a box's sentence beside it, a
-   kept run, a formula's aligned steps), and the bridges that keep the old layers visible on the new text until their slices
-   (a highlight's paint and Listen's line: S11 and the Listen phase remove them), and paper. */
+   kept run, a formula's aligned steps), the bridge that keeps an old layer visible on the new text until its slice
+   (Listen's line: the Listen phase removes it), and paper. The highlight's paint bridge left with P63-fk.S11: the
+   signed paint is ./annotations.css's. */
 @scope (.ui) to ([data-ui-legacy]) {
   /* 1 ── tokens and the math face ── */
   :scope {
@@ -661,32 +662,11 @@
   .blocks-fm .tml-left {
     text-align: left;
   }
-  /* bridge until S11: a highlight painted into the text, in the system's roles */
-  .blocks-host mark.an-m {
-    padding: 0;
-    border-radius: 0;
-    background: var(--accent-tint);
-    color: inherit;
-    box-shadow: inset 0 -1px 0 var(--edge);
-    -webkit-box-decoration-break: clone;
-    box-decoration-break: clone;
-  }
-  .blocks-host mark.an-m--note,
-  .blocks-host mark.an-m:hover {
-    box-shadow: inset 0 -2px 0 var(--edge);
-  }
-  .blocks-host mark.an-m.is-active {
-    box-shadow: inset 0 -2px 0 var(--accent);
-  }
-  .blocks-host mark.an-pending {
-    padding: 0;
-    background: var(--hover);
-    color: inherit;
-  }
 
   /* paper: the old print sheet's rules reach the masthead, the colophon and the islands (they sit in the old root);
      for the text, nothing of the screen's boxes: no box scrolls or clips, no sentence about scrolling, a link's
-     address in full (the renderer's `pp-href`), the highlights unpainted, the light scheme (`PaperLight`) */
+     address in full (the renderer's `pp-href`), the light scheme (`PaperLight`); the highlights print unpainted
+     (./annotations.css) */
   @media print {
     .blocks-host .scroll-box {
       overflow: visible;
@@ -707,11 +687,6 @@
     }
     .blocks-host .blocks-fig.is-wide .blocks-fig-media {
       width: 100%;
-    }
-    .blocks-host mark.an-m,
-    .blocks-host mark.an-pending {
-      background: none;
-      box-shadow: none;
     }
     /* the quiz prints as today (its old-look copy, print only, beside it); a term's window and the glossary's way
        back never print */
