@@ -16,10 +16,12 @@ unknown email, a stored email that is not one plain address, or a missing
 stays; tell the person yourself).
 
 A mail goes only to a stored email that is exactly one plain address
-(``server.email_address``) and that the rendered ``To:`` reads back as that one
-recipient. Sign-up refuses anything else, so only a row stored before that rule
-can fail it: ``list`` shows such a row quoted and marked, ``approve`` refuses it
-and the waitlist mail skips it, each without sending anything.
+(``server.email_address``), and only once the built mail's rendered recipients read
+back as that one address (``mails_exactly``, the rule's own last step, checked
+again on the real mail). Sign-up refuses anything else with the same rule, so only
+a row stored before that rule, or by hand, can fail it: ``list`` shows such a row
+quoted and marked, ``approve`` refuses it (it builds the approval mail before it
+changes anything) and the waitlist mail skips it, each without sending anything.
 
 Both mails go from ``KB_SMTP_FROM`` over ``server.feedback.notify.send_message``,
 plain text. The waitlist mail is sent by sign-up after its response, best-effort
@@ -34,10 +36,9 @@ import asyncio
 import logging
 import sys
 from email.message import EmailMessage
-from email.utils import getaddresses
 
 from server import config
-from server.email_address import is_plain_address
+from server.email_address import is_plain_address, mails_exactly
 from server.feedback import notify
 
 logger = logging.getLogger(__name__)
@@ -83,8 +84,10 @@ def _message(subject: str, body: str, to_email: str) -> EmailMessage:
     """One plain-text mail to ``to_email`` alone, or ``NotOneAddressError``.
 
     The second guard behind sign-up's rule: the recipient must be one plain
-    address, and the rendered message's ``To``/``Cc``/``Bcc`` must read back, the
-    way ``smtplib.SMTP.send_message`` reads its recipients, as exactly that one.
+    address, and this very message's rendered recipients must read back, the way
+    ``smtplib.SMTP.send_message`` reads them, as exactly that one
+    (``mails_exactly``). The last check stands on its own, for a row the rule
+    never saw.
     """
 
     if not is_plain_address(to_email):
@@ -92,10 +95,12 @@ def _message(subject: str, body: str, to_email: str) -> EmailMessage:
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = config.smtp_from() or ""
-    message["To"] = to_email
+    try:
+        message["To"] = to_email
+    except ValueError as exc:  # a decoded CR/LF: the header cannot even be built
+        raise NotOneAddressError(f"{_shown(to_email)} does not render as one recipient") from exc
     message.set_content(body)
-    fields = [str(v) for name in ("To", "Cc", "Bcc") for v in message.get_all(name, [])]
-    if getaddresses(fields) != [("", to_email)]:
+    if not mails_exactly(message, to_email):
         raise NotOneAddressError(f"{_shown(to_email)} does not render as one recipient")
     return message
 
@@ -152,7 +157,10 @@ async def approve(email: str) -> int:
     if user is None:
         print(f"no account for {_shown(email)}: nothing changed, no mail sent", file=sys.stderr)
         return 1
-    if not is_plain_address(user.email):
+    # Built before anything changes: a row the mail cannot go to stays waitlisted.
+    try:
+        message = render_approval_message(user.email)
+    except NotOneAddressError:
         print(
             f"{_shown(user.email)} is not one plain address: nothing changed, no mail sent",
             file=sys.stderr,
@@ -170,7 +178,7 @@ async def approve(email: str) -> int:
         print("no approval mail sent: SMTP is not configured (KB_SMTP_HOST, KB_SMTP_FROM)")
         return 0
     try:
-        await asyncio.to_thread(notify.send_message, render_approval_message(email))
+        await asyncio.to_thread(notify.send_message, message)
     except Exception as exc:
         print(
             f"the approval stands, but the approval mail to {email} failed: {exc!r}",
