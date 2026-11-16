@@ -11,8 +11,15 @@ operator approves it here. Run on the box as::
 ``approve`` flips one ``waitlisted`` account to ``approved`` and then sends it one
 approval mail. Approving an approved or unknown email changes nothing and sends
 nothing. Exit codes: 0 when the account is approved (now or already), 1 for an
-unknown email or a missing ``DATABASE_URL``, 2 when the approval landed but its mail
-failed (the approval stays; tell the person yourself).
+unknown email, a stored email that is not one plain address, or a missing
+``DATABASE_URL``, 2 when the approval landed but its mail failed (the approval
+stays; tell the person yourself).
+
+A mail goes only to a stored email that is exactly one plain address
+(``server.email_address``) and that the rendered ``To:`` reads back as that one
+recipient. Sign-up refuses anything else, so only a row stored before that rule
+can fail it: ``list`` shows such a row quoted and marked, ``approve`` refuses it
+and the waitlist mail skips it, each without sending anything.
 
 Both mails go from ``KB_SMTP_FROM`` over ``server.feedback.notify.send_message``,
 plain text. The waitlist mail is sent by sign-up after its response, best-effort
@@ -27,8 +34,10 @@ import asyncio
 import logging
 import sys
 from email.message import EmailMessage
+from email.utils import getaddresses
 
 from server import config
+from server.email_address import is_plain_address
 from server.feedback import notify
 
 logger = logging.getLogger(__name__)
@@ -60,12 +69,34 @@ def login_url() -> str:
     return f"{config.public_base_url()}/login"
 
 
+class NotOneAddressError(ValueError):
+    """The recipient is not exactly one plain address: no mail is built."""
+
+
+def _shown(email: str) -> str:
+    """The email as a one-line, printable string (quoted when it is not plain)."""
+
+    return email if is_plain_address(email) else repr(email)
+
+
 def _message(subject: str, body: str, to_email: str) -> EmailMessage:
+    """One plain-text mail to ``to_email`` alone, or ``NotOneAddressError``.
+
+    The second guard behind sign-up's rule: the recipient must be one plain
+    address, and the rendered message's ``To``/``Cc``/``Bcc`` must read back, the
+    way ``smtplib.SMTP.send_message`` reads its recipients, as exactly that one.
+    """
+
+    if not is_plain_address(to_email):
+        raise NotOneAddressError(f"{_shown(to_email)} is not one plain address")
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = config.smtp_from() or ""
     message["To"] = to_email
     message.set_content(body)
+    fields = [str(v) for name in ("To", "Cc", "Bcc") for v in message.get_all(name, [])]
+    if getaddresses(fields) != [("", to_email)]:
+        raise NotOneAddressError(f"{_shown(to_email)} does not render as one recipient")
     return message
 
 
@@ -85,6 +116,9 @@ def render_approval_message(to_email: str) -> EmailMessage:
 async def notify_waitlisted(email: str) -> None:
     """Send the waitlist mail; never raises (scheduled after sign-up's response)."""
 
+    if not is_plain_address(email):
+        logger.warning("%s is not one plain address; no waitlist mail sent", _shown(email))
+        return
     if not config.smtp_configured():
         logger.info("SMTP is not configured; no waitlist mail for %s", email)
         return
@@ -116,7 +150,13 @@ async def approve(email: str) -> int:
     service = get_accounts_service()
     user = await service.get_user_by_email(email)
     if user is None:
-        print(f"no account for {email}: nothing changed, no mail sent", file=sys.stderr)
+        print(f"no account for {_shown(email)}: nothing changed, no mail sent", file=sys.stderr)
+        return 1
+    if not is_plain_address(user.email):
+        print(
+            f"{_shown(user.email)} is not one plain address: nothing changed, no mail sent",
+            file=sys.stderr,
+        )
         return 1
     flipped = await service.update_user_status(
         email, from_status=USER_WAITLISTED, to_status=USER_APPROVED
@@ -141,6 +181,15 @@ async def approve(email: str) -> int:
     return 0
 
 
+def list_line(user) -> str:
+    """One ``list`` line: email and created time, a non-plain email quoted and marked."""
+
+    line = f"{_shown(user.email)}\t{user.created_at.isoformat()}"
+    if not is_plain_address(user.email):
+        line += "\tnot one plain address: approve refuses it, no mail"
+    return line
+
+
 async def _run(args: argparse.Namespace) -> int:
     from server.persistence.engine import dispose_engine
 
@@ -150,7 +199,7 @@ async def _run(args: argparse.Namespace) -> int:
             if not users:
                 print("no waitlisted accounts")
             for user in users:
-                print(f"{user.email}\t{user.created_at.isoformat()}")
+                print(list_line(user))
             return 0
         return await approve(args.email)
     finally:

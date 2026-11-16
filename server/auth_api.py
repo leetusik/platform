@@ -50,6 +50,7 @@ from server.accounts.types import (
     TenantRecord,
     UserRecord,
 )
+from server.email_address import is_plain_address
 from server.persistence.models import utc_now
 from server.waitlist import notify_waitlisted
 
@@ -194,11 +195,27 @@ class _EmailPasswordInput(BaseModel):
 
 
 class SignupIn(_EmailPasswordInput):
-    """Signup request body."""
+    """Signup request body: the email must be exactly one plain address.
+
+    Checked after the shared trim + lowercase, before any row exists or any mail
+    goes (``server.email_address``); anything else is the standard 422.
+    """
+
+    @field_validator("email")
+    @classmethod
+    def _one_plain_address(cls, value: str) -> str:
+        if not is_plain_address(value):
+            raise ValueError("must be one plain email address, like you@example.com")
+        return value
 
 
 class LoginIn(_EmailPasswordInput):
-    """Login request body."""
+    """Login request body.
+
+    Deliberately not narrowed to one plain address: an account stored before that
+    rule must still sign in, and a string that matches no account gets the same
+    generic 401 as any unknown email.
+    """
 
 
 def serialize_user(record: UserRecord) -> dict[str, object]:

@@ -11,6 +11,7 @@ accounts suites; ``smtplib`` is never reached (the send is monkeypatched).
 from __future__ import annotations
 
 import os
+import smtplib
 from datetime import timedelta
 from uuid import uuid4
 
@@ -19,9 +20,12 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, make_url, text
 
+from server.feedback.notify import send_message as _REAL_SEND_MESSAGE
+
 _RAW_DSN = os.environ.get("KB_TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 SMTP_ENV = ("KB_SMTP_HOST", "KB_SMTP_PORT", "KB_SMTP_USER", "KB_SMTP_PASSWORD", "KB_SMTP_FROM")
 PASSWORD = "hunter2pass"
+_REAL_SMTP_SEND_MESSAGE = smtplib.SMTP.send_message
 
 
 @pytest.fixture
@@ -288,3 +292,208 @@ def test_a_failed_waitlist_mail_never_fails_the_signup(wl, monkeypatch):
     assert res.json() == {"status": "waitlisted", "email": email.lower()}
     assert _status(wl, email) == "waitlisted"
     assert _token_count(wl, email) == 0
+
+
+# --- one plain address: the sign-up rule and the mailer's guard -------------------
+#
+# A sign-up email that names more than one address, or carries a display name, was
+# stored and then put in the waitlist mail's ``To:``, which ``smtplib`` mails to
+# every address it names. Sign-up now refuses it (422, no row, no mail), and the
+# mailer sends only to a stored email that is exactly one plain address. ``{u}``
+# keeps each run's rows apart on a reused test database.
+
+REFUSED_SIGNUPS = [
+    "one{u}@victim.invalid, two@victim.invalid, three@victim.invalid",
+    "one{u}@victim.invalid; two@victim.invalid",
+    '"Claim prize" <three{u}@victim.invalid>',
+    "Name <a{u}@b.invalid>",
+    "six{u}@victim.invalid\r\nBcc: seven@victim.invalid",
+    "six{u}@victim.invalid\nseven@victim.invalid",
+    "a {u}@victim.invalid",
+    "x{u}:a@b.invalid,c@d.invalid;",
+    "a{u}@b@victim.invalid",
+    "@victim{u}.invalid",
+    "a{u}@",
+    "a{u}@b..invalid",
+    "noor{u}@example",
+    "{u}" + "a" * (255 - 15 - 32) + "@victim.invalid",  # 255 characters
+]
+ACCEPTED_SIGNUPS = [
+    "five{u}@victim.invalid",
+    "Review-Wait{u}@p58.test",
+    "a+b{u}@c.invalid",
+    "a{u}@mail.sub.victim.invalid",
+    "a{u}@my-host.victim.invalid",
+    "{u}" + "a" * (254 - 15 - 32) + "@victim.invalid",  # 254 characters
+]
+
+
+def _fill(template: str) -> str:
+    return template.replace("{u}", uuid4().hex)
+
+
+@pytest.fixture
+def rcpt(wl, monkeypatch):
+    """A recording SMTP stand-in: the real ``send_message`` up to RCPT, nothing sent.
+
+    It keeps ``smtplib.SMTP.send_message``'s own recipient derivation (the
+    ``To``/``Cc``/``Bcc`` headers through ``email.utils.getaddresses``) and records
+    the recipient list that would reach ``RCPT TO``, one list per mail.
+    """
+
+    import server.feedback.notify as notify
+
+    recorded: list[list[str]] = []
+
+    class RecordingSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def starttls(self, **kwargs):
+            pass
+
+        def login(self, *args):
+            pass
+
+        def ehlo_or_helo_if_needed(self):
+            pass
+
+        def has_extn(self, name):
+            return False
+
+        send_message = _REAL_SMTP_SEND_MESSAGE
+
+        def sendmail(self, from_addr, to_addrs, msg, mail_options=(), rcpt_options=()):
+            recorded.append(list(to_addrs))
+            return {}
+
+    monkeypatch.setattr(notify, "send_message", _REAL_SEND_MESSAGE)
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSMTP)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", RecordingSMTP)
+    return recorded
+
+
+def _user_count(client, email: str | None = None) -> int:
+    with client.db.connect() as conn:
+        if email is None:
+            return conn.execute(text("SELECT count(*) FROM users")).scalar_one()
+        return conn.execute(
+            text("SELECT count(*) FROM users WHERE email = :e"), {"e": email}
+        ).scalar_one()
+
+
+@pytest.mark.parametrize("switch", ["on", None])
+@pytest.mark.parametrize("template", REFUSED_SIGNUPS)
+def test_signup_refuses_anything_but_one_plain_address(wl, rcpt, monkeypatch, template, switch):
+    if switch:
+        monkeypatch.setenv("KB_SIGNUP_WAITLIST", switch)
+    email = _fill(template)
+    stored = email.strip().lower()
+    users_before = _user_count(wl)
+
+    res = wl.post("/auth/signup", json={"email": email, "password": PASSWORD})
+
+    assert res.status_code == 422, res.text
+    assert res.json()["detail"][0]["loc"] == ["body", "email"]
+    assert _user_count(wl, stored) == 0
+    assert _user_count(wl) == users_before
+    assert rcpt == [] and wl.sent == []
+
+
+@pytest.mark.parametrize("switch", ["on", None])
+@pytest.mark.parametrize("template", ACCEPTED_SIGNUPS)
+def test_signup_accepts_one_plain_address_and_mails_only_it(
+    wl, rcpt, monkeypatch, template, switch
+):
+    if switch:
+        monkeypatch.setenv("KB_SIGNUP_WAITLIST", switch)
+    email = _fill(template)
+    stored = email.lower()
+
+    res = wl.post("/auth/signup", json={"email": email, "password": PASSWORD})
+
+    assert res.status_code == (202 if switch else 201), res.text
+    assert _user_count(wl, stored) == 1
+    assert rcpt == ([[stored]] if switch else [])
+
+
+LEGACY_ROWS = [
+    "one{u}@victim.invalid, two@victim.invalid, three@victim.invalid",
+    "one{u}@victim.invalid; two@victim.invalid",
+    '"claim prize" <three{u}@victim.invalid>',
+    "x{u}:a@b.invalid,c@d.invalid;",
+    "six{u}@victim.invalid\r\nbcc: seven@victim.invalid",
+    "a{u}@b@victim.invalid",
+]
+
+
+def _legacy_row(client, template: str, status: str = "waitlisted") -> str:
+    """A row as an earlier sign-up could store it: the service checks no address."""
+
+    from server.accounts.security import hash_password
+    from server.accounts.service import get_accounts_service
+    from server.accounts.types import CreateUser
+
+    email = _fill(template)
+    client.portal.call(
+        get_accounts_service().create_user,
+        CreateUser(email=email, password_hash=hash_password(PASSWORD), status=status),
+    )
+    return email
+
+
+@pytest.mark.parametrize("template", LEGACY_ROWS)
+def test_the_mailer_never_mails_a_stored_row_that_is_not_one_address(
+    wl, rcpt, monkeypatch, capsys, template
+):
+    from server import waitlist
+
+    email = _legacy_row(wl, template)
+
+    wl.portal.call(waitlist.notify_waitlisted, email)
+    assert rcpt == []
+
+    capsys.readouterr()
+    assert wl.portal.call(waitlist.approve, email) == 1
+    out = capsys.readouterr()
+    assert "not one plain address" in out.err and "no mail sent" in out.err
+    assert _status(wl, email) == "waitlisted"  # nothing changed
+    assert rcpt == []
+
+    # `list` still lists it, on one line, marked.
+    users = wl.portal.call(waitlist.list_waitlisted)
+    lines = [waitlist.list_line(u) for u in users if u.email == email]
+    assert len(lines) == 1
+    assert "\n" not in lines[0] and "\r" not in lines[0]
+    assert "not one plain address" in lines[0]
+
+
+def test_the_approval_mail_goes_to_exactly_the_account(wl, rcpt, monkeypatch):
+    from server import waitlist
+
+    email = _waitlisted(wl, monkeypatch)
+    users = wl.portal.call(waitlist.list_waitlisted)
+    (user,) = [u for u in users if u.email == email]
+    assert waitlist.list_line(user) == f"{email}\t{user.created_at.isoformat()}"  # as before
+
+    rcpt.clear()
+    assert wl.portal.call(waitlist.approve, email) == 0
+    assert rcpt == [[email]]
+
+
+@pytest.mark.parametrize("template", LEGACY_ROWS)
+def test_signin_keeps_reading_an_odd_stored_email(wl, template):
+    """Sign-in is not narrowed: an existing odd row still signs in; no match is the 401."""
+
+    email = _legacy_row(wl, template, status="approved")
+    ok = wl.post("/auth/login", json={"email": email, "password": PASSWORD})
+    assert ok.status_code == 200 and ok.json()["token"]
+    nobody = wl.post("/auth/login", json={"email": _fill(template), "password": PASSWORD})
+    assert nobody.status_code == 401
+    assert nobody.json() == {"detail": "invalid email or password"}
