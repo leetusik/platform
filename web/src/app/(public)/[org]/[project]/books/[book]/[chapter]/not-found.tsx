@@ -1,19 +1,7 @@
-import { cookies } from "next/headers";
+import { ReaderMissing } from "@/hi2vi/reader";
 
-import { ReaderFrame } from "@/components/reader/reader-frame";
-import { ReaderStateBlock } from "@/components/reader/reader-state";
-import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
-import { stateView } from "@/lib/reader/state-view";
-
-// P30.S13 (`01-reader` §16) — a missing chapter and one private to this reader are the
-// same state: the constant not-found, in the reader's own frame.
-export default async function ChapterNotFound() {
-  const settings = parseReaderCookie(
-    (await cookies()).get(READER_COOKIE)?.value,
-  );
-  return (
-    <ReaderFrame view={stateView(settings)} state="notfound">
-      <ReaderStateBlock kind="notfound" noun="chapter" />
-    </ReaderFrame>
-  );
+// P63-fk.S8 — Chapter not found, in the bar's frame (`Chapter.dc.html`): a missing chapter and one
+// private to this reader are the same screen, with a member's and a visitor's words.
+export default function ChapterNotFound() {
+  return <ReaderMissing />;
 }

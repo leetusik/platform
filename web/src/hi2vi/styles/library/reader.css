@@ -1,6 +1,34 @@
 /* hi2vi — the Library: the reader's frame (ReaderHead, ReaderEnd, ReaderFoot, its sheets). Owner: P63-fk.S8; no other slice edits this file.
    Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
    Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
-   tokens' roles; the frame's classes are ./frame.css's, never redefined here. */
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+
+   What the reader adds to frame.css, and nothing else:
+   - the place of Listen: the existing control, mounted in its old look (operator decision 3 of P63-fk), sits at
+     the end of the head's facts row, where the board's stand-in sat (frame.css leaves out the canvas's
+     `.read-facts > [data-proto="standin"] { margin-left: auto }`);
+   - print: ⌘P of a chapter keeps printing as today (the old body's own print rules in app/kb-print.css, its
+     masthead and colophon), so the new frame's chrome (the bar, the head, the end, the foot) prints nothing and
+     the column gives the page its whole width, as the old reader's page did. */
 @scope (.ui) to ([data-ui-legacy]) {
+  /* the place of Listen: at the end of the facts row */
+  .read-listen {
+    margin-left: auto;
+  }
+
+  @media print {
+    .reader .bar-wrap,
+    .reader .read-head,
+    .reader .read-end,
+    .reader .reader-foot {
+      display: none;
+    }
+    .reader .reader-main {
+      padding: 0;
+    }
+    .reader .reader-col {
+      max-width: none;
+      gap: 0;
+    }
+  }
 }

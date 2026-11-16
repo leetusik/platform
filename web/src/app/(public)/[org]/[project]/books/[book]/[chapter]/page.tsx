@@ -3,13 +3,19 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
-import { ReaderPage } from "@/components/reader/reader-page";
-import { DOCUMENTS } from "@/content";
+import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { READER_FRAME } from "@/content/reader-frame";
+import { ChapterReader } from "@/hi2vi/reader";
+import { OldChapterBody } from "@/hi2vi/reader/old-body";
+import { requestNonce } from "@/hi2vi/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
+import { decodeFrom, FROM_PARAM } from "@/lib/library/from";
 import { chapterSeed, readListenState } from "@/lib/listen/seed";
 import type { ListenBookKey } from "@/lib/listen/types";
 import { READER_COOKIE } from "@/lib/reader-cookie";
+import { layerOn } from "@/lib/reader/layer";
 import { loadChapterReaderOnce } from "@/lib/reader/load";
+import { viewerTimeZone } from "@/lib/time-zone";
 
 // P30.S13 — a chapter of a book in the reader (`01-reader`): the URL is
 // `/@{org}/{project}/books/{book}/{key}[?lang=&v=]`, with `{org}` the org slug or the
@@ -22,6 +28,12 @@ import { loadChapterReaderOnce } from "@/lib/reader/load";
 // in the legacy reader here (P30.S25, `09-legacy-and-print`; it used to redirect to its
 // document page). Settings come from the `kb_reader` cookie on the server render, so the
 // first paint already has the reader's text size and theme.
+//
+// P63-fk.S8 — a native or Markdown chapter reads in the hi2vi reader's frame (`@/hi2vi/reader`,
+// job 03 Library round 02): the Bar, the head, the end, the foot and the sheets are new; the
+// text itself is still the old body (`OldChapterBody`) until S9 to S11 rebuild it. `?from=` is
+// the list the reader came through (F328), carried to the book and the next chapter. The
+// loading, not found and error screens are the frame's, fed by this folder's layout.
 //
 // The <title> is the chapter's title (P30.S15), through `generateMetadata`. The
 // knowledge client is `cache: "no-store"`, so the page and the metadata share ONE load
@@ -93,10 +105,18 @@ export async function generateMetadata({
         ? loaded.reader.view.title
         : loaded.legacy.view.title;
     if (title) return { title };
-  } catch {
-    // the page renders the miss or the failure itself
+  } catch (error) {
+    // the page renders the miss or the failure itself; the tab names it the same way
+    if (isNotFound(error)) return { title: READER_FRAME.notFound.title };
+    return { title: HI2VI_STATES.error.title };
   }
-  return { title: DOCUMENTS.title };
+  return { title: READER_FRAME.notFound.title };
+}
+
+/** `notFound()`'s throw (Next marks it with this digest). */
+function isNotFound(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && digest.endsWith(";404");
 }
 
 export async function generateViewport({
@@ -140,17 +160,30 @@ export default async function ChapterPage({
   const query = await searchParams;
   const ctx = await optionalIdentity();
   const key = listenKey(p, query);
-  const [loaded, listenState] = await Promise.all([
+  const [loaded, listenState, nonce, jar] = await Promise.all([
     loadOnce(p, query),
     ctx?.token && key ? readListenState(ctx.token, key) : Promise.resolve(null),
+    requestNonce(),
+    cookies(),
   ]);
   if (loaded.kind === "legacy") {
     return <LegacyReaderPage legacy={loaded.legacy} />;
   }
+  const reader = loaded.reader;
+  const rawFrom = first(query[FROM_PARAM]);
+  // Keyed by what is on screen (the variant and its version), so another chapter, language or
+  // version starts the frame fresh: the hold, the pill and the place end with the view.
   return (
-    <ReaderPage
-      reader={loaded.reader}
-      listen={key ? chapterSeed(loaded.reader.view, listenState, key) : null}
-    />
+    <ChapterReader
+      key={`${reader.docId}:${reader.view.version}`}
+      view={reader.view}
+      notes={layerOn(reader)}
+      listen={key ? chapterSeed(reader.view, listenState, key) : null}
+      from={rawFrom === null ? null : decodeFrom(rawFrom)}
+      nonce={nonce}
+      timeZone={viewerTimeZone(jar)}
+    >
+      <OldChapterBody reader={reader} />
+    </ChapterReader>
   );
 }
