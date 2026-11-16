@@ -60,4 +60,5 @@ the dialog's custom properties from Chrome 122, Safari 17.4 and Firefox 120.
   overscroll past the page) keeps the app's own ground. `.page` paints the system's.
 - Tailwind's preflight sits under the system: where the system sets nothing, an element inside `.ui` takes
   preflight's reset rather than the browser default the canvas had (an `h4` inherits its size and weight;
-  `code` takes the old mono stack).
+  `code` takes the old mono stack). One such reset is undone: preflight's `margin: 0` would pin a modal
+  `.dlg` to the top-left corner, so `bundle.css` gives `.dlg:modal` the browser's `margin: auto` back.

@@ -1,5 +1,6 @@
 import { Keys, Trend, Usage } from "@/hi2vi/frame";
 import { Grid, Stack } from "@/hi2vi/ui";
+import { ORG_HOME } from "@/content/dashboard";
 import { requireIdentity } from "@/lib/auth-guards";
 
 import { mintOrgKey, revokeOrgKey } from "./actions";
@@ -38,7 +39,7 @@ export default async function DashboardLoading() {
           </div>
         </div>
       </header>
-      <Usage loading />
+      <Usage loading busyLabel={ORG_HOME.loading} />
       <ProjectsLoading />
       <Grid className="orghome-pair">
         <Stack gap={5}>

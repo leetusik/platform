@@ -9,6 +9,8 @@
    - section 7 (canvas-only: `.spec*`, the `[data-proto]` stand-ins, the `#dc-root` rules) and `.app-frame > .sc-host`
      are never built; `.spec` leaves the background rule's selector list;
    - `@keyframes skel` sits after the scope block: a keyframes rule matches no element.
+   - `.dlg:modal { margin: auto }` is added: the app's preflight zeroes every margin, which pins a modal dialog to the
+     viewport's top-left corner; the canvas had the browser's own `margin: auto`, which centres it.
    The signed file's own header follows. */
 /* hi2vi — the system's stylesheet: the frame of the signed Instrument round, whole.
    Load it after tokens.css. The first rule names the one variable tokens.css spells differently;
@@ -291,6 +293,7 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
 .dlg { width: min(34em, calc(100vw - 2 * var(--space-4))); max-height: calc(100vh - 2 * var(--space-4)); padding: 0; overflow: auto; border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .dlg::backdrop { background: var(--scrim); }
 .dlg:not(:modal) { position: relative; width: auto; max-width: 34em; margin: var(--space-4); }
+.dlg:modal { margin: auto; }
 .dlg-body { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); }
 .dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
 

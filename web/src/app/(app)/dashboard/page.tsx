@@ -13,6 +13,7 @@ import {
 } from "@/lib/knowledge/app";
 
 import { ActivityPanel } from "./activity-panel";
+import { HashLanding } from "./hash-landing";
 import {
   createOrgProject,
   mintOrgKey,
@@ -146,6 +147,7 @@ export default async function DashboardPage() {
         format={format}
         headId={ORG_KEYS_HEAD_ID}
       />
+      <HashLanding id={ORG_KEYS_HEAD_ID} />
     </div>
   );
 }
