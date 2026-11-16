@@ -5,13 +5,10 @@
    1. An old page (`LegacyPage`, `[data-ui-legacy].kb-legacy-page`) fills the main column edge to edge
       with its own `.kb-app-main` padding, as it did in the old frame, and drops `.kb-app`'s 100dvh height
       (the Shell's bar is above it). These rules sit outside @scope: the old page is the scope's limit.
-      On screen the old page is also layout-contained, so it is the containing block of its own
-      `position: fixed` parts (the review's reader bar, its sheets, scrim and toast): they are placed
-      against the main column and can never cover the Shell's bar or rail. `container-type` does not do
-      this (it applies size and style containment only; checked in Chrome 157), and `contain: layout`
-      changes nothing else a flex box looks like: `.kb-app` is already a flex container, and the
-      stacking context it adds keeps the old page's z-indices under the Shell's menus. Print keeps the
-      old flow, untouched.
+      The box does not contain `position: fixed` parts: they are placed against the window, over the
+      Shell's bar and rail (`container-type` applies size and style containment only, which make no
+      containing block for them; checked in Chrome 157). So an old page with screen-fixed parts stays
+      out of the Shell until its own phase rebuilds it, as `/review` does (`app/review/layout.tsx`).
    2. The chrome-less document view (`?view=full`, round 06 §4.4): the bar and the rail are hidden and the
       main column takes the whole width; nothing unmounts.
    3. Print drops the chrome, as kb-print.css does for the old frame.
@@ -22,11 +19,6 @@
 .kb-app.kb-legacy-page {
   min-height: 0;
   flex: 1 0 auto;
-}
-@media screen {
-  .kb-app.kb-legacy-page {
-    contain: layout;
-  }
 }
 .ui .app-main:has(> .kb-legacy-page) {
   padding: 0;

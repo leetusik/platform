@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { Legacy } from "@/hi2vi/ui/boundary";
 
 /**
- * An old page inside the new Shell (decided as drawn: Library, Feedback, Documents, Review and the
- * reader keep their old content styling until their own phases rebuild them).
+ * An old page inside the new Shell (decided as drawn: Library, Feedback, Documents and the reader
+ * keep their old content styling until their own phases rebuild them; Review stays out, see below).
  *
  * The `Legacy` boundary stops the system at the page; inside it the page gets back the surroundings it
  * was built for: `.kb-app` (the old paper, ink and face, the `kbapp` container, the dark block that
@@ -12,10 +12,10 @@ import { Legacy } from "@/hi2vi/ui/boundary";
  * `data-kb-scheme="auto"`, and `.kb-app-main` (the `kbmain` container and its padding). `shell.css`
  * makes it fill the main column edge to edge and drops `.kb-app`'s own 100dvh height.
  *
- * On screen the box is layout-contained (`shell.css`), so it is the containing block of the page's
- * `position: fixed` parts (the review's reader bar, its sheets, scrim and toast): they are placed against
- * the main column, under the Shell's bar and beside its rail, and scroll with the page as the Shell does.
- * Being a size container (`.kb-app`'s `container-type`) does not do this.
+ * The box does not contain the page's `position: fixed` parts: they are placed against the window, over
+ * the Shell's bar and rail (a size container, `.kb-app`'s `container-type`, is no containing block for
+ * them). So no old page with screen-fixed parts goes inside the Shell: `/review` (its reader bar, sheets,
+ * scrim and toast) renders without it until its own phase rebuilds it (`app/review/layout.tsx`).
  *
  * A route switches to system markup by not rendering this: an `(app)` route folder's `layout.tsx`
  * wraps its pages in it; delete that file and the page renders straight into `main.app-main`.

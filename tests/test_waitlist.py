@@ -317,6 +317,12 @@ REFUSED_SIGNUPS = [
     "a{u}@b..invalid",
     "noor{u}@example",
     "{u}" + "a" * (255 - 15 - 32) + "@victim.invalid",  # 255 characters
+    # RFC 2047 encoded words: one address as typed, another (or several) in To:.
+    "a{u}@=?utf-8?q?evil.example=2C_c=40x?=.invalid",
+    "=?utf-8?q?a{u}=2C_b=40evil.example?=@victim.invalid",
+    "=?UTF-8?Q?a{u}=2C_b=40evil.example?=@victim.invalid",
+    "=?utf-8?b?YSwgYkBldmlsLmV4YW1wbGU=?=@victim{u}.invalid",
+    "=?utf-8?q?Claim_your_prize?=@victim{u}.invalid",
 ]
 ACCEPTED_SIGNUPS = [
     "five{u}@victim.invalid",
@@ -430,7 +436,11 @@ LEGACY_ROWS = [
     "x{u}:a@b.invalid,c@d.invalid;",
     "six{u}@victim.invalid\r\nbcc: seven@victim.invalid",
     "a{u}@b@victim.invalid",
+    "a{u}@=?utf-8?q?evil.example=2c_c=40x?=.invalid",  # as sign-up lowercased it
+    "=?utf-8?q?a{u}=2c_b=40evil.example?=@victim.invalid",
+    "=?utf-8?q?claim_your_prize?=@victim{u}.invalid",
 ]
+ENCODED_ROWS = [t for t in LEGACY_ROWS if "=?" in t]
 
 
 def _legacy_row(client, template: str, status: str = "waitlisted") -> str:
@@ -472,6 +482,30 @@ def test_the_mailer_never_mails_a_stored_row_that_is_not_one_address(
     assert len(lines) == 1
     assert "\n" not in lines[0] and "\r" not in lines[0]
     assert "not one plain address" in lines[0]
+
+
+@pytest.mark.parametrize("template", ENCODED_ROWS)
+def test_the_mailers_own_check_holds_without_the_rule(
+    wl, rcpt, monkeypatch, capsys, template
+):
+    """Defence in depth: with the rule waved through (a rule that missed a case),
+    the mailer's read-back of the rendered mail still sends nothing, and approve
+    still changes nothing."""
+
+    from server import waitlist
+
+    email = _legacy_row(wl, template)
+    monkeypatch.setattr(waitlist, "is_plain_address", lambda value: True)
+
+    wl.portal.call(waitlist.notify_waitlisted, email)
+    assert rcpt == []
+
+    capsys.readouterr()
+    assert wl.portal.call(waitlist.approve, email) == 1
+    out = capsys.readouterr()
+    assert "nothing changed, no mail sent" in out.err
+    assert _status(wl, email) == "waitlisted"
+    assert rcpt == []
 
 
 def test_the_approval_mail_goes_to_exactly_the_account(wl, rcpt, monkeypatch):
