@@ -1,0 +1,42 @@
+/*
+ * The sign-in screens' page classes (job 01 *Sign in*, round 03-instrument, `SignIn.dc.html`
+ * and `SignInForm.dc.html`), copied value for value. Scoped like the system's sheets
+ * (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block, imported by
+ * the `(auth)` layout, never through `globals.css`.
+ */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* the form's column, anchored under the top bar */
+  .signin-col {
+    width: 100%;
+    max-width: 26em;
+    margin-inline: auto;
+  }
+  .signin-submit {
+    width: 100%;
+  }
+  .signin-alt {
+    min-width: var(--control-h);
+  }
+
+  /* the top bar is the Shell's with nobody signed in (frame.md F33): where the Shell's bar
+     breaks into two rows, this bar is the Shell's first row, nothing kept under it */
+  @container top (max-width: 26em) {
+    .signin-row {
+      min-height: 0;
+    }
+  }
+  /* no rail on this page: from 72em the wordmark keeps the Shell's place and its box hugs the word */
+  @container app (min-width: 72em) {
+    .signin-col {
+      padding-top: var(--space-7);
+    }
+    .top .signin-mark {
+      width: auto;
+      margin-left: var(--space-2);
+      padding-left: var(--space-4);
+    }
+    .top .signin-mark:hover {
+      border-radius: var(--radius-m);
+    }
+  }
+}

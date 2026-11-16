@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 
-import { SIGNUP_PAGE } from "@/content";
+import { SIGN_IN_COPY } from "@/content/auth";
 import { redirectIfAuthenticated } from "@/lib/auth-guards";
 import { safeNextPath } from "@/lib/next-path";
 
-import { AuthCard } from "../auth-card";
-import { SignupForm } from "./signup-form";
+import { SignInForm } from "../sign-in-form";
 
-// P12.S2 — /signup. Same shape as /login: bounce an already-signed-in visitor,
-// otherwise render the card + the client form island. Dynamic (reads the cookie).
+// /signup, the screen Create account (job 01). Same shape as /login: send an
+// already-signed-in visitor on, otherwise render the form. Dynamic (reads the cookie).
 //
-// P30.S11 (D18) — signup is a sign-in success path too: a visitor sent to /login
-// with a return address who follows "create an account" keeps it (the card's
-// cross-link carries `?next=`), and lands there once the account exists. Laundered
-// once here by `safeNextPath`, exactly like /login.
-export const metadata: Metadata = { title: SIGNUP_PAGE.title };
+// P30.S11 (D18) — sign-up is a sign-in success path too: a visitor sent to /login with
+// a return address who follows "Create account" keeps it (the link carries `?next=`),
+// and lands there once the account exists. Laundered once here, exactly like /login.
+// With the waitlist on, a new account has no session: the form shows the waitlist state.
+export const metadata: Metadata = {
+  title: SIGN_IN_COPY.screens["sign-up"].title,
+};
 
 export default async function SignupPage({
   searchParams,
@@ -24,9 +25,5 @@ export default async function SignupPage({
   const next = safeNextPath((await searchParams).next);
   await redirectIfAuthenticated(next);
 
-  return (
-    <AuthCard copy={SIGNUP_PAGE} next={next}>
-      <SignupForm next={next} />
-    </AuthCard>
-  );
+  return <SignInForm screen="sign-up" next={next} />;
 }

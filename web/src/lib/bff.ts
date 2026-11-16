@@ -13,8 +13,8 @@ import {
   SESSION_COOKIE,
   sessionCookieOptions,
 } from "./session";
+import { isWaitlisted, type KbAuthAnswer } from "./knowledge/auth";
 import { ApiError } from "./knowledge/client";
-import type { KbSession } from "./knowledge/types";
 
 // P12.S2 — the shared BFF credential pipeline behind `POST /api/auth/login` and
 // `POST /api/auth/signup`. Login and signup differ ONLY in their throttle numbers,
@@ -30,7 +30,11 @@ import type { KbSession } from "./knowledge/types";
 //   5. call knowledge server-to-server → mapped status, detail text NEVER echoed
 //   6. seal the knowledge token → cookie → 200
 //
-// The response body is only ever `{ok}` — the client keys off the STATUS CODE, so
+// P58 — the waitlist: a waitlisted account (sign-up's 202, sign-in's 403, both read in
+// `knowledge/auth.ts`) answers `200 {ok: false, waitlisted: true}` and sets NO cookie,
+// session or org: it has no token to seal. The client shows the waitlist state.
+//
+// The response body is only ever `{ok}` (plus `waitlisted`) — the client keys off the STATUS CODE, so
 // knowledge's `detail` (and its unknown-email/bad-password indistinguishability)
 // never leaks through this boundary. Passwords are never logged, in any branch.
 
@@ -64,7 +68,7 @@ export interface CredentialRouteOptions {
    */
   bucket: string;
   /** The knowledge call — `signup` or `login` from `@/lib/knowledge/auth`. */
-  call: (email: string, password: string) => Promise<KbSession>;
+  call: (email: string, password: string) => Promise<KbAuthAnswer>;
   /**
    * knowledge statuses that are meaningful to the client and pass through verbatim
    * (login: 401 + 400; signup: 409 + 400). Any OTHER error becomes a 502 — an
@@ -121,9 +125,9 @@ export async function handleCredentialRoute(
 
   // 5. Call knowledge server-to-server. Its `detail` text is NEVER echoed: a
   //    meaningful status passes through bare, anything else is an upstream fault.
-  let session: KbSession;
+  let answer: KbAuthAnswer;
   try {
-    session = await options.call(email, password);
+    answer = await options.call(email, password);
   } catch (error) {
     if (error instanceof ApiError) {
       if (options.passThroughStatuses.includes(error.status)) {
@@ -135,11 +139,17 @@ export async function handleCredentialRoute(
     return json(500, { ok: false });
   }
 
+  // 5b. The waitlist: an account, no session. Nothing is sealed and no cookie is
+  //     touched (the client's form shows the waitlist state in place of itself).
+  if (isWaitlisted(answer)) {
+    return json(200, { ok: false, waitlisted: true });
+  }
+
   // 6. Success → seal knowledge's opaque token into the httpOnly cookie. The token
   //    itself is never returned to the browser; only the sealed envelope is.
   let sealed: string;
   try {
-    sealed = sealSession(session.token);
+    sealed = sealSession(answer.token);
   } catch {
     // SESSION_SECRET unset/unreadable → clean 500, never a leak.
     return json(500, { ok: false });

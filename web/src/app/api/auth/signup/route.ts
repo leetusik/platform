@@ -5,7 +5,9 @@ import { signup } from "@/lib/knowledge/auth";
 // (which provisions the user, their tenant, and the owner membership) and seals the
 // returned opaque bearer token into the httpOnly cookie, so a fresh signup lands
 // authenticated exactly like a login. knowledge answers 201; the BFF normalizes to
-// a 200 `{ok:true}` — the client only reads the status + the Set-Cookie.
+// a 200 `{ok:true}` — the client only reads the status + the Set-Cookie. With the
+// waitlist on, knowledge answers 202 with no token: the BFF answers `200 {ok:false,
+// waitlisted:true}` and sets no cookie (`handleCredentialRoute`).
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

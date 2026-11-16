@@ -5,6 +5,7 @@ import {
   loginHref,
   MAX_NEXT_PATH_LENGTH,
   safeNextPath,
+  SIGN_IN_LANDING_PATH,
 } from "@/lib/next-path";
 
 // P28.S5 (D18) — the `?next=` guard on /login. "Which redirect targets are
@@ -70,18 +71,18 @@ describe("safeNextPath — fails closed", () => {
     ["/a//evil.example"],
     ["/%E0%A4%A"],
   ])("rejects %j", (raw) => {
-    expect(safeNextPath(raw)).toBe(DEFAULT_NEXT_PATH);
+    expect(safeNextPath(raw)).toBe(SIGN_IN_LANDING_PATH);
   });
 
   it("rejects a repeated ?next= rather than picking one", () => {
     expect(safeNextPath(["/documents", "https://evil.example"])).toBe(
-      DEFAULT_NEXT_PATH,
+      SIGN_IN_LANDING_PATH,
     );
   });
 
   it("rejects a missing value", () => {
-    expect(safeNextPath(undefined)).toBe(DEFAULT_NEXT_PATH);
-    expect(safeNextPath(null)).toBe(DEFAULT_NEXT_PATH);
+    expect(safeNextPath(undefined)).toBe(SIGN_IN_LANDING_PATH);
+    expect(safeNextPath(null)).toBe(SIGN_IN_LANDING_PATH);
   });
 
   it("does not mistake a path that merely starts with /login for the gate", () => {
@@ -93,7 +94,7 @@ describe("safeNextPath — length cap (P30.S11)", () => {
   it("keeps a path at the cap and rejects one past it", () => {
     const at = `/${"a".repeat(MAX_NEXT_PATH_LENGTH - 1)}`;
     expect(safeNextPath(at)).toBe(at);
-    expect(safeNextPath(`${at}a`)).toBe(DEFAULT_NEXT_PATH);
+    expect(safeNextPath(`${at}a`)).toBe(SIGN_IN_LANDING_PATH);
   });
 });
 
@@ -109,16 +110,21 @@ describe("loginHref — the sign-in URL that returns to a path (P30.S11)", () =>
     expect(loginHref(undefined)).toBe("/login");
     expect(loginHref("//evil.example")).toBe("/login");
     expect(loginHref("https://evil.example/x")).toBe("/login");
-    expect(loginHref(DEFAULT_NEXT_PATH)).toBe("/login");
+    expect(loginHref(SIGN_IN_LANDING_PATH)).toBe("/login");
   });
 });
 
-describe("the landing after sign-in (P30.S22)", () => {
-  it("is the library, and a safe next still wins", () => {
+describe("the landing after sign-in (org home)", () => {
+  it("is org home, and a safe next still wins", () => {
+    expect(SIGN_IN_LANDING_PATH).toBe("/dashboard");
+    expect(safeNextPath(undefined)).toBe("/dashboard");
+    expect(safeNextPath("//evil.example")).toBe("/dashboard");
+    expect(safeNextPath("/library")).toBe("/library");
+    expect(loginHref("/library")).toBe("/login?next=%2Flibrary");
+    expect(loginHref("/dashboard")).toBe("/login");
+  });
+
+  it("keeps DEFAULT_NEXT_PATH as the library's address, which the reader's links read", () => {
     expect(DEFAULT_NEXT_PATH).toBe("/library");
-    expect(safeNextPath(undefined)).toBe("/library");
-    expect(safeNextPath("//evil.example")).toBe("/library");
-    expect(safeNextPath("/dashboard")).toBe("/dashboard");
-    expect(loginHref("/dashboard")).toBe("/login?next=%2Fdashboard");
   });
 });
