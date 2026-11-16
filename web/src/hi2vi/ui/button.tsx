@@ -2,6 +2,7 @@ import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   ReactNode,
+  Ref,
 } from "react";
 
 import { cx } from "@/lib/cx";
@@ -33,6 +34,8 @@ export function Swap({ labels }: { labels: ReactNode[] }) {
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** React 19 passes `ref` as a prop; it reaches the `button` through `rest`. */
+  ref?: Ref<HTMLButtonElement>;
   variant?: ButtonVariant;
   busy?: boolean;
   busyLabel?: ReactNode;

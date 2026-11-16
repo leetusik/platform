@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_NEXT_PATH,
   loginHref,
   MAX_NEXT_PATH_LENGTH,
   safeNextPath,
   SIGN_IN_LANDING_PATH,
 } from "@/lib/next-path";
+import { LIBRARY_HREF } from "@/lib/reader-href";
 
 // P28.S5 (D18) — the `?next=` guard on /login. "Which redirect targets are
 // accepted" is core behaviour on a security boundary (an open redirect on a login
@@ -124,7 +124,8 @@ describe("the landing after sign-in (org home)", () => {
     expect(loginHref("/dashboard")).toBe("/login");
   });
 
-  it("keeps DEFAULT_NEXT_PATH as the library's address, which the reader's links read", () => {
-    expect(DEFAULT_NEXT_PATH).toBe("/library");
+  it("keeps the reader's library link at the library, apart from the sign-in landing", () => {
+    expect(LIBRARY_HREF).toBe("/library");
+    expect(LIBRARY_HREF).not.toBe(SIGN_IN_LANDING_PATH);
   });
 });

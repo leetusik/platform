@@ -16,7 +16,7 @@
  *    (same origin, no protocol-relative or encoded bypass) and then allowed only when it
  *    is a reader address: a document, a chapter, a book page. Anything else is refused.
  */
-import { DEFAULT_NEXT_PATH, safeNextPath } from "@/lib/next-path";
+import { safeNextPath, SIGN_IN_LANDING_PATH } from "@/lib/next-path";
 
 /**
  * The frame's `sandbox` tokens (S2). The relays' CSP `sandbox` directive carries the same
@@ -127,7 +127,7 @@ export function navigatePath(href: unknown): string | null {
     return null;
   }
   const safe = safeNextPath(href);
-  if (safe === DEFAULT_NEXT_PATH && href !== DEFAULT_NEXT_PATH) return null;
+  if (safe === SIGN_IN_LANDING_PATH && href !== SIGN_IN_LANDING_PATH) return null;
   const pathname = safe.split(/[?#]/, 1)[0];
   if (!READER_PATHS.some((re) => re.test(pathname))) return null;
   return safe;

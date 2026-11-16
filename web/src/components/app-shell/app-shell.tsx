@@ -2,6 +2,7 @@ import { FullWidthExit } from "@/app/(public)/documents/[id]/full-width-exit";
 import { SKIP_TO_CONTENT } from "@/content";
 import { loadShellData, requestNonce } from "@/hi2vi/shell/data";
 import { LegacyPage } from "@/hi2vi/shell/legacy-page";
+import { ShellOrgNameProvider } from "@/hi2vi/shell/org-name";
 import { Shell } from "@/hi2vi/shell/shell";
 import { ToastRegion } from "@/hi2vi/shell/toast";
 import { Legacy } from "@/hi2vi/ui/boundary";
@@ -79,11 +80,13 @@ export async function AppShell({
               orgRoute={ORG_ROUTE}
             />
             <main id="main-content" className="app-main">
-              {legacy ? (
-                <LegacyPage fullWidth={fullWidth}>{children}</LegacyPage>
-              ) : (
-                children
-              )}
+              <ShellOrgNameProvider name={org.name}>
+                {legacy ? (
+                  <LegacyPage fullWidth={fullWidth}>{children}</LegacyPage>
+                ) : (
+                  children
+                )}
+              </ShellOrgNameProvider>
               <ToastRegion />
             </main>
           </div>

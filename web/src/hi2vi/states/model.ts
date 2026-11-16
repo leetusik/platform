@@ -58,7 +58,8 @@ export function errorState({
 
 /**
  * Not found: its sentence and Back to <org name>. With nobody signed in there is no org to name or go
- * back to, and the board draws no words for that case, so only the signed title shows.
+ * back to: the signed title and one link to the landing, "Go to hi2vi", in the same form as Back to
+ * <org name> (the operator's answer to OQ7); no sentence.
  */
 export function notFoundState({
   orgName,
@@ -67,7 +68,19 @@ export function notFoundState({
 }): StateModel {
   const n = HI2VI_STATES.notFound;
   if (orgName === null) {
-    return { title: n.title, text: null, actions: [], reference: null };
+    return {
+      title: n.title,
+      text: null,
+      actions: [
+        {
+          kind: "link",
+          label: n.signedOutLink,
+          href: n.signedOutHref,
+          variant: "default",
+        },
+      ],
+      reference: null,
+    };
   }
   return {
     title: n.title,

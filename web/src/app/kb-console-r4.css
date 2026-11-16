@@ -11,10 +11,8 @@
    console-responsive.css are untouched verbatim records of earlier rounds.
 
    Same structural rule as Round 03: every console query is an `@container`
-   query on `kbapp` (shell) or `kbmain` (content). The auth gate is outside the
-   shell, so it declares a container of its own — `kbauth` on `.kb-authgate` —
-   rather than reaching for the viewport: there are no `@media` rules in this
-   file.
+   query on `kbapp` (shell) or `kbmain` (content): there are no `@media` rules
+   in this file. (The auth gate's own `kbauth` container went with the gate.)
 
    Load order: kb-tokens.css → kb-console.css → app-frame.css →
    kb-console-responsive.css → THIS.
@@ -152,47 +150,3 @@
   .kb-reveal__key { flex-direction: column; align-items: stretch; gap: 0.55rem; }
   .kb-reveal__key .kb-appbtn { width: 100%; }
 }
-
-/* -------- Auth gate (DECISION · Q7) --------------------------------------- */
-/* The gate is its own stage: no shell, no rail, no page chrome. It is still
-   measured on a CONTAINER, not the viewport — `.kb-authgate` declares `kbauth`
-   and the page padding lives on the wrap inside it, so the rule that governs a
-   390px phone is the same rule a 390px specimen frame proves. `safe center`
-   keeps the card's top reachable when the software keyboard shortens the
-   viewport; plain centring clips it. The card is never full-bleed: the card IS
-   the threshold.
-
-   `.kb-authcard` replaces the component's inline styles one-for-one; no value
-   here is new except where a phone rule says so. */
-.kb-authgate { container: kbauth / inline-size; min-height: 100dvh; display: grid; justify-items: center; align-content: safe center; background: var(--kb-paper); }
-.kb-authgate__wrap { width: min(28rem, 100%); padding: 3.5rem 1.5rem; }
-.kb-authcard { background: linear-gradient(180deg, #26221b, #1f1c16); border: 1px solid var(--kb-border-strong); border-radius: var(--kb-radius); padding: 1.6rem 1.6rem 1.3rem; box-shadow: 0 2rem 4rem rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(236, 228, 215, 0.06); }
-.kb-authcard__brand { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1.5rem; }
-.kb-authcard__word { display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--kb-font-display); font-weight: var(--kb-weight-semibold); font-size: 1.35rem; color: var(--kb-ink); }
-.kb-authcard__pill { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; font-family: var(--kb-font-mono); font-size: 0.56rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kb-accent); border: 1px solid var(--kb-border-strong); border-radius: var(--kb-radius-pill); padding: 0.3em 0.6em; }
-.kb-authcard__pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }
-.kb-authcard__lead { font-family: var(--kb-font-display); font-weight: var(--kb-weight-semibold); font-size: 1.35rem; line-height: var(--kb-leading-display); color: var(--kb-ink); margin: 0 0 0.2rem; }
-.kb-authcard__sub { font-size: 0.88rem; line-height: var(--kb-leading-snug); color: var(--kb-secondary); margin: 0 0 1.3rem; text-wrap: pretty; }
-/* The status-keyed error sits between the last field and the submit, and its
-   box is ALWAYS rendered, so arriving at an error moves nothing. */
-.kb-authcard__error { min-height: 1.15rem; margin: 1rem 0 0.55rem; font-size: 0.82rem; line-height: var(--kb-leading-snug); color: var(--kb-status-revoked-ink); }
-.kb-authcard__submit { width: 100%; }
-.kb-authcard__trust { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem 1.1rem; margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid var(--kb-border); }
-.kb-authcard__trustitem { display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--kb-font-mono); font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--kb-hint); white-space: nowrap; }
-.kb-authcard__trustitem i { width: 5px; height: 5px; border-radius: 50%; background: var(--kb-accent); flex: none; }
-.kb-authcard__alt { text-align: center; font-size: 0.88rem; color: var(--kb-secondary); margin: 1.3rem 0 0; }
-.kb-authcard__alt a { color: var(--kb-accent); font-weight: var(--kb-weight-semibold); text-decoration: none; }
-.kb-authcard__alt a:hover { color: var(--kb-accent-strong); text-decoration: underline; }
-@container kbauth (width < 40rem) {
-  .kb-authgate__wrap { padding: 2.2rem var(--kb-app-gutter-phone) 2.6rem; }
-  .kb-authcard { padding: 1.15rem 1.15rem 1.05rem; }
-  .kb-authcard__brand { margin-bottom: 1.15rem; }
-  /* Restated for the gate: Round 03's tap floor and 16px inputs live inside
-     `@container kbapp`, and the gate is not inside `.kb-app`. */
-  .kb-authcard .kb-field__input { min-height: var(--kb-tap); font-size: 1rem; }
-  .kb-authcard .kb-appbtn { min-height: var(--kb-tap); }
-  .kb-authcard__trust { gap: 0.35rem 0.85rem; }
-}
-
-/* -------- Specimen-only state aliases (not used in production) ------------ */
-.kb-authcard .kb-field__input.is-focus { border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }

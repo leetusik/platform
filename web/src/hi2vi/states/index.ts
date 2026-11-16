@@ -3,7 +3,7 @@
 //
 // - `StateBlock {state, onRetry?}`: `.column > .block.block-page` (title, sentence, actions, reference).
 // - `errorState({orgName, digest?})`, `notFoundState({orgName | null})`: what the block shows.
-// - `useShellOrgName()` (client): the active org's name as the Shell's org switcher shows it.
+// - `useShellOrgName()` (client): the active org's name, from the Shell's context (`@/hi2vi/shell`).
 //
 // Loading, Empty, Loaded and Toast are states of a page, not screens of their own (frame.md F31).
 export {

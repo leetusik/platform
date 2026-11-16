@@ -12,6 +12,10 @@ import type { StateAction, StateModel } from "./model";
  * Two or more actions sit in a `.cluster`; one sits alone, as the Not found board draws it. The title
  * sits on a page title's line through `.block-page` (frame.md F32). A retry needs `onRetry`, so a block
  * with one renders only from a client component (the error boundary).
+ *
+ * Inside the error boundary (a block with `onRetry`) a link is a plain `a`, a whole page load: the
+ * boundary keeps its error while the path stays the same, so a client-side Back to <org name> from an
+ * error on org home itself would show the error again (seen in S11). Same markup, `a.btn`.
  */
 export function StateBlock({
   state,
@@ -21,7 +25,12 @@ export function StateBlock({
   onRetry?: () => void;
 }) {
   const actions = state.actions.map((action) => (
-    <StateActionControl key={action.kind} action={action} onRetry={onRetry} />
+    <StateActionControl
+      key={action.kind}
+      action={action}
+      onRetry={onRetry}
+      inBoundary={onRetry !== undefined}
+    />
   ));
   return (
     <div className="column">
@@ -40,9 +49,11 @@ export function StateBlock({
 function StateActionControl({
   action,
   onRetry,
+  inBoundary,
 }: {
   action: StateAction;
   onRetry?: () => void;
+  inBoundary: boolean;
 }) {
   if (action.kind === "retry") {
     return (
@@ -53,6 +64,13 @@ function StateActionControl({
       >
         {action.label}
       </button>
+    );
+  }
+  if (inBoundary) {
+    return (
+      <a href={action.href} className={buttonClass(action.variant)}>
+        {action.label}
+      </a>
     );
   }
   return (

@@ -52,10 +52,13 @@ describe("notFoundState", () => {
     ]);
   });
 
-  it("with nobody signed in keeps only the signed title (no org to name or go back to)", () => {
+  it("with nobody signed in keeps the title and one link to the landing (OQ7), no sentence", () => {
     const state = notFoundState({ orgName: null });
-    expect(state.title).toBe(HI2VI_STATES.notFound.title);
+    expect(state.title).toBe("Page not found");
     expect(state.text).toBeNull();
-    expect(state.actions).toEqual([]);
+    expect(state.actions).toEqual([
+      { kind: "link", label: "Go to hi2vi", href: "/", variant: "default" },
+    ]);
+    expect(state.reference).toBeNull();
   });
 });

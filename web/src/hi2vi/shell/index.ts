@@ -6,8 +6,10 @@
 // - `clearToast()`: take it down now.
 // - `ToastRegion`: the region the Shell mounts as the last child of `main.app-main`.
 // - `LegacyPage`: an old page's boundary inside the Shell (an `(app)` route folder's `layout.tsx`).
+// - `ShellOrgNameProvider`, `useShellOrgName()`: the active org's name for the main column (the states).
 export { clearToast, publishToast, ToastRegion } from "./toast";
 export { TOAST_MS } from "./toast-store";
 export { LegacyPage } from "./legacy-page";
+export { ShellOrgNameProvider, useShellOrgName } from "./org-name";
 export { Shell, type ShellProps } from "./shell";
 export type { ShellOrg, ShellProject } from "./model";

@@ -55,15 +55,6 @@
  */
 export const SIGN_IN_LANDING_PATH = "/dashboard";
 
-/**
- * The library's address. It was the default landing until sign-in moved to org home,
- * and `reader-href.ts` still reads it under this name to mean "the library"
- * (`LIBRARY_HREF`), so it keeps that value; it is no longer what `safeNextPath` falls
- * back to.
- * @deprecated Use `SIGN_IN_LANDING_PATH` for the landing, or `"/library"` for the library.
- */
-export const DEFAULT_NEXT_PATH = "/library";
-
 /** The sign-in gate. */
 export const LOGIN_PATH = "/login";
 

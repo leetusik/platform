@@ -10,10 +10,6 @@ export { NAV_LINKS, SKIP_TO_CONTENT } from "./nav";
 
 export type { Cta, NavLink, SiteMeta } from "./types";
 
-// Auth surface (P12.S2) — public login/signup copy + the status-keyed errors.
-export { AUTH_ERRORS, AUTH_TRUST_ITEMS, LOGIN_PAGE, SIGNUP_PAGE } from "./auth";
-export type { AuthPageCopy } from "./auth";
-
 // Authenticated app shell (P12.S2) — chrome labels + rail nav.
 export { APP_NAV, APP_NAV_GROUPS, APP_SHELL, dueText } from "./app";
 export type { AppNavGroup, AppNavItem } from "./app";

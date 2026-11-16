@@ -6,7 +6,6 @@ import { KEYS, type KeysScope } from "@/content/hi2vi-frame";
 import { date, when, type FormatOptions } from "@/lib/format";
 import {
   Button,
-  buttonClass,
   FieldError,
   Notice,
   Panel,
@@ -129,10 +128,8 @@ export function Keys({
     <Panel aria-label={heading}>
       <PanelHead>
         <h2 id={headId}>{heading}</h2>
-        <button
+        <Button
           ref={triggerRef}
-          type="button"
-          className={buttonClass()}
           aria-expanded={formOpen}
           disabled={busy}
           onClick={() =>
@@ -142,7 +139,7 @@ export function Keys({
           }
         >
           {KEYS.newKey}
-        </button>
+        </Button>
       </PanelHead>
 
       {formOpen ? (
@@ -336,15 +333,13 @@ export function Keys({
             </Notice>
           ) : null}
           <DialogActions>
-            <button
+            <Button
               ref={cancelRef}
-              type="button"
-              className={buttonClass()}
               disabled={revoking}
               onClick={() => dispatch({ type: "cancel-revoke" })}
             >
               {KEYS.cancel}
-            </button>
+            </Button>
             <Button
               variant="danger"
               busy={revoking}
