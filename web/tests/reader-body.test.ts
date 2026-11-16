@@ -453,6 +453,31 @@ describe("the Library's body is out of the old sheets' reach", () => {
     expect(reaching).toEqual([]);
   });
 
+  it("the reading aids are the Library's own, out of their islands (P63-fk.S10): terms' windows, glossary, quiz", () => {
+    const [, glossary] = FIXTURES.find(([n]) => n === "native/glossary.md")!;
+    const root = parse(
+      html({ source: glossary, look: "library", hooks: true }),
+    );
+    const outside = new Set(elements(root, inIsland).flatMap(classes));
+    for (const c of [
+      "blocks-term",
+      "blocks-term-box",
+      "blocks-gl-entry",
+      "blocks-quiz",
+      "blocks-q",
+    ])
+      expect(outside.has(c), c).toBe(true);
+    // what stays in an island is paper's (the printed quiz and its key), never the screen's old aids
+    const inside = new Set(
+      elements(root)
+        .filter(inIsland)
+        .flatMap((i) => elements(i))
+        .flatMap(classes),
+    );
+    for (const old of ["ra-win", "ra-gl", "ra-float", "qz", "qz-item"])
+      expect(inside.has(old), old).toBe(false);
+  });
+
   it("the old-look parts sit in islands, in the old root", () => {
     const [, quiz] = FIXTURES.find(([n]) => n === "native/quiz.md")!;
     const root = parse(html({ source: quiz, look: "library", hooks: true }));

@@ -7,10 +7,14 @@
    to 5 and the term link's three rules of section 6 (the marker sits in the text this slice renders; its window,
    the glossary and the quiz are S10's). Changes from the signed sheet:
    - section 1: the tokens sit on `:scope` (the `.ui` root), not `:root`, and are restored at the old-page boundary
-     (./boundary.css); only the ones the blocks here use (`--font-math`, `--blocks-sym`, `--blocks-cap`): S10 adds
-     the quiz's and the window's. The `@font-face` is not here (a sheet holds one `@scope` block): IBM Plex Math is
+     (./boundary.css). The `@font-face` is not here (a sheet holds one `@scope` block): IBM Plex Math is
      self-hosted and declared in `src/app/reader-fonts.css` beside the reader's other faces.
-   - section 5: `.blocks-term-box math` is S10's (the window).
+   P63-fk.S10 transcribes the rest of section 6 (the term's window), 7 (the glossary) and 8 (the quiz), with the
+   tokens `--blocks-n`, `--blocks-key` and `--blocks-win`. Changes from the signed sheet:
+   - section 6: `.blocks-col` is not built (the window is placed against the article, `.blocks-host`), nor the
+     canvas's `.sc-host` rules; the window's fade (`blocks-in`) is a transition from its `@starting-style`.
+   - section 8: a gap with the characters that touch its end (a comma, a Korean particle) sits in `.blocks-gap-w`,
+     which takes the field's rules as `.blocks-gap > .input` does.
    Section B is the build's own: what the boards leave to the build (the article, a box's sentence beside it, a
    kept run, a formula's aligned steps), and the bridges that keep the old layers visible on the new text until their slices
    (a highlight's paint and Listen's line: S11 and the Listen phase remove them), and paper. */
@@ -18,7 +22,10 @@
   /* 1 ── tokens and the math face ── */
   :scope {
     --font-math: "IBM Plex Math", "STIX Two Math", "Cambria Math", math;
+    --blocks-n: 2em; /* a quiz item's number column: the chapters list's */
+    --blocks-key: 2em; /* an option's ring, in ems of its own letter: 24 px at the chrome's 12, and it grows with the letter */
     --blocks-sym: 4.5em; /* a legend's symbol column, one width for the chapter */
+    --blocks-win: 28em; /* a term's window */
     --blocks-cap: 60ch; /* a caption's line */
   }
 
@@ -146,7 +153,8 @@
   }
 
   /* 5 ── formula: set apart between two hairlines, on the column's left edge; inline in a sentence ── */
-  .read math {
+  .read math,
+  .blocks-term-box math {
     font-family: var(--font-math);
     white-space: nowrap;
   }
@@ -191,7 +199,7 @@
     text-wrap: balance;
   }
 
-  /* 6 ── term: the marker in the text (its window, the glossary and the quiz: S10) ── */
+  /* 6 ── term: a marked word, and the window it opens (floating from 40em of the app, a sheet under it) ── */
   .blocks-term {
     color: inherit;
     text-decoration: underline dotted var(--ink-2);
@@ -205,6 +213,404 @@
   .blocks-term[aria-expanded="true"] {
     text-decoration: underline solid var(--accent);
     text-decoration-thickness: 2px;
+  }
+  .blocks-term-float {
+    position: absolute;
+    z-index: 2;
+    width: min(var(--blocks-win), 100%);
+    font-size: var(--fs-text);
+  }
+  .blocks-term-sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 5;
+    width: 100%;
+    max-width: 40em;
+    max-height: 60vh;
+    margin-inline: auto;
+    overflow-y: auto;
+    font-size: var(--fs-text);
+  }
+  .blocks-term-sheet.is-more {
+    max-height: 85vh;
+  }
+  .blocks-term-box {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .blocks-term-box.is-sheet {
+    border-width: 1px 0 0;
+    border-radius: var(--radius-m) var(--radius-m) 0 0;
+  }
+  .blocks-term-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+  }
+  /* the window is a small dialog: its title is at the head step, as a sheet's is */
+  .blocks-term-name {
+    min-width: 0;
+    font: 600 var(--fs-head) / var(--lh-head) var(--font);
+    overflow-wrap: break-word;
+  }
+  .blocks-term-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0 var(--space-4) var(--space-2);
+  }
+  .blocks-term-aka {
+    color: var(--ink-2);
+  }
+  .blocks-term-def {
+    font: 400 var(--read-fs) / 1.5 var(--font);
+  }
+  .blocks-term-long {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .blocks-term-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0 var(--space-4);
+    padding: 0 var(--space-4);
+  }
+  .blocks-term-foot .swap {
+    justify-items: start;
+  }
+  /* the floating window fades in (the signed `blocks-in`, 0.15 s from transparent), written as a transition from its
+     starting style: a sheet here is one `@scope` block of class rules, which a `@keyframes` block is not */
+  @media (prefers-reduced-motion: no-preference) {
+    .blocks-term-float > .blocks-term-box {
+      transition: opacity 0.15s ease;
+    }
+    @starting-style {
+      .blocks-term-float > .blocks-term-box {
+        opacity: 0;
+      }
+    }
+  }
+
+  /* 7 ── glossary: the chapter's terms, A to Z, after its quiz ── */
+  .blocks-gl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .blocks-gl-entry {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-1) * var(--read-k));
+    padding-block: calc(var(--space-3) * var(--read-k));
+    border-top: 1px solid var(--line);
+    scroll-margin-top: calc(var(--top-h) + var(--space-5));
+  }
+  .blocks-gl-entry:first-child {
+    border-top: 0;
+  }
+  .blocks-gl-term {
+    font-weight: 600;
+  }
+  .blocks-gl-aka {
+    color: var(--ink-2);
+    font: 400 var(--read-small) / 1.5 var(--font);
+  }
+  /* the entry arrived at: only its ground bleeds, the text stays on the column's edge */
+  .blocks-gl-entry.is-arrived {
+    margin-inline: calc(-1 * var(--space-4));
+    padding-inline: var(--space-4);
+    border-top-color: transparent;
+    border-radius: var(--radius-m);
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--edge);
+  }
+  .blocks-gl-entry.is-arrived + .blocks-gl-entry {
+    border-top-color: transparent;
+  }
+  .blocks-gl-entry > .back {
+    align-self: flex-start;
+    font-size: var(--fs-text);
+  }
+
+  /* 8 ── quiz: a head line, then one item a row; the number hangs, the action ends its row ── */
+  .blocks-quiz {
+    container: quiz / inline-size;
+    gap: 0;
+  }
+  /* a control inside the quiz is chrome: it keeps the chrome's size at every text size (frame.md F56) */
+  .blocks-quiz .btn,
+  .blocks-quiz .link-row {
+    font-size: var(--fs-text);
+  }
+  .blocks-quiz-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-content: center;
+    justify-content: space-between;
+    gap: 0 var(--space-4);
+    min-height: var(--control-h);
+    border-block: 1px solid var(--line);
+    font: 400 var(--read-small) / 1.5 var(--font);
+  }
+  .blocks-quiz-head > b {
+    font-weight: 600;
+  }
+  .blocks-quiz-head > span {
+    color: var(--ink-2);
+  }
+  .blocks-quiz-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .blocks-q {
+    display: grid;
+    grid-template-columns: var(--blocks-n) minmax(0, 1fr);
+    align-items: baseline;
+    column-gap: var(--space-3);
+    padding-block: calc(var(--space-5) * var(--read-k));
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: calc(var(--top-h) + var(--space-5));
+  }
+  .blocks-q-n {
+    color: var(--ink-2);
+  }
+  .blocks-q-body {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-3) * var(--read-k));
+    min-width: 0;
+  }
+  .blocks-q-ask {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-1) * var(--read-k));
+  }
+  /* the item's place, for a screen reader; under 24em of the quiz it is the visible number */
+  .blocks-q-where {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .blocks-q-hint,
+  .blocks-q-where {
+    color: var(--ink-2);
+    font: 400 var(--read-small) / 1.5 var(--font);
+  }
+  .blocks-q-prompt {
+    line-height: 1.5;
+  }
+  .blocks-opts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 0;
+    list-style: none;
+  }
+  /* an option: the whole row is the button; its verdict is a tag on its own edge, so nothing moves */
+  .blocks-opt {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-3);
+    width: 100%;
+    min-height: var(--control-h);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--ink);
+    font: 400 var(--read-fs) / 1.5 var(--font);
+    text-align: left;
+    cursor: pointer;
+  }
+  .blocks-opt:hover {
+    background: color-mix(in srgb, var(--surface) 92%, var(--ink));
+  }
+  .blocks-opt[aria-disabled="true"],
+  .blocks-opt[aria-disabled="true"]:hover {
+    background: var(--surface);
+    cursor: default;
+  }
+  /* the ring's place is the option's first line, so the ring sits on that line's centre at every text size;
+     the ring is sized by its own letter, so a reader's larger text never outgrows it */
+  .blocks-opt-lead {
+    display: inline-flex;
+    align-items: center;
+    height: 1lh;
+  }
+  .blocks-opt-key {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--blocks-key);
+    height: var(--blocks-key);
+    border: 1.5px solid var(--ink-2);
+    border-radius: 50%;
+    font: 600 var(--fs-meta) / 1 var(--font);
+  }
+  .blocks-opt[data-state="right"],
+  .blocks-opt[data-state="answer"] {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+  .blocks-opt[data-state="wrong"] {
+    border-color: var(--danger);
+    box-shadow: inset 0 0 0 1px var(--danger);
+  }
+  .blocks-opt[data-state="right"] .blocks-opt-key {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--surface);
+  }
+  .blocks-opt[data-state="wrong"] .blocks-opt-key {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--on-accent);
+  }
+  .blocks-opt[data-state="answer"] .blocks-opt-key {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+  .blocks-opt-tag {
+    position: absolute;
+    top: 0;
+    right: var(--space-3);
+    padding: 0 var(--space-1);
+    background: var(--surface);
+    color: var(--ink);
+    font: 600 var(--fs-meta) / var(--lh-meta) var(--font);
+    white-space: nowrap;
+    transform: translateY(-50%);
+  }
+  .blocks-opt[data-state="wrong"] .blocks-opt-tag {
+    color: var(--danger);
+  }
+  /* a gap: the field sits in the sentence; every line of it holds a control */
+  .blocks-gap {
+    line-height: calc(var(--control-h) + var(--space-2));
+  }
+  .blocks-gap > .input,
+  .blocks-gap-w > .input {
+    display: inline-block;
+    width: min(7.5em, 100%);
+    font-size: max(16px, 1em);
+    line-height: var(--lh-text);
+    vertical-align: middle;
+  }
+  .blocks-gap > .input[data-state="right"],
+  .blocks-gap-w > .input[data-state="right"] {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+  .blocks-gap > .input[data-state="wrong"],
+  .blocks-gap-w > .input[data-state="wrong"] {
+    text-decoration: line-through;
+  }
+  /* a graded answer longer than the field is cut on purpose; what was typed is in the line under the status */
+  .blocks-gap > .input[data-state="right"],
+  .blocks-gap > .input[data-state="wrong"],
+  .blocks-gap-w > .input[data-state="right"],
+  .blocks-gap-w > .input[data-state="wrong"] {
+    text-overflow: ellipsis;
+  }
+  .blocks-q-wrote {
+    color: var(--ink-2);
+    font: 400 var(--read-small) / 1.5 var(--font);
+  }
+  .blocks-q-wrote > b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  /* recall: the answer's card, closed with Show answer at its end */
+  .blocks-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--bg);
+  }
+  .blocks-answer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: calc(var(--control-h) + 2 * var(--space-2));
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+    color: var(--ink-2);
+    font: 600 var(--read-small) / 1.5 var(--font);
+  }
+  .blocks-answer-text {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-2) * var(--read-k));
+    padding: 0 var(--space-4) var(--space-4);
+    line-height: 1.5;
+  }
+  .blocks-answer-text > p + p {
+    color: var(--ink-2);
+  }
+  /* the foot: what happened, on the centre line of its action (the frame's .end-status) */
+  .blocks-q-foot {
+    font: 400 var(--read-small) / 1.5 var(--font);
+  }
+  .blocks-q-foot > p {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0 var(--space-2);
+    flex-basis: 12em;
+    padding-top: calc((var(--control-h) - 1lh) / 2);
+  }
+  .blocks-q-foot > p > b {
+    font-weight: 600;
+  }
+  .blocks-q-foot > p > span {
+    color: var(--ink-2);
+  }
+  .blocks-q-foot > p[data-verdict="wrong"] > b {
+    color: var(--danger);
+  }
+  .blocks-q-why {
+    line-height: 1.5;
+  }
+  @container quiz (max-width: 24em) {
+    .blocks-q {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .blocks-q-n {
+      display: none;
+    }
+    .blocks-q-where {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      clip-path: none;
+      white-space: normal;
+    }
   }
 
   /* B ── the build's own (P63-fk.S9) ── */
@@ -230,6 +636,23 @@
   .blocks-keep.is-wide {
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+  /* the reading aids (P63-fk.S10): a hidden window or way back stays hidden whatever its display; the holder is
+     shown once the layer has placed it; In the glossary sits at the foot's end even alone; a gap keeps what touches
+     its end on its line */
+  .blocks-term-box[hidden],
+  .blocks-gl-entry > .back[hidden] {
+    display: none;
+  }
+  .blocks-term-float[data-placed="0"],
+  .blocks-term-sheet[data-placed="0"] {
+    visibility: hidden;
+  }
+  .blocks-term-foot > [data-term-go] {
+    margin-inline-start: auto;
+  }
+  .blocks-gap-w {
+    white-space: nowrap;
   }
   /* a formula's aligned steps: each column set as Temml marks it (MathML centres a cell otherwise) */
   .blocks-fm .tml-right {
@@ -289,6 +712,13 @@
     .blocks-host mark.an-pending {
       background: none;
       box-shadow: none;
+    }
+    /* the quiz prints as today (its old-look copy, print only, beside it); a term's window and the glossary's way
+       back never print */
+    .blocks-host .blocks-quiz,
+    .blocks-host [data-term-holder],
+    .blocks-host .blocks-gl-entry > .back {
+      display: none;
     }
   }
 }

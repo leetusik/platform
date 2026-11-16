@@ -24,7 +24,10 @@
   --hi2vi-legacy-row-h: var(--row-h);
   --hi2vi-legacy-read-small: var(--read-small);
   --hi2vi-legacy-font-math: var(--font-math);
+  --hi2vi-legacy-blocks-n: var(--blocks-n);
+  --hi2vi-legacy-blocks-key: var(--blocks-key);
   --hi2vi-legacy-blocks-sym: var(--blocks-sym);
+  --hi2vi-legacy-blocks-win: var(--blocks-win);
   --hi2vi-legacy-blocks-cap: var(--blocks-cap);
   --hi2vi-legacy-lx-line: var(--lx-line);
 }
@@ -40,7 +43,10 @@
   --row-h: var(--hi2vi-legacy-row-h);
   --read-small: var(--hi2vi-legacy-read-small);
   --font-math: var(--hi2vi-legacy-font-math);
+  --blocks-n: var(--hi2vi-legacy-blocks-n);
+  --blocks-key: var(--hi2vi-legacy-blocks-key);
   --blocks-sym: var(--hi2vi-legacy-blocks-sym);
+  --blocks-win: var(--hi2vi-legacy-blocks-win);
   --blocks-cap: var(--hi2vi-legacy-blocks-cap);
   --lx-line: var(--hi2vi-legacy-lx-line);
 }

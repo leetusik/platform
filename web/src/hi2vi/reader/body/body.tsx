@@ -2,13 +2,13 @@ import { AnnotationLayer } from "@/components/reader/annotations";
 import { MathLayer } from "@/components/reader/math-layer";
 import { PrintPrep } from "@/components/reader/print-client";
 import { PrintColophon, PrintMasthead } from "@/components/reader/print-sheet";
-import { TermLayer } from "@/components/reader/term-layer";
 import { ChapterView, documentAssets } from "@/lib/native";
 import { HOOK } from "@/lib/native/look";
 import type { QuizViewContext } from "@/lib/native/render";
 import { layerOn } from "@/lib/reader/layer";
 import type { LoadedReader } from "@/lib/reader/load";
 
+import { LibraryTermLayer } from "../aids";
 import { OldRoot } from "../old-root";
 import { PaperLight } from "./paper";
 
@@ -23,10 +23,11 @@ import { PaperLight } from "./paper";
  *     OldRoot (still) > PrintColophon             paper's colophon, as today (print only)
  *     MathLayer                                   the math's measures (renders nothing)
  *     OldRoot (still, with the Listen slot and the player)
- *       AnnotationLayer, TermLayer                highlights, notes and bookmarks (S11), terms (S10): old look
+ *       AnnotationLayer                           highlights, notes and bookmarks (S11): old look
+ *     LibraryTermLayer                            the terms' windows and the glossary's way back (S10)
  *     PaperLight                                  the light scheme for a print
  *
- * The layers keep their old look until their slices (S10, S11) and find the body by its hooks (`HOOK`); their own
+ * The annotation layer keeps its old look until its slice (S11); the layers find the body by its hooks (`HOOK`). Its
  * elements sit in the old root, which adds no box (`still`), so they place their windows and bars against this
  * article, as they did against the old one. The text itself is the Library's look only: no class the old sheets
  * style (`tests/reader-body.test.ts`), but inside its islands.
@@ -87,8 +88,8 @@ export function ChapterBody({ reader }: { reader: LoadedReader }) {
             target={view.target}
           />
         ) : null}
-        <TermLayer chapter={chapter} />
       </OldRoot>
+      <LibraryTermLayer chapter={chapter} />
       <PaperLight />
     </div>
   );

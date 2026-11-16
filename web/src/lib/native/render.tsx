@@ -58,7 +58,17 @@ import {
 } from "@/components/reader/formula-box";
 import { ArtBox, TableBox } from "@/components/reader/scroll-box";
 import { CHAPTER } from "@/content";
+import { READER_AIDS } from "@/content/reader-aids";
 import { READER_BLOCKS } from "@/content/reader-blocks";
+import {
+  drawable,
+  GlossaryList,
+  LibraryBlank,
+  LibraryQuiz,
+  TermWindows,
+  type LibraryQuizItem,
+  type TermEntryView,
+} from "@/hi2vi/reader/aids";
 import {
   Media,
   MissingMedia,
@@ -275,13 +285,14 @@ export function ChapterView({
         {...hook(hooks, HOOK.body)}
       >
         {blocks}
-        {/* The answer key (print only) and the terms' windows (screen only) keep their old look (S10). */}
+        {/* The answer key (print only) keeps its old look, so paper prints as today (P63-fk.S10). */}
         {r.printKeys.length ? (
           <OldIsland>
             <PrintAnswers keys={r.printKeys} />
           </OldIsland>
         ) : null}
-        {r.islandOf(() => r.termWindows())}
+        {/* Each linked term's window, hidden until the term layer opens it (screen only; P63-fk.S10). */}
+        {r.termWindows()}
       </div>
     );
   return (
@@ -669,6 +680,15 @@ class Renderer {
             </span>
           );
         }
+        // P63-fk.S10: the Library's gap, fed by its item in `LibraryQuiz`.
+        if (this.lib)
+          return (
+            <LibraryBlank
+              key={i}
+              n={this.cloze.n}
+              tail={m ? this.text(m[0]) : undefined}
+            />
+          );
         return (
           <ClozeBlank
             key={i}
@@ -1597,12 +1617,40 @@ class Renderer {
         >
           {CHAPTER.terms.glossary}
         </h2>
-        {this.islandOf(() => this.glossaryList(list))}
+        {this.lib ? (
+          <GlossaryList
+            entries={list.map((t) => this.termView(t))}
+            linked={
+              new Set(
+                list.flatMap((t) => (this.terms.uses.has(t.id) ? [t.id] : [])),
+              )
+            }
+            chrome={this.chromeLang}
+          />
+        ) : (
+          this.glossaryList(list)
+        )}
       </>
     );
   }
 
-  /** The glossary's entries (old look until S10). */
+  /**
+   * P63-fk.S10: a term as the Library's window and glossary entry draw it (`TermEntryView`): its name kept whole,
+   * its aliases in the chapter's language, its definitions. Drawn once a place: the window's copy takes no ids.
+   */
+  private termView(t: TermEntry): TermEntryView {
+    return {
+      id: t.id,
+      term: this.keepText(t.term),
+      aka: t.aliases.length ? (
+        <span lang={this.lang}>{this.keepText(t.aliases.join(", "))}</span>
+      ) : null,
+      short: this.inline(t.short),
+      long: t.long ? this.inline(t.long) : null,
+    };
+  }
+
+  /** The glossary's entries, in the old look. */
   private glossaryList(list: TermEntry[]): ReactNode {
     return (
       <>
@@ -1649,6 +1697,13 @@ class Renderer {
     if (!list.length) return null;
     this.copy = true;
     try {
+      if (this.lib)
+        return (
+          <TermWindows
+            entries={list.map((t) => this.termView(t))}
+            chrome={this.chromeLang}
+          />
+        );
       return (
         <div className="ra-float" data-placed="0">
           {list.map((t) => {
@@ -2328,8 +2383,16 @@ class Renderer {
    * included) and hydrates to answer, grade, retry and save.
    */
   quiz(block: TypedBlock, id: string | undefined): ReactNode {
-    // The quiz keeps its old look, in an island of the Library's body, until S10 rebuilds it.
-    if (this.lib) return this.islandOf(() => this.quiz(block, id));
+    // P63-fk.S10: the Library draws a quiz of the board's three forms; one holding a form only `04-quiz` signs keeps
+    // the product's own look, whole, in an island of the Library's body.
+    if (this.lib) {
+      const specs = recs(block.items).flatMap((item, i) => {
+        const spec = specOf(item, i + 1);
+        return spec ? [spec] : [];
+      });
+      if (drawable(specs)) return this.libQuiz(block, id);
+      return this.islandOf(() => this.quiz(block, id));
+    }
     const bid = id ?? "quiz";
     const title = str(block.title);
     const q = this.quizCtx;
@@ -2416,6 +2479,118 @@ class Renderer {
             noun={noun}
           />
         ) : null}
+      </>
+    );
+  }
+
+  /**
+   * P63-fk.S10 — the quiz in the Library's look (`LibraryQuiz`; Library round 02, `BlocksQuiz.dc.html`): the same
+   * items, the same reader's context and the same save path as the old island (`quiz` above), its words drawn in the
+   * Library's look. Paper keeps today's quiz and answer key: their copy is drawn in the old look, the printed quiz
+   * in an old-look island (print only), the key with the chapter's others at the body's end.
+   */
+  private libQuiz(block: TypedBlock, id: string | undefined): ReactNode {
+    const bid = id ?? "quiz";
+    const title = str(block.title);
+    const q = this.quizCtx;
+    const items: LibraryQuizItem[] = [];
+    const paper: PrintItem[] = [];
+    recs(block.items).forEach((item, i) => {
+      const spec = specOf(item, i + 1);
+      if (!spec) return;
+      const domId = `${bid}--${spec.id}`;
+      const explain = inl(item.explain);
+      const props: LibraryQuizItem = {
+        spec,
+        domId,
+        prompt: null,
+        explain: explain && explain.length ? this.inline(explain) : undefined,
+        signInHref: q?.signIn
+          ? signInToSaveHref(q.signIn.target, {
+              lang: q.signIn.lang,
+              version: q.signIn.version,
+              section: domId,
+            })
+          : null,
+        saved: q?.saved[domId],
+      };
+      if (spec.type === "choice") {
+        props.prompt = this.inline(inl(item.prompt));
+        props.options = recs(item.options).map((o) => this.inline(inl(o.text)));
+      } else if (spec.type === "recall") {
+        props.prompt = this.inline(inl(item.prompt));
+        props.answer = this.inline(inl(item.answer));
+      } else {
+        this.cloze = { n: 0 };
+        try {
+          props.prompt = this.inline(inl(item.text));
+        } finally {
+          this.cloze = null;
+        }
+      }
+      items.push(props);
+      // Paper's copy, as today: the old look, without ids.
+      this.lib = false;
+      try {
+        const sheet: PrintItem = this.copied(() => ({
+          spec,
+          prompt: spec.type === "cloze" ? null : this.inline(inl(item.prompt)),
+          options:
+            spec.type === "choice"
+              ? recs(item.options).map((o) => this.inline(inl(o.text)))
+              : undefined,
+          answer:
+            spec.type === "recall" ? this.inline(inl(item.answer)) : undefined,
+          explain: explain && explain.length ? this.inline(explain) : undefined,
+        }));
+        if (spec.type === "cloze") {
+          this.cloze = { n: 0, print: true };
+          try {
+            sheet.prompt = this.copied(() => this.inline(inl(item.text)));
+          } finally {
+            this.cloze = null;
+          }
+        }
+        paper.push(sheet);
+      } finally {
+        this.lib = true;
+      }
+    });
+    const noun = q?.place ?? "chapter";
+    let printed: ReactNode = null;
+    if (paper.length) {
+      this.printKeys.push({ title, items: paper });
+      this.lib = false;
+      try {
+        printed = (
+          <OldIsland>
+            <PrintQuiz
+              title={title ? this.text(title) : null}
+              items={paper}
+              noun={noun}
+            />
+          </OldIsland>
+        );
+      } finally {
+        this.lib = true;
+      }
+    }
+    return (
+      <>
+        <LibraryQuiz
+          id={bid}
+          name={
+            title
+              ? `${READER_AIDS.quiz.label}: ${title}`
+              : READER_AIDS.quiz.label
+          }
+          items={items}
+          member={q?.member ?? false}
+          write={q?.write ?? null}
+          version={q?.version ?? 0}
+          lang={q?.lang ?? "en"}
+        />
+        {printed}
       </>
     );
   }
