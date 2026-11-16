@@ -1,10 +1,12 @@
 import "server-only";
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { BOOK } from "@/content/book";
+import { BOOK_PAGE } from "@/content/book-page";
 import { optionalIdentity } from "@/lib/auth-guards";
+import { date } from "@/lib/format";
 import { getBook, getDocument, getDocumentVersions } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
 import {
@@ -17,47 +19,53 @@ import type {
   KbBookChapter,
   KbBookVariant,
 } from "@/lib/knowledge/types";
-import { loginHref } from "@/lib/next-path";
+import {
+  decodeFrom,
+  wayBack,
+  withFrom,
+  type ListOrigin,
+} from "@/lib/library/from";
 import { sectionTitle } from "@/lib/library/continue";
 import { validateChapter } from "@/lib/native";
-import { publishedDate } from "@/lib/reader/date";
+import { loginHref } from "@/lib/next-path";
 import { languageName } from "@/lib/reader/language";
 import {
   bookHref,
   bookNotesHref,
   LIBRARY_HREF,
+  publicLibraryHref,
   readerHref,
 } from "@/lib/reader-href";
+import { viewerTimeZone } from "@/lib/time-zone";
 
 import {
+  contOf,
+  headOf,
   isDone,
   isStale,
   orderChapters,
   planContinue,
   rowState,
+  rowStateView,
   shapeOf,
   shownVariant,
-  sourceOf,
-  stateWord,
+  type ContChapter,
   type RowState,
   type Viewer,
 } from "./model";
-import type {
-  BookView,
-  ContView,
-  LangLinkView,
-  RowView,
-  VersionGroupView,
-} from "./view";
+import type { BookView, LangLinkView, RowView, VersionGroupView } from "./view";
 
 /**
- * P30.S23 — the book page's data (`07-book-page` *Data the page needs*): S1's manifest
- * (`GET /app/orgs/{org}/{project}/books/{book}`, public-gated) and, signed in, S3's
- * `GET /app/reader/books/…` for the caller's state, plus the reads the page composes from
- * (the per-book marks, a chapter's lede and section, the version dates of a chapter that has
- * more than one). Every miss on the manifest is the constant 404; a fault anywhere else
- * throws, which is the route's "failed" state, except the optional reads (dates, lede,
- * section), which degrade to nothing rather than take the page down.
+ * The book page's data (hi2vi Library, job 03 round 02, `## Build` § Page: book): the book's manifest
+ * (`GET /app/orgs/{org}/{project}/books/{book}`, public-gated) and, signed in, the reader's state of it
+ * (`GET /app/reader/books/…`), plus the reads the page composes from: the book's marks, the named
+ * chapter's lede and section, and the dates of a chapter that has an earlier version. Every miss on the
+ * manifest is the constant 404; a fault anywhere else throws, which is the route's Error, except the
+ * optional reads (dates, lede, section), which degrade to nothing rather than take the page down.
+ *
+ * `from` is the raw `?from=` (F324, F328): the way back, and carried on by every chapter link. Dates are
+ * in the viewer's zone (operator decision 5). A version's date is the one the read carries: today the
+ * document's own date on every version (D171-qk, OQ2 open); none is invented.
  */
 
 const miss = (error: unknown): never => {
@@ -90,19 +98,31 @@ async function soft<T>(run: () => Promise<T>): Promise<T | null> {
 }
 
 interface DateInfo {
-  /** The current version's publication date, formatted. */
+  /** The current version's date, as the read carries it (`YYYY-MM-DD` or an instant), or "". */
   current: string;
-  /** Superseded versions, newest first. */
+  /** Earlier versions, newest first, each with the date its read carries. */
   older: { v: number; date: string }[];
+}
+
+/**
+ * Where the reader came from. A visitor opened from no list goes back to the org's public library,
+ * since the Library is a member's page.
+ */
+function originOf(raw: string, owner: string, signedIn: boolean): ListOrigin {
+  if (!raw && !signedIn)
+    return { origin: "public-library", org: owner, place: {} };
+  return decodeFrom(raw);
 }
 
 export async function loadBook(
   org: string,
   project: string,
   bookSlug: string,
+  fromRaw: string,
 ): Promise<BookView> {
   const ctx = await optionalIdentity();
   const token = ctx?.token;
+  const timeZone = viewerTimeZone(await cookies());
   const [book, state]: [KbBook, KbReaderBook | null] = await Promise.all([
     getBook(token, org, project, bookSlug).catch(miss),
     token
@@ -111,12 +131,13 @@ export async function loadBook(
   ]);
   const owner = canonicalOrg(book, org);
   const tenants = ctx ? [ctx.identity.tenant, ...ctx.identity.tenants] : [];
-  const member = tenants.some(
+  const tenant = tenants.find(
     (t) => !!t && (t.slug?.trim() ? t.slug.trim() : t.id) === owner,
   );
-  const viewer: Viewer = !ctx ? "anon" : member ? "member" : "other";
+  const viewer: Viewer = !ctx ? "anon" : tenant ? "member" : "other";
   const signedIn = viewer !== "anon";
   const target = { org: owner, project, book: book.slug };
+  const from = originOf(fromRaw, owner, signedIn);
 
   const chapters = orderChapters(book.chapters);
   const M = chapters.length;
@@ -132,10 +153,11 @@ export async function loadBook(
     };
   });
   const done = shown.filter((s) => isDone(s.state)).length;
+  const started = shown.filter((s) => s.state === "started").length;
   const touched = shown.filter((s) => s.state !== "unopened").length;
   const marks = state?.counts?.marks ?? 0;
 
-  // The pointer is S3's: the most recently updated position among this book's chapters.
+  // The pointer: the most recently updated position among this book's chapters.
   const ptr = state?.continue ?? null;
   const ptrIndex = ptr
     ? chapters.findIndex((c) => c.key === ptr.chapter_key)
@@ -147,9 +169,11 @@ export async function loadBook(
       ? { index: ptrIndex, section: "", pct: Math.round(ptr.fraction * 100) }
       : null,
   );
-  const contShown = shown[plan.index] ?? shown[0];
+  const startPlan = planContinue([], false, null);
+  const named = shown[plan.index] ?? shown[0];
+  const first = shown[0];
+  const hasData = signedIn && (touched > 0 || marks > 0);
 
-  // The reads the page composes, in parallel.
   const multi = shown.flatMap((s) =>
     s.chapter.variants.filter((v) => v.version > 1),
   );
@@ -158,20 +182,22 @@ export async function loadBook(
       ? chapters[plan.index].variants.find((v) => v.lang === ptr.lang)
       : undefined;
   const wantsLede = plan.kind === "start" || plan.kind === "next";
-  const [dates, sectionAt, lede, notesRead] = await Promise.all([
+  // the way on after a clear is chapter 1's start, with its lede
+  const wantsFirstLede =
+    hasData && !(plan.kind === "start" && plan.index === 0);
+  const [dates, sectionAt, lede, firstLede, notesRead] = await Promise.all([
     Promise.all(multi.map((v) => soft(() => datesOf(token, v)))),
     ptrVariant && ptr?.anchor_id && ptrVariant.format === "native"
       ? soft(() => sectionOf(token, ptrVariant, ptr.anchor_id as string))
       : Promise.resolve(null),
-    wantsLede && contShown
-      ? soft(() => ledeOf(token, contShown.variant))
+    wantsLede && named
+      ? soft(() => ledeOf(token, named.variant))
       : Promise.resolve(null),
-    signedIn && touched > 0
-      ? getReaderBookNotes(token as string, {
-          org: owner,
-          project,
-          book: book.slug,
-        }).catch(miss)
+    wantsFirstLede && first
+      ? soft(() => ledeOf(token, first.variant))
+      : Promise.resolve(null),
+    hasData
+      ? getReaderBookNotes(token as string, target).catch(miss)
       : Promise.resolve(null),
   ]);
   const dateOf = new Map<number, DateInfo>();
@@ -179,111 +205,114 @@ export async function loadBook(
     const d = dates[i];
     if (d) dateOf.set(v.doc_id, d);
   });
+  const day = (value: string) => (value ? date(value, { timeZone }) : "");
 
   const chapterHref = (key: string, lang: string | null, v?: number | null) =>
-    readerHref(
-      { kind: "chapter", ...target, chapter: key },
-      { lang, version: v ?? null },
+    withFrom(
+      readerHref(
+        { kind: "chapter", ...target, chapter: key },
+        { lang, version: v ?? null },
+      ),
+      from,
     );
   const notFirst = (c: KbBookChapter, lang: string) =>
     lang === c.variants[0].lang ? null : lang;
+  const t = BOOK_PAGE.contents;
 
   const rows: RowView[] = shown.map((s, i) => {
     const c = s.chapter;
+    const n = i + 1;
     const langs = c.variants;
     const multiLang = langs.length > 1;
     const multiVer = langs.some((v) => v.version > 1);
-    const langLinks: LangLinkView[] = multiLang
-      ? langs.map((v) => ({
-          code: v.lang,
-          label: languageName(v.lang),
-          v: v.version,
-          stale: isStale(c, v),
-          href: chapterHref(c.key, notFirst(c, v.lang)),
-        }))
+    const links: LangLinkView[] = multiLang
+      ? langs.map((v) => {
+          const name = languageName(v.lang);
+          return {
+            code: v.lang,
+            label: t.language(name, v.version),
+            aria: t.languageAria(name, v.version, n),
+            stale: isStale(c, v),
+            href: chapterHref(c.key, notFirst(c, v.lang)),
+          };
+        })
       : [];
     const groups: VersionGroupView[] = multiVer
       ? langs.map((v) => {
           const info = dateOf.get(v.doc_id);
           const name = languageName(v.lang);
-          const rowsOf = [
+          const versions = [
             {
-              v: v.version,
-              published: info?.current
-                ? BOOK.contents.published(info.current)
-                : "",
-              current: true,
+              n: v.version,
+              date: info?.current ?? "",
               from: v.translated_from
-                ? BOOK.contents.translatedFrom(
+                ? t.translatedFrom(
                     languageName(v.translated_from.lang),
                     v.translated_from.version,
                   )
                 : "",
             },
-            ...(info?.older ?? []).map((o) => ({
-              v: o.v,
-              published: BOOK.contents.published(o.date),
-              current: false,
-              from: "",
-            })),
+            ...(info?.older ?? [])
+              .filter((o) => o.v < v.version)
+              .map((o) => ({ n: o.v, date: o.date, from: "" })),
           ];
           return {
             code: v.lang,
             label: name,
-            legacy: v.format === "html",
-            rows: rowsOf.map((r) => ({
-              ...r,
-              aria: BOOK.contents.viewAria(r.v, multiLang ? name : null),
-              href: chapterHref(
-                c.key,
-                notFirst(c, v.lang),
-                r.current ? null : r.v,
-              ),
-            })),
+            rows: versions.map((r) => {
+              const current = r.n === v.version;
+              return {
+                n: r.n,
+                current,
+                published: r.date ? t.published(day(r.date)) : "",
+                from: r.from,
+                aria: t.viewAria(r.n, name),
+                href: chapterHref(
+                  c.key,
+                  notFirst(c, v.lang),
+                  current ? null : r.n,
+                ),
+              };
+            }),
           };
         })
       : [];
-    const single =
-      !multiLang && multiVer
-        ? BOOK.contents.single(
-            langs[0].version,
-            dateOf.get(langs[0].doc_id)?.current ?? "",
-          )
-        : "";
     return {
       key: c.key,
-      n: i + 1,
+      n,
       title: c.title || s.variant.title,
       lang: s.variant.lang,
-      legacy: s.variant.format === "html",
-      state: s.state,
-      word: viewer === "anon" ? "" : stateWord(s.state, s.pct),
-      slice: sourceOf(c).slice ?? "",
       href: chapterHref(c.key, notFirst(c, s.variant.lang)),
-      langLinks,
-      single,
+      updated: signedIn && s.state === "updated",
+      state: rowStateView(s.state, s.pct, signedIn),
+      langs: links,
+      one:
+        !multiLang && multiVer
+          ? t.one(
+              langs[0].version,
+              day(dateOf.get(langs[0].doc_id)?.current ?? ""),
+            )
+          : "",
       multiVer,
       groups,
     };
   });
 
-  const k = rows[plan.index] ?? rows[0];
-  const cont: ContView = {
-    kind: plan.kind,
-    n: k ? k.n : 1,
-    total: M,
-    title: k?.title ?? "",
-    lang: k?.lang ?? "en",
-    legacy: k?.legacy ?? false,
+  const contChapters: ContChapter[] = rows.map((r) => ({
+    n: r.n,
+    title: r.title,
+    lang: r.lang,
+    href: r.href,
+  }));
+  const cont = contOf(plan, contChapters, {
     section: plan.kind === "continue" ? (sectionAt ?? "") : "",
-    pct: plan.pct,
-    summary: lede ?? "",
-    after: plan.after ?? null,
-    updatedN: plan.updated.length ? plan.updated[0] : null,
-    href: k ? k.href : bookHref(target),
-  };
+    lede: lede ?? "",
+  });
+  const start =
+    plan.kind === "start" && plan.index === 0
+      ? cont
+      : contOf(startPlan, contChapters, { section: "", lede: firstLede ?? "" });
 
-  const shape = shapeOf(book.chapters);
   const noteN = notesRead
     ? notesRead.annotations.length +
       notesRead.unanchored.length +
@@ -300,13 +329,14 @@ export async function loadBook(
           .filter((k): k is string => !!k),
       ).size
     : 0;
-  const publicView = viewer !== "member";
-  const subject = book.subject ?? "";
-  const place =
-    book.kind === "subject"
-      ? subject
-      : (publicView ? BOOK.head.place(owner, project) : project) +
-        (subject ? ` · ${subject}` : "");
+
+  const kind = book.kind === "subject" ? "subject" : "codebase";
+  const place = BOOK_PAGE.head.place(
+    kind,
+    viewer === "member"
+      ? book.project
+      : BOOK_PAGE.head.publicPlace(owner, book.project),
+  );
 
   return {
     org: owner,
@@ -314,40 +344,40 @@ export async function loadBook(
     slug: book.slug,
     title: book.title,
     viewer,
-    kindLabel: book.kind === "subject" ? BOOK.head.subject : BOOK.head.codebase,
-    place,
-    description: book.description ?? "",
-    done,
-    total: M,
-    pct: M ? Math.round((done / M) * 100) : 0,
-    count: BOOK.head.chapters(M),
-    topLine: signedIn ? BOOK.head.finished(done, M) : BOOK.head.chapters(M),
-    shapeNote:
-      shape.kind === "phases"
-        ? BOOK.contents.phases
-        : shape.kind === "slices"
-          ? BOOK.contents.slices(shape.phase)
-          : "",
-    rows,
+    signedIn,
+    head: headOf({
+      title: book.title,
+      sub: book.sub?.trim() ?? "",
+      description: book.description ?? "",
+      place,
+      signedIn,
+      done,
+      started,
+      total: M,
+    }),
     cont,
+    start,
     notes:
-      signedIn && touched > 0
+      signedIn && noteN > 0
         ? {
             href: bookNotesHref(target, { from: "book" }),
-            line: BOOK.notes.count(noteN, noteChapters),
+            line: BOOK_PAGE.notes.count(noteN, noteChapters),
           }
         : null,
-    data:
-      signedIn && (touched > 0 || marks > 0)
-        ? { chapters: touched, marks }
-        : null,
-    signedIn,
-    libraryHref: signedIn ? LIBRARY_HREF : `/@${owner}`,
-    signInHref: loginHref(bookHref(target)),
+    count: t.count(M),
+    shapeNote: shapeOf(book.chapters).kind === "phases" ? t.phases : "",
+    rows,
+    data: hasData ? { chapters: touched, marks } : null,
+    back: wayBack(from, {
+      project: book.project,
+      org: tenant?.name ?? null,
+    }),
+    homeHref: signedIn ? LIBRARY_HREF : publicLibraryHref(owner),
+    signInHref: loginHref(withFrom(bookHref(target), fromRaw ? from : null)),
   };
 }
 
-/** The dates of one variant's versions: the current's, and the superseded ones. */
+/** The dates of one variant's versions, as the reads carry them: the current's, and the earlier ones. */
 async function datesOf(
   token: string | undefined,
   variant: KbBookVariant,
@@ -357,10 +387,10 @@ async function datesOf(
     getDocumentVersions(token, variant.doc_id),
   ]);
   return {
-    current: doc.date ? publishedDate(doc.date) : "",
+    current: doc.date ?? "",
     older: [...page.versions]
       .sort((a, b) => b.version - a.version)
-      .map((v) => ({ v: v.version, date: publishedDate(v.date) })),
+      .map((v) => ({ v: v.version, date: v.date ?? "" })),
   };
 }
 
@@ -387,8 +417,7 @@ async function ledeOf(
 }
 
 /**
- * One load per request, shared by the page and its metadata (the knowledge client is
- * `no-store`, so two calls would read twice). Primitive arguments: React's `cache` keys
- * on identity.
+ * One load per request, shared by the page and its metadata (the knowledge client is `no-store`, so two
+ * calls would read twice). Primitive arguments: React's `cache` keys on identity.
  */
 export const loadBookOnce = cache(loadBook);

@@ -1,47 +1,37 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 
+import { BookBar } from "@/components/book/book-bar";
 import { BookFrame } from "@/components/book/book-frame";
-import { BookStateBlock } from "@/components/book/book-states";
-import { BookTop } from "@/components/book/book-top";
-import { readReaderCookie } from "@/lib/reader-cookie";
-import { LIBRARY_HREF } from "@/lib/reader-href";
+import { bookError } from "@/components/book/book-states";
+import {
+  boundaryRetry,
+  StateBlock,
+  type BoundaryRetryProps,
+} from "@/hi2vi/states";
+import { statePlace } from "@/lib/book/place";
 
-// P30.S23 (`07-book-page` §8) — "Something on our side stopped reading." with Try again
-// and the request's reference. Like the chapter's: the skeleton stands in at once and the
-// page reloads (a bare `reset()` only re-renders the same failed server payload). This
-// boundary renders on the client, so the `kb_reader` cookie is read through
-// `useSyncExternalStore` (the server snapshot is the default; the frame is keyed on the
-// jar so it re-mounts with the reader's own settings).
-const subscribe = () => () => {};
-
+// Error (`Book.dc.html`, preset Error; F5's whole): under the Bar, This page did not load, Try again
+// (primary: it fetches the page again, `boundaryRetry`), the way back, and the reference. The boundary
+// renders on the client and knows no session: the bar reads as a member's, and the way back is the list
+// in `?from=`, else the Library.
 export default function BookError({
   error,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  const [retrying, setRetrying] = useState(false);
-  const jar = useSyncExternalStore(
-    subscribe,
-    () => document.cookie,
-    () => "",
-  );
-  const retry = () => {
-    setRetrying(true);
-    window.location.reload();
-  };
+  ...retry
+}: BoundaryRetryProps & { error: Error & { digest?: string } }) {
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const query = search.toString();
+  const place = statePlace(`${pathname}${query ? `?${query}` : ""}`, true);
   return (
     <BookFrame
-      key={jar}
-      settings={readReaderCookie(jar)}
-      top={<BookTop libraryHref={LIBRARY_HREF} />}
+      state
+      bar={<BookBar back={place.back} homeHref={place.homeHref} />}
     >
-      <BookStateBlock
-        kind={retrying ? "loading" : "failed"}
-        reference={error.digest ?? null}
-        onRetry={retry}
+      <StateBlock
+        state={bookError({ back: place.back, digest: error.digest })}
+        onRetry={boundaryRetry(retry)}
       />
     </BookFrame>
   );

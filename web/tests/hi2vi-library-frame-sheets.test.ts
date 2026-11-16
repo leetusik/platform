@@ -112,6 +112,13 @@ const SHEETS = readdirSync(library)
 /** The one rule on a system name, with why it changes no page: see the test below. */
 const ON_SYSTEM_NAMES = new Set(["button.link-row"]);
 
+/** The Library's parts: the only folders whose `.tsx` may draw `.link-row` on a `<button>`. */
+const LIBRARY_PARTS = [
+  "/hi2vi/library/",
+  "/components/book/",
+  "/hi2vi/reader/",
+];
+
 describe("the Library's sheets", () => {
   it("are the frame and one sheet a later part, each owned and named", () => {
     expect(SHEETS).toEqual([
@@ -164,9 +171,11 @@ describe("the Library's sheets", () => {
 
   it("put .link-row's button form on no button outside the Library's parts", () => {
     // `button.link-row` (frame.css section 1) only makes a `<button>` read as the system's `.link-row`
-    // does on an `a`; no other page draws `.link-row` on a button, so it changes none of them.
+    // does on an `a`. It stays inside the Library's parts (LIBRARY_PARTS: the Library's own folder,
+    // the book page and the reader's head and foot), so no page from before the Library changes its look.
     const tsx = filesUnder(join(web, "src")).filter(
-      (f) => f.endsWith(".tsx") && !f.includes("/hi2vi/library/"),
+      (f) =>
+        f.endsWith(".tsx") && !LIBRARY_PARTS.some((part) => f.includes(part)),
     );
     const onButtons: string[] = [];
     for (const file of tsx) {

@@ -1,13 +1,16 @@
 /**
- * P30.S23 — the book page's pure rules (`07-book-page` round 01), no I/O: the shape note,
- * a chapter's shown language and state, the Continue reading block (the table in §3), and
- * the stale-translation test. The loader (`load.ts`) feeds these what the reads returned;
- * the tests pin the Continue table, which is the page's one piece of real logic.
+ * The book page's pure rules (hi2vi Library, job 03 round 02, `## Build` § Page: book), no I/O: the
+ * order and shape of a book, a chapter's shown language and state, the way on's five modes, the head's
+ * state, one version region open at a time, and what a clear turns the page into. The loader (`load.ts`)
+ * feeds these what the reads returned; `tests/book-page.test.ts` and `tests/book-model.test.ts` pin them.
  */
 
-import { BOOK } from "@/content/book";
+import { BOOK_PAGE } from "@/content/book-page";
 import type { KbBookChapter, KbBookVariant } from "@/lib/knowledge/types";
 
+import type { BookView, ContView, HeadView, StateView } from "./view";
+
+/** A member of the book's org, someone signed in from elsewhere, or nobody signed in. */
 export type Viewer = "member" | "other" | "anon";
 export type RowState = "unopened" | "started" | "finished" | "updated";
 
@@ -26,10 +29,10 @@ export type Shape =
   { kind: "plain" } | { kind: "phases" } | { kind: "slices"; phase: string };
 
 /**
- * Which shape the book takes (undrawn how the product tells; `book.js` carries it as data):
- * a chapter with a `source.slice` makes it a per-slice book, of the `source.phase` they
- * share (else the slice id's prefix); every chapter with a `source.phase` and no slice
- * makes it a phases book; anything else is a plain guide.
+ * Which shape the book takes: a chapter with a `source.slice` makes it a per-slice book, of the
+ * `source.phase` they share (else the slice id's prefix); every chapter with a `source.phase` and no
+ * slice makes it a phases book; anything else is a plain guide. Only the phases book has a shape note
+ * on the board.
  */
 export function shapeOf(chapters: KbBookChapter[]): Shape {
   const sources = chapters.map(sourceOf);
@@ -57,10 +60,7 @@ export function orderChapters(chapters: KbBookChapter[]): KbBookChapter[] {
     .map((x) => x.c);
 }
 
-/**
- * The shown variant: the language this reader last read the chapter in, else the
- * manifest's first variant.
- */
+/** The shown variant: the language this reader last read the chapter in, else the manifest's first. */
 export function shownVariant(
   chapter: KbBookChapter,
   lastRead: string | null | undefined,
@@ -72,10 +72,7 @@ export function shownVariant(
   );
 }
 
-/**
- * "Older translation": the newest version of this variant was translated from a source
- * version that has since moved on.
- */
+/** "Older translation": this variant was translated from a source version that has since moved on. */
 export function isStale(
   chapter: KbBookChapter,
   variant: KbBookVariant,
@@ -102,9 +99,57 @@ export function rowState(s: ChapterStateIn | undefined): RowState {
 export const isDone = (s: RowState): boolean =>
   s === "finished" || s === "updated";
 
-/** Where the saved place is, per chapter (index in book order). */
+/** A row's state (frame.md F54): `Finished`, `Started, 42%`, `Not started`; none for a visitor. */
+export function rowStateView(
+  state: RowState,
+  pct: number,
+  signedIn: boolean,
+): StateView | null {
+  if (!signedIn) return null;
+  const t = BOOK_PAGE.contents;
+  if (isDone(state)) return { word: t.finished, status: "done" };
+  if (state === "started")
+    return {
+      word: pct > 0 ? t.startedAt(pct) : t.started,
+      status: "active",
+    };
+  return { word: t.notStarted, status: "idle" };
+}
+
+export interface HeadIn {
+  title: string;
+  sub: string;
+  description: string;
+  place: string;
+  signedIn: boolean;
+  done: number;
+  started: number;
+  total: number;
+}
+
+/** BookHead: `Finished` when every chapter is, `5 of 14 finished` once one is begun, else `Not started`. */
+export function headOf(h: HeadIn): HeadView {
+  const t = BOOK_PAGE.head;
+  const state: StateView =
+    h.total > 0 && h.done === h.total
+      ? { word: t.allFinished, status: "done" }
+      : h.done > 0 || h.started > 0
+        ? { word: t.finished(h.done, h.total), status: "active" }
+        : { word: t.notStarted, status: "idle" };
+  return {
+    title: h.title,
+    sub: h.sub,
+    description: h.description,
+    place: h.place,
+    member: h.signedIn,
+    state,
+    pct: h.total > 0 ? Math.round((100 * h.done) / h.total) : 0,
+    count: t.chapters(h.total),
+  };
+}
+
+/** Where the saved place is (index in book order). */
 export interface PointerIn {
-  /** Index of the pointer's chapter in book order. */
   index: number;
   /** The heading the saved place is under (native only), "" when none. */
   section: string;
@@ -123,7 +168,7 @@ export type ContKind = "continue" | "next" | "start" | "finished";
 
 export interface ContPlan {
   kind: ContKind;
-  /** Index (book order) of the chapter the block names. */
+  /** Index (book order) of the chapter the way on names. */
   index: number;
   /** `next`: the chapter number finished before it. */
   after?: number;
@@ -135,14 +180,13 @@ export interface ContPlan {
 }
 
 /**
- * The Continue reading block (§3). The pointer is S3's: the most recently updated position
- * among the book's chapters. `rows` are in book order.
+ * The way on's chapter. The pointer is the product's: the most recently updated position among the
+ * book's chapters (`GET /app/reader/books/…`).
  *
- *  - signed out, or nothing opened → "Start · Chapter 1";
- *  - every chapter finished → "Finished" (one or more Updated offers "Read chapter N again");
- *  - the pointer's chapter is started → "Continue · Chapter N" with the section, if known;
- *  - the pointer's chapter is finished → "Next · Chapter N", the next chapter not finished
- *    after it, else the first not finished.
+ *  - signed out, or nothing opened → `start`, chapter 1;
+ *  - every chapter finished → `finished` (an Updated one is offered again);
+ *  - the pointer's chapter is started → `continue` there;
+ *  - the pointer's chapter is finished → `next`: the next chapter not finished after it, else the first.
  */
 export function planContinue(
   rows: ContRow[],
@@ -182,15 +226,107 @@ export function planContinue(
   return { ...base, kind: "next", index: Math.max(j, 0), after: at?.n };
 }
 
-/** The meta line's state word (member only). */
-export function stateWord(state: RowState, pct: number): string {
-  const t = BOOK.contents;
-  switch (state) {
-    case "unopened":
-      return t.notStarted;
-    case "started":
-      return pct > 0 ? t.startedAt(pct) : t.started;
-    default:
-      return t.finished;
+/** A chapter as the way on names it. */
+export interface ContChapter {
+  n: number;
+  title: string;
+  lang: string;
+  href: string;
+}
+
+/**
+ * BookContinue (the board's table): the title, the facts, the lede in `next` and `start`, the button.
+ * `section` is where a `continue` was left (a heading), `lede` the named chapter's lede.
+ */
+export function contOf(
+  plan: ContPlan,
+  chapters: ContChapter[],
+  found: { section: string; lede: string },
+): ContView {
+  const t = BOOK_PAGE.cont;
+  const total = chapters.length;
+  const c = chapters[plan.index] ?? chapters[0];
+  const n = c?.n ?? 1;
+  const where = total > 1 ? [t.chapterOf(n, total)] : [];
+  const href = c?.href ?? "";
+  if (plan.kind === "finished") {
+    const up = plan.updated.length ? plan.updated[0] : null;
+    return {
+      mode: "finished",
+      name: t.name.finished,
+      title: t.allFinished(total),
+      lang: null,
+      facts: up !== null ? [t.changed(up)] : [],
+      lede: "",
+      action: t.readAgain(n),
+      primary: up !== null,
+      href,
+    };
   }
+  if (plan.kind === "continue") {
+    const left = found.section
+      ? t.leftOffAt(found.section)
+      : plan.pct > 0
+        ? t.leftOffPct(plan.pct)
+        : t.opened;
+    return {
+      mode: "continue",
+      name: t.name.continue,
+      title: c?.title ?? "",
+      lang: c?.lang ?? null,
+      facts: [...where, left],
+      lede: "",
+      action: t.continueReading,
+      primary: true,
+      href,
+    };
+  }
+  if (plan.kind === "next") {
+    return {
+      mode: "next",
+      name: t.name.next,
+      title: c?.title ?? "",
+      lang: c?.lang ?? null,
+      facts: [...where, t.youFinished(plan.after ?? Math.max(n - 1, 1))],
+      lede: found.lede,
+      action: t.readNext,
+      primary: true,
+      href,
+    };
+  }
+  return {
+    mode: "start",
+    name: t.name.start,
+    title: c?.title ?? "",
+    lang: c?.lang ?? null,
+    facts: where,
+    lede: found.lede,
+    action: t.readChapter(n),
+    primary: true,
+    href,
+  };
+}
+
+/** Version history: one chapter's region open at a time on the page; a second press closes it. */
+export function toggleOpen(open: string | null, key: string): string | null {
+  return open === key ? null : key;
+}
+
+/**
+ * The page once its reading data is cleared (the board's `cleared`): every row reads Not started, the
+ * head reads Not started with an empty line, the way on becomes `start`, the notes row goes.
+ */
+export function clearedView(view: BookView): BookView {
+  const notStarted = rowStateView("unopened", 0, view.signedIn);
+  return {
+    ...view,
+    head: {
+      ...view.head,
+      state: { word: BOOK_PAGE.head.notStarted, status: "idle" },
+      pct: 0,
+    },
+    cont: view.start,
+    notes: null,
+    rows: view.rows.map((r) => ({ ...r, updated: false, state: notStarted })),
+  };
 }

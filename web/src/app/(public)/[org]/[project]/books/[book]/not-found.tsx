@@ -1,36 +1,45 @@
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 
+import { BookBar } from "@/components/book/book-bar";
 import { BookFrame } from "@/components/book/book-frame";
-import { BookStateBlock } from "@/components/book/book-states";
-import { BookTop } from "@/components/book/book-top";
+import { bookNotFound } from "@/components/book/book-states";
+import { requestNonce } from "@/hi2vi/shell/data";
+import { StateBlock } from "@/hi2vi/states";
 import { optionalIdentity } from "@/lib/auth-guards";
-import { loginHref, REQUEST_PATH_HEADER } from "@/lib/next-path";
-import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
-import { LIBRARY_HREF } from "@/lib/reader-href";
+import { statePlace } from "@/lib/book/place";
+import { REQUEST_PATH_HEADER } from "@/lib/next-path";
 
-// P30.S23 (`07-book-page` §8) — a missing book, a private book's address and one in
-// another org are the same state: the constant not-found, 404 and never 403, in the
-// reader's own frame. Signed out, "Back to the library" goes to the org's public page
-// (`/@{org}`, taken from the address) and the bar carries Sign in, returning here.
+// Book not found (`Book.dc.html`, presets Not found and Not found, visitor; frame.md F71): a missing book,
+// a private book's address and one in another org are the same state, 404 and never 403. Under the Bar,
+// F5's block with the page's own words: a member goes back where they came from, a visitor is offered
+// Sign in, returning here.
 export default async function BookNotFound() {
-  const settings = parseReaderCookie(
-    (await cookies()).get(READER_COOKIE)?.value,
-  );
-  const ctx = await optionalIdentity();
-  const path = (await headers()).get(REQUEST_PATH_HEADER) ?? "";
-  const org = /^\/(@[^/?#]+)/.exec(path)?.[1];
-  const libraryHref = ctx || !org ? LIBRARY_HREF : `/${org}`;
+  const [path, ctx, nonce] = await Promise.all([
+    headers().then((h) => h.get(REQUEST_PATH_HEADER) ?? "/"),
+    optionalIdentity(),
+    requestNonce(),
+  ]);
+  const place = statePlace(path, !!ctx);
   return (
     <BookFrame
-      settings={settings}
-      top={
-        <BookTop
-          libraryHref={libraryHref}
-          signInHref={ctx ? null : loginHref(path.startsWith("/") ? path : "/")}
+      nonce={nonce}
+      state
+      bar={
+        <BookBar
+          back={place.back}
+          homeHref={place.homeHref}
+          visitor={place.visitor}
+          signInHref={place.signInHref}
         />
       }
     >
-      <BookStateBlock kind="notfound" libraryHref={libraryHref} />
+      <StateBlock
+        state={bookNotFound({
+          signedIn: !!ctx,
+          back: place.back,
+          signInHref: place.signInHref,
+        })}
+      />
     </BookFrame>
   );
 }
