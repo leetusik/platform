@@ -13,12 +13,14 @@ import "./landing.css";
  * the header > `main#main.lp-main` > the hero and the four parts, each `.center.lp-row` with its words
  * (`.lp-text`) and its picture (`.lp-pic`) > the footer. The pictures are the app's own panels drawn
  * as pictures (`role="img"` with a label, F257): static, nothing in them to click. Every word is
- * `@/content/marketing`.
+ * `@/content/marketing`. Second on the page, the diagram's section (job 08, round
+ * 01-landing-diagram-feedback, signed: its `## Build` 3a-3b): `figure.lp-map`, its parts and their
+ * arrangement in `landing.css`.
  */
 const external = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 export function Landing() {
-  const { picture, workspace, library, feedback, connect } = LANDING;
+  const { picture, how, workspace, library, feedback, connect } = LANDING;
   return (
     <UiRoot lang="en">
       <div className="lp" id="top">
@@ -104,6 +106,56 @@ export function Landing() {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  </div>
+                </figure>
+              </div>
+            </div>
+          </section>
+
+          <section className="lp-part" aria-labelledby="lp-how">
+            <div className="center lp-row">
+              <div className="lp-text">
+                <h2 className="lp-h2" id="lp-how">
+                  {how.title}
+                </h2>
+                <p>{how.text}</p>
+              </div>
+              <div className="lp-pic">
+                <figure className="lp-map" role="img" aria-label={how.label}>
+                  <div className="lp-map-chain lp-fit">
+                    <div className="lp-map-box lp-fit-feedback">
+                      <span className="lp-map-name">{how.feedback.name}</span>
+                      <span className="dim">{how.feedback.line}</span>
+                    </div>
+                    <div className="lp-map-link lp-fit-to-workspace">
+                      <span className="lp-map-line" aria-hidden="true" />
+                      <span className="lp-map-label">{how.toWorkspace}</span>
+                    </div>
+                    <div className="lp-map-box lp-fit-workspace">
+                      <span className="lp-map-name">
+                        {how.workspace.name} <Badge>{workspace.coming}</Badge>
+                      </span>
+                      <span className="dim">{how.workspace.line}</span>
+                    </div>
+                    <div className="lp-map-link is-down lp-fit-to-agent">
+                      <span
+                        className="lp-map-line is-both"
+                        aria-hidden="true"
+                      />
+                      <span className="lp-map-label">{how.toAgent}</span>
+                    </div>
+                    <div className="lp-map-box is-agent lp-fit-agent">
+                      <span className="lp-map-name">{how.agent.name}</span>
+                      <span className="dim">{how.agent.line}</span>
+                    </div>
+                    <div className="lp-map-link is-down lp-fit-to-library">
+                      <span className="lp-map-line" aria-hidden="true" />
+                      <span className="lp-map-label">{how.toLibrary}</span>
+                    </div>
+                    <div className="lp-map-box lp-fit-library">
+                      <span className="lp-map-name">{how.library.name}</span>
+                      <span className="dim">{how.library.line}</span>
                     </div>
                   </div>
                 </figure>
