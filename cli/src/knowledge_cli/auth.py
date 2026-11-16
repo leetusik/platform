@@ -38,7 +38,7 @@ import sys
 from typing import Any
 
 from . import config
-from .client import ApiError, KnowledgeClient
+from .client import ApiError, KnowledgeClient, waitlisted_email
 from .errors import CliError
 
 # The hosted service. A brand-new user with no config must reach it, not
@@ -133,11 +133,17 @@ def plane_call(base_url: str, fn, *args: Any, plane: str = "auth", **kwargs: Any
     live host does this today, until P13.S5), and it arrives as a bare `404` with
     an HTML body that `client._detail()` correctly refuses to echo. Without this
     branch the user would see an unexplained, empty `HTTP 404`.
+
+    On the auth plane it also turns a **waitlist answer** (sign-up's 202 or
+    sign-in's 403, both `"status": "waitlisted"` and tokenless) into one plain
+    `CliError`, so no caller ever reads a token that is not there.
     """
 
     try:
-        return fn(*args, **kwargs)
+        result = fn(*args, **kwargs)
     except ApiError as exc:
+        if plane == "auth" and exc.status == 403 and exc.waitlisted_email is not None:
+            raise _waitlisted(exc.waitlisted_email, signed_up=False) from None
         if exc.status == 404:
             label, subject = _PLANES[plane]
             raise CliError(
@@ -147,6 +153,32 @@ def plane_call(base_url: str, fn, *args: Any, plane: str = "auth", **kwargs: Any
                 "on http://localhost:8766."
             ) from None
         raise
+    if plane == "auth":
+        email = waitlisted_email(result)
+        if email is not None:
+            raise _waitlisted(email, signed_up=True)
+    return result
+
+
+def _waitlisted(email: str, *, signed_up: bool) -> CliError:
+    """The one plain line for an account the server holds on its waitlist.
+
+    Raised before anything is written, so a waitlisted sign-up or sign-in leaves no
+    session, no `api.token` and no config behind, and `init` stops at this step.
+    `email` is the address the server returned; the password and any token never
+    reach this message.
+    """
+
+    who = email or "this account"
+    if signed_up:
+        return CliError(
+            f"account created for {who}, and it is on the hi2vi waitlist — you will "
+            "get a mail when it opens; nothing was saved on this machine"
+        )
+    return CliError(
+        f"{who} is on the hi2vi waitlist — you will get a mail when it opens; "
+        "nothing was saved on this machine"
+    )
 
 
 def _tenants(payload: dict[str, Any]) -> list[dict[str, Any]]:

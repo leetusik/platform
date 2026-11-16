@@ -90,9 +90,15 @@ class ApiError(Exception):
     degrades to the status alone. Callers map ``status`` to a friendly message.
     """
 
-    def __init__(self, status: int, detail: str = "") -> None:
+    def __init__(
+        self, status: int, detail: str = "", *, waitlisted_email: str | None = None
+    ) -> None:
         self.status = status
         self.detail = detail
+        # Set only when the body said `"status": "waitlisted"` (a waitlisted
+        # sign-in's 403): the email the server returned, or "" if it sent none.
+        # `None` means "not a waitlist answer". Nothing else of the body is kept.
+        self.waitlisted_email = waitlisted_email
         super().__init__(f"HTTP {status}: {detail}" if detail else f"HTTP {status}")
 
 
@@ -117,6 +123,28 @@ def _detail(response: httpx.Response) -> str:
             # errors, safe to show and needed to explain e.g. the 2-5 tags rule.
             return json.dumps(detail)
     return ""
+
+
+def waitlisted_email(payload: Any) -> str | None:
+    """The email of a waitlist answer, `""` if it named none, or `None` if it is not one.
+
+    With `KB_SIGNUP_WAITLIST` on, sign-up answers `202 {"status": "waitlisted",
+    "email"}` with no token, and a waitlisted account's right-password sign-in
+    answers `403 {"detail": "waitlisted", "status": "waitlisted", "email"}`. Both
+    are recognised by the body's `status`, never by the HTTP code alone.
+    """
+
+    if isinstance(payload, dict) and payload.get("status") == "waitlisted":
+        email = payload.get("email")
+        return email if isinstance(email, str) else ""
+    return None
+
+
+def _waitlisted_error_email(response: httpx.Response) -> str | None:
+    try:
+        return waitlisted_email(response.json())
+    except ValueError:
+        return None
 
 
 def _params(**values: Any) -> dict[str, Any]:
@@ -218,7 +246,11 @@ class KnowledgeClient:
             headers["Authorization"] = f"Bearer {bearer}"
         response = self._client.request(method, path, headers=headers or None, **kwargs)
         if response.status_code >= 400:
-            raise ApiError(response.status_code, _detail(response))
+            raise ApiError(
+                response.status_code,
+                _detail(response),
+                waitlisted_email=_waitlisted_error_email(response),
+            )
         if response.status_code == 204 or not response.content:
             return {}
         try:
@@ -232,6 +264,8 @@ class KnowledgeClient:
 
     def auth_signup(self, email: str, password: str) -> Any:
         """POST /auth/signup -> 201 {token, user, tenant}. 409 if the email exists.
+
+        With the server's waitlist on: 202 {status: "waitlisted", email}, no token.
 
         `password` is min_length=8; the email is lowercased/stripped server-side.
         """
