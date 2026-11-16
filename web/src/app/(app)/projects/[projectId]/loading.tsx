@@ -1,7 +1,10 @@
+import { cookies } from "next/headers";
+
 import { Trend, Usage } from "@/hi2vi/frame";
 import { Grid } from "@/hi2vi/ui";
 import { requireIdentity } from "@/lib/auth-guards";
 
+import { projectHomeFormat, todayIn } from "./model";
 import { FeedbackPanel, LibraryPanel, WorkspacePanel } from "./parts";
 import { ProjectHeadLoading } from "./project-head";
 import { ProjectKeysLoading } from "./project-keys";
@@ -15,7 +18,7 @@ import "./project-home.css";
 export default async function ProjectHomeLoading() {
   const { identity } = await requireIdentity();
   const org = identity.tenant?.name ?? "—";
-  const today = new Date().toISOString().slice(0, 10);
+  const format = projectHomeFormat(await cookies());
   return (
     <div className="column">
       <ProjectHeadLoading org={org} />
@@ -26,12 +29,7 @@ export default async function ProjectHomeLoading() {
       </Grid>
       <div className="section">
         <Usage loading />
-        <Trend
-          series={[]}
-          lastDay={today}
-          loading
-          format={{ timeZone: "UTC" }}
-        />
+        <Trend series={[]} lastDay={todayIn(format)} loading format={format} />
       </div>
       <ProjectKeysLoading />
     </div>

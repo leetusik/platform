@@ -79,7 +79,8 @@ function LibraryHead({ count }: { count: string | null }) {
 
 /** The Library panel's states (`ProjectHomeLibraryStates.dc.html`). */
 export type LibraryState =
-  | { kind: "rows"; rows: readonly LibraryRow[] }
+  /** `all`: the foot's address, the project's own library (`projectLibraryHref`). */
+  | { kind: "rows"; rows: readonly LibraryRow[]; all: string }
   | { kind: "failed"; retry: ReactNode }
   /** Fetched again after Try again: the count stays, three skeleton rows. */
   | { kind: "loading" }
@@ -102,6 +103,7 @@ export function LibraryPanel({
 }) {
   const waiting = state.kind === "loading" || state.kind === "first-load";
   const rows = state.kind === "rows" ? state.rows : null;
+  const all = state.kind === "rows" ? state.all : null;
   return (
     <Panel
       className="ph-part"
@@ -123,7 +125,9 @@ export function LibraryPanel({
                       {row.book ? <Badge>{L.book}</Badge> : null}
                     </span>
                     {row.sub !== null ? (
-                      <span className="meta ph-sub">{row.sub}</span>
+                      <span className="meta ph-sub" lang={row.subLang}>
+                        {row.sub}
+                      </span>
                     ) : null}
                   </span>
                 </Link>
@@ -135,7 +139,7 @@ export function LibraryPanel({
             ))}
           </ul>
           <div className="panel-foot">
-            <Link href="/library" className="link link-row">
+            <Link href={all ?? "/library"} className="link link-row">
               {L.all}
             </Link>
           </div>
