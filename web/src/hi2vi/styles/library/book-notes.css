@@ -1,0 +1,6 @@
+/* hi2vi — the Library: a book's notes (`BookNotes.dc.html`). Owner: P63-fk.S14; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here. */
+@scope (.ui) to ([data-ui-legacy]) {
+}

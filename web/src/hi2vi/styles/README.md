@@ -9,7 +9,10 @@ class names are the signed ones; the only changes are the isolation below, liste
 | `tokens.css` | The colour roles (light, and dark under `data-scheme="dark"`), spacing, radii, type steps, line heights, the two font stacks, the `.type-*` classes. |
 | `bundle.css` | Layout tokens, base, primitives, app layout, shell, components, `.status-done`; then `@keyframes skel`. |
 | `boundary.css` | The old-page boundary: the copies on `:root` and the restore at `[data-ui-legacy]`. |
-| `index.css` | The three, in that order. The root layout imports it after `globals.css`. |
+| `index.css` | The three, in that order, then the Library's sheets. The root layout imports it after `globals.css`. |
+| `library/frame.css` | The Library's frame (job 03, round 02): its tokens (`--read-*`, `--sheet-w`, `--side-w`, `--line-h`, `--row-h`), Choice, the bar outside the Shell, the reader's layout, a text's body, head, end and foot, chapters, the sheet, Sign in to save, shelves, a mark's row, Display and Version history, the pager. Its changes from the signed sheet are listed at its top. |
+| `library/<part>.css` | One sheet a Library part, each owned by one slice and named in its header: `lists`, `project-library`, `public-library`, `book`, `reader`, `blocks`, `annotations`, `document`, `book-notes`. |
+| `library/boundary.css` | The Library's own custom properties restored at the old-page boundary, as `boundary.css` does the system's. |
 
 ## How it stays out of the old pages
 
@@ -45,7 +48,13 @@ and the new shell wraps old pages. So:
   and it inherits as a child of `<body>` does.
 - New markup inside `.ui` uses the system's classes only; no Tailwind utility is needed there.
 - A later sheet of system classes (a job's frame components) is scoped the same way:
-  `@scope (.ui) to ([data-ui-legacy]) { … }`, with root rules as `:scope`, and loaded outside Tailwind.
+  `@scope (.ui) to ([data-ui-legacy]) { … }`, with root rules as `:scope`, and loaded outside Tailwind. It is
+  imported once, here, never by a page or a component (so no route segment hoists a sheet of its own), and a
+  custom property it declares is restored at the boundary (`library/boundary.css`).
+  `tests/hi2vi-library-frame-sheets.test.ts` holds the Library's sheets to this: every rule in the scope, no
+  rule that names only system classes (one name per meaning) beyond `button.link-row`, and the boundary list.
+- Schemes: `UiRoot` sets `light` or `dark` on the root. The Library's reader sets its own on its root
+  (`data-scheme` `light`, `dark` or `sepia`, job 03 frame.md F57); `tokens.css` answers all three there.
 
 ## Browsers
 

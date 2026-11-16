@@ -1,0 +1,37 @@
+/* hi2vi — the Library frame's old-page boundary (see ../README.md and ../boundary.css, whose pattern this is).
+
+   The Library's sheets declare custom properties of their own on the `.ui` root and the reader's root (the text's
+   size and measure, the sheet's and the side panel's widths, the progress line, a row's height). Custom properties
+   inherit across the scope's limit, so an old page's content inside a `.ui` root would see them. Nothing old reads
+   these names today; this keeps the system's promise anyway: an old page's content sees exactly what it saw as a
+   child of `<body>`.
+
+   1. On `:root`, each name is copied, as the old page sees it there (unset), into a new name of its own
+      (`--hi2vi-legacy-*`). Nothing reads those names but the rule below, so no element outside `.ui` changes.
+   2. At the boundary each name is set back to that copy.
+
+   tests/hi2vi-library-frame-sheets.test.ts holds this list equal to every custom property the Library's sheets
+   declare that the system's own sheets do not (those are restored by ../boundary.css). */
+:root {
+  --hi2vi-legacy-read-fs: var(--read-fs);
+  --hi2vi-legacy-read-k: var(--read-k);
+  --hi2vi-legacy-read-lh: var(--read-lh);
+  --hi2vi-legacy-read-measure: var(--read-measure);
+  --hi2vi-legacy-sheet-w: var(--sheet-w);
+  --hi2vi-legacy-side-w: var(--side-w);
+  --hi2vi-legacy-line-h: var(--line-h);
+  --hi2vi-legacy-row-h: var(--row-h);
+  --hi2vi-legacy-read-small: var(--read-small);
+}
+
+.ui [data-ui-legacy] {
+  --read-fs: var(--hi2vi-legacy-read-fs);
+  --read-k: var(--hi2vi-legacy-read-k);
+  --read-lh: var(--hi2vi-legacy-read-lh);
+  --read-measure: var(--hi2vi-legacy-read-measure);
+  --sheet-w: var(--hi2vi-legacy-sheet-w);
+  --side-w: var(--hi2vi-legacy-side-w);
+  --line-h: var(--hi2vi-legacy-line-h);
+  --row-h: var(--hi2vi-legacy-row-h);
+  --read-small: var(--hi2vi-legacy-read-small);
+}
