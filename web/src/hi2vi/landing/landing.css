@@ -122,6 +122,18 @@
     gap: 0 var(--space-2);
     margin-left: calc(-1 * var(--space-3));
   }
+  /* job 08 (round 01-landing-diagram-feedback, `## Build` 3c; `Landing.dc.html`): the footer's row, the
+     links, then Send feedback at the row's end, in the row's own look (F407: a .lp-link). Like the
+     wordmark, its text is on the column's edge and its wash outside it; it drops under the links, its
+     text on the column's left edge, when the row is too narrow (.split wraps). On the canvas
+     .lp-foot-send is a div around the control's mount; here it is a class on the button itself. */
+  .lp-foot-row {
+    align-self: stretch;
+  }
+  .lp-foot-send {
+    display: flex;
+    margin-inline: calc(-1 * var(--space-3));
+  }
   .lp-facts > li {
     text-wrap: pretty;
   }

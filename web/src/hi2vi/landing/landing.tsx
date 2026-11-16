@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { LANDING, LANDING_LINKS, LANDING_PARTS } from "@/content/marketing";
 import { Copy } from "@/hi2vi/frame";
+import { SendFeedback } from "@/hi2vi/send-feedback";
 import { Badge, buttonClass, Status, UiRoot } from "@/hi2vi/ui";
 
 import { LandingHeader } from "./header";
@@ -15,11 +16,18 @@ import "./landing.css";
  * as pictures (`role="img"` with a label, F257): static, nothing in them to click. Every word is
  * `@/content/marketing`. Second on the page, the diagram's section (job 08, round
  * 01-landing-diagram-feedback, signed: its `## Build` 3a-3b): `figure.lp-map`, its parts and their
- * arrangement in `landing.css`.
+ * arrangement in `landing.css`. In the footer, after the five links, the feedback control's trigger
+ * (job 08's `## Build` 3c-3d): only when the page passes `sendFeedback`, which it does only where the server
+ * holds the control's key; without it the footer's row holds the links alone, the signed footer.
  */
 const external = { target: "_blank", rel: "noopener noreferrer" } as const;
 
-export function Landing() {
+export interface LandingProps {
+  /** The feedback control's settings, read per request; left out where the server holds no key (F408). */
+  sendFeedback?: { limit: number };
+}
+
+export function Landing({ sendFeedback }: LandingProps) {
   const { picture, how, workspace, library, feedback, connect } = LANDING;
   return (
     <UiRoot lang="en">
@@ -367,20 +375,29 @@ export function Landing() {
             <a className="mark lp-mark" href="#top">
               {LANDING.wordmark}
             </a>
-            <nav className="lp-foot-links" aria-label={LANDING.footer.nav}>
-              {LANDING_PARTS.map((part) => (
-                <a key={part.id} className="lp-link" href={`#${part.id}`}>
-                  {part.label}
+            <div className="split lp-foot-row">
+              <nav className="lp-foot-links" aria-label={LANDING.footer.nav}>
+                {LANDING_PARTS.map((part) => (
+                  <a key={part.id} className="lp-link" href={`#${part.id}`}>
+                    {part.label}
+                  </a>
+                ))}
+                <a
+                  className="lp-link"
+                  href={LANDING.footer.github.href}
+                  {...external}
+                >
+                  {LANDING.footer.github.label}
                 </a>
-              ))}
-              <a
-                className="lp-link"
-                href={LANDING.footer.github.href}
-                {...external}
-              >
-                {LANDING.footer.github.label}
-              </a>
-            </nav>
+              </nav>
+              {sendFeedback ? (
+                <SendFeedback
+                  context="visitor"
+                  limit={sendFeedback.limit}
+                  triggerClassName="lp-link lp-foot-send"
+                />
+              ) : null}
+            </div>
           </div>
         </footer>
       </div>

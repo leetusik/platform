@@ -1,0 +1,59 @@
+/* hi2vi — the feedback control's own classes (job 08, round 01-landing-diagram-feedback, signed):
+   `frame.css` section 7, the `.sf-dlg` rules, value for value and name for name. Imported by the
+   control (./send-feedback.tsx), so the landing and org home both load it (org home never loads
+   landing.css). The changes, and nothing else (src/hi2vi/styles/README.md):
+   - the sheet is one `@scope (.ui) to ([data-ui-legacy])` block, like the system's sheets: the
+     dialog stays inside the page's `.ui` root (in the top layer, never moved), so it takes the
+     page's scheme;
+   - the three canvas-only rules that end section 7 (`[data-sc-name="SendFeedback"]` twice and
+     `.lpw-zoom .sf-dlg:not(:modal)`) are not built;
+   - `.sf-hp` is the build's: the visitor form's `website` field, a trap for robots, off-screen and
+     drawn by nobody (S2's honeypot). It is no part of the signed design.
+   Outside Tailwind; no token is added and no theme variable is named here. */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* 7 ── the feedback control (SendFeedback.dc.html; frame.md F402 to F407) ────────────────
+     It is the system's own parts: .btn, dialog.dlg, .field, .label, .input, .hint, .field-error, .notice.
+     Its label row is .split.baseline (the label, then the count at the row's end). What it adds is .sf-dlg:
+     the system's dialog holds a form with a notice down to 320 px at 200% text. */
+  /* a word longer than its line (an email address) breaks instead of leaving the dialog */
+  .sf-dlg {
+    container: sfdlg / inline-size;
+    overflow-wrap: anywhere;
+  }
+  /* under 200 px of window the dialog keeps 8 px to the window's edge, not 16 */
+  .sf-dlg:modal {
+    width: min(
+      34em,
+      max(
+        calc(100vw - 2 * var(--space-4)),
+        min(calc(100vw - 2 * var(--space-2)), 12em)
+      )
+    );
+  }
+  /* and under 12em of its own width it takes 12 px insets, so a notice's longest word fits its line */
+  @container sfdlg (max-width: 12em) {
+    .sf-dlg .dlg-body {
+      gap: var(--space-3);
+      padding: var(--space-3);
+    }
+    .sf-dlg .notice {
+      padding: var(--space-2) var(--space-3);
+    }
+    .sf-dlg .notice-danger {
+      padding-left: calc(var(--space-3) + var(--space-5));
+    }
+    .sf-dlg .notice-danger::before {
+      top: calc(var(--space-2) + 0.15em);
+      left: var(--space-3);
+    }
+  }
+
+  /* the build's: the honeypot, off-screen, with no box in the form's column */
+  .sf-hp {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+}

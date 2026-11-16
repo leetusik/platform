@@ -78,3 +78,8 @@ export { BOOK } from "./book";
 // Listen (P41-sr.W1) — the `11-listen` round's words: the Listen control, the dock's short
 // forms and live region, the note's state words and sentences (F1, F6, F7, F10).
 export { LISTEN } from "./listen";
+
+// hi2vi's own feedback control (job 08, round 01-landing-diagram-feedback, `## Build` §2 and §5): the
+// trigger, the dialog, its states and the check's sentences, on the landing and on org home.
+export { feedbackNumber, SEND_FEEDBACK } from "./send-feedback";
+export type { SendFeedbackCopy } from "./send-feedback";
