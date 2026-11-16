@@ -130,7 +130,7 @@ describe("the rail", () => {
     expect(hrefs).toEqual([
       "/projects/p%201",
       null,
-      "/library",
+      "/projects/p%201/library",
       "/feedback?project=p%201",
     ]);
   });

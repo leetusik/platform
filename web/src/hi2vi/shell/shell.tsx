@@ -21,6 +21,7 @@ import {
   orgSwitcherKind,
   projectCountText,
   projectIdOf,
+  projectSwitchHref,
   railFor,
   reviewCount,
   showsProjectFilter,
@@ -263,7 +264,7 @@ export function Shell({
                           <Link
                             key={p.id}
                             className="menu-item"
-                            href={`/projects/${encodeURIComponent(p.id)}`}
+                            href={projectSwitchHref(pathname, p.id)}
                             aria-current={
                               project && p.id === project.id
                                 ? "true"
