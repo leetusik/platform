@@ -6,7 +6,7 @@
  * Reused unchanged, from `reader.css`: the frame, buttons, sheets, skeleton, editorial state,
  * the quiz's parts (scoped `.kb-ch`, so a card's body carries that class), the highlight's paint
  * and the undo line. PRODUCT vs CANVAS: the product scrolls the window and the reader's chrome
- * is `position: fixed`; `main.rd-page` is the `rd` size container the `@container rd` rules
+ * is `position: fixed`; `div.rd-page` (inside the shell's `main`) is the `rd` size container the `@container rd` rules
  * below measure. Canvas-only (never built): the state bar, the foot strip, the stand-ins, the
  * proposal box and the Components boards' cells (`.rv-cellbox`, `.rv-solo`, `.rv-ivls`).
  *

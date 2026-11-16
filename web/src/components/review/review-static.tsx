@@ -59,9 +59,8 @@ export function ReviewStatic({
           </div>
           <div className="rd-top__end" />
         </header>
-        <main
+        <div
           className="rd-page rd-flow rv-page"
-          id="main-content"
           aria-busy={loading ? "true" : undefined}
         >
           <header className="rv-head">
@@ -85,7 +84,7 @@ export function ReviewStatic({
             </p>
           </header>
           {loading ? <CardSkeleton /> : children}
-        </main>
+        </div>
       </div>
     </div>
   );

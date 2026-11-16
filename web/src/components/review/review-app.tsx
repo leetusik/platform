@@ -780,9 +780,8 @@ export function ReviewApp({
           </div>
         </header>
 
-        <main
+        <div
           className="rd-page rd-flow rv-page"
-          id="main-content"
           aria-busy={loading ? "true" : undefined}
         >
           <QueueHead
@@ -830,7 +829,7 @@ export function ReviewApp({
               onSettings={(el) => openPanel("settings", el)}
             />
           ) : null}
-        </main>
+        </div>
 
         {s.toast ? (
           <div className="an-slot an-slot--page an-slot--toast">
