@@ -17,6 +17,11 @@
   .signin-alt {
     min-width: var(--control-h);
   }
+  /* the waitlist state's sentence carries the email used: an address with no break in it
+     wraps inside the panel instead of pushing the page wider */
+  .signin-wait-text {
+    overflow-wrap: anywhere;
+  }
 
   /* the top bar is the Shell's with nobody signed in (frame.md F33): where the Shell's bar
      breaks into two rows, this bar is the Shell's first row, nothing kept under it */

@@ -173,7 +173,9 @@ export function SignInForm({
           <div className="stack gap-1">
             <div className="panel">
               <div className="panel-body block">
-                <p className="block-text">{words.text(waitlisted)}</p>
+                <p className="block-text signin-wait-text">
+                  {words.text(waitlisted)}
+                </p>
               </div>
             </div>
             <p className="cluster gap-1">

@@ -187,6 +187,18 @@ describe("POST /api/auth/signup", () => {
     await expect(res.json()).resolves.toEqual({ ok: false });
   });
 
+  it("passes knowledge's 422 (its password minimum) through on both routes, never as a 502", async () => {
+    // knowledge's pydantic body check answers 422 for a password under 8 characters.
+    stubKb(422, { detail: [{ type: "string_too_short", loc: ["body", "password"] }] });
+    const up = await signupPOST(makeReq("/api/auth/signup", { ip: "10.0.2.4" }));
+    expect(up.status).toBe(422);
+    expect(setCookieOf(up)).toBeNull();
+    await expect(up.json()).resolves.toEqual({ ok: false });
+    const inn = await loginPOST(makeReq("/api/auth/login", { ip: "10.0.2.5" }));
+    expect(inn.status).toBe(422);
+    expect(setCookieOf(inn)).toBeNull();
+  });
+
   it("keeps its own throttle bucket, independent of login's", async () => {
     stubKb(201, { token: TOKEN, user: USER, tenant: TENANT });
     const ip = "10.0.2.3";

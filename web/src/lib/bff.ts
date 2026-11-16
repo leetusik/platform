@@ -49,7 +49,7 @@ export function json(status: number, body: Record<string, unknown>): NextRespons
 /**
  * Request-body shape. Deliberately permissive beyond presence/typing: knowledge
  * owns the real credential rules (email normalization + the password minimum) and
- * answers 400, which we pass through — so the BFF never forks from the backend's
+ * answers 400 or 422 (the password minimum), which we pass through — so the BFF never forks from the backend's
  * validation. The max lengths are only a cheap DoS guard.
  */
 const credentialsSchema = z.object({
@@ -71,7 +71,7 @@ export interface CredentialRouteOptions {
   call: (email: string, password: string) => Promise<KbAuthAnswer>;
   /**
    * knowledge statuses that are meaningful to the client and pass through verbatim
-   * (login: 401 + 400; signup: 409 + 400). Any OTHER error becomes a 502 — an
+   * (login: 401, 400, 422; signup: 409, 400, 422). Any OTHER error becomes a 502 — an
    * upstream fault is never reported as if it were the user's mistake.
    */
   passThroughStatuses: readonly number[];
