@@ -69,8 +69,8 @@ export function MarkRow({
   const facts = markFacts(m, place);
   const actions = markActions(m, place);
   const bookmark = m.kind === "bookmark" || m.kind === "position";
-  const nameLang = bookmark && m.label ? m.lang : "en";
   const factLang = placeLang ?? (m.state === "other" ? m.lang : "en");
+  const nameLang = bookmark && m.label ? m.lang : factLang;
 
   const fail = (id: number) => {
     if (id !== run.current) return;
