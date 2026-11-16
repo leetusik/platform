@@ -1,17 +1,34 @@
-import { LibraryNotFound } from "@/components/library/library-states";
-import { OptionalShell } from "@/components/states/optional-shell";
+import { headers } from "next/headers";
 
-// P19 — the branded not-found of `/graph/{org_uuid}`, which P37-1p turned into a redirect
-// to the org's library. Reached by the page's `notFound()` for a malformed org id OR the
-// library endpoint's one indistinguishable 404 (an unknown org, or one showing this caller
-// nothing), so it is the library's own constant 404 ("Library not found", `06-library`
-// §9), with the same shell the library's layout gives it: the app shell signed in, the
-// public shell signed out. The app has no root `not-found.tsx`, so dropping this file
-// would fall to Next's unbranded 404.
-export default function PublicGraphNotFound() {
+import { StateBlock } from "@/hi2vi/states";
+import { optionalIdentity } from "@/lib/auth-guards";
+import { REQUEST_PATH_HEADER } from "@/lib/next-path";
+import { signInFrom } from "@/lib/public-library/model";
+
+import { PublicLibraryFrame } from "@/app/(public)/[org]/(library)/frame";
+import { libraryNotFound } from "@/app/(public)/[org]/(library)/parts";
+
+/**
+ * The not-found of `/graph/{org_uuid}` (a redirect to the org's library since P37-1p), reached by the
+ * page's `notFound()` for a malformed id or the library read's one 404. It is the public library's own
+ * Library not found (`PublicLibrary.dc.html`, Not found; D249-7z), in the frame the library's layout
+ * would pick (the Shell signed in, the bar's frame signed out), since this route has no layout of its
+ * own. No loading boundary sits above it, so it answers a real HTTP 404.
+ */
+export default async function LegacyGraphNotFound() {
+  const [ctx, path] = await Promise.all([
+    optionalIdentity(),
+    headers().then((h) => h.get(REQUEST_PATH_HEADER) ?? "/"),
+  ]);
   return (
-    <OptionalShell>
-      {(signedIn) => <LibraryNotFound signedIn={signedIn} />}
-    </OptionalShell>
+    <PublicLibraryFrame path={path}>
+      <StateBlock
+        state={libraryNotFound(
+          ctx
+            ? { viewer: "member" }
+            : { viewer: "visitor", signInHref: signInFrom(path) },
+        )}
+      />
+    </PublicLibraryFrame>
   );
 }
