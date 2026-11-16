@@ -197,7 +197,12 @@ imposed:
   grammar`), which the publish carries (§5). Its slug and title: a **phase or slice
   subject** gets that phase's own book, `p<N>` (a tailed or v73 id keeps its form:
   `P46-k2` suggests `p46-k2`), titled by the rule below; **anything else** is a named
-  book.
+  book. **Its second title**, optional and rare: only when the operator gives the
+  book's title a form in a second language (an English title with its Korean form), the
+  confirmation's unit line names it with its language, `second title: <text> (<xx>)`,
+  and the publish carries it as the book's `subtitle` and `subtitle_lang` (§5). It is
+  the same title in another language, never a tagline, a summary or a second phrase in
+  the title's own language; a book without one sends neither.
 
 **The title rule.** A book's, a chapter's or a loose document's title says what the text
 explains, never the work that produced it: "How a review publishes privately (P30)", not
@@ -1896,7 +1901,9 @@ Otherwise use the **curl** form further down; both send the same request.
   only when the **book** is new. The kind is the one the confirmation signed (§1 *The unit,
   and where it goes*): `codebase`, or `subject` with `--book-subject "<label>"`, its short
   display label (`--book-subject "English grammar"`); a codebase book sends no
-  `--book-subject`. A loose document sends neither.
+  `--book-subject`. A loose document sends neither. The CLI has no flag for a book's
+  second title: a **new** book whose confirmation signed one is published with the curl
+  form below.
 - `--new-version --rel-path` is for a **loose** document's re-explain (`PRIOR` from step 3).
   A chapter needs neither: re-sending the same book, key and `--lang` is its next version.
 - A **loose document's translation** is a new document, never a new version of its
@@ -1920,14 +1927,17 @@ a loose document's translation sets `slug`, below):
       "source_repo": "<absolute path to the current repo root>",
       "co_authored_by": "<bare attribution>",
       "book": {"slug": "<book>", "kind": "codebase | subject", "title": "<Book title>",
-               "subject": "<label, a subject book only>"},
+               "subject": "<label, a subject book only>",
+               "subtitle": "<the title's second-language form, a book with one only>",
+               "subtitle_lang": "<its language, xx>"},
       "chapter": {"key": "<key>", "position": <n>, "title": "<Chapter title>",
                   "source": {"phase": "P<N>", "slice": "P<N>.S<k>"}},
       "translated_from": {"lang": "<xx>", "version": <n>}
     }
 
 Drop every field that does not apply: `book` and `chapter` only for a placed chapter,
-`translated_from` only for a translation.
+`book.subtitle` and `book.subtitle_lang` only for a new book whose confirmation signed a
+second title (§1), `translated_from` only for a translation.
 A loose document's translation also sets `"slug": "<source slug>-<xx>"`, the one case
 that sets `slug`, and never `new_version` or `rel_path` (§3.1 *Translation*).
 For a loose document's **new version** add `"new_version": true, "rel_path":

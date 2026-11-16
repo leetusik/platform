@@ -551,6 +551,9 @@ class BookRefIn(BaseModel):
     kind: Optional[str] = None
     subject: Optional[str] = None
     description: Optional[str] = None
+    # P63 (D248-j7): the book's second title and its language, seeding a NEW book only.
+    subtitle: Optional[str] = None
+    subtitle_lang: Optional[str] = None
 
 
 class ChapterRefIn(BaseModel):
@@ -659,10 +662,13 @@ def _validated_placement(body: DocumentIn) -> Optional[dict]:
     subject = books_mod.validate_subject(b.subject)
     if kind == "subject" and subject is None:
         raise documents_mod.ConventionError("a subject book needs book.subject")
+    subtitle, subtitle_lang = books_mod.validate_subtitle(b.subtitle, b.subtitle_lang)
     return {
         "book": {
             "slug": books_mod.validate_book_slug(b.slug),
             "title": books_mod.validate_text(b.title, "book.title", required=False),
+            "subtitle": subtitle,
+            "subtitle_lang": subtitle_lang,
             "kind": kind,
             "subject": subject,
             "description": books_mod.validate_text(
@@ -728,6 +734,9 @@ def _place_variant(
         manifest = {
             "slug": book["slug"],
             "title": book["title"] or book["slug"],
+            # Unset ones (None) are dropped by normalize_manifest on write.
+            "subtitle": book["subtitle"],
+            "subtitle_lang": book["subtitle_lang"],
             "kind": book["kind"],
             "subject": book["subject"],
             "description": book["description"],
@@ -2088,6 +2097,9 @@ class BookPutIn(BaseModel):
 
     slug: Optional[str] = None
     title: str
+    # P63 (D248-j7): the second title and its language; omitted = none (PUT replaces).
+    subtitle: Optional[str] = None
+    subtitle_lang: Optional[str] = None
     kind: str
     subject: Optional[str] = None
     description: Optional[str] = None
@@ -2133,6 +2145,8 @@ def put_book(
             {
                 "slug": book,
                 "title": body.title,
+                "subtitle": body.subtitle,
+                "subtitle_lang": body.subtitle_lang,
                 "kind": body.kind,
                 "subject": body.subject,
                 "description": body.description,

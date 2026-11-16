@@ -157,3 +157,62 @@ def test_reading_minutes_ride_the_library_book_and_document_reads(documents_clie
     # The list's key set is pinned (test_documents_api._LIST_KEYS): no new field there.
     listed = client.get("/app/documents", headers=headers).json()["items"]
     assert all("reading_minutes" not in item for item in listed)
+
+
+def test_a_books_second_title_rides_every_read_that_lists_or_opens_it(documents_client):
+    """D248-j7: the manifest's ``subtitle`` / ``subtitle_lang`` reach the reads as
+    ``sub`` / ``sub_lang``: the org library (the Library, project home, a project's
+    library and the public ones), both book reads and the book list. A book without
+    one reads back null."""
+
+    client, _ = documents_client
+    headers, tenant = _signup(client, f"subtitle-{uuid4()}@example.com")
+    pid = _project(client, headers, "alpha")
+    assert client.patch(
+        f"/app/projects/{pid}", json={"visibility": "public"}, headers=headers
+    ).status_code == 200
+    _seed_doc(tenant, "alpha", slug="ch1", title="Chapter one", markdown="body")
+    _seed_doc(tenant, "alpha", slug="ch2", title="Chapter two", markdown="body")
+    conn = db.connect()
+    try:
+        for slug, rel, extra in (
+            ("guide", "alpha/2026-01-01-ch1.md", {"subtitle": "길잡이", "subtitle_lang": "ko"}),
+            ("plain", "alpha/2026-01-01-ch2.md", {}),
+        ):
+            db.replace_book(
+                conn,
+                tenant_id=tenant,
+                project="alpha",
+                manifest={
+                    "slug": slug,
+                    "title": slug.title(),
+                    **extra,
+                    "kind": "codebase",
+                    "chapters": [{"key": "one", "position": 1, "variants": {"en": rel}}],
+                },
+                manifest_path=f".books/alpha/{slug}.json",
+            )
+    finally:
+        conn.close()
+
+    org = tenant  # a slug-less org is addressed by its tenant id
+    want = {"guide": ("길잡이", "ko"), "plain": (None, None)}
+
+    def pairs(books):
+        return {b["slug"]: (b["sub"], b["sub_lang"]) for b in books}
+
+    # The org library: a member's, its public view, and a stranger's.
+    for who in (headers, None):
+        for scope in ("all", "public"):
+            res = client.get(f"/app/orgs/{org}/library", params={"scope": scope}, headers=who)
+            assert res.status_code == 200, res.text
+            assert pairs(res.json()["books"]) == want
+    # Both book reads, member and stranger, and the member's book list.
+    for slug, pair in want.items():
+        for who in (headers, None):
+            found = client.get(f"/app/orgs/{org}/alpha/books/{slug}", headers=who).json()
+            assert (found["sub"], found["sub_lang"]) == pair
+        mine = client.get(f"/app/books/alpha/{slug}", headers=headers).json()
+        assert (mine["sub"], mine["sub_lang"]) == pair
+    listed = client.get("/app/books", headers=headers).json()["items"]
+    assert pairs(listed) == want

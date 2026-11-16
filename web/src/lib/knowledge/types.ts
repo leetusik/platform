@@ -507,10 +507,15 @@ export interface KbBook {
   kind: string;
   subject: string | null;
   /**
-   * The book's second title (P63, D248-j7): drawn under the title. Optional and
-   * unset until the book manifest carries it.
+   * The book's second title (P63, D248-j7): drawn under the title. Null when the book
+   * manifest names none (its optional `subtitle`); absent from an older backend.
    */
   sub?: string | null;
+  /**
+   * The language of `sub`, a lowercase primary subtag (`ko`): the manifest's optional
+   * `subtitle_lang`. Null when the author gave none; absent from an older backend.
+   */
+  sub_lang?: string | null;
   description: string | null;
   chapters: KbBookChapter[];
   /** `/@{org}/{project}/books/{book}`, on the slug (or the tenant id when it has none). */
@@ -536,8 +541,10 @@ export interface KbLibraryBook {
   title: string;
   kind: string;
   subject: string | null;
-  /** The book's second title (P63, D248-j7); optional and unset until the manifest carries it. */
+  /** The book's second title (P63, D248-j7); null when the manifest names none, absent from an older backend. */
   sub?: string | null;
+  /** The language of `sub` (`ko`), or null when the author gave none; absent from an older backend. */
+  sub_lang?: string | null;
   chapters: {
     key: string;
     position: number;

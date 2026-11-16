@@ -415,3 +415,175 @@ def test_detail_names_the_chapter_a_document_is_bound_as(client):
         conn.close()
     assert bound == {"book": "phases", "chapter_key": "p8", "lang": "en"}
     assert free is None
+
+
+# --- a book's second title (P63, D248-j7) ---------------------------------------
+
+from server import books as books_mod  # noqa: E402
+from server.documents import ConventionError  # noqa: E402
+
+
+def _manifest(**over):
+    base = {"slug": "phases", "title": "Phases", "kind": "codebase", "chapters": []}
+    base.update(over)
+    return base
+
+
+def test_a_second_title_is_optional_and_sits_beside_the_title():
+    # Without it the canonical form is exactly as before: no new key appears.
+    plain = books_mod.normalize_manifest(_manifest(), project="knowledge")
+    assert list(plain) == ["slug", "title", "kind", "subject", "description", "chapters"]
+    # With it, the second title and its language follow the title.
+    full = books_mod.normalize_manifest(
+        _manifest(subtitle="단계별로 본 지식", subtitle_lang="ko"), project="knowledge"
+    )
+    assert list(full)[:4] == ["slug", "title", "subtitle", "subtitle_lang"]
+    assert (full["subtitle"], full["subtitle_lang"]) == ("단계별로 본 지식", "ko")
+    # The language is optional; null means unset.
+    alone = books_mod.normalize_manifest(_manifest(subtitle="Second"), project="knowledge")
+    assert alone["subtitle"] == "Second" and "subtitle_lang" not in alone
+    nulls = books_mod.normalize_manifest(
+        _manifest(subtitle=None, subtitle_lang=None), project="knowledge"
+    )
+    assert list(nulls) == list(plain)
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"subtitle": 5}, "invalid book subtitle: 5"),
+        ({"subtitle": ["a"]}, "invalid book subtitle: ['a']"),
+        ({"subtitle": "   "}, "invalid book subtitle: '   '"),
+        ({"subtitle": "x" * 301}, "book subtitle is longer than 300 characters"),
+        ({"subtitle": "Second", "subtitle_lang": "KO"}, "invalid book subtitle_lang"),
+        ({"subtitle": "Second", "subtitle_lang": "korean"}, "invalid book subtitle_lang"),
+        ({"subtitle": "Second", "subtitle_lang": 1}, "invalid book subtitle_lang"),
+        ({"subtitle_lang": "ko"}, "book subtitle_lang needs a subtitle"),
+        ({"subtitle": None, "subtitle_lang": "ko"}, "book subtitle_lang needs a subtitle"),
+    ],
+)
+def test_a_malformed_second_title_is_refused(fields, message):
+    with pytest.raises(ConventionError) as exc:
+        books_mod.normalize_manifest(_manifest(**fields), project="knowledge")
+    assert message in str(exc.value)
+
+
+def test_a_second_title_rides_the_index_through_a_reindex(client, tmp_path):
+    tc, root = client
+    r = tc.post(
+        "/api/documents",
+        json=_payload(book=_BOOK, chapter={"key": "p8", "position": 8}, lang="en"),
+    )
+    assert r.status_code == 201, r.text
+    # A book with none reads back with none.
+    book = tc.get("/api/books/knowledge/phases").json()
+    assert (book["sub"], book["sub_lang"]) == (None, None)
+
+    # The author writes it into the manifest; the index carries it after a reindex,
+    # and a rebuild from an empty store reproduces it.
+    path = root / "docs" / ".books" / "knowledge" / "phases.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest.update(subtitle="단계별로 본 지식", subtitle_lang="ko")
+    path.write_text(books_mod.serialize_manifest(manifest), encoding="utf-8")
+    reindex.reindex()
+    book = tc.get("/api/books/knowledge/phases").json()
+    assert (book["sub"], book["sub_lang"]) == ("단계별로 본 지식", "ko")
+    (item,) = tc.get("/api/books", params={"project": "knowledge"}).json()["items"]
+    assert (item["sub"], item["sub_lang"]) == ("단계별로 본 지식", "ko")
+
+    db_file = tmp_path / "data" / "kb.sqlite3"
+    for suffix in ("", "-wal", "-shm"):
+        (db_file.parent / (db_file.name + suffix)).unlink(missing_ok=True)
+    reindex.reindex()
+    book = tc.get("/api/books/knowledge/phases").json()
+    assert (book["sub"], book["sub_lang"]) == ("단계별로 본 지식", "ko")
+
+
+def test_a_store_from_before_the_second_title_gains_its_columns(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.sqlite3"
+    old = sqlite3.connect(str(path))
+    old.execute(
+        "CREATE TABLE books (tenant_id TEXT NOT NULL DEFAULT '', project TEXT NOT NULL, "
+        "slug TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, subject TEXT, "
+        "description TEXT, manifest_path TEXT NOT NULL, PRIMARY KEY (tenant_id, project, slug))"
+    )
+    old.execute(
+        "INSERT INTO books VALUES ('', 'knowledge', 'phases', 'Phases', 'codebase', NULL, NULL, "
+        "'.books/knowledge/phases.json')"
+    )
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    try:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(books)").fetchall()}
+        assert {"subtitle", "subtitle_lang"} <= cols
+        book = db.get_book(conn, project="knowledge", slug="phases")
+        assert (book["sub"], book["sub_lang"]) == (None, None)
+        # Opening it again is a no-op.
+        db.init_db(conn)
+    finally:
+        conn.close()
+
+
+def test_an_author_writes_the_second_title_on_a_publish_and_a_put(client):
+    tc, root = client
+    # A publish that creates the book seeds its second title into the manifest.
+    book = {**_BOOK, "subtitle": "단계별로 본 지식", "subtitle_lang": "ko"}
+    r = tc.post(
+        "/api/documents",
+        json=_payload(book=book, chapter={"key": "p8", "position": 8}, lang="en"),
+    )
+    assert r.status_code == 201, r.text
+    en = r.json()
+    path = root / "docs" / en["manifest_path"]
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    assert list(manifest)[:4] == ["slug", "title", "subtitle", "subtitle_lang"]
+    assert (manifest["subtitle"], manifest["subtitle_lang"]) == ("단계별로 본 지식", "ko")
+    got = tc.get("/api/books/knowledge/phases").json()
+    assert (got["sub"], got["sub_lang"]) == ("단계별로 본 지식", "ko")
+
+    # An existing book keeps its manifest: a later publish's book fields are ignored.
+    r = tc.post(
+        "/api/documents",
+        json=_payload(slug="p9", title="P9", book={**_BOOK, "subtitle": "Other"},
+                      chapter={"key": "p9", "position": 9}, lang="en"),
+    )
+    assert r.status_code == 201, r.text
+    assert json.loads(path.read_text(encoding="utf-8"))["subtitle"] == "단계별로 본 지식"
+
+    # A malformed one is refused before anything is written.
+    r = tc.post(
+        "/api/documents",
+        json=_payload(slug="other", book={"slug": "other", "kind": "codebase", "subtitle_lang": "ko"},
+                      chapter={"key": "a", "position": 1}, lang="en"),
+    )
+    assert r.status_code == 422 and "book subtitle_lang needs a subtitle" in r.text
+    assert not (root / "docs" / ".books" / "knowledge" / "other.json").exists()
+
+    # PUT replaces the whole manifest: it sets, changes and clears the second title.
+    chapters = manifest["chapters"]
+    r = tc.put(
+        "/api/books/knowledge/phases",
+        json={"title": "Phases", "kind": "codebase", "subtitle": "Fases", "subtitle_lang": "es",
+              "chapters": json.loads(path.read_text(encoding="utf-8"))["chapters"]},
+    )
+    assert r.status_code == 200, r.text
+    assert (r.json()["sub"], r.json()["sub_lang"]) == ("Fases", "es")
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert (on_disk["subtitle"], on_disk["subtitle_lang"]) == ("Fases", "es")
+    r = tc.put(
+        "/api/books/knowledge/phases",
+        json={"title": "Phases", "kind": "codebase", "subtitle_lang": "es", "chapters": chapters},
+    )
+    assert r.status_code == 422 and "book subtitle_lang needs a subtitle" in r.text
+    r = tc.put(
+        "/api/books/knowledge/phases",
+        json={"title": "Phases", "kind": "codebase",
+              "chapters": json.loads(path.read_text(encoding="utf-8"))["chapters"]},
+    )
+    assert r.status_code == 200, r.text
+    assert (r.json()["sub"], r.json()["sub_lang"]) == (None, None)
+    assert "subtitle" not in json.loads(path.read_text(encoding="utf-8"))

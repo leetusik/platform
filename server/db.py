@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS books (
   subject       TEXT,
   description   TEXT,
   manifest_path TEXT NOT NULL,              -- '.books/<project>/<slug>.json' relative to the content root
+  subtitle      TEXT,                       -- P63: the book's second title; NULL = none
+  subtitle_lang TEXT,                       -- P63: its language subtag; NULL = not given
   PRIMARY KEY (tenant_id, project, slug)
 );
 
@@ -245,6 +247,17 @@ def init_db(conn: sqlite3.Connection) -> None:
             if "duplicate column" not in str(exc):
                 raise
         _fill_reading_minutes(conn)
+    # P63 (D248-j7): a book's second title and its language, from the manifest. A
+    # store that predates them reads every book back with none until the next write
+    # or reindex replaces its row from the manifest.
+    bcols = {row["name"] for row in conn.execute("PRAGMA table_info(books)").fetchall()}
+    for col in ("subtitle", "subtitle_lang"):
+        if col not in bcols:
+            try:
+                conn.execute(f"ALTER TABLE books ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
     conn.commit()
 
 
@@ -962,17 +975,20 @@ def replace_book(
     conn.execute(
         """
         INSERT INTO books (tenant_id, project, slug, title, kind, subject, description,
-                           manifest_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                           manifest_path, subtitle, subtitle_lang)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, project, slug) DO UPDATE SET
           title         = excluded.title,
           kind          = excluded.kind,
           subject       = excluded.subject,
           description   = excluded.description,
-          manifest_path = excluded.manifest_path
+          manifest_path = excluded.manifest_path,
+          subtitle      = excluded.subtitle,
+          subtitle_lang = excluded.subtitle_lang
         """,
         (tenant_id, project, slug, manifest["title"], manifest["kind"],
-         manifest.get("subject"), manifest.get("description"), manifest_path),
+         manifest.get("subject"), manifest.get("description"), manifest_path,
+         manifest.get("subtitle"), manifest.get("subtitle_lang")),
     )
     conn.execute(
         "DELETE FROM chapter_variants WHERE tenant_id = ? AND project = ? AND book = ?",
@@ -1031,10 +1047,12 @@ def list_books(
 ) -> list[dict[str, Any]]:
     """Books with their chapter count, ``project, title, slug`` order.
 
-    ``tenant_id`` ``None`` = legacy (unscoped), like every other read here.
+    ``tenant_id`` ``None`` = legacy (unscoped), like every other read here. A book's
+    second title and its language read as ``sub`` / ``sub_lang`` (P63; null = none).
     """
     sql = (
         "SELECT b.tenant_id, b.project, b.slug, b.title, b.kind, b.subject, b.description, "
+        "b.subtitle AS sub, b.subtitle_lang AS sub_lang, "
         "(SELECT COUNT(*) FROM chapters c WHERE c.tenant_id = b.tenant_id "
         " AND c.project = b.project AND c.book = b.slug) AS chapter_count "
         "FROM books b"
@@ -1067,7 +1085,9 @@ def get_book(
     ``{lang, doc_id, rel_path, title, version, format, updated_at,
     translated_from, reading_minutes}``. A binding whose document no longer exists is left out of the
     payload (it stays in the manifest until the next ``PUT`` drops it). ``None`` when
-    the book does not exist (for this tenant).
+    the book does not exist (for this tenant). The book's second title and its
+    language read as ``sub`` / ``sub_lang`` (P63, D248-j7; null = none), the names
+    the /app reads carry.
     """
     sql = "SELECT * FROM books WHERE project = ? AND slug = ?"
     params: list[Any] = [project, slug]
@@ -1127,6 +1147,8 @@ def get_book(
         "title": book["title"],
         "kind": book["kind"],
         "subject": book["subject"],
+        "sub": book["subtitle"],
+        "sub_lang": book["subtitle_lang"],
         "description": book["description"],
         "chapters": out_chapters,
     }

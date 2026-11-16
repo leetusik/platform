@@ -24,6 +24,9 @@ the manifests in ``server/books.py`` are the truth):
   It is four segments after the org, so it cannot collide with that 3-segment
   document route.
 
+Every book read carries the manifest's second title as ``sub`` and its language as
+``sub_lang`` (P63, D248-j7), null when the book has none.
+
 A book belongs to exactly one project, so one project-visibility check covers the
 book and every chapter document it lists (each variant's ``doc_id`` is then read
 through the existing ``/app/documents/{id}`` routes, which re-check visibility).
@@ -170,6 +173,9 @@ async def org_library(
     project the response is over, so a project with nothing to read is countable.
     Each loose document and each chapter variant carries ``reading_minutes`` (P63,
     ``server/reading_time.py``), stored with the document, so no body is read here.
+    Each book carries its second title and that title's language, ``sub`` and
+    ``sub_lang`` (P63, D248-j7; null when the manifest names none), as both book
+    reads above do.
     """
 
     if config.database_url() is None:
@@ -201,6 +207,8 @@ async def org_library(
                 "project": found["project"],
                 "slug": found["slug"],
                 "title": found["title"],
+                "sub": found["sub"],
+                "sub_lang": found["sub_lang"],
                 "kind": found["kind"],
                 "subject": found["subject"],
                 "chapters": [

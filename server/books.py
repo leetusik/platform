@@ -16,6 +16,8 @@ P29's *Book* plus *Chapter*::
     {
       "slug": "phases",
       "title": "knowledge, phase by phase",
+      "subtitle": "단계별로 본 지식",           # optional: the title's second-language form
+      "subtitle_lang": "ko",                   # optional: its language (needs a subtitle)
       "kind": "codebase",                      # codebase | subject
       "subject": null,                         # required for kind=subject
       "description": null,
@@ -25,6 +27,11 @@ P29's *Book* plus *Chapter*::
          "source": {"phase": "P8"}}
       ]
     }
+
+``subtitle`` and ``subtitle_lang`` (P63, D248-j7) are optional and omitted when
+unset, so a manifest written before them stays byte-for-byte as it was: a book's
+second title, the same title in a second language (never a tagline), drawn beside
+the title, and the language it is written in.
 
 ``variants`` maps a BCP-47 primary subtag to the document's ``rel_path`` (relative
 to the content root). Chapters are kept sorted by ``position`` (a JSON number;
@@ -103,6 +110,26 @@ def validate_text(value: Any, what: str, *, required: bool) -> Optional[str]:
     if len(value) > _TITLE_MAX:
         raise ConventionError(f"{what} is longer than {_TITLE_MAX} characters")
     return value
+
+
+def validate_subtitle(subtitle: Any, subtitle_lang: Any) -> tuple[Optional[str], Optional[str]]:
+    """A book's second title and its language (P63, D248-j7), each ``None`` when unset.
+
+    The second title is text like the title (a non-blank string of at most
+    ``_TITLE_MAX`` characters); its language is a primary subtag like a variant's,
+    and is refused without a second title to name the language of.
+    """
+    text = validate_text(subtitle, "book subtitle", required=False)
+    if subtitle_lang is None:
+        return text, None
+    if text is None:
+        raise ConventionError("book subtitle_lang needs a subtitle")
+    if not isinstance(subtitle_lang, str) or not _LANG_RE.fullmatch(subtitle_lang):
+        raise ConventionError(
+            "invalid book subtitle_lang (expected a lowercase BCP-47 primary subtag): "
+            f"{subtitle_lang!r}"
+        )
+    return text, subtitle_lang
 
 
 def validate_subject(subject: Any) -> Optional[str]:
@@ -212,8 +239,9 @@ def normalize_manifest(raw: Any, *, project: str) -> dict[str, Any]:
     """Validate a manifest and return it in canonical form, or raise ``ConventionError``.
 
     Canonical form: the fixed field order of the docstring above, ``subject`` and
-    ``description`` always present (``null`` when unset), chapters sorted, each
-    chapter's variants sorted by language, absent optional chapter fields omitted.
+    ``description`` always present (``null`` when unset), ``subtitle`` and
+    ``subtitle_lang`` only when set, chapters sorted, each chapter's variants sorted
+    by language, absent optional chapter fields omitted.
     Enforces P29's invariants: keys unique in the book, the book's documents all in
     its own project, and **each document in at most one chapter** (no rel_path bound
     twice in one book; across books is the caller's index check).
@@ -221,11 +249,15 @@ def normalize_manifest(raw: Any, *, project: str) -> dict[str, Any]:
     validate_project(project)
     if not isinstance(raw, dict):
         raise ConventionError("a book manifest must be a JSON object")
-    unknown = set(raw) - {"slug", "title", "kind", "subject", "description", "chapters"}
+    unknown = set(raw) - {
+        "slug", "title", "subtitle", "subtitle_lang", "kind", "subject", "description",
+        "chapters",
+    }
     if unknown:
         raise ConventionError(f"unknown book field(s): {sorted(unknown)}")
     slug = validate_book_slug(raw.get("slug"))
     title = validate_text(raw.get("title"), "book title", required=True)
+    subtitle, subtitle_lang = validate_subtitle(raw.get("subtitle"), raw.get("subtitle_lang"))
     kind = validate_kind(raw.get("kind"))
     subject = validate_subject(raw.get("subject"))
     if kind == "subject" and subject is None:
@@ -248,14 +280,18 @@ def normalize_manifest(raw: Any, *, project: str) -> dict[str, Any]:
                     f"{c['key']!r}); a document belongs to at most one chapter"
                 )
             seen_paths[rel] = c["key"]
-    return {
-        "slug": slug,
-        "title": title,
-        "kind": kind,
-        "subject": subject,
-        "description": description,
-        "chapters": sort_chapters(chapters),
-    }
+    manifest: dict[str, Any] = {"slug": slug, "title": title}
+    if subtitle is not None:
+        manifest["subtitle"] = subtitle
+        if subtitle_lang is not None:
+            manifest["subtitle_lang"] = subtitle_lang
+    manifest.update(
+        kind=kind,
+        subject=subject,
+        description=description,
+        chapters=sort_chapters(chapters),
+    )
+    return manifest
 
 
 def next_position(manifest: dict) -> int:
