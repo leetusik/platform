@@ -33,15 +33,31 @@ function backToOrg(orgName: string): StateAction {
   };
 }
 
+/** With no org to name or go back to: the one link to the landing, "Go to hi2vi" (OQ7's words). */
+function toLanding(): StateAction {
+  const n = HI2VI_STATES.notFound;
+  return {
+    kind: "link",
+    label: n.signedOutLink,
+    href: n.signedOutHref,
+    variant: "default",
+  };
+}
+
 /**
  * Error: Try again (primary, the boundary's retry) and Back to <org name>; the reference line only
- * when the error has a digest (Next omits it in development and for client-side throws).
+ * when the error has a digest (Next omits it for client-side throws).
+ *
+ * `orgName: null` is the root error (`app/error.tsx`): a throw in a layout, the `(app)` Shell's own
+ * session and project reads among them, so there is no Shell and no org to name. The board draws only
+ * the Error with an org; with none, Back to <org name> becomes the signed-out not-found's one link,
+ * "Go to hi2vi", in the same place and style. Title, sentence, Try again and the reference stay.
  */
 export function errorState({
   orgName,
   digest,
 }: {
-  orgName: string;
+  orgName: string | null;
   digest?: string | null;
 }): StateModel {
   const e = HI2VI_STATES.error;
@@ -50,7 +66,7 @@ export function errorState({
     text: e.text,
     actions: [
       { kind: "retry", label: e.retry, variant: "primary" },
-      backToOrg(orgName),
+      orgName === null ? toLanding() : backToOrg(orgName),
     ],
     reference: digest ? e.reference(digest) : null,
   };
@@ -71,14 +87,7 @@ export function notFoundState({
     return {
       title: n.title,
       text: null,
-      actions: [
-        {
-          kind: "link",
-          label: n.signedOutLink,
-          href: n.signedOutHref,
-          variant: "default",
-        },
-      ],
+      actions: [toLanding()],
       reference: null,
     };
   }

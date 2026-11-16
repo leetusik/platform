@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import RootError from "@/app/error";
 import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { errorState, notFoundState } from "@/hi2vi/states/model";
 
@@ -31,6 +34,39 @@ describe("errorState", () => {
         variant: "default",
       },
     ]);
+  });
+});
+
+describe("the root error (a layout's throw: no Shell, no org)", () => {
+  it("keeps the signed title, sentence and Try again, and goes to the landing in place of the org", () => {
+    const state = errorState({ orgName: null, digest: "x" });
+    expect(state.title).toBe("This page did not load");
+    expect(state.text).toBe(
+      "Something failed on our side. Try again. If it keeps failing, send us the reference.",
+    );
+    expect(state.actions).toEqual([
+      { kind: "retry", label: "Try again", variant: "primary" },
+      { kind: "link", label: "Go to hi2vi", href: "/", variant: "default" },
+    ]);
+    expect(state.reference).toBe("Reference x");
+  });
+
+  it("renders the signed block in its own .ui root, not the old 500 page", () => {
+    const html = renderToString(
+      createElement(RootError, {
+        error: Object.assign(new Error("x"), { digest: "123" }),
+        reset: () => {},
+      }),
+    );
+    expect(html).toContain('class="ui"');
+    expect(html).toContain('class="block block-page"');
+    expect(html).toContain("This page did not load");
+    expect(html).toContain("Try again");
+    expect(html).toContain('href="/"');
+    expect(html).toContain("Go to hi2vi");
+    expect(html).toContain("Reference 123");
+    expect(html).not.toContain("kb-editorial");
+    expect(html).not.toContain("Back to");
   });
 });
 

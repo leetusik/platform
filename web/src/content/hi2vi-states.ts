@@ -16,7 +16,10 @@ export const HI2VI_STATES = {
     title: "Page not found",
     text: (orgName: string) =>
       `This page doesn’t exist, or it isn’t part of ${orgName}.`,
-    /** Signed out (operator, OQ7: "as your recommendation."): one link to the landing. */
+    /**
+     * Signed out (operator, OQ7: "as your recommendation."): one link to the landing. The root Error
+     * state uses the same link where it cannot name the org (the Shell's own reads failed).
+     */
     signedOutLink: "Go to hi2vi",
     signedOutHref: "/",
   },
