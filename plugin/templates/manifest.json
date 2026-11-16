@@ -207,7 +207,9 @@
       "tests/test_feedback_storage.py",
       "server/feedback/notify.py",
       "server/feedback_api.py",
-      "tests/test_feedback_api.py"
+      "tests/test_feedback_api.py",
+      "server/waitlist.py",
+      "tests/test_waitlist.py"
     ],
     "parameterized": [
       "mkdocs.yml",

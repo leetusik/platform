@@ -179,6 +179,9 @@ list is for **scaffold** (self-hosted) mode:
   the audio delivery. It needs Postgres (`DATABASE_URL`) and a voice runner,
   which the plugin does not ship, so in a plugin install the Listen routes
   exist but make no audio.
+- **Sign-up waitlist** (optional, off by default): set `KB_SIGNUP_WAITLIST=on` on the
+  API and new accounts start waitlisted with no session until you run
+  `python -m server.waitlist approve <email>` (`list` shows who is waiting).
 
 A live example of what you get: <https://hi2vi.com>, the hosted Library this repo runs.
 

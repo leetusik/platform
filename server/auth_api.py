@@ -16,6 +16,11 @@ plural-``tenants`` login/me shape, and hash-free serializers. Signup's tenant
 naming changed in P18: it now provisions a ``"default"`` org + ``"default"``
 project (was ``"<localpart>'s workspace"``) and its response gained an additive
 ``project`` field.
+
+The waitlist (``KB_SIGNUP_WAITLIST``, ``users.status``): with the switch on, signup
+creates the account ``waitlisted`` and answers 202 without a token; login answers a
+waitlisted account's right password with a 403, also without one. Both bodies carry
+``"status": "waitlisted"`` (``waitlisted_body``).
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ import time
 from datetime import timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
 
 from server import config
@@ -37,6 +42,8 @@ from server.accounts.security import (
 )
 from server.accounts.service import DuplicateEmailError, get_accounts_service
 from server.accounts.types import (
+    USER_APPROVED,
+    USER_WAITLISTED,
     CreateAuthToken,
     CreateUser,
     ProjectRecord,
@@ -44,11 +51,23 @@ from server.accounts.types import (
     UserRecord,
 )
 from server.persistence.models import utc_now
+from server.waitlist import notify_waitlisted
 
 SESSION_TTL = timedelta(days=30)
 
 # Identical generic 401 for unknown-email vs bad-password (no user enumeration).
 _INVALID_CREDENTIALS = "invalid email or password"
+
+
+def waitlisted_body(email: str) -> dict[str, str]:
+    """The waitlisted answer's body, shared by sign-up (202) and sign-in (403).
+
+    Both carry ``"status": "waitlisted"`` and the account's email, so one client
+    branch reads either; neither carries a token. Sign-in's adds the ``detail``
+    string every other error of this file has.
+    """
+
+    return {"status": USER_WAITLISTED, "email": email}
 
 router = APIRouter()
 
@@ -243,19 +262,34 @@ async def _mint_token(user_id: UUID) -> str:
 
 
 @router.post("/auth/signup", status_code=201)
-async def signup(payload: SignupIn, request: Request) -> dict[str, object]:
+async def signup(
+    payload: SignupIn,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+) -> dict[str, object]:
     """Create a user with a default org + project + owner membership; mint a token.
 
     The org and project are both named ``"default"`` (``provision_signup``); the
     response carries the new ``project`` alongside the ``tenant`` (additive — the
     ``/auth/*`` contract is frozen, so signup's shape only gains fields).
+
+    With ``KB_SIGNUP_WAITLIST`` on, the account (and its org and project) is created
+    ``waitlisted``, no token is minted, and the answer is ``202 {"status":
+    "waitlisted", "email": ...}``; the waitlist mail goes after the response,
+    best-effort. Off (the default), the answer is the 201 above, unchanged.
     """
 
     _enforce_rate_limit(request)
     service = get_accounts_service()
+    waitlisted = config.signup_waitlist_enabled()
     try:
         user = await service.create_user(
-            CreateUser(email=payload.email, password_hash=hash_password(payload.password))
+            CreateUser(
+                email=payload.email,
+                password_hash=hash_password(payload.password),
+                status=USER_WAITLISTED if waitlisted else USER_APPROVED,
+            )
         )
     except DuplicateEmailError:
         raise HTTPException(
@@ -263,6 +297,11 @@ async def signup(payload: SignupIn, request: Request) -> dict[str, object]:
         )
 
     tenant, _member, project = await service.provision_signup(user.id)
+    if waitlisted:
+        response.status_code = 202
+        background_tasks.add_task(notify_waitlisted, user.email)
+        return waitlisted_body(user.email)
+
     token = await _mint_token(user.id)
 
     return {
@@ -274,12 +313,17 @@ async def signup(payload: SignupIn, request: Request) -> dict[str, object]:
 
 
 @router.post("/auth/login")
-async def login(payload: LoginIn, request: Request) -> dict[str, object]:
+async def login(payload: LoginIn, request: Request, response: Response) -> dict[str, object]:
     """Verify credentials and mint a session token.
 
     Answers an identical generic 401 for an unknown email and a wrong password
     so callers cannot enumerate registered accounts. The per-IP throttle runs
     first and keys off the IP alone, so it never perturbs that generic 401.
+
+    The password is checked first, so only someone who knows it learns an account
+    is waitlisted: the right password on a ``waitlisted`` account answers ``403
+    {"detail": "waitlisted", "status": "waitlisted", "email": ...}`` and mints no
+    token, whatever ``KB_SIGNUP_WAITLIST`` says.
     """
 
     _enforce_rate_limit(request)
@@ -287,6 +331,9 @@ async def login(payload: LoginIn, request: Request) -> dict[str, object]:
     user = await service.get_user_by_email(payload.email)
     if user is None or not verify_password(user.password_hash, payload.password):
         raise HTTPException(status_code=401, detail=_INVALID_CREDENTIALS)
+    if not user.is_approved:
+        response.status_code = 403
+        return {"detail": USER_WAITLISTED, **waitlisted_body(user.email)}
 
     token = await _mint_token(user.id)
     tenants = await service.list_tenants_for_user(user.id)

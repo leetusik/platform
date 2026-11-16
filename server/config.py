@@ -136,6 +136,20 @@ def require_read_auth_enabled() -> bool:
     return str(val).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def signup_waitlist_enabled() -> bool:
+    """Whether a new sign-up starts on the waitlist (``KB_SIGNUP_WAITLIST``).
+
+    Defaults to **false**: a self-hosted install signs up approved accounts that get
+    a session at once, exactly as before the waitlist. On (hi2vi.com), ``/auth/signup``
+    creates the account ``waitlisted``, mints no token and answers 202; the account
+    signs in only after ``python -m server.waitlist approve <email>``. Truthy-parse,
+    so enabled only for an explicit {1, true, yes, on}. Sign-in holds a waitlisted
+    account whatever this says.
+    """
+    val = _env("KB_SIGNUP_WAITLIST", "false")
+    return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def auth_rate_limit() -> int:
     """Max unauthenticated ``/auth/{signup,login}`` requests per client IP per window.
 

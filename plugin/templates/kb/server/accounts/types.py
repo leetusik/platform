@@ -18,6 +18,13 @@ TENANT_PLANS: frozenset[str] = frozenset({"free"})
 #: ``project_credentials.scope``: ``full`` reaches every key surface; ``capture``
 #: only the Feedback capture surfaces (``server.api_auth.resolve_api_capture``).
 CREDENTIAL_SCOPES: frozenset[str] = frozenset({"full", "capture"})
+#: ``users.status`` (0010): only an ``approved`` user holds a session. A ``waitlisted``
+#: one (signed up while ``KB_SIGNUP_WAITLIST`` was on) gets no token from sign-up or
+#: sign-in, and every session resolver refuses one until ``python -m server.waitlist
+#: approve`` flips it.
+USER_APPROVED = "approved"
+USER_WAITLISTED = "waitlisted"
+USER_STATUSES: frozenset[str] = frozenset({USER_APPROVED, USER_WAITLISTED})
 
 
 def validate_credential_scope(scope: str) -> str:
@@ -30,22 +37,45 @@ def validate_credential_scope(scope: str) -> str:
     return scope
 
 
+def validate_user_status(status: str) -> str:
+    """Return ``status`` when it is a known user status, else raise ``ValueError``."""
+
+    if status not in USER_STATUSES:
+        raise ValueError(
+            f"unknown user status {status!r}; expected one of {sorted(USER_STATUSES)}"
+        )
+    return status
+
+
 @dataclass(slots=True, kw_only=True)
 class CreateUser:
-    """Input for creating a user. ``password_hash`` is pre-computed by the caller."""
+    """Input for creating a user. ``password_hash`` is pre-computed by the caller.
+
+    ``status`` is ``approved`` unless sign-up runs with the waitlist switch on.
+    """
 
     email: str
     password_hash: str
+    status: str = USER_APPROVED
 
 
 @dataclass(slots=True, kw_only=True)
 class UserRecord:
-    """Stored user. Carries ``password_hash`` so login can verify it."""
+    """Stored user. Carries ``password_hash`` so login can verify it.
+
+    ``status`` is one of ``USER_STATUSES``; only an ``approved`` user holds a session
+    (``is_approved``).
+    """
 
     id: UUID
     email: str
     password_hash: str
     created_at: datetime
+    status: str = USER_APPROVED
+
+    @property
+    def is_approved(self) -> bool:
+        return self.status == USER_APPROVED
 
 
 @dataclass(slots=True, kw_only=True)

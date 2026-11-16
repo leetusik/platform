@@ -44,7 +44,14 @@ def utc_now() -> datetime:
 
 
 class UserModel(Base):
-    """Registered account user (email + argon2id password hash)."""
+    """Registered account user (email + argon2id password hash).
+
+    ``status`` (0010) is ``'approved'`` by default, so every account made before the
+    waitlist, and every account a self-hosted install makes, is approved; sign-up
+    with ``KB_SIGNUP_WAITLIST`` on writes ``'waitlisted'``. The allowed values are
+    ``server.accounts.types.USER_STATUSES``, validated app-side (no DB ``CHECK``, the
+    ``tenants.plan`` convention).
+    """
 
     __tablename__ = "users"
 
@@ -56,6 +63,12 @@ class UserModel(Base):
         nullable=False,
         default=utc_now,
         server_default=text("CURRENT_TIMESTAMP"),
+    )
+    status: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="approved",
+        server_default=text("'approved'"),
     )
 
 
