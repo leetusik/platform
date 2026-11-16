@@ -20,8 +20,11 @@
     container: sfdlg / inline-size;
     overflow-wrap: anywhere;
   }
-  /* under 200 px of window the dialog keeps 8 px to the window's edge, not 16 */
+  /* under 200 px of window the dialog keeps 8 px to the window's edge, not 16. The build's: the
+     browser's own `dialog:modal { max-width: calc(100% - 6px - 2em) }` would cap the width below
+     both (17 px from the window, never 8), so the width here is the only limit. */
   .sf-dlg:modal {
+    max-width: none;
     width: min(
       34em,
       max(
