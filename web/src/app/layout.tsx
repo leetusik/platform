@@ -11,6 +11,7 @@ import {
   pretendard,
   source,
 } from "@/lib/fonts";
+import { TimeZoneCookie } from "@/lib/time-zone-cookie";
 import "./globals.css";
 import "@/hi2vi/styles/index.css";
 
@@ -44,6 +45,9 @@ export const metadata: Metadata = {
 // P41-sr.W1: `ListenRoot` is Listen's persistent player, above every route so a Listen
 // survives moving between reader pages. It renders and loads nothing off a reader or
 // book path, and reads no request data, so no page here becomes dynamic.
+//
+// `TimeZoneCookie` writes the viewer's zone once into the cookie every page formats its
+// dates in (the one time zone, `src/lib/time-zone.ts`). It renders nothing and reads no request data.
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -58,6 +62,7 @@ export default function RootLayout({
       <body className="flex min-h-dvh flex-col bg-canvas font-sans text-ink antialiased">
         {children}
         <ListenRoot />
+        <TimeZoneCookie />
       </body>
     </html>
   );
