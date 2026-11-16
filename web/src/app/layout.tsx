@@ -2,8 +2,17 @@ import type { Metadata } from "next";
 
 import { ListenRoot } from "@/components/listen/listen-root";
 import { SITE } from "@/content";
-import { fraunces, jetbrains, pretendard, source } from "@/lib/fonts";
+import {
+  fraunces,
+  jetbrains,
+  plexMono,
+  plexSans,
+  plexSansKr,
+  pretendard,
+  source,
+} from "@/lib/fonts";
 import "./globals.css";
+import "@/hi2vi/styles/index.css";
 
 // Base metadata. `metadataBase` resolves canonical/OG URLs from SITE.url
 // (NEXT_PUBLIC_APP_URL → local-dev origin fallback). Icon / OG / robots /
@@ -28,6 +37,10 @@ export const metadata: Metadata = {
 // root. The body is scheme-neutral (bg-canvas / text-ink resolve to --kb-* per
 // the active scheme).
 //
+// The hi2vi design system's faces (IBM Plex Sans, Sans KR, Mono) add their three variables here too.
+// They are read only inside a `.ui` root (`src/hi2vi/styles/`), are never preloaded, and change no
+// old page; the scheme of a `.ui` root is its own `data-scheme`, set by `UiRoot` (`src/hi2vi/ui/`).
+//
 // P41-sr.W1: `ListenRoot` is Listen's persistent player, above every route so a Listen
 // survives moving between reader pages. It renders and loads nothing off a reader or
 // book path, and reads no request data, so no page here becomes dynamic.
@@ -40,7 +53,7 @@ export default function RootLayout({
     <html
       lang="ko"
       data-md-color-scheme="default"
-      className={`${pretendard.variable} ${source.variable} ${fraunces.variable} ${jetbrains.variable}`}
+      className={`${pretendard.variable} ${source.variable} ${fraunces.variable} ${jetbrains.variable} ${plexSans.variable} ${plexSansKr.variable} ${plexMono.variable}`}
     >
       <body className="flex min-h-dvh flex-col bg-canvas font-sans text-ink antialiased">
         {children}

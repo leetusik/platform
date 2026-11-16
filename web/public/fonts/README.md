@@ -65,3 +65,23 @@ regenerate the CSS. Do not hotlink.
 when it shows math. Never subset or rename it in place: a cut file is a Modified Version under the OFL and may not
 be called "TM Math" (R1 left a 157 KB `pyftsubset` cut, `MATH` kept, as a later option gated on a coverage check).
 To refresh: `npm pack @fontsource/stix-two-math`, copy that one `woff2` here and check it still carries `MATH`.
+
+## The hi2vi design system's faces (`public/fonts/plex/`)
+
+IBM Plex, vendored from IBM's own npm packages (the `ibm/plex` repository's releases): the static
+`fonts/complete/woff2/` files, unmodified, only the weights the system sets. Wired through
+`next/font/local` in `src/lib/fonts.ts` as `--font-plex-sans`, `--font-plex-sans-kr` and `--font-plex-mono`,
+which `src/hi2vi/styles/tokens.css` reads inside a `.ui` root only. `preload: false`: an old page fetches
+none of them. No request goes to a font host at runtime.
+
+| Files | Face | Weights | Source |
+|---|---|---|---|
+| `IBMPlexSans-{Regular,Medium,SemiBold}.woff2` | IBM Plex Sans | 400, 500, 600 | `@ibm/plex-sans` 1.1.0, `fonts/complete/woff2/` |
+| `IBMPlexSansKR-{Regular,Medium,SemiBold}.woff2` | IBM Plex Sans KR | 400, 500, 600 | `@ibm/plex-sans-kr` 1.1.0, `fonts/complete/woff2/hinted/` (the only woff2 it ships) |
+| `IBMPlexMono-{Regular,Medium}.woff2` | IBM Plex Mono | 400, 500 | `@ibm/plex-mono` 2.5.0, `fonts/complete/woff2/` |
+
+Licence: SIL Open Font License 1.1, Reserved Font Name "Plex" (`plex/IBMPlex-OFL.txt`, the `LICENSE.txt` the
+three packages ship, byte-identical). Font versions: Plex Sans 3.005, Plex Sans KR 1.003 (all 11,172 modern
+Hangul syllables, so unbounded Korean stays in the face), Plex Mono 2.005. To refresh:
+`npm pack @ibm/plex-sans @ibm/plex-sans-kr @ibm/plex-mono`, copy the same files here, and never rename or
+subset them in place (a cut file is a Modified Version under the OFL and may not be called "Plex").

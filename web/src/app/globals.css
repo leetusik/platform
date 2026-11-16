@@ -23,6 +23,10 @@
    count, the control edges, and the library page. After the console sheets it adds to, before
    the corrections sheet, which stays last. */
 @import "./library.css";
+/* The hi2vi design system (src/hi2vi/) uses no Tailwind utility, so Tailwind scans none of its files.
+   Its sheets are imported by the root layout after this file, not through Tailwind: a theme variable the
+   system reads would make Tailwind emit its own value of it on `:root` (src/hi2vi/styles/README.md). */
+@source not "../hi2vi";
 /* Operator-authorised corrections to a SIGNED record, and nothing else (P28.S5 —
    see the charter at the top of the file). It is imported LAST on purpose, so it
    wins at equal specificity over every round sheet above it. Later slices insert
