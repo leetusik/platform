@@ -254,14 +254,21 @@ type Body = NativeBody | HtmlBody;
  * The body at a version. `v` below the current number reads that archived version;
  * the current number, an unreadable one and a bad value all read the current body.
  * An html version is the legacy reader's (`format: "html"`, nothing to render here).
+ *
+ * `strict` (a loose Markdown or native document, P63-fk.S12: an earlier version is a state of the page,
+ * `?v=n`): a version that does not exist, above the newest, below 1 or missing from the archive, is
+ * `notFound()` (Document not found) instead of the current body. The chapter route never passes it.
  */
 async function readBody(
   token: string | undefined,
   doc: KbDocument,
   v: number | null,
+  strict = false,
 ): Promise<Body> {
+  if (strict && v !== null && (v < 1 || v > doc.version)) notFound();
   if (v !== null && v >= 1 && v < doc.version) {
     const old = await orMiss(() => getDocumentVersion(token, doc.id, v));
+    if (!old && strict) notFound();
     if (old) {
       if (old.format === "html") {
         return { format: "html", title: old.title, version: v, date: old.date };
@@ -803,9 +810,19 @@ export async function loadLooseReader(args: {
   settings: ReaderSettings;
   /** The `{org}` of the URL read through (the pretty route), when it has one. */
   org?: string | null;
+  /**
+   * P63-fk.S12: `?v=` names a version that must exist (Document not found otherwise), for a Markdown or
+   * native document; an html document keeps today's reading (the newest for a version it cannot read).
+   */
+  strictVersion?: boolean;
 }): Promise<ReaderLoad> {
   const { token, doc, settings } = args;
-  const body = await readBody(token, doc, args.v);
+  const body = await readBody(
+    token,
+    doc,
+    args.v,
+    !!args.strictVersion && doc.format !== "html",
+  );
   const org = orgOfPath(doc.canonical_path) ?? args.org ?? null;
   const stem = docStem(doc.project, doc.rel_path);
 

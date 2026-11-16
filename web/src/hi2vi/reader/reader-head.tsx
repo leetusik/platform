@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { READER_DOCUMENT } from "@/content/reader-document";
 import { READER_FRAME } from "@/content/reader-frame";
 
 /**
@@ -26,6 +27,12 @@ export interface ReaderHeadProps {
   /** An older translation: its source's name, the version it was made from and the source's newest. */
   translation?: { source: string; from: number; newest: number } | null;
   sections: readonly { id: string; title: ReactNode; lang?: string }[];
+  /**
+   * A long list of sections folds (a loose document, `Document.dc.html`; F68's fold, FG8): `sections` is the
+   * part on show, and the nav's last line is **Show all N sections** / **Show fewer** (`aria-expanded`, both
+   * labels in one `.swap` cell so it keeps its width). None: the head renders as it always has.
+   */
+  fold?: { total: number; open: boolean; onToggle: () => void } | null;
   listen?: ReactNode;
   onVersions?: () => void;
   onNewest?: (n: number) => void;
@@ -44,6 +51,7 @@ export function ReaderHead({
   published,
   translation,
   sections,
+  fold,
   listen,
   onVersions,
   onNewest,
@@ -117,6 +125,22 @@ export function ReaderHead({
               </li>
             ))}
           </ol>
+          {fold ? (
+            <div className="cluster read-toc-more">
+              <button
+                type="button"
+                className="link-row"
+                aria-expanded={fold.open}
+                data-swap={fold.open ? "true" : "false"}
+                onClick={fold.onToggle}
+              >
+                <span className="swap">
+                  <span>{READER_DOCUMENT.fold.showAll(fold.total)}</span>
+                  <span>{READER_DOCUMENT.fold.showFewer}</span>
+                </span>
+              </button>
+            </div>
+          ) : null}
         </nav>
       ) : null}
     </header>
