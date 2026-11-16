@@ -133,7 +133,7 @@ export function Shell({
   const projectId = projectIdOf(pathname);
   const project = projects.find((p) => p.id === projectId) ?? null;
   const shown = filterProjects(projects, query);
-  const rail = railFor(pathname);
+  const rail = railFor(pathname, project !== null);
   const count = reviewCount(due);
 
   return (

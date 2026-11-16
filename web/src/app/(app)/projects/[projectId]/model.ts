@@ -146,7 +146,11 @@ export interface VisibilityState {
 }
 
 export type VisibilityEvent =
-  { type: "press" } | { type: "saved" } | { type: "refused" };
+  | { type: "press" }
+  | { type: "saved" }
+  | { type: "refused" }
+  /** The server's visibility after a refresh; taken unless a change is being saved. */
+  | { type: "sync"; visibility: Visibility };
 
 export const flip = (v: Visibility): Visibility =>
   v === "public" ? "private" : "public";
@@ -154,7 +158,8 @@ export const flip = (v: Visibility): Visibility =>
 /**
  * The head's states (`ProjectHomeHeadStates.dc.html`): a press saves (a second press does nothing);
  * saved flips the badge and the label; refused shows the notice and leaves the shown visibility as it
- * was, the button ready again.
+ * was, the button ready again. A sync takes the server's visibility while nothing is being saved, so the
+ * head stays mounted (and the button keeps focus) when the page refreshes after a saved change.
  */
 export function visibilityReducer(
   state: VisibilityState,
@@ -173,6 +178,10 @@ export function visibilityReducer(
       return state.phase === "saving"
         ? { visibility: state.visibility, phase: "failed" }
         : state;
+    case "sync":
+      return state.phase === "saving" || state.visibility === event.visibility
+        ? state
+        : { visibility: event.visibility, phase: state.phase };
   }
 }
 

@@ -131,7 +131,6 @@ export default async function ProjectHomePage({
   return (
     <div className="column">
       <ProjectHead
-        key={project.visibility}
         projectId={project.id}
         name={project.name}
         org={org}

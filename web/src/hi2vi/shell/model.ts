@@ -113,15 +113,19 @@ const under = (pathname: string, base: string) =>
  *
  * The record names no project-scoped Library or Feedback route, so the project form links to today's
  * nearest pages: `/library` (it reads no project), and `/feedback?project=<id>` (its project filter).
+ *
+ * `known` says whether the path's project is one of the active org's (the Shell's project list). A
+ * `/projects/<id>` that is no project of the org is project home's Not found: the board draws it
+ * under the Shell with no project and no rail item current, so it takes the org form with none.
  */
-export function railFor(pathname: string): Rail {
+export function railFor(pathname: string, known = true): Rail {
   const projectId = projectIdOf(pathname);
   const review: RailItem = {
     key: "review",
     href: REVIEW,
     current: under(pathname, REVIEW),
   };
-  if (projectId !== null) {
+  if (projectId !== null && known) {
     const home = `/projects/${encodeURIComponent(projectId)}`;
     return {
       form: "project",

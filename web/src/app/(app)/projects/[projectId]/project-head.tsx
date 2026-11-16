@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useReducer } from "react";
+import { useReducer, useState } from "react";
 
 import { PROJECT_HOME } from "@/content/project";
 import { publishToast } from "@/hi2vi/shell";
@@ -33,7 +33,8 @@ function Back({ org }: { org: string }) {
  * same width, a second press does nothing; saved: the badge and the label change and a toast says
  * what the change means; refused: the notice under the head, the button ready again. No confirm (F3).
  *
- * The page keys this on the server's visibility, so a saved change re-renders it from the truth.
+ * The head stays mounted across the refresh a saved change brings (the button keeps focus); the
+ * server's visibility is taken when it differs from what the head shows (`sync`).
  */
 export function ProjectHead({
   projectId,
@@ -53,6 +54,11 @@ export function ProjectHead({
     visibility,
     phase: "idle",
   });
+  const [seen, setSeen] = useState(visibility);
+  if (visibility !== seen) {
+    setSeen(visibility);
+    dispatch({ type: "sync", visibility });
+  }
   const saving = state.phase === "saving";
   const shown = state.visibility;
 

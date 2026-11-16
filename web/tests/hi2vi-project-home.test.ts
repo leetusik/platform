@@ -9,6 +9,7 @@ import {
   workspaceWords,
 } from "@/app/(app)/projects/[projectId]/model";
 import { MINT_CREDENTIAL_ERRORS } from "@/content/project";
+import { railFor } from "@/hi2vi/shell/model";
 import type { KbOrgLibrary } from "@/lib/knowledge/types";
 
 // Project home's core rules (job 01 round 03-instrument; operator D1): the Workspace panel's held-back
@@ -127,9 +128,30 @@ describe("Head: visibility", () => {
       visibilityReducer(saving, { type: visibilityOutcome({ error: null }) }),
     ).toEqual({ visibility: "public", phase: "idle" });
   });
+
+  it("takes the server's visibility on a refresh, unless a change is being saved", () => {
+    const shown = { visibility: "public", phase: "idle" } as const;
+    expect(
+      visibilityReducer(shown, { type: "sync", visibility: "private" }),
+    ).toEqual({ visibility: "private", phase: "idle" });
+    expect(
+      visibilityReducer(shown, { type: "sync", visibility: "public" }),
+    ).toBe(shown);
+    const saving = { visibility: "public", phase: "saving" } as const;
+    expect(
+      visibilityReducer(saving, { type: "sync", visibility: "private" }),
+    ).toBe(saving);
+  });
 });
 
 describe("Not found", () => {
+  it("draws the Shell with no project and no rail item current", () => {
+    const rail = railFor("/projects/no-such-project", false);
+    expect(rail.form).toBe("org");
+    expect([...rail.items, rail.review].some((i) => i.current)).toBe(false);
+    expect(railFor("/projects/p1", true).form).toBe("project");
+  });
+
   it("maps a missing, foreign or malformed id to Not found, and nothing else", () => {
     for (const s of [404, 400, 422])
       expect(isMissingProjectStatus(s)).toBe(true);
