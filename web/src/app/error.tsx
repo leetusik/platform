@@ -1,6 +1,11 @@
 "use client";
 
-import { errorState, StateBlock } from "@/hi2vi/states";
+import {
+  boundaryRetry,
+  type BoundaryRetryProps,
+  errorState,
+  StateBlock,
+} from "@/hi2vi/states";
 import { UiRoot } from "@/hi2vi/ui";
 
 /**
@@ -14,20 +19,15 @@ import { UiRoot } from "@/hi2vi/ui";
  * sentence and Try again, the reference line when there is a digest, and in place of Back to <org name>
  * the signed-out not-found's one link, "Go to hi2vi" (`errorState({ orgName: null })`).
  *
- * Try again is the boundary's `retry` (Next 16.3: re-fetch, then re-render), `unstable_retry` on 16.2,
- * `reset` (re-render only) where neither is passed. A root-layout throw is `global-error`'s, and there is
- * none: the root layout reads no request data and makes no call.
+ * Try again is `boundaryRetry`: the boundary's `retry` (Next 16.3: re-fetch, then re-render),
+ * `unstable_retry` on 16.2, `reset` (re-render only) where neither is passed. A root-layout throw is
+ * `global-error`'s, and there is none: the root layout reads no request data and makes no call.
  */
 export default function RootError({
   error,
-  reset,
-  retry,
-  unstable_retry,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
-  retry?: () => void;
-  unstable_retry?: () => void;
 }) {
   return (
     <UiRoot>
@@ -36,7 +36,7 @@ export default function RootError({
           <main id="main-content" className="app-main">
             <StateBlock
               state={errorState({ orgName: null, digest: error.digest })}
-              onRetry={() => (retry ?? unstable_retry ?? reset)()}
+              onRetry={() => boundaryRetry(boundary)()}
             />
           </main>
         </div>

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import RootError from "@/app/error";
 import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { errorState, notFoundState } from "@/hi2vi/states/model";
+import { boundaryRetry } from "@/hi2vi/states/retry";
 
 // The shared states (job 01 round 03-instrument, `## Build` § Shared states; `States.dc.html`).
 
@@ -96,5 +97,22 @@ describe("notFoundState", () => {
       { kind: "link", label: "Go to hi2vi", href: "/", variant: "default" },
     ]);
     expect(state.reference).toBeNull();
+  });
+});
+
+describe("boundaryRetry (Try again in every system route's error boundary)", () => {
+  const retry = () => {};
+  const unstableRetry = () => {};
+  const reset = () => {};
+
+  it("prefers the re-fetching retry (Next 16.3), then unstable_retry (16.2), then reset", () => {
+    expect(boundaryRetry({ retry, unstable_retry: unstableRetry, reset })).toBe(
+      retry,
+    );
+    expect(boundaryRetry({ retry, reset })).toBe(retry);
+    expect(boundaryRetry({ unstable_retry: unstableRetry, reset })).toBe(
+      unstableRetry,
+    );
+    expect(boundaryRetry({ reset })).toBe(reset);
   });
 });

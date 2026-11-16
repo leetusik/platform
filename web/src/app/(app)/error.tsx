@@ -1,6 +1,12 @@
 "use client";
 
-import { errorState, StateBlock, useShellOrgName } from "@/hi2vi/states";
+import {
+  boundaryRetry,
+  type BoundaryRetryProps,
+  errorState,
+  StateBlock,
+  useShellOrgName,
+} from "@/hi2vi/states";
 
 /**
  * The signed-in app's whole-page error (job 01 round 03-instrument, Shared states: Error).
@@ -10,27 +16,24 @@ import { errorState, StateBlock, useShellOrgName } from "@/hi2vi/states";
  * under `.ui`, above the route folders' `LegacyPage` layouts (so with no `Legacy`). The rail keeps the
  * failing page's item current (the Shell follows the path).
  *
- * Try again is the boundary's retry: `unstable_retry` (Next 16.2+) re-fetches and re-renders the
- * segment, so a server-side failure shows the page's loading state, then the page; `reset` (re-render
- * only) where it is absent. The reference line shows only with a digest (Next omits it in development).
+ * Try again is `boundaryRetry`: Next 16.3's `retry` refreshes the route from the server and re-renders
+ * the segment, so a server-side failure that has cleared shows the page again (`unstable_retry` on
+ * 16.2; `reset`, a re-render only, where neither is passed). The reference line shows with a digest.
  *
  * It cannot catch a throw from `(app)/layout.tsx` itself (the session read): that is the root
  * `app/error.tsx`'s, which renders without the Shell (states:Q1, not drawn).
  */
 export default function AppError({
   error,
-  reset,
-  unstable_retry,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
-  unstable_retry?: () => void;
 }) {
   const orgName = useShellOrgName();
   return (
     <StateBlock
       state={errorState({ orgName, digest: error.digest })}
-      onRetry={() => (unstable_retry ?? reset)()}
+      onRetry={() => boundaryRetry(boundary)()}
     />
   );
 }

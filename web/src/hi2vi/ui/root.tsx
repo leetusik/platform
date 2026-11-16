@@ -15,7 +15,10 @@ import {
  * - Its scheme is its own `data-scheme`: `light`, or `dark` when the system setting asks for dark. An
  *   inline script sets it before the first paint on a full load; the setting, read as an external store,
  *   keeps it after hydration and on a client navigation (which runs no inline script), and follows a
- *   change of the setting. There is no control.
+ *   change of the setting. There is no control. A root React renders on the client (the root error, a
+ *   client navigation) gives the script `type="text/plain"`: it would not run there anyway, and a data
+ *   block keeps React from warning about a script it cannot execute. The server's HTML, and so the first
+ *   paint, is unchanged (hydration reads the server snapshot, so no `type`).
  *   `scheme="light"` pins light (the sign-in screens, frame:Q4). It never touches the old pages'
  *   `data-md-color-scheme`.
  * - A route under a nonce CSP (the reader's) passes `nonce`, or its first paint is light until hydration.
@@ -41,6 +44,11 @@ function subscribe(onChange: () => void) {
 }
 const prefersDark = () => window.matchMedia(DARK).matches;
 const serverPrefersDark = () => false;
+// true once React renders on the client (after hydration, or a root created there); false on the server
+// and while hydrating, so the server's script keeps its JavaScript type.
+const noSubscribe = () => () => {};
+const onClient = () => true;
+const onServer = () => false;
 
 export function UiRoot({
   scheme = "system",
@@ -54,6 +62,7 @@ export function UiRoot({
     serverPrefersDark,
   );
   const dark = scheme === "system" && systemDark;
+  const clientRendered = useSyncExternalStore(noSubscribe, onClient, onServer);
 
   return (
     <div
@@ -65,6 +74,7 @@ export function UiRoot({
       {scheme === "system" && (
         <script
           nonce={nonce}
+          type={clientRendered ? "text/plain" : undefined}
           dangerouslySetInnerHTML={{ __html: SCHEME_SCRIPT }}
         />
       )}
