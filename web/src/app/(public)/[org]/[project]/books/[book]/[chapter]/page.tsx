@@ -6,7 +6,7 @@ import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
 import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { READER_FRAME } from "@/content/reader-frame";
 import { ChapterReader } from "@/hi2vi/reader";
-import { OldChapterBody } from "@/hi2vi/reader/old-body";
+import { ChapterBody } from "@/hi2vi/reader/body/body";
 import { requestNonce } from "@/hi2vi/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { decodeFrom, FROM_PARAM } from "@/lib/library/from";
@@ -30,8 +30,9 @@ import { viewerTimeZone } from "@/lib/time-zone";
 // first paint already has the reader's text size and theme.
 //
 // P63-fk.S8 — a native or Markdown chapter reads in the hi2vi reader's frame (`@/hi2vi/reader`,
-// job 03 Library round 02): the Bar, the head, the end, the foot and the sheets are new; the
-// text itself is still the old body (`OldChapterBody`) until S9 to S11 rebuild it. `?from=` is
+// job 03 Library round 02): the Bar, the head, the end, the foot and the sheets are new. P63-fk.S9:
+// the text is the Library's body (`ChapterBody`); its terms, quiz, highlights and notes keep their
+// old look until S10 and S11. `?from=` is
 // the list the reader came through (F328), carried to the book and the next chapter. The
 // loading, not found and error screens are the frame's, fed by this folder's layout.
 //
@@ -183,7 +184,7 @@ export default async function ChapterPage({
       nonce={nonce}
       timeZone={viewerTimeZone(jar)}
     >
-      <OldChapterBody reader={reader} />
+      <ChapterBody reader={reader} />
     </ChapterReader>
   );
 }

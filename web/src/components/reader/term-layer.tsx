@@ -71,12 +71,18 @@ export function TermLayer({ chapter }: { chapter: string }) {
   // `chapter` (document, version, language) re-binds the layer to the next chapter's markup
   // when the reader moves on and this component stays mounted.
   useEffect(() => {
-    const art = document.querySelector<HTMLElement>(".rd-article");
+    // P63-fk.S9: the body and its parts by the reader's hooks (`HOOK`); the document routes' article is still
+    // `.rd-article` (`reader-frame.tsx`, until S12).
+    const art = document.querySelector<HTMLElement>(
+      ".rd-article, [data-reader-article]",
+    );
     const roots = Array.from(
-      document.querySelectorAll<HTMLElement>(".rd-prose > .kb-ch"),
+      document.querySelectorAll<HTMLElement>(
+        "[data-reader-prose] > [data-reader-body]",
+      ),
     );
     const pad = padRef.current;
-    if (!art || !pad || !roots.some((r) => r.querySelector("a.ra-term")))
+    if (!art || !pad || !roots.some((r) => r.querySelector("a[data-term]")))
       return;
 
     const inChapter = (el: Element) => roots.some((r) => r.contains(el));
@@ -155,8 +161,8 @@ export function TermLayer({ chapter }: { chapter: string }) {
       const last = rs[rs.length - 1];
       const a = art.getBoundingClientRect();
       const col = (
-        o.term.closest(".rd-prose") ??
-        o.term.closest(".kb-ch") ??
+        o.term.closest("[data-reader-prose]") ??
+        o.term.closest("[data-reader-body]") ??
         art
       ).getBoundingClientRect();
       const w = holder.offsetWidth;
@@ -306,7 +312,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       swallow = false;
       refocus = null;
       const t = e.target as Element | null;
-      downOnTerm = !!t?.closest?.("a.ra-term");
+      downOnTerm = !!t?.closest?.("a[data-term]");
       const o = open;
       if (!o || !t?.closest || downOnTerm || o.win.contains(t)) return;
       hide(false);
@@ -329,7 +335,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       }
       const plain =
         e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
-      const term = t.closest<HTMLElement>("a.ra-term");
+      const term = t.closest<HTMLElement>("a[data-term]");
       if (term && inChapter(term)) {
         downOnTerm = false;
         // A modified click is the browser's (a new tab lands on the entry).
@@ -385,7 +391,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       }
       if (
         (e.key === " " || e.key === "Spacebar") &&
-        t?.matches?.("a.ra-term") &&
+        t?.matches?.("a[data-term]") &&
         inChapter(t)
       ) {
         e.preventDefault();
@@ -415,7 +421,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       const t = e.target as Element | null;
       if (!o || !t) return;
       if (o.win.contains(t) || t === o.term) return;
-      if (downOnTerm && t.closest?.("a.ra-term")) return;
+      if (downOnTerm && t.closest?.("a[data-term]")) return;
       hide(false);
     };
 
@@ -424,7 +430,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       const t = e.target as Element | null;
       if (!t?.closest) return;
       const from = e.relatedTarget as Node | null;
-      const term = t.closest<HTMLElement>("a.ra-term");
+      const term = t.closest<HTMLElement>("a[data-term]");
       if (term && inChapter(term)) {
         if (from && term.contains(from)) return;
         window.clearTimeout(timer);
@@ -444,7 +450,7 @@ export function TermLayer({ chapter }: { chapter: string }) {
       const t = e.target as Element | null;
       if (!t?.closest) return;
       const to = e.relatedTarget as Node | null;
-      const term = t.closest<HTMLElement>("a.ra-term");
+      const term = t.closest<HTMLElement>("a[data-term]");
       const o = open;
       if (term && inChapter(term)) {
         if (to && term.contains(to)) return;

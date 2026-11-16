@@ -49,10 +49,12 @@ export function ReaderArticle({ reader }: { reader: LoadedReader }) {
       <PrintMasthead view={view} />
       <PrintPrep />
       <ChapterHead view={view} />
-      <div className="rd-prose" lang={view.lang}>
+      {/* P63-fk.S9: the old look, with the hooks the reader's layers find the body by (`HOOK`). */}
+      <div className="rd-prose" data-reader-prose="" lang={view.lang}>
         <ChapterView
           checked={checked}
           lang={view.lang}
+          hooks
           omitTitle={checked.format === "md" ? view.title : null}
           quiz={quiz}
           links={{

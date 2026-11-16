@@ -45,13 +45,24 @@ export interface OldBodyValue {
 export const OldBodyContext = createContext<OldBodyValue | null>(null);
 
 const UNDO_PAGE: CSSProperties = { minHeight: 0, background: "transparent" };
+/**
+ * `still` (P63-fk.S9): the root and its boundary add no box (`display: contents`). The old tokens, the text size and
+ * the scheme still reach what it holds (inherited through), but it is neither a block of the column nor a
+ * positioning box: an island inside the Library's body, and the layers' root beside it, whose floating parts are
+ * placed against the reader's article (`.blocks-host`), as the old article placed them.
+ */
+const STILL: CSSProperties = { ...UNDO_PAGE, display: "contents" };
+const NO_BOX: CSSProperties = { display: "contents" };
 
 export function OldRoot({
   slot = true,
+  still = false,
   children,
 }: {
   /** Render the frame's `after` (the Listen slot and the player) after the children; once a page. */
   slot?: boolean;
+  /** No box of its own (`display: contents`): see `STILL`. */
+  still?: boolean;
   children: ReactNode;
 }) {
   const value = useContext(OldBodyContext);
@@ -64,12 +75,12 @@ export function OldRoot({
     .filter(Boolean)
     .join(" ");
   return (
-    <Legacy>
+    <Legacy style={still ? NO_BOX : undefined}>
       <div
         className={className}
         data-md-color-scheme={schemeFor(settings.theme)}
         data-theme-choice={settings.theme}
-        style={UNDO_PAGE}
+        style={still ? STILL : UNDO_PAGE}
       >
         {children}
         {slot ? value?.after : null}

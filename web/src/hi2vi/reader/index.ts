@@ -4,8 +4,8 @@
 // sheet is `styles/library/reader.css` (with frame.css's classes). The shared parts it mounts (Bar, Sheet,
 // Display, Versions, ReaderChapters, Save) are `@/hi2vi/library`'s.
 //
-// `ChapterReader`, `OldRoot` and the server half `OldChapterBody` (`./old-body`, imported by its path: it
-// renders server-only parts) are the bridge to the old body of a text until S9 to S11 rebuild it.
+// The text is `ChapterBody` (`./body/body`, P63-fk.S9, imported by its path: it renders server-only parts);
+// `OldRoot` holds the old parts still mounted beside it (Listen, the Notes host, the layers) until S10 and S11.
 export { ChapterReader, type ChapterReaderProps } from "./chapter-reader";
 export { ReaderHead, type ReaderHeadProps } from "./reader-head";
 export { ReaderEnd, type ReaderEndProps } from "./reader-end";

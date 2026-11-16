@@ -2,9 +2,10 @@
 
    The Library's sheets declare custom properties of their own on the `.ui` root and the reader's root (the text's
    size and measure, the sheet's and the side panel's widths, the progress line, a row's height). Custom properties
-   inherit across the scope's limit, so an old page's content inside a `.ui` root would see them. Nothing old reads
-   these names today; this keeps the system's promise anyway: an old page's content sees exactly what it saw as a
-   child of `<body>`.
+   inherit across the scope's limit, so an old page's content inside a `.ui` root would see them. Two of them are
+   names the old reader also reads (`--font-math`, `--lx-line`, from P63-fk.S9's blocks.css; the old reader's root
+   declares its own); this keeps the system's promise for all of them: an old page's content sees exactly what it
+   saw as a child of `<body>`.
 
    1. On `:root`, each name is copied, as the old page sees it there (unset), into a new name of its own
       (`--hi2vi-legacy-*`). Nothing reads those names but the rule below, so no element outside `.ui` changes.
@@ -22,6 +23,10 @@
   --hi2vi-legacy-line-h: var(--line-h);
   --hi2vi-legacy-row-h: var(--row-h);
   --hi2vi-legacy-read-small: var(--read-small);
+  --hi2vi-legacy-font-math: var(--font-math);
+  --hi2vi-legacy-blocks-sym: var(--blocks-sym);
+  --hi2vi-legacy-blocks-cap: var(--blocks-cap);
+  --hi2vi-legacy-lx-line: var(--lx-line);
 }
 
 .ui [data-ui-legacy] {
@@ -34,4 +39,8 @@
   --line-h: var(--hi2vi-legacy-line-h);
   --row-h: var(--hi2vi-legacy-row-h);
   --read-small: var(--hi2vi-legacy-read-small);
+  --font-math: var(--hi2vi-legacy-font-math);
+  --blocks-sym: var(--hi2vi-legacy-blocks-sym);
+  --blocks-cap: var(--hi2vi-legacy-blocks-cap);
+  --lx-line: var(--hi2vi-legacy-lx-line);
 }

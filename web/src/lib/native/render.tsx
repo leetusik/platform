@@ -20,8 +20,11 @@
  * - **Kept runs** (F22; P39-hk.S9, F2): in a native chapter every hyphenated word of the prose,
  *   and an inline formula with the Hangul particle written after it, is one `span.ra-keep`
  *   that never breaks while it fits its line (`MathLayer` measures the ones that do not).
- * - **Plumbing, not look.** Minimal semantic markup with stable class and
- *   `data-*` hooks (`kb-ch-*`); S13 onwards style it under the signed rounds.
+ * - **Two looks** (P63-fk.S9, `./look.ts`): `old`, the default, is the markup every caller had (`kb-ch-*`,
+ *   `fg-*`, `ra-*`, `dg*`), byte for byte; `library` is the signed body of a text (job 03, Library round 02:
+ *   frame.md F60, `## Build` § Page: blocks) in the frame's and the Blocks page's classes, with the parts later
+ *   slices rebuild in old-look islands (`OldIsland`). `hooks` adds the `data-*` hooks the reader's layers find the
+ *   body and its parts by (`HOOK`), in either look; without it no hook is drawn.
  *   The only `style` attributes are the figures' custom properties (`--fg-w`, `--fg-h`,
  *   `--fg-vbw`, `--fg-minw`, P30.S16): numbers from the asset map and the validated svg,
  *   never author strings. The CSP leaves `style-src` open (see `csp.ts`).
@@ -43,7 +46,11 @@ import {
   type PrintItem,
   type PrintKey,
 } from "@/components/reader/print-quiz";
-import { ClozeBlank, QuizBlock, type QuizItemProps } from "@/components/reader/quiz";
+import {
+  ClozeBlank,
+  QuizBlock,
+  type QuizItemProps,
+} from "@/components/reader/quiz";
 import {
   FormulaBox,
   InlineFormula,
@@ -51,6 +58,14 @@ import {
 } from "@/components/reader/formula-box";
 import { ArtBox, TableBox } from "@/components/reader/scroll-box";
 import { CHAPTER } from "@/content";
+import { READER_BLOCKS } from "@/content/reader-blocks";
+import {
+  Media,
+  MissingMedia,
+  OldIsland,
+  ratioOf,
+  ScrollBox,
+} from "@/hi2vi/reader/body";
 import { hangulRuns, isKorean } from "@/lib/reader/hangul";
 import { printAddress, widestLine } from "@/lib/reader/print";
 import { specOf } from "@/lib/reader/quiz";
@@ -58,8 +73,17 @@ import type { QuizSaved } from "@/lib/reader/quiz-saved";
 import { signInToSaveHref, type ReaderTarget } from "@/lib/reader-href";
 
 import { letters, planCitations, type CitationPlan } from "./cites";
+import { graphSpec } from "./diagram-draw";
 import { diagramParts, kindOf } from "./diagram-kinds";
 import { highlight } from "./highlight";
+import {
+  calloutStrong,
+  figureColumns,
+  hook,
+  HOOK,
+  rowOf,
+  type BodyLook,
+} from "./look";
 import {
   resolveAsset,
   resolveImage,
@@ -77,7 +101,12 @@ import {
 import { plainText, type ChapterFormat } from "./parse";
 import { codePoints, containers, inlineText } from "./project";
 import { parseRef, RefError } from "./refs";
-import { planTerms, type TermEntry, type TermPlan, type TermUse } from "./terms";
+import {
+  planTerms,
+  type TermEntry,
+  type TermPlan,
+  type TermUse,
+} from "./terms";
 import {
   allowedSvgElement,
   svgAttrsToProps,
@@ -118,6 +147,10 @@ export interface NativeChapterProps extends Omit<LinkContext, "format"> {
   format: ChapterFormat;
   /** The variant's language, carried on the article (P29: Korean typography keys on it). */
   lang?: string;
+  /** The body's look (`./look.ts`); the old one by default. */
+  look?: BodyLook;
+  /** Draw the layers' hooks (`HOOK`); a reader does, no other caller. */
+  hooks?: boolean;
 }
 
 /** Parse, re-validate and render a chapter. */
@@ -125,12 +158,16 @@ export function NativeChapter({
   source,
   format,
   lang,
+  look,
+  hooks,
   ...links
 }: NativeChapterProps) {
   return (
     <ChapterView
       checked={validateChapter(source, format)}
       lang={lang}
+      look={look}
+      hooks={hooks}
       links={{ ...links, format }}
     />
   );
@@ -142,6 +179,8 @@ export function ChapterView({
   links,
   omitTitle,
   quiz,
+  look = "old",
+  hooks = false,
 }: {
   checked: CheckedChapter;
   lang?: string;
@@ -154,15 +193,38 @@ export function ChapterView({
    * when its text is this title).
    */
   omitTitle?: string | null;
+  /** `old` (the default: the markup every caller had) or `library` (the signed body: `./look.ts`). */
+  look?: BodyLook;
+  /** Draw the `data-*` hooks the reader's layers read (`HOOK`); off by default, so no other caller's markup moves. */
+  hooks?: boolean;
 }) {
+  const lib = look === "library";
   if (checked.refused) {
+    if (lib)
+      return (
+        <div
+          className="read"
+          data-format={checked.format}
+          lang={lang}
+          {...hook(hooks, HOOK.body)}
+        >
+          <p role="note" {...hook(hooks, HOOK.unspoken)}>
+            {CHAPTER.unshowableChapter}
+          </p>
+        </div>
+      );
     return (
       <div
         className="kb-ch kb-ch--refused"
         data-format={checked.format}
         lang={lang}
+        {...hook(hooks, HOOK.body)}
       >
-        <p className="kb-ch-unshowable" role="note">
+        <p
+          className="kb-ch-unshowable"
+          role="note"
+          {...hook(hooks, HOOK.unspoken)}
+        >
           {CHAPTER.unshowableChapter}
         </p>
       </div>
@@ -176,10 +238,13 @@ export function ChapterView({
     quiz,
     lang !== undefined && isKorean(lang),
     lang,
+    lib,
+    hooks,
   );
   // P30.S20: each passage container's place in its section's text (`project.ts`), so
   // the reader can capture and paint annotation offsets in the shared projection.
-  const stamps = checked.format === "native" ? anchorStamps(checked.blocks) : null;
+  const stamps =
+    checked.format === "native" ? anchorStamps(checked.blocks) : null;
   const first = checked.blocks.find((b) => b.block !== null);
   const skip =
     omitTitle &&
@@ -190,24 +255,43 @@ export function ChapterView({
     plainText(first.block.content).trim() === omitTitle.trim()
       ? first
       : null;
+  const blocks = checked.blocks.map((entry, i) =>
+    entry === skip ? null : entry.refused ? (
+      <Fragment key={i}>
+        {r.unshowable(
+          entry.block && entry.block.id ? entry.block.id : undefined,
+        )}
+      </Fragment>
+    ) : entry.block ? (
+      <Fragment key={i}>{r.stamped(stamps?.[i] ?? null, entry.block)}</Fragment>
+    ) : null,
+  );
+  if (lib)
+    return (
+      <div
+        className="read"
+        data-format={checked.format}
+        lang={lang}
+        {...hook(hooks, HOOK.body)}
+      >
+        {blocks}
+        {/* The answer key (print only) and the terms' windows (screen only) keep their old look (S10). */}
+        {r.printKeys.length ? (
+          <OldIsland>
+            <PrintAnswers keys={r.printKeys} />
+          </OldIsland>
+        ) : null}
+        {r.islandOf(() => r.termWindows())}
+      </div>
+    );
   return (
-    <div className="kb-ch" data-format={checked.format} lang={lang}>
-      {checked.blocks.map((entry, i) =>
-        entry === skip ? null : entry.refused ? (
-          <div
-            key={i}
-            className="kb-ch-unshowable"
-            role="note"
-            data-block={
-              entry.block && entry.block.id ? entry.block.id : undefined
-            }
-          >
-            {CHAPTER.unshowableBlock}
-          </div>
-        ) : entry.block ? (
-          <Fragment key={i}>{r.stamped(stamps?.[i] ?? null, entry.block)}</Fragment>
-        ) : null,
-      )}
+    <div
+      className="kb-ch"
+      data-format={checked.format}
+      lang={lang}
+      {...hook(hooks, HOOK.body)}
+    >
+      {blocks}
       {/* P30.S26: the quizzes' answer key, printed after the whole body (print only). */}
       <PrintAnswers keys={r.printKeys} />
       {/* P39-hk.S9: each linked term's window, hidden until the term layer opens it (screen only). */}
@@ -256,7 +340,8 @@ function trimRun(run: Inline[]): Inline[] {
   while (b > a && blank(run[b - 1])) b -= 1;
   const out = run.slice(a, b);
   const first = out[0];
-  if (first?.type === "text") out[0] = { ...first, text: first.text.trimStart() };
+  if (first?.type === "text")
+    out[0] = { ...first, text: first.text.trimStart() };
   const last = out[out.length - 1];
   if (last?.type === "text")
     out[out.length - 1] = { ...last, text: last.text.trimEnd() };
@@ -313,7 +398,9 @@ function leadTrim(run: Inline[]): number {
       n += codePoints(node.text).length;
     else {
       if (node.type === "text")
-        n += codePoints(node.text).length - codePoints(node.text.trimStart()).length;
+        n +=
+          codePoints(node.text).length -
+          codePoints(node.text.trimStart()).length;
       break;
     }
   }
@@ -354,6 +441,10 @@ class Renderer {
     private readonly ko: boolean = false,
     /** The chapter's language: the glossary's collator and its terms' `lang`. */
     private readonly lang?: string,
+    /** The Library's look (`./look.ts`); false while an old-look island renders. */
+    private lib: boolean = false,
+    /** Draw the layers' hooks (`HOOK`). */
+    private readonly hooks: boolean = false,
   ) {
     const own = links.format === "md" ? [] : blocks;
     this.plan = planCitations(own);
@@ -374,18 +465,48 @@ class Renderer {
       if (!(exc instanceof MathError)) throw exc;
       this.cloze = null;
       this.printKeys.length = keys;
-      return (
-        <div
-          className="kb-ch-unshowable"
-          role="note"
-          data-block={block.id ?? undefined}
-        >
-          {CHAPTER.unshowableBlock}
-        </div>
-      );
+      return this.unshowable(block.id ?? undefined);
     } finally {
       this.stamps = null;
     }
+  }
+
+  /** A block that couldn't be shown: a note in its place (Library: a paragraph). Listen skips it. */
+  unshowable(id: string | undefined): ReactNode {
+    if (this.lib)
+      return (
+        <p role="note" data-block={id} {...hook(this.hooks, HOOK.unspoken)}>
+          {CHAPTER.unshowableBlock}
+        </p>
+      );
+    return (
+      <div
+        className="kb-ch-unshowable"
+        role="note"
+        data-block={id}
+        {...hook(this.hooks, HOOK.unspoken)}
+      >
+        {CHAPTER.unshowableBlock}
+      </div>
+    );
+  }
+
+  /**
+   * P63-fk.S9: what `draw` renders, in the old look, in an old-look island of the Library's body (`OldIsland`); in
+   * the old look, as it is. Nothing, when it draws nothing.
+   */
+  islandOf(draw: () => ReactNode): ReactNode {
+    if (!this.lib) return draw();
+    this.lib = false;
+    let node: ReactNode;
+    try {
+      node = draw();
+    } finally {
+      this.lib = true;
+    }
+    return node === null || node === undefined ? null : (
+      <OldIsland>{node}</OldIsland>
+    );
   }
 
   /**
@@ -439,13 +560,21 @@ class Renderer {
       .filter(Boolean)
       .map((part, i) =>
         part.includes("-") && /[^-]/.test(part) ? (
-          <span key={i} className="ra-keep">
+          <span key={i} {...this.keepAttrs()}>
             {this.text(part)}
           </span>
         ) : (
           <Fragment key={i}>{this.text(part)}</Fragment>
         ),
       );
+  }
+
+  /** A kept run's class (old `ra-keep`, Library `blocks-keep`) and its hook. */
+  private keepAttrs(): Record<string, string> {
+    return {
+      className: this.lib ? "blocks-keep" : "ra-keep",
+      ...hook(this.hooks, HOOK.keep),
+    };
   }
 
   /** A text node's words: hyphenated words kept whole in a native chapter (F22), as written in `md`. */
@@ -470,7 +599,7 @@ class Renderer {
    */
   private boundMath(tex: string, tail: string, key: number): ReactNode {
     return (
-      <span key={key} className="ra-keep">
+      <span key={key} {...this.keepAttrs()}>
         {this.inlineMath(tex)}
         {this.text(tail)}
       </span>
@@ -585,7 +714,7 @@ class Renderer {
         return (
           <span
             key={key}
-            className="kb-ch-blank"
+            className={this.lib ? undefined : "kb-ch-blank"}
             aria-label={CHAPTER.quiz.blank}
             data-an-skip=""
           >
@@ -633,6 +762,16 @@ class Renderer {
    */
   inlineMath(tex: string, key?: number): ReactNode {
     const tree = mathTree(tex, false);
+    // The Library: MathML in the sentence, in the math face at the text's size, never broken (Blocks).
+    if (this.lib)
+      return mathElement(
+        tree,
+        {
+          alttext: linearText(tree),
+          "data-an-len": String(codePoints(tex).length),
+        },
+        key,
+      );
     return (
       <InlineFormula key={key} label={CHAPTER.formula.scrolls(this.ko)}>
         {mathElement(tree, {
@@ -665,6 +804,22 @@ class Renderer {
     title?: string | null,
   ): ReactNode {
     const altNode = this.text(alt);
+    if (this.lib)
+      return info ? (
+        <Media
+          src={info.url}
+          still={info.animated ? info.stillUrl : null}
+          alt={alt}
+          title={title ?? undefined}
+          w={info.width}
+          h={info.height}
+          missingAlt={altNode}
+        />
+      ) : (
+        <MissingMedia w={null} h={null}>
+          {altNode}
+        </MissingMedia>
+      );
     if (!info)
       return (
         <MissingBox w={null} h={null} label={CHAPTER.figure.missing}>
@@ -688,6 +843,12 @@ class Renderer {
   /** An `md` image: a same-origin URL, with no size to reserve (it keeps the old inline `<img>`). */
   mdImage(node: Extract<Inline, { type: "image" }>): ReactNode {
     const src = resolveImage(node.src, this.links);
+    if (src === null && this.lib)
+      return (
+        <MissingMedia w={null} h={null}>
+          {this.text(node.alt)}
+        </MissingMedia>
+      );
     if (src === null)
       return (
         <MissingBox w={null} h={null} label={CHAPTER.figure.missing}>
@@ -720,7 +881,8 @@ class Renderer {
     return (
       <a
         key={key}
-        className="ra-term"
+        className={this.lib ? "blocks-term" : "ra-term"}
+        {...hook(this.hooks, HOOK.term)}
         id={this.copy ? undefined : use.anchor}
         href={`#gl-${use.id}`}
         aria-haspopup="dialog"
@@ -747,7 +909,7 @@ class Renderer {
     return (
       <a
         key={key}
-        className="fg-cite"
+        className={this.lib ? "link" : "fg-cite"}
         id={this.copy ? undefined : cite.citeId}
         href={`#${cite.sourceId}`}
         title={node.title ?? undefined}
@@ -756,7 +918,7 @@ class Renderer {
         {bare ? null : this.inline(only)}
         {/* P30.S20: "[n]" is not the document's text; a bare citation stands for the author's own words. */}
         <span
-          className="fg-cite__n"
+          className={this.lib ? undefined : "fg-cite__n"}
           {...(bare
             ? { "data-an-len": String(codePoints(inlineText(only)).length) }
             : { "data-an-skip": "" })}
@@ -778,7 +940,11 @@ class Renderer {
     if (target.kind === "missing") {
       // Never a dead link and never a leak: no href, no title, no target text.
       return (
-        <span key={key} className="kb-link-missing" data-missing-link="">
+        <span
+          key={key}
+          className={this.lib ? undefined : "kb-link-missing"}
+          data-missing-link=""
+        >
           {children}
           <span className="sr-only" data-an-skip="">
             {" "}
@@ -791,6 +957,7 @@ class Renderer {
       return (
         <Fragment key={key}>
           <a
+            className={this.lib ? "link" : undefined}
             href={target.href}
             title={title ?? undefined}
             target="_blank"
@@ -798,7 +965,11 @@ class Renderer {
             data-link="external"
           >
             {children}
-            <span className="kb-ch-link__ext" data-an-skip="">
+            {/* The Library: the label is part of the link's words and wraps with them (D258-t8). */}
+            <span
+              className={this.lib ? undefined : "kb-ch-link__ext"}
+              data-an-skip=""
+            >
               {CHAPTER.newTab}
             </span>
           </a>
@@ -808,7 +979,12 @@ class Renderer {
     }
     return (
       <Fragment key={key}>
-        <a href={target.href} title={title ?? undefined} data-link={target.kind}>
+        <a
+          className={this.lib ? "link" : undefined}
+          href={target.href}
+          title={title ?? undefined}
+          data-link={target.kind}
+        >
           {children}
         </a>
         {target.kind === "internal" ? this.printHref(target.href, plain) : null}
@@ -826,7 +1002,8 @@ class Renderer {
     if (!href || href.startsWith("#")) return null;
     const address = printAddress(href);
     const text = (plain ?? "").trim();
-    const bare = (a: string) => a.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    const bare = (a: string) =>
+      a.replace(/^https?:\/\//i, "").replace(/\/$/, "");
     if (text && (bare(text) === bare(href) || bare(text) === bare(address)))
       return null;
     return (
@@ -854,7 +1031,7 @@ class Renderer {
           `h${level}`,
           {
             id: block.id ?? undefined,
-            className: "kb-ch-h",
+            className: this.lib ? undefined : "kb-ch-h",
             "data-block": block.id ?? undefined,
           },
           this.inline(block.content),
@@ -880,7 +1057,11 @@ class Renderer {
         );
       }
       case "blockquote":
-        return <blockquote>{this.blocks(block.blocks)}</blockquote>;
+        return (
+          <blockquote className={this.lib ? "read-quote" : undefined}>
+            {this.blocks(block.blocks)}
+          </blockquote>
+        );
       case "callout":
         return this.callout(block);
       case "table":
@@ -949,9 +1130,26 @@ class Renderer {
       this.imageIds.set(name, seen);
       id = seen === 1 ? `img-${name}` : `img-${name}-${seen}`;
     }
+    const info = resolveAsset(name, this.links);
+    if (this.lib)
+      return (
+        <figure
+          className="read blocks-fig"
+          id={id}
+          data-block={id}
+          style={ratioOf(info?.width ?? null, info?.height ?? null)}
+        >
+          <ScrollBox
+            className="scroll-box blocks-box"
+            label={READER_BLOCKS.region.image}
+          >
+            {this.imageBox(info, node.alt, node.title)}
+          </ScrollBox>
+        </figure>
+      );
     return (
       <div className="fg-plain" id={id} data-block={id}>
-        {this.imageBox(resolveAsset(name, this.links), node.alt, node.title)}
+        {this.imageBox(info, node.alt, node.title)}
       </div>
     );
   }
@@ -967,16 +1165,16 @@ class Renderer {
         : null;
     const title =
       block.title && block.title.length ? this.inline(block.title) : null;
+    if (this.lib) return this.libCallout(block, kind, title, titleStamp);
     // §7 the head: the type word in mono, then the title, on one wrapping baseline row.
     // An untitled callout still shows its type word.
     const head = (Tag: "div" | "span") => (
       <Tag className="kb-ch-callout__head">
-        <span className="kb-ch-callout__type">
-          {CHAPTER.calloutWord[kind]}
-        </span>
+        <span className="kb-ch-callout__type">{CHAPTER.calloutWord[kind]}</span>
         {title ? (
           <span
             className="kb-ch-callout__title"
+            {...hook(this.hooks, HOOK.passage)}
             {...Renderer.mark(titleStamp)}
           >
             {title}
@@ -1018,7 +1216,56 @@ class Renderer {
     );
   }
 
+  /**
+   * The Library's callout (frame.md F60): `.callout` (`.is-strong` for Important, Warning and Caution), its kind
+   * as a word, its title, then its blocks. A folded one (the author's `-`; Skip in the record) is a `<details>`
+   * with the kind and the title on its summary.
+   */
+  private libCallout(
+    block: Extract<Block, { type: "callout" }>,
+    kind: string,
+    title: ReactNode,
+    titleStamp: Stamp | null,
+  ): ReactNode {
+    const word = CHAPTER.calloutWord[kind];
+    const cls = calloutStrong(kind) ? "callout is-strong" : "callout";
+    const titled = (Tag: "p" | "span") =>
+      title ? (
+        <Tag
+          className="callout-title"
+          {...hook(this.hooks, HOOK.passage)}
+          {...Renderer.mark(titleStamp)}
+        >
+          {title}
+        </Tag>
+      ) : null;
+    if (block.collapsed)
+      return (
+        <details
+          className={cls}
+          data-kind={kind.toLowerCase()}
+          data-collapsed=""
+        >
+          <summary>
+            <span className="callout-head">
+              <span className="callout-kind">{word}</span>
+              {titled("span")}
+            </span>
+          </summary>
+          {this.blocks(block.blocks)}
+        </details>
+      );
+    return (
+      <aside className={cls} data-kind={kind.toLowerCase()} aria-label={word}>
+        <p className="callout-kind">{word}</p>
+        {titled("p")}
+        {this.blocks(block.blocks)}
+      </aside>
+    );
+  }
+
   table(block: Extract<Block, { type: "table" }>): ReactNode {
+    if (this.lib) return this.libTable(block);
     const cols = block.head.length;
     const rows = block.rows.length;
     // §9: 8 columns or more is wide; more than 20 rows is long.
@@ -1026,6 +1273,7 @@ class Renderer {
     const long = rows > 20;
     return (
       <TableBox
+        hooks={this.hooks}
         wide={wide}
         long={long}
         ariaLabel={
@@ -1076,7 +1324,62 @@ class Renderer {
     );
   }
 
+  /**
+   * The Library's table (frame.md F60): `.table` in its own sideways box (`.table-scroll.scroll-box`), the sentence
+   * under it while it scrolls; a column whose every cell is a figure set right (`.num`), any other left.
+   */
+  private libTable(block: Extract<Block, { type: "table" }>): ReactNode {
+    const num = figureColumns(
+      block.head.length,
+      block.rows.map((row) => row.map((cell) => inlineText(cell))),
+    );
+    const cls = (i: number) => (num[i] ? "num" : undefined);
+    return (
+      <div className="blocks-scroll" {...hook(this.hooks, HOOK.box)}>
+        <ScrollBox
+          className="table-scroll scroll-box"
+          label={READER_BLOCKS.region.table}
+        >
+          <table className="table">
+            <thead>
+              <tr>
+                {block.head.map((cell, i) => (
+                  <th
+                    key={i}
+                    scope="col"
+                    className={cls(i)}
+                    {...Renderer.mark(this.take(inlineText(cell)))}
+                  >
+                    {this.inline(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            {block.rows.length ? (
+              <tbody>
+                {block.rows.map((row, r) => (
+                  <tr key={r}>
+                    {row.map((cell, i) => (
+                      <td
+                        key={i}
+                        className={cls(i)}
+                        {...Renderer.mark(this.take(inlineText(cell)))}
+                      >
+                        {this.inline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            ) : null}
+          </table>
+        </ScrollBox>
+      </div>
+    );
+  }
+
   code(block: Extract<Block, { type: "code" }>): ReactNode {
+    if (this.lib) return this.libCode(block);
     const stamp = this.take(block.text);
     const lines = highlight(block.text, block.lang);
     // P30.S20: each line carries its offset in the section's text ("code lines carry their
@@ -1093,28 +1396,27 @@ class Renderer {
     const plain: { text: string; className?: string }[][] = block.text
       .split("\n")
       .map((t) => [{ text: t }]);
-    const body = (lines ?? plain).map(
-      (line, i) => (
-        <span
-          key={i}
-          className="kb-ch-code__ln"
-          {...(source[i] !== undefined &&
-          line.map((tok) => tok.text).join("") === source[i]
-            ? Renderer.mark(stamp, lineAt[i], "code")
-            : {})}
-        >
-          {line.map((tok, j) =>
-            tok.className ? (
-              <span key={j} className={tok.className}>
-                {tok.text}
-              </span>
-            ) : (
-              <Fragment key={j}>{tok.text}</Fragment>
-            ),
-          )}
-        </span>
-      ),
-    );
+    const body = (lines ?? plain).map((line, i) => (
+      <span
+        key={i}
+        className="kb-ch-code__ln"
+        {...hook(this.hooks, HOOK.passage)}
+        {...(source[i] !== undefined &&
+        line.map((tok) => tok.text).join("") === source[i]
+          ? Renderer.mark(stamp, lineAt[i], "code")
+          : {})}
+      >
+        {line.map((tok, j) =>
+          tok.className ? (
+            <span key={j} className={tok.className}>
+              {tok.text}
+            </span>
+          ) : (
+            <Fragment key={j}>{tok.text}</Fragment>
+          ),
+        )}
+      </span>
+    ));
     const id = block.id ?? undefined;
     const lang = block.lang ?? undefined;
     // §8 the title bar, when a title is given: the title and the language.
@@ -1130,6 +1432,7 @@ class Renderer {
     if (block.lang?.toLowerCase() === "text") {
       return (
         <ArtBox
+          hooks={this.hooks}
           id={id}
           lang={lang}
           cols={widestLine(block.text)}
@@ -1147,6 +1450,8 @@ class Renderer {
         id={id}
         data-block={id}
         data-lang={lang}
+        {...hook(this.hooks, HOOK.box)}
+        {...hook(this.hooks, HOOK.unspoken)}
       >
         {bar}
         <div className="kb-ch-code__wrap">
@@ -1155,6 +1460,69 @@ class Renderer {
           </pre>
         </div>
       </figure>
+    );
+  }
+
+  /**
+   * The Library's code (frame.md F60): `pre.read-code` in its own sideways box, the sentence under it while it
+   * scrolls. One line of the source a line of the box, each carrying its offset in the section's text where it
+   * spells the source exactly (as the old box's lines do: the anchoring is the same), with a line break between
+   * them. The title, when the author gave one, is a line above the box (the signed code draws none: a question for
+   * the operator); a `text` fence (an ASCII drawing) is the same box, named a drawing.
+   */
+  private libCode(block: Extract<Block, { type: "code" }>): ReactNode {
+    const stamp = this.take(block.text);
+    const lines = highlight(block.text, block.lang);
+    const source = block.text.split("\n");
+    const lineAt: number[] = [];
+    let pos = 0;
+    for (const line of source) {
+      lineAt.push(pos);
+      pos += codePoints(line).length + 1;
+    }
+    // Each token keeps the old box's element (a span, now uncoloured: the signed code has no colours), so a line's
+    // elements and text nodes are the old ones and a highlight paints the same nodes.
+    const tokens = lines ?? source.map((t) => [{ text: t }]);
+    const body = tokens.map((line, i) => (
+      <Fragment key={i}>
+        {i > 0 ? "\n" : null}
+        <span
+          {...hook(this.hooks, HOOK.passage)}
+          {...(source[i] !== undefined &&
+          line.map((tok) => tok.text).join("") === source[i]
+            ? Renderer.mark(stamp, lineAt[i], "code")
+            : {})}
+        >
+          {line.map((tok: { text: string; className?: string }, j) =>
+            tok.className ? (
+              <span key={j}>{tok.text}</span>
+            ) : (
+              <Fragment key={j}>{tok.text}</Fragment>
+            ),
+          )}
+        </span>
+      </Fragment>
+    ));
+    const id = block.id ?? undefined;
+    const art = block.lang?.toLowerCase() === "text";
+    return (
+      <div
+        className="blocks-scroll"
+        id={id}
+        data-block={id}
+        data-lang={block.lang ?? undefined}
+        {...hook(this.hooks, HOOK.box)}
+        {...hook(this.hooks, HOOK.unspoken)}
+      >
+        {block.title ? <p>{block.title}</p> : null}
+        <ScrollBox
+          as="pre"
+          className="read-code scroll-box"
+          label={art ? READER_BLOCKS.region.drawing : READER_BLOCKS.region.code}
+        >
+          <code>{body}</code>
+        </ScrollBox>
+      </div>
     );
   }
 
@@ -1223,12 +1591,21 @@ class Renderer {
       <>
         <h2
           id={id ?? "glossary"}
-          className="kb-ch-h"
+          className={this.lib ? undefined : "kb-ch-h"}
           data-block={id}
           lang={this.chromeLang}
         >
           {CHAPTER.terms.glossary}
         </h2>
+        {this.islandOf(() => this.glossaryList(list))}
+      </>
+    );
+  }
+
+  /** The glossary's entries (old look until S10). */
+  private glossaryList(list: TermEntry[]): ReactNode {
+    return (
+      <>
         <ul className="ra-gl">
           {list.map((t) => {
             const uses = this.terms.uses.get(t.id);
@@ -1237,7 +1614,9 @@ class Renderer {
                 <p className="ra-gl__term">{this.keepText(t.term)}</p>
                 {this.aliases(t, "ra-gl__alias")}
                 <p className="ra-gl__def">{this.inline(t.short)}</p>
-                {t.long ? <p className="ra-gl__def">{this.inline(t.long)}</p> : null}
+                {t.long ? (
+                  <p className="ra-gl__def">{this.inline(t.long)}</p>
+                ) : null}
                 {uses ? (
                   <p className="ra-gl__back" lang="en" hidden>
                     <a className="fg-back" href={`#${uses[0].anchor}`}>
@@ -1365,6 +1744,7 @@ class Renderer {
       return sym === null ? [] : [{ sym, means: inl(item.means) }];
     });
     const steps = isSteps(tex);
+    if (this.lib) return this.libFormula(id, tex, alt, reading, legend);
     return (
       <figure
         className={steps ? "ra-mb ra-mb--steps" : "ra-mb"}
@@ -1404,6 +1784,86 @@ class Renderer {
     );
   }
 
+  /**
+   * The Library's formula set apart (`BlocksFormula.dc.html`): `figure.read.blocks-fm` between two hairlines, the
+   * formula in its own sideways box at the section-heading step in the math face, then its reading, `where` and the
+   * legend (`dl.blocks-legend`: one symbol column for the chapter, the symbol at the text's size, the meaning at the
+   * small step). A Korean chapter's `where` is its own word (`CHAPTER.formula`).
+   */
+  private libFormula(
+    id: string | undefined,
+    tex: string,
+    alt: string,
+    reading: Inline[] | null,
+    legend: { sym: string; means: Inline[] | null }[],
+  ): ReactNode {
+    return (
+      <figure className="read blocks-fm" id={id} data-block={id}>
+        <ScrollBox
+          className="scroll-box blocks-box blocks-fm-eq"
+          label={READER_BLOCKS.region.formula}
+        >
+          {mathElement(mathTree(tex, true), { alttext: alt })}
+        </ScrollBox>
+        {(reading && reading.length) || legend.length ? (
+          <figcaption className="blocks-figcap">
+            {reading && reading.length ? (
+              <p className="blocks-fm-read">{this.inline(reading)}</p>
+            ) : null}
+            {legend.length ? (
+              <>
+                <p className="blocks-fm-where">
+                  {this.ko
+                    ? CHAPTER.formula.where(true)
+                    : READER_BLOCKS.formula.where}
+                </p>
+                <dl className="blocks-legend">
+                  {legend.map((row, i) => {
+                    const sym = mathTree(row.sym, false);
+                    return (
+                      <Fragment key={i}>
+                        <dt>
+                          {mathElement(sym, { alttext: linearText(sym) })}
+                        </dt>
+                        <dd>{this.inline(row.means)}</dd>
+                      </Fragment>
+                    );
+                  })}
+                </dl>
+              </>
+            ) : null}
+          </figcaption>
+        ) : null}
+      </figure>
+    );
+  }
+
+  /**
+   * The Library's caption and credit (`BlocksFigure.dc.html`): `.blocks-cap`, then `.blocks-credit` (**Credit**,
+   * then the text). No number, no "Figure"; the still-frame line is not drawn.
+   */
+  private libFigcap(
+    caption: Inline[] | null,
+    credit: Inline[] | null,
+  ): ReactNode {
+    const hasCaption = !!caption && caption.length > 0;
+    const hasCredit = !!credit && credit.length > 0;
+    if (!hasCaption && !hasCredit) return null;
+    return (
+      <figcaption className="blocks-figcap">
+        {hasCaption ? (
+          <p className="blocks-cap">{this.inline(caption)}</p>
+        ) : null}
+        {hasCredit ? (
+          <p className="blocks-credit">
+            <b>{READER_BLOCKS.figure.credit}</b>
+            <span>{this.inline(credit)}</span>
+          </p>
+        ) : null}
+      </figcaption>
+    );
+  }
+
   /** §2 the figure's caption, credit and (for an animated asset) the still-frame line. */
   figcap(
     caption: Inline[] | null,
@@ -1433,6 +1893,25 @@ class Renderer {
     const info = resolveAsset(str(block.src), this.links);
     const wide = str(block.width) === "wide";
     const media = this.imageBox(info, str(block.alt) ?? "");
+    // The Library's figure (`BlocksFigure.dc.html`): the image on its own ratio in its sideways box (a wide one never
+    // narrower than the column's full width), then the caption and the credit.
+    if (this.lib)
+      return (
+        <figure
+          className={wide ? "read blocks-fig is-wide" : "read blocks-fig"}
+          id={id}
+          data-block={id}
+          style={ratioOf(info?.width ?? null, info?.height ?? null)}
+        >
+          <ScrollBox
+            className="scroll-box blocks-box"
+            label={READER_BLOCKS.region.image}
+          >
+            {media}
+          </ScrollBox>
+          {this.libFigcap(inl(block.caption), inl(block.credit))}
+        </figure>
+      );
     const caption = this.figcap(
       inl(block.caption),
       inl(block.credit),
@@ -1468,14 +1947,29 @@ class Renderer {
     const items = recs(block.items);
     const cards = items.length > 0 && items.every((i) => i.kind === "card");
     const caption = inl(block.caption);
+    // The Library draws no row of figures: its items, one under the other, each as the signed body draws it (an
+    // image a figure, a drawing a drawing, a card a quiet callout), then the row's caption (an operator question).
+    if (this.lib)
+      return (
+        <figure className="read blocks-fig" id={id} data-block={id}>
+          {items.map((item, i) => (
+            <Fragment key={i}>
+              {this.figuresItem(item, `${id ?? "figures"}-${i + 1}`)}
+            </Fragment>
+          ))}
+          {this.libFigcap(caption, null)}
+        </figure>
+      );
     return (
       <figure
-        className={`fg-row fg-row--${items.length}${cards ? " fg-row--cards" : ""}`}
+        className={`fg-row fg-row--${items.length}${cards ? "fg-row--cards" : ""}`}
         id={id}
         data-block={id}
       >
         {caption && caption.length ? (
-          <figcaption className="fg-row__cap">{this.inline(caption)}</figcaption>
+          <figcaption className="fg-row__cap">
+            {this.inline(caption)}
+          </figcaption>
         ) : null}
         <div className="fg-row__items">
           <div className="fg-row__grid">
@@ -1493,6 +1987,7 @@ class Renderer {
   /** An item's own caption: under the item, in secondary. */
   itemCap(nodes: Inline[] | null): ReactNode {
     if (!nodes || !nodes.length) return null;
+    if (this.lib) return this.libFigcap(nodes, null);
     return (
       <figcaption className="fg-figcap">
         <p className="fg-cap">{this.inline(nodes)}</p>
@@ -1501,11 +1996,15 @@ class Renderer {
   }
 
   figuresItem(item: Rec, scope: string): ReactNode {
+    if (this.lib) return this.libItem(item, scope);
     switch (item.kind) {
       case "image":
         return (
           <figure className="fg-item" data-kind="image">
-            {this.imageBox(resolveAsset(str(item.src), this.links), str(item.alt) ?? "")}
+            {this.imageBox(
+              resolveAsset(str(item.src), this.links),
+              str(item.alt) ?? "",
+            )}
             {this.itemCap(inl(item.caption))}
           </figure>
         );
@@ -1530,8 +2029,62 @@ class Renderer {
     }
   }
 
+  /** The Library's item of a row: an image, a drawing or an svg as a figure of its own; a card as a quiet callout. */
+  private libItem(item: Rec, scope: string): ReactNode {
+    switch (item.kind) {
+      case "image": {
+        const info = resolveAsset(str(item.src), this.links);
+        return (
+          <figure
+            className="read blocks-fig"
+            style={ratioOf(info?.width ?? null, info?.height ?? null)}
+          >
+            <ScrollBox
+              className="scroll-box blocks-box"
+              label={READER_BLOCKS.region.image}
+            >
+              {this.imageBox(info, str(item.alt) ?? "")}
+            </ScrollBox>
+            {this.itemCap(inl(item.caption))}
+          </figure>
+        );
+      }
+      case "diagram":
+        return isRec(item.diagram)
+          ? this.drawn(item.diagram, undefined, "div", inl(item.caption))
+          : null;
+      case "svg":
+        return (
+          <figure className="read blocks-fig">
+            <ScrollBox
+              className="scroll-box blocks-box"
+              label={READER_BLOCKS.region.drawing}
+            >
+              {this.islandOf(() =>
+                this.svg(item.svg, str(item.label) ?? "", scope, true),
+              )}
+            </ScrollBox>
+            {this.itemCap(inl(item.caption))}
+          </figure>
+        );
+      case "card":
+        return this.card(item);
+      default:
+        return null;
+    }
+  }
+
   /** §5 the row card: a title and a Markdown body on the tone's soft ground. A tone is never the only signal. */
   card(item: Rec): ReactNode {
+    if (this.lib)
+      return (
+        <aside className="callout">
+          <p className="callout-title">{this.text(str(item.title) ?? "")}</p>
+          {arr(item.body).map((para, i) => (
+            <p key={i}>{this.inline(inl(para))}</p>
+          ))}
+        </aside>
+      );
     return (
       <div className={`fg-card fg-tone-${tone(item.tone)}`} data-kind="card">
         <p className="fg-card__title">{this.text(str(item.title) ?? "")}</p>
@@ -1560,6 +2113,7 @@ class Renderer {
     caption: Inline[] | null,
   ): ReactNode {
     const kind = kindOf(d);
+    if (this.lib) return this.libDrawn(d, kind, id, tag, caption);
     const { drawing, alt } = diagramParts(
       d,
       kind,
@@ -1587,9 +2141,121 @@ class Renderer {
     );
   }
 
+  /**
+   * The Library's drawing (`BlocksDiagram.dc.html`): `figure.read.blocks-dg` named by its title, the drawing in its
+   * sideways box, its text alternative for a screen reader, then its caption. A flow in one row (`rowOf`) is drawn as
+   * signed: boxes and lines placed in a row. Every other drawing (a branching flow, a state machine, a sequence, a
+   * stack, a timeline, a chart) keeps its own drawing, in its old look, in the signed frame (an operator question).
+   */
+  private libDrawn(
+    d: Rec,
+    kind: string,
+    id: string | undefined,
+    tag: "figure" | "div",
+    caption: Inline[] | null,
+  ): ReactNode {
+    this.dgCount += 1;
+    const titleId = `dg-title-${this.dgCount}`;
+    const row = kind === "flow" ? rowOf(graphSpec(d)) : null;
+    let drawing: ReactNode;
+    let alt: ReactNode;
+    if (row) {
+      drawing = (
+        <div className="blocks-dg-draw" aria-hidden="true">
+          {row.map((n, i) => (
+            <Fragment key={i}>
+              {i > 0 ? <i className="blocks-dg-edge" /> : null}
+              <div className="blocks-dg-node">
+                <b>{this.text(n.label)}</b>
+                {n.sub ? <span>{this.text(n.sub)}</span> : null}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      );
+      alt = (
+        <div className="sr-only">
+          <p>{READER_BLOCKS.drawing.alt}</p>
+          <ul>
+            {row.map((n, i) => (
+              <li key={i}>
+                {this.text(
+                  READER_BLOCKS.drawing.item(
+                    n.label,
+                    n.sub,
+                    row[i + 1]?.label ?? null,
+                  ),
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    } else {
+      const parts = diagramParts(
+        d,
+        kindOf(d),
+        (s) => this.text(s),
+        READER_BLOCKS.drawing.alt,
+        "sr-only",
+      );
+      drawing = (
+        <OldIsland>
+          <div className={`dg dg--${kind}`} data-kind={kind}>
+            <div className="dg__box">
+              <div className="dg__scroll">{parts.drawing}</div>
+            </div>
+          </div>
+        </OldIsland>
+      );
+      alt = parts.alt;
+    }
+    const Root = tag;
+    return (
+      <Root
+        className="read blocks-dg"
+        id={id}
+        data-block={id}
+        data-kind={kind}
+        aria-labelledby={titleId}
+        role={tag === "div" ? "group" : undefined}
+      >
+        <p className="blocks-dg-title" id={titleId}>
+          {this.text(str(d.title) ?? "")}
+        </p>
+        <ScrollBox
+          className="scroll-box blocks-box"
+          label={READER_BLOCKS.region.drawing}
+        >
+          {drawing}
+        </ScrollBox>
+        {alt}
+        {caption && caption.length ? (
+          <figcaption className="blocks-cap">{this.inline(caption)}</figcaption>
+        ) : null}
+      </Root>
+    );
+  }
+
   /** §6 the `svg` block: the drawing, scrolling in its box when narrower than its smallest label allows. */
   svgBlock(block: TypedBlock, id: string | undefined): ReactNode {
     const caption = inl(block.caption);
+    // The Library draws no svg block: a figure, the drawing in its sideways box, in its own old look (its tones are
+    // the old palette's) in an island (an operator question).
+    if (this.lib)
+      return (
+        <figure className="read blocks-fig" id={id} data-block={id}>
+          <ScrollBox
+            className="scroll-box blocks-box"
+            label={READER_BLOCKS.region.drawing}
+          >
+            {this.islandOf(() =>
+              this.svg(block.svg, str(block.label) ?? "", id ?? "svg", false),
+            )}
+          </ScrollBox>
+          {this.itemCap(caption)}
+        </figure>
+      );
     return (
       <ScrollFigure
         id={id}
@@ -1617,7 +2283,8 @@ class Renderer {
     const style: Record<string, string | number> = {};
     if (vbw !== null) {
       style["--fg-vbw"] = vbw;
-      if (!item) style["--fg-minw"] = `${Math.ceil((vbw * 11) / smallestFont(root))}px`;
+      if (!item)
+        style["--fg-minw"] = `${Math.ceil((vbw * 11) / smallestFont(root))}px`;
     }
     return createElement(
       "svg",
@@ -1661,6 +2328,8 @@ class Renderer {
    * included) and hydrates to answer, grade, retry and save.
    */
   quiz(block: TypedBlock, id: string | undefined): ReactNode {
+    // The quiz keeps its old look, in an island of the Library's body, until S10 rebuilds it.
+    if (this.lib) return this.islandOf(() => this.quiz(block, id));
     const bid = id ?? "quiz";
     const title = str(block.title);
     const q = this.quizCtx;
@@ -1705,8 +2374,7 @@ class Renderer {
       // citation's): the island holds them, and an id is the page's once.
       const sheet: PrintItem = this.copied(() => ({
         spec,
-        prompt:
-          spec.type === "cloze" ? null : this.inline(inl(item.prompt)),
+        prompt: spec.type === "cloze" ? null : this.inline(inl(item.prompt)),
         options:
           spec.type === "choice"
             ? recs(item.options).map((o) => this.inline(inl(o.text)))
@@ -1754,6 +2422,7 @@ class Renderer {
 
   /** §7 the sources list; each item draws its way back from the citations (`cites.ts`). */
   sources(block: TypedBlock, id: string | undefined): ReactNode {
+    if (this.lib) return this.libSources(block, id);
     return (
       <ol
         className="fg-src"
@@ -1768,14 +2437,18 @@ class Renderer {
           const meta = [
             str(item.publisher),
             str(item.date),
-            item.accessed ? CHAPTER.sources.accessed(String(item.accessed)) : null,
+            item.accessed
+              ? CHAPTER.sources.accessed(String(item.accessed))
+              : null,
           ].filter((m): m is string => !!m);
           const note = str(item.note);
           return (
             <li key={i} className="fg-src__item" id={sid ?? undefined}>
               <span className="fg-src__n">[{i + 1}]</span>
               <div className="fg-src__body">
-                <p className="fg-src__title">{this.text(str(item.title) ?? "")}</p>
+                <p className="fg-src__title">
+                  {this.text(str(item.title) ?? "")}
+                </p>
                 {meta.length ? (
                   <p className="fg-src__meta">
                     {meta.map((m, j) => (
@@ -1798,7 +2471,9 @@ class Renderer {
                           data-link="external"
                         >
                           {url}
-                          <span className="kb-ch-link__ext">{CHAPTER.newTab}</span>
+                          <span className="kb-ch-link__ext">
+                            {CHAPTER.newTab}
+                          </span>
                         </a>
                       ) : (
                         url
@@ -1810,9 +2485,76 @@ class Renderer {
                     </span>
                   </p>
                 ) : null}
-                {note ? <p className="fg-src__note">{this.text(note)}</p> : null}
+                {note ? (
+                  <p className="fg-src__note">{this.text(note)}</p>
+                ) : null}
                 {sid ? this.sourceBack(sid) : null}
               </div>
+            </li>
+          );
+        })}
+      </ol>
+    );
+  }
+
+  /**
+   * The Library draws no sources list: a numbered list (`ol`, the body's own), each source its title, its publisher,
+   * date and access, its address (a link, the address in full on paper), its note and its way back to the
+   * citations (an operator question).
+   */
+  private libSources(block: TypedBlock, id: string | undefined): ReactNode {
+    return (
+      <ol id={id} data-block={id} aria-label={CHAPTER.sources.label}>
+        {recs(block.items).map((item, i) => {
+          const sid = str(item.id);
+          const url = str(item.url);
+          const target = url ? resolveLink(url, this.links) : null;
+          const meta = [
+            str(item.publisher),
+            str(item.date),
+            item.accessed
+              ? CHAPTER.sources.accessed(String(item.accessed))
+              : null,
+          ].filter((m): m is string => !!m);
+          const note = str(item.note);
+          return (
+            <li key={i} id={sid ?? undefined}>
+              <p>{this.text(str(item.title) ?? "")}</p>
+              {meta.length ? (
+                <p>
+                  {meta.map((m, j) => (
+                    <Fragment key={j}>
+                      {j > 0 ? <span aria-hidden="true"> · </span> : null}
+                      {this.text(m)}
+                    </Fragment>
+                  ))}
+                </p>
+              ) : null}
+              {url ? (
+                <p>
+                  <span className="pp-screen">
+                    {target?.kind === "external" ? (
+                      <a
+                        className="link"
+                        href={target.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-link="external"
+                      >
+                        {url}
+                        <span>{CHAPTER.newTab}</span>
+                      </a>
+                    ) : (
+                      url
+                    )}
+                  </span>
+                  <span className="pp-src__addr pp-only" data-an-skip="">
+                    <PrintAddr address={url} />
+                  </span>
+                </p>
+              ) : null}
+              {note ? <p>{this.text(note)}</p> : null}
+              {sid ? this.sourceBack(sid) : null}
             </li>
           );
         })}
@@ -1827,13 +2569,16 @@ class Renderer {
     if (cites.length === 1) {
       const c = cites[0];
       return (
-        <p className="fg-src__back">
+        <p className={this.lib ? undefined : "fg-src__back"}>
           <a
-            className="fg-back"
+            className={this.lib ? "link" : "fg-back"}
             href={`#${c.citeId}`}
             aria-label={CHAPTER.sources.backAria(c.section)}
           >
-            <span className="fg-back__chev" aria-hidden="true">
+            <span
+              className={this.lib ? undefined : "fg-back__chev"}
+              aria-hidden="true"
+            >
               ‹
             </span>
             <span>{CHAPTER.sources.back}</span>
@@ -1842,14 +2587,14 @@ class Renderer {
       );
     }
     return (
-      <p className="fg-src__back">
+      <p className={this.lib ? undefined : "fg-src__back"}>
         <span>{CHAPTER.sources.backLead}</span>
         {cites.map((c, i) => {
           const letter = letters(i);
           return (
             <a
               key={c.citeId}
-              className="fg-back fg-back--letter"
+              className={this.lib ? "link" : "fg-back fg-back--letter"}
               href={`#${c.citeId}`}
               aria-label={CHAPTER.sources.backLetterAria(
                 letter,
@@ -1857,7 +2602,10 @@ class Renderer {
                 c.section,
               )}
             >
-              <span className="fg-back__chev" aria-hidden="true">
+              <span
+                className={this.lib ? undefined : "fg-back__chev"}
+                aria-hidden="true"
+              >
                 ‹
               </span>{" "}
               {letter}
@@ -1871,7 +2619,10 @@ class Renderer {
 
 /** The viewBox's width, or null when it is not four numbers (ingest checked it; defence in depth). */
 function viewBoxWidth(viewBox: string | undefined): number | null {
-  const parts = (viewBox ?? "").trim().split(/[\s,]+/).map(Number);
+  const parts = (viewBox ?? "")
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
   return parts.length === 4 && parts.every(Number.isFinite) && parts[2] > 0
     ? parts[2]
     : null;

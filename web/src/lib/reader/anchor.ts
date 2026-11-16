@@ -427,15 +427,18 @@ export type Captured =
   /** Text before the first section: "Highlights start at the first section." */
   | { mode: "refuse" };
 
-/** Passage-like elements: a start inside one that carries no stamp takes no highlight. */
+/**
+ * Passage-like elements: a start inside one that carries no stamp takes no highlight. Besides the tags, a code
+ * line and a callout's title carry the reader's `data-an-passage` hook (P63-fk.S9: in either look of the body).
+ */
 const PASSAGE = new Set(["P", "TD", "TH", "PRE", "CODE", "LI"]);
 const isPassageEl = (n: ANode) =>
   n.nodeType === ELEMENT &&
   (PASSAGE.has(n.nodeName.toUpperCase()) ||
-    /\bkb-ch-(code__ln|callout__title)\b/.test(attr(n, "class") ?? ""));
+    attr(n, "data-an-passage") !== null);
 
 /**
- * Classify a selection inside the chapter body (`root` = the `.kb-ch` element) by where it
+ * Classify a selection inside the chapter body (`root` = the `[data-reader-body]` element) by where it
  * starts (`05-annotations` *Classifying a selection*). Returns null when it is ignored (it
  * starts in no text a highlight or a note can take, or is empty after snapping).
  *

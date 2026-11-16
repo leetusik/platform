@@ -145,7 +145,7 @@ function formulaAtoms(
   sections: ReadonlyMap<string, readonly string[]>,
 ): Map<string, QuoteAtom[]> {
   const out = new Map<string, QuoteAtom[]>();
-  if (!root.querySelector("math.ra-m[data-an-len]")) return out;
+  if (!root.querySelector("math[data-an-len]")) return out;
   for (const seg of verified(segments(root as unknown as ANode), sections)) {
     for (const u of units(seg.el)) {
       const el = u.node as unknown as Element;
@@ -367,9 +367,13 @@ export function AnnotationLayer({
 
   // ---- where the layer lives ------------------------------------------------------------
   useEffect(() => {
-    const art = layerRef.current?.closest<HTMLElement>(".rd-article");
-    const root = art?.querySelector<HTMLElement>(".kb-ch");
-    const shell = art?.closest<HTMLElement>(".rd-root");
+    // P63-fk.S9: the body and its article by the reader's hooks (`HOOK`); the document routes' article is
+    // still `.rd-article` (`reader-frame.tsx`, until S12). The shell is the old root the layer sits in.
+    const art = layerRef.current?.closest<HTMLElement>(
+      ".rd-article, [data-reader-article]",
+    );
+    const root = art?.querySelector<HTMLElement>("[data-reader-body]");
+    const shell = layerRef.current?.closest<HTMLElement>(".rd-root");
     // The layer reads the server-rendered page around it once it is hydrated.
     if (art && root && shell) setHost({ art, root, shell });
   }, []);
@@ -2052,7 +2056,7 @@ export function AnnotationLayer({
     }
     if (!rects.length) return;
     const ar = art.getBoundingClientRect();
-    const colEl = art.querySelector(".rd-prose") ?? root;
+    const colEl = art.querySelector("[data-reader-prose]") ?? root;
     const cr = colEl.getBoundingClientRect();
     const firstR = rects[0];
     const lastR = rects[rects.length - 1];

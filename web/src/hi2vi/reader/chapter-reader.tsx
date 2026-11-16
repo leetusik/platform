@@ -96,7 +96,7 @@ import { ReaderHead } from "./reader-head";
  * The reader's memory is the product's own and unchanged: `useReading` (the landing and the resume at
  * the kept block or fraction, the position cadence and the beacon, reaching the end, Mark as finished and
  * Mark as unread through `saveReaderPosition`) and `useHashLanding`. The display settings are the
- * `kb_reader` cookie, written as before. The text arrives as `children` (the old body, `./old-body`).
+ * `kb_reader` cookie, written as before. The text arrives as `children` (`./body`, P63-fk.S9).
  */
 type SheetName = "contents" | "notes" | "versions" | "display";
 
@@ -217,7 +217,7 @@ export function ChapterReader({
       const line = bottom + 16 + 8;
       let found: string | null = null;
       rootRef.current
-        ?.querySelectorAll<HTMLElement>(".rd-article :is(h2, h3)[id]")
+        ?.querySelectorAll<HTMLElement>("[data-reader-article] :is(h2, h3)[id]")
         .forEach((h) => {
           if (h.getBoundingClientRect().top <= line) found = h.id;
         });
