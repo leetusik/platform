@@ -14,6 +14,7 @@ import { SHELL } from "@/content/app";
 import { plural } from "@/lib/format";
 
 import {
+  closeMenuOnEscape,
   filterProjects,
   hasProjectSwitcher,
   initialOf,
@@ -99,10 +100,7 @@ export function Shell({
   }, [open]);
 
   const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Escape" || !open) return;
-    event.preventDefault();
-    set(null);
-    event.currentTarget.querySelector<HTMLElement>("button")?.focus();
+    closeMenuOnEscape(event, open !== null, () => set(null));
   };
   const onBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;

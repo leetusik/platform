@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  closeMenuOnEscape,
   filterProjects,
   hasProjectSwitcher,
   newestFirst,
@@ -157,5 +158,40 @@ describe("the request nonce", () => {
     ).toBe("abc+/=");
     expect(nonceFromCsp("object-src 'none'")).toBeUndefined();
     expect(nonceFromCsp(null)).toBeUndefined();
+  });
+});
+
+describe("a menu's Escape", () => {
+  /** A key event on a menu's anchor whose first button (the trigger) records its focus. */
+  function keyOn(key: string) {
+    const log: string[] = [];
+    const trigger = { focus: () => log.push("focus trigger") };
+    const event = {
+      key,
+      preventDefault: () => log.push("prevent"),
+      currentTarget: {
+        querySelector: (selectors: "button") =>
+          selectors === "button" ? trigger : null,
+      },
+    };
+    return { event, log, close: () => log.push("close") };
+  }
+
+  it("closes the open menu and puts focus back on its trigger", () => {
+    const { event, log, close } = keyOn("Escape");
+    expect(closeMenuOnEscape(event, true, close)).toBe(true);
+    expect(log).toEqual(["prevent", "close", "focus trigger"]);
+  });
+
+  it("leaves every other key, and Escape with no menu open, alone", () => {
+    for (const [key, open] of [
+      ["Enter", true],
+      ["Tab", true],
+      ["Escape", false],
+    ] as const) {
+      const { event, log, close } = keyOn(key);
+      expect(closeMenuOnEscape(event, open, close)).toBe(false);
+      expect(log).toEqual([]);
+    }
   });
 });

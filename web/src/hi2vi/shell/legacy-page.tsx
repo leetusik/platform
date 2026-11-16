@@ -12,8 +12,10 @@ import { Legacy } from "@/hi2vi/ui/boundary";
  * `data-kb-scheme="auto"`, and `.kb-app-main` (the `kbmain` container and its padding). `shell.css`
  * makes it fill the main column edge to edge and drops `.kb-app`'s own 100dvh height.
  *
- * Because `.kb-app` is a size container it is also the containing block of the page's
- * `position: fixed` parts (the review's reader bar), so they stay in the main column, under the Shell.
+ * On screen the box is layout-contained (`shell.css`), so it is the containing block of the page's
+ * `position: fixed` parts (the review's reader bar, its sheets, scrim and toast): they are placed against
+ * the main column, under the Shell's bar and beside its rail, and scroll with the page as the Shell does.
+ * Being a size container (`.kb-app`'s `container-type`) does not do this.
  *
  * A route switches to system markup by not rendering this: an `(app)` route folder's `layout.tsx`
  * wraps its pages in it; delete that file and the page renders straight into `main.app-main`.

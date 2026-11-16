@@ -158,6 +158,32 @@ export function reviewCount(due: number): string {
   return dueText(due);
 }
 
+/** What the menus' Escape rule reads of a key event on a menu's anchor (a React `KeyboardEvent` fits). */
+export interface MenuKeyEvent {
+  key: string;
+  preventDefault(): void;
+  currentTarget: {
+    querySelector(selectors: "button"): { focus(): void } | null;
+  };
+}
+
+/**
+ * Escape on an open menu closes it and puts focus back on its trigger, the anchor's first button (each
+ * anchor is its trigger, then its menu). Any other key, or Escape with no menu open, is left alone, so
+ * the page's own Escape (the full view's exit) still runs. Returns whether it took the key.
+ */
+export function closeMenuOnEscape(
+  event: MenuKeyEvent,
+  open: boolean,
+  close: () => void,
+): boolean {
+  if (event.key !== "Escape" || !open) return false;
+  event.preventDefault();
+  close();
+  event.currentTarget.querySelector("button")?.focus();
+  return true;
+}
+
 /** The nonce of a request's Content-Security-Policy (`'nonce-…'`), as Next reads it; `undefined` without one. */
 export function nonceFromCsp(
   csp: string | null | undefined,

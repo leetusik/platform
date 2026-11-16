@@ -42,8 +42,8 @@ export async function AppShell({
   /**
    * Round 06 §4.4 — the chrome-less document view (`?view=full`): the bar and the rail are hidden by
    * CSS (`shell.css`), the old page carries `data-kb-view="full"` for `kb-docview.css`, and the exit
-   * pill is mounted outside every container (a `position: fixed` child of a size container pins to
-   * the container, not the screen). Nothing unmounts.
+   * pill is mounted outside the old page, whose box contains its `position: fixed` parts (`shell.css`),
+   * so the pill pins to the screen. Nothing unmounts.
    */
   fullWidth?: boolean;
   /** Wrap the page in the old-page boundary (default). `false`: the route decides, per folder. */
