@@ -3,7 +3,9 @@
  *
  * Phases are the board's: `list`, `mint` (the form in place), `minting`, `shown` (the new key in the
  * show-once dialog), `confirm` (revoke asks), `revoking`. The board's `mint-failed` is `mint` with the
- * notice (`failed`), which stays while the form is sent again, until the next answer (F22).
+ * notice (`failed`), which stays while the form is sent again, until the next answer (F22). A
+ * failed revoke is `confirm` with its own notice (`revokeFailed`, the operator's OQ6 answer), kept
+ * the same way through the retry and gone when the confirm closes or another opens.
  *
  * The show-once rule: the minted key's value lives only in `key`, set by `mint-ok` and cleared by
  * every action that leaves `shown`; no other state carries it.
@@ -52,6 +54,8 @@ export interface KeysState {
   failed: boolean;
   /** The minted key's value, only while `shown`. */
   key: string | null;
+  /** The notice in the revoke confirm: `Could not revoke the key. Try again.` */
+  revokeFailed: boolean;
   /** The key a `confirm` or `revoking` is about. */
   target: string | null;
   /** Keys revoked here, read as Revoked before the page's list catches up. */
@@ -67,6 +71,7 @@ export const initialKeysState: KeysState = {
   nameError: false,
   failed: false,
   key: null,
+  revokeFailed: false,
   target: null,
   revoked: [],
 };
@@ -135,10 +140,15 @@ function step(state: KeysState, action: KeysAction): KeysState {
       return { ...state, phase: "list", key: null };
     case "ask-revoke":
       if (state.phase !== "list") return state;
-      return { ...state, phase: "confirm", target: action.id };
+      return {
+        ...state,
+        phase: "confirm",
+        target: action.id,
+        revokeFailed: false,
+      };
     case "cancel-revoke":
       if (state.phase !== "confirm") return state;
-      return { ...state, phase: "list", target: null };
+      return { ...state, phase: "list", target: null, revokeFailed: false };
     case "revoke-start":
       if (state.phase !== "confirm" || state.target === null) return state;
       return { ...state, phase: "revoking" };
@@ -148,13 +158,14 @@ function step(state: KeysState, action: KeysAction): KeysState {
         ...state,
         phase: "list",
         target: null,
+        revokeFailed: false,
         revoked: state.revoked.includes(action.id)
           ? state.revoked
           : [...state.revoked, action.id],
       };
     case "revoke-failed":
       if (state.phase !== "revoking") return state;
-      return { ...state, phase: "confirm" };
+      return { ...state, phase: "confirm", revokeFailed: true };
   }
 }
 

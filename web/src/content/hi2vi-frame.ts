@@ -56,6 +56,8 @@ export const KEYS = {
     "Requests that use this key stop working at once. You cannot undo this.",
   confirmYes: "Yes, revoke",
   revoking: "Revoking…",
+  /** A failed revoke (operator, 2026-11-16): F4's form, as `createFailed`; no board draws it. */
+  revokeFailed: "Could not revoke the key. Try again.",
   loading: "Loading…",
 } as const;
 

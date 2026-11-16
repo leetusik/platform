@@ -330,6 +330,11 @@ export function Keys({
         >
           <h2>{KEYS.confirmTitle(keyLabel(target))}</h2>
           <p>{KEYS.confirmText}</p>
+          {state.revokeFailed ? (
+            <Notice danger role="alert">
+              {KEYS.revokeFailed}
+            </Notice>
+          ) : null}
           <DialogActions>
             <button
               ref={cancelRef}

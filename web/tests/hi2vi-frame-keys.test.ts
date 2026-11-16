@@ -104,3 +104,46 @@ describe("Keys' form", () => {
     expect(s.nameError).toBe(false);
   });
 });
+
+describe("Keys' revoke failure", () => {
+  const failed: KeysAction[] = [
+    { type: "ask-revoke", id: "k2" },
+    { type: "revoke-start" },
+    { type: "revoke-failed" },
+  ];
+
+  it("leaves the confirm open for the same key, not busy, with the notice", () => {
+    const s = run(failed).at(-1)!;
+    expect(s.phase).toBe("confirm");
+    expect(s.target).toBe("k2");
+    expect(s.revokeFailed).toBe(true);
+  });
+
+  it("clears the notice and closes the confirm when a retry succeeds", () => {
+    const states = run([
+      ...failed,
+      { type: "revoke-start" },
+      { type: "revoke-ok", id: "k2" },
+    ]);
+    expect(states[3].revokeFailed).toBe(true);
+    const done = states[4];
+    expect(done.phase).toBe("list");
+    expect(done.target).toBeNull();
+    expect(done.revokeFailed).toBe(false);
+    expect(done.revoked).toContain("k2");
+  });
+
+  it("opens any later confirm without the notice", () => {
+    for (const id of ["k2", "k3"]) {
+      const s = run([
+        ...failed,
+        { type: "cancel-revoke" },
+        { type: "ask-revoke", id },
+      ]);
+      expect(s[3].revokeFailed).toBe(false);
+      expect(s[4].phase).toBe("confirm");
+      expect(s[4].target).toBe(id);
+      expect(s[4].revokeFailed).toBe(false);
+    }
+  });
+});
