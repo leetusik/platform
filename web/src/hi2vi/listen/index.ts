@@ -30,6 +30,13 @@ export { ListenPlayerSheet } from "./player";
 export { PlayerBody } from "./player-body";
 export { goToText, pressPlayer, textHref, type PlayerEvent } from "./press";
 export {
+  focusAfterPress,
+  focusable,
+  pressedControl,
+  type PlayerControl,
+  type PressFocus,
+} from "./press-focus";
+export {
   bookControlOf,
   bookHeadOf,
   bookRowsOf,

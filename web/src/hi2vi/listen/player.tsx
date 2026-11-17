@@ -1,7 +1,14 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 
 import { LISTEN } from "@/content/listen";
 import { outsideBox, sheetClass } from "@/hi2vi/library/sheet-model";
@@ -10,6 +17,7 @@ import { playerView } from "@/lib/listen/view";
 
 import { PlayerBody } from "./player-body";
 import { goToText, pressPlayer, type PlayerEvent } from "./press";
+import { focusAfterPress } from "./press-focus";
 
 /**
  * The opened player (frame.md F211, F234 FG8; `Listen.dc.html`'s player sheet): the reader's sheet from the end
@@ -17,7 +25,9 @@ import { goToText, pressPlayer, type PlayerEvent } from "./press";
  * (they wrap). The Library's sheet mechanics (`@/hi2vi/library/sheet-model`): `showModal()`, so the page
  * behind is inert and the scrim is the `::backdrop`; focus opens on Close; Escape, Close and the scrim close
  * it and the focus returns to the dock. Stop listening ends the Listen and closes it, the focus going to the
- * head's control. The dock's open area opens it (`listenActions.openPlayer`).
+ * head's control. The dock's open area opens it (`listenActions.openPlayer`). A press whose control leaves the
+ * sheet (a chapter row that becomes the current one, Previous or Next at an end) moves the focus to a stable
+ * control in the sheet (`focusAfterPress`), never to the page.
  */
 
 type After = "dock" | "head" | "none";
@@ -55,6 +65,8 @@ export function ListenPlayerSheet({
   const ref = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const after = useRef<After>("dock");
+  /** The last press in the body, until its control is seen to stay or to leave (the move may land renders later). */
+  const pressed = useRef<PlayerEvent | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const uid = useId();
@@ -66,6 +78,7 @@ export function ListenPlayerSheet({
     const el = ref.current;
     if (!el || !shown) return;
     after.current = "dock";
+    pressed.current = null;
     if (!el.open) el.showModal();
     closeRef.current?.focus({ preventScroll: true });
     return () => {
@@ -73,6 +86,33 @@ export function ListenPlayerSheet({
       focusAfter(after.current);
     };
   }, [shown]);
+
+  // After every render of the open sheet: when the last press's control is no longer drawn (or is disabled) and the
+  // focus fell out of the sheet with it, the rule's stable control takes it. A focus the reader moved elsewhere
+  // in the sheet meanwhile stays where it is; a control still drawn keeps its press pending (a chapter move lands
+  // once the audio reaches it, renders later).
+  useLayoutEffect(() => {
+    const e = pressed.current;
+    const el = ref.current;
+    // Closing (Escape, Close, the scrim, Stop listening) is the sheet's own: its focus goes to the dock or the head.
+    if (!e || !el || !el.open || !shown || !listen) return;
+    const to = focusAfterPress(e, playerView(listen, { docWhere }));
+    if (to === null) return;
+    pressed.current = null;
+    const at = document.activeElement;
+    const held =
+      !!at &&
+      at !== document.body &&
+      at !== el &&
+      el.contains(at) &&
+      !at.matches(":disabled");
+    if (held) return;
+    const target =
+      to === "play"
+        ? el.querySelector<HTMLElement>(".transport-play:not(:disabled)")
+        : null;
+    (target ?? closeRef.current)?.focus({ preventScroll: true });
+  });
 
   // The Listen ended under the sheet (Stop listening, or elsewhere): the sheet goes with it, and the next
   // Listen does not open it again.
@@ -86,6 +126,7 @@ export function ListenPlayerSheet({
   };
   const onEvent = (e: PlayerEvent) => {
     if (e.t === "stop") after.current = "head";
+    pressed.current = e;
     pressPlayer(listen, e, () => window.location.assign(signInHref));
     if (e.t === "stop") close("head");
   };
