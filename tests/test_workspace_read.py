@@ -335,3 +335,85 @@ def test_question_and_result_readers():
     plain = parse_result("- status: done\n- summary: ok\n\nBody text.\n")
     assert plain["verdict"]["status"] == "done" and plain["verdict"]["files"] is None
     assert plain["body"] == "Body text."
+
+
+# -- the content cache: each cached text counted once (no database) ------------------
+
+
+@pytest.fixture
+def small_cache(monkeypatch):
+    """The content cache, emptied, with its cap at 100."""
+
+    import server.workspace_read as workspace_read
+
+    monkeypatch.setattr(workspace_read, "CONTENT_CACHE_BYTES", 100)
+    workspace_read.clear_memo()
+    yield workspace_read
+    workspace_read.clear_memo()
+
+
+def _counted(wr) -> tuple[int, int]:
+    """``(entries, counted size)``, after checking the count against the texts."""
+
+    assert wr._content_bytes == sum(len(t) for t in wr._content.values())
+    assert wr._content_bytes <= wr.CONTENT_CACHE_BYTES
+    return len(wr._content), wr._content_bytes
+
+
+def test_a_text_remembered_again_is_counted_once(small_cache):
+    wr = small_cache
+    project = uuid4()
+    for _ in range(3):
+        wr._remember_content((project, "a"), "x" * 40)
+    assert _counted(wr) == (1, 40)
+    wr._remember_content((project, "b"), "y" * 10)
+    assert _counted(wr) == (2, 50)
+    assert (project, "a") in wr._content
+
+
+def test_a_text_evicted_then_remembered_again_is_counted_once(small_cache):
+    wr = small_cache
+    project = uuid4()
+    wr._remember_content((project, "a"), "a" * 40)
+    wr._remember_content((project, "b"), "b" * 40)
+    wr._remember_content((project, "c"), "c" * 40)  # evicts "a"
+    assert (project, "a") not in wr._content
+    assert _counted(wr) == (2, 80)
+    wr._remember_content((project, "a"), "a" * 40)  # evicts "b"
+    assert list(wr._content) == [(project, "c"), (project, "a")]
+    assert _counted(wr) == (2, 80)
+
+
+def test_the_counted_size_follows_any_sequence(small_cache):
+    import random
+
+    wr = small_cache
+    rng = random.Random(7)
+    projects = [uuid4(), uuid4()]
+    for _ in range(2000):
+        key = (rng.choice(projects), rng.choice("abcdefgh"))
+        wr._remember_content(key, "z" * rng.choice([0, 1, 9, 30, 55, 100, 101]))
+        _counted(wr)
+        if rng.random() < 0.01:
+            wr.clear_memo()
+            assert _counted(wr) == (0, 0)
+
+
+def test_concurrent_misses_count_a_text_once(small_cache):
+    import threading
+
+    wr = small_cache
+    key = (uuid4(), "new-head")
+    start = threading.Barrier(8)
+
+    def remember():
+        start.wait()
+        for _ in range(50):
+            wr._remember_content(key, "q" * 30)
+
+    threads = [threading.Thread(target=remember) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert _counted(wr) == (1, 30)

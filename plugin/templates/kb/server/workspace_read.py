@@ -52,6 +52,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -424,8 +425,11 @@ class SyncFacts:
 
 
 _memo: OrderedDict[tuple[UUID, int, str], _Snapshot] = OrderedDict()
+#: Cached file texts by ``(project, sha)``, least recently used first. ``_content_bytes``
+#: is always the sum of their sizes; ``_content_lock`` guards both together.
 _content: OrderedDict[tuple[UUID, str], str] = OrderedDict()
 _content_bytes = 0
+_content_lock = threading.Lock()
 
 
 def clear_memo() -> None:
@@ -433,20 +437,42 @@ def clear_memo() -> None:
 
     global _content_bytes
     _memo.clear()
-    _content.clear()
-    _content_bytes = 0
+    with _content_lock:
+        _content.clear()
+        _content_bytes = 0
+
+
+def _cached_content(key: tuple[UUID, str]) -> str | None:
+    """The cached text under ``key``, marked most recently used, or ``None``."""
+
+    with _content_lock:
+        text = _content.get(key)
+        if text is not None:
+            _content.move_to_end(key)
+        return text
 
 
 def _remember_content(key: tuple[UUID, str], text: str) -> None:
+    """Cache ``text`` under ``key``, counting it once however often it is remembered.
+
+    Two requests missing the same text at once both remember it: the second replaces
+    the first, and the count moves by the difference only. Eviction subtracts exactly
+    what each evicted text added.
+    """
+
     global _content_bytes
     size = len(text)
-    if size > CONTENT_CACHE_BYTES:
-        return
-    _content[key] = text
-    _content_bytes += size
-    while _content_bytes > CONTENT_CACHE_BYTES and _content:
-        _, old = _content.popitem(last=False)
-        _content_bytes -= len(old)
+    with _content_lock:
+        old = _content.pop(key, None)
+        if old is not None:
+            _content_bytes -= len(old)
+        if size > CONTENT_CACHE_BYTES:
+            return
+        _content[key] = text
+        _content_bytes += size
+        while _content_bytes > CONTENT_CACHE_BYTES and _content:
+            _, evicted = _content.popitem(last=False)
+            _content_bytes -= len(evicted)
 
 
 def sync_state(facts: SyncFacts, now: datetime | None = None) -> dict[str, Any]:
@@ -514,9 +540,8 @@ class WorkspaceReader:
             if rec.kind == KIND_APPEND:
                 appends.append(rec)
                 continue
-            cached = _content.get((self.project_id, rec.sha256))
+            cached = _cached_content((self.project_id, rec.sha256))
             if cached is not None:
-                _content.move_to_end((self.project_id, rec.sha256))
                 out[path] = cached
             elif rec.blob_sha256:
                 blobs.setdefault(rec.blob_sha256, []).append(path)
