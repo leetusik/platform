@@ -180,6 +180,11 @@ export type FeedbackState =
  * panel's weight, the text as a link to the message in the project's Shell (`lang` set) and the time;
  * the foot to the project's Feedback list. Empty drops the count and the foot; the failed form is the
  * Library's (`Feedback did not load.` and Try again, the head kept).
+ *
+ * A long message is cut at the Feedback list's two lines by the list's own `.clamp-2`, put on the text
+ * span rather than through `ClampLink`, which would drop `.ph-open`'s text-only underline, the text's
+ * weight 400 and the span's `lang`. The link keeps one 12 px over and under: `.ph-open` and the list's
+ * `.link-strong:has(> .clamp-2)` set the same `padding-block` to the same step, never adding up.
  */
 export function FeedbackPanel({
   count,
@@ -212,7 +217,7 @@ export function FeedbackPanel({
               <li key={m.id} className="row ph-msg">
                 <Rating value={m.rating} className="ph-rating" />
                 <Link href={m.href} className="link-strong ph-open ph-said">
-                  <span className="ph-name-text" lang={m.lang}>
+                  <span className="ph-name-text clamp-2" lang={m.lang}>
                     {m.text}
                   </span>
                 </Link>

@@ -317,6 +317,33 @@ describe("the rows", () => {
   });
 });
 
+describe("a long message", () => {
+  it("is cut at the list's two lines by its clamp, the link, its lang and its whole text kept", async () => {
+    const long =
+      "The search box loses what I typed when the results come back.\n\nIt looks like the page reloads the whole list.\n\nPlease keep the field as it is.";
+    feedbackApp.listFeedbackPage.mockResolvedValue({
+      records: [record("f9", long, 2), RECORDS[1]],
+      total: 2,
+    });
+    const html = feedbackPanel(await render());
+    const links = [
+      ...html.matchAll(/<a\b([^>]*)>(<span\b[^>]*>)([^<]*)<\/span><\/a>/g),
+    ].filter((m) => m[1].includes("ph-open"));
+    expect(links).toHaveLength(2);
+    for (const [, a, span] of links) {
+      expect(a).toContain('class="link-strong ph-open ph-said"');
+      expect(span).toContain('class="ph-name-text clamp-2"');
+    }
+    // the whole message is the link's only content, so its accessible name; the clamp only cuts the view
+    expect(links[0][1]).toContain('href="/projects/p1/feedback/f9"');
+    expect(links[0][2]).not.toContain("lang=");
+    expect(links[0][3]).toBe(long);
+    expect(links[1][1]).toContain('href="/projects/p1/feedback/f2"');
+    expect(links[1][2]).toContain('lang="ko"');
+    expect(links[1][3]).toBe("재생 속도를 기억해 주면 좋겠어요.");
+  });
+});
+
 describe("a failed Feedback read", () => {
   it("keeps the page and shows the panel's failed form with Try again", async () => {
     feedbackApp.listFeedbackPage.mockRejectedValue(new Error("502"));
