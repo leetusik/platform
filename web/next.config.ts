@@ -20,6 +20,15 @@ const nextConfig: NextConfig = {
   // under an AI coding agent. The repo's agent rules live in the root CLAUDE.md;
   // keep the dev server from adding untracked instruction files beside it.
   agentRules: false,
+  experimental: {
+    // Off: with it on, Next 16.3 predicts a link's route tree from the URL and puts the raw
+    // `@org` segment in its prefetch request, while the server renders that param encoded
+    // (`%40org`). The client reads the mismatch as a dynamic rewrite, invalidates the whole route
+    // cache and re-prefetches every visible link, forever: an idle Library tab re-requested each
+    // public `/@org/...` link many times a second. Off, every link learns its tree from the server
+    // once and keeps it (`tests/next-config.test.ts`).
+    optimisticRouting: false,
+  },
   // P63 (operator decision 4, D152-kw) — an old past-version page opens the document's Versions
   // view, `/documents/<id>?v=<v>`, its query kept. A config redirect answers before the proxy and
   // before any page, so no page script under the reader's nonce CSP does it (`legacy.ts`).
