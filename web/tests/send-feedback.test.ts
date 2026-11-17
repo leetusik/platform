@@ -1,4 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -115,8 +117,9 @@ describe("the visitor's guards", () => {
     expect(limit).not.toHaveBeenCalled();
   });
 
-  it("never posts an empty, overlong or badly addressed message", async () => {
-    const { deps, post } = visitorDeps();
+  it("never posts or counts an empty, overlong or badly addressed message", async () => {
+    const limit = vi.fn(() => ({ ok: true }));
+    const { deps, post } = visitorDeps({ limit });
     const cases: [Core.VisitorInput, unknown][] = [
       [
         { message: "" },
@@ -151,6 +154,7 @@ describe("the visitor's guards", () => {
       expect(await core.sendVisitorFeedback(input, deps)).toEqual(answer);
     }
     expect(post).not.toHaveBeenCalled();
+    expect(limit).not.toHaveBeenCalled();
   });
 
   it("counts length in code points of the trimmed message", async () => {
@@ -251,6 +255,25 @@ describe("the signed-in guards", () => {
     expect(post).toHaveBeenCalledTimes(2);
   });
 
+  it("never posts or counts an empty or overlong message", async () => {
+    const limit = vi.fn(() => ({ ok: true }));
+    const { deps, post } = accountDeps({ limit });
+    for (const [message, reason] of [
+      ["", "empty"],
+      ["  \n ", "empty"],
+      [42, "empty"],
+      ["x".repeat(21), "too-long"],
+    ] as const) {
+      expect(await core.sendAccountFeedback({ message }, deps)).toEqual({
+        status: "invalid",
+        field: "message",
+        reason,
+      });
+    }
+    expect(post).not.toHaveBeenCalled();
+    expect(limit).not.toHaveBeenCalled();
+  });
+
   it("takes the email and the integration from the session, never the client", async () => {
     const { deps, post } = accountDeps();
     const tampered = {
@@ -330,13 +353,26 @@ describe("the post", () => {
     expect(signedIn.post).not.toHaveBeenCalled();
   });
 
-  it("sends the key as the bearer, with no org and no address headers", async () => {
+  it("sends the key as the bearer, with no org and no address headers, even with an org cookie", async () => {
     vi.stubEnv("KB_API_BASE_URL", "http://kb.test:8766");
     const fetchMock = vi.fn(
       async (..._args: [string, RequestInit]) =>
         new Response("{}", { status: 202 }),
     );
     vi.stubGlobal("fetch", fetchMock);
+    // A signed-in member's request carries their active org in its cookie.
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValue({
+      get: (name: string) =>
+        name === "hi2vi_org" ? { name, value: ORG } : undefined,
+    } as unknown as Awaited<ReturnType<typeof cookies>>);
+    const sentHeaders = (call: number) =>
+      fetchMock.mock.calls[call][1].headers as Record<string, string>;
+    // The cookie is live: a token call that does not override the org names it.
+    const { sendJson } = await import("@/lib/knowledge/client");
+    await sendJson("/probe", "POST", {}, { token: "session-token" });
+    expect(sentHeaders(0)["X-Hi2vi-Org"]).toBe(ORG);
+
     await core.postCapture(
       {
         message: "hi",
@@ -345,16 +381,359 @@ describe("the post", () => {
       },
       KEY,
     );
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url] = fetchMock.mock.calls[1];
     expect(url).toBe("http://kb.test:8766/api/feedback");
-    const sent = init.headers as Record<string, string>;
+    const sent = sentHeaders(1);
     expect(sent.Authorization).toBe(`Bearer ${KEY}`);
-    expect(Object.keys(sent).map((k) => k.toLowerCase())).not.toEqual(
-      expect.arrayContaining(["x-hi2vi-org"]),
+    const names = Object.keys(sent).map((k) => k.toLowerCase());
+    expect(names).not.toContain("x-hi2vi-org");
+    expect(names).not.toContain("x-real-ip");
+  });
+});
+
+/** A visitor's send from `ip` (no header when `null`), with its own post. */
+function visit(
+  ip: string | null,
+  post: Core.Poster,
+  settings: FeedbackSettings,
+  over: Partial<Core.SendDeps> = {},
+) {
+  return core.sendVisitorFeedback(
+    { message: "hi" },
+    {
+      headers: hdrs(ip === null ? {} : { "x-real-ip": ip }),
+      settings,
+      captureKey: KEY,
+      post,
+      log: vi.fn(),
+      ...over,
+    },
+  );
+}
+
+/** A signed-in send as `userId`, with its own post. */
+function asAccount(
+  userId: string,
+  post: Core.Poster,
+  settings: FeedbackSettings,
+  over: Partial<Core.AccountSendDeps> = {},
+) {
+  return core.sendAccountFeedback(
+    { message: "hi" },
+    {
+      headers: hdrs(),
+      settings,
+      captureKey: KEY,
+      post,
+      log: vi.fn(),
+      identify: async () => ({ userId, email: null }),
+      ...over,
+    },
+  );
+}
+
+const ORG = "11111111-2222-4333-8444-555555555555";
+const delivered = () => vi.fn(async () => ({ status: "accepted" }));
+const failing = (error: unknown) =>
+  vi.fn(async () => {
+    throw error;
+  });
+/** A post that never settles and ignores its signal: only the bound ends it. */
+const stalled = () => vi.fn(() => new Promise<never>(() => {}));
+const later = (ms: number) =>
+  vi.fn(
+    () =>
+      new Promise<{ status: string }>((resolve) =>
+        setTimeout(() => resolve({ status: "accepted" }), ms),
+      ),
+  );
+const WIDE: FeedbackSettings = { ...SETTINGS, ipLimit: 5, dailyCeiling: 200 };
+
+describe("an undelivered send costs no slot", () => {
+  it("5 sends against a 503 leave the visitor's budget whole", async () => {
+    for (let i = 0; i < 5; i++) {
+      expect(
+        await visit("198.51.100.7", failing(new ApiError(503, null)), WIDE),
+      ).toEqual({ status: "failed" });
+    }
+    expect(await visit("198.51.100.7", delivered(), WIDE)).toEqual({
+      status: "sent",
+    });
+  });
+
+  it("200 undelivered landing sends leave the site ceiling unspent", async () => {
+    for (let i = 0; i < 200; i++) {
+      expect(
+        await visit(`10.0.0.${i}`, failing(new ApiError(503, null)), WIDE),
+      ).toEqual({ status: "failed" });
+    }
+    expect(await visit("192.0.2.200", delivered(), WIDE)).toEqual({
+      status: "sent",
+    });
+  });
+
+  it("a ceiling refusal spends no address slot", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const settings = { ...WIDE, ipWindowS: 172_800, dailyCeiling: 1 };
+      expect(await visit("192.0.2.1", delivered(), settings)).toEqual({
+        status: "sent",
+      });
+      for (let i = 0; i < 6; i++) {
+        expect(await visit("192.0.2.2", delivered(), settings)).toEqual({
+          status: "refused-site",
+        });
+      }
+      vi.setSystemTime(Date.now() + 86_400_001);
+      expect(await visit("192.0.2.2", delivered(), settings)).toEqual({
+        status: "sent",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("2 sends answered 500 leave the account's budget whole; a delivered one counts once", async () => {
+    for (let i = 0; i < 2; i++) {
+      expect(
+        await asAccount("user-1", failing(new ApiError(500, null)), SETTINGS),
+      ).toEqual({ status: "failed" });
+    }
+    for (const answer of ["sent", "sent", "refused"]) {
+      expect(await asAccount("user-1", delivered(), SETTINGS)).toEqual({
+        status: answer,
+      });
+    }
+  });
+
+  it("every undelivered answer is free on both paths", async () => {
+    const cases: [string, () => Core.Poster, string][] = [
+      ["401", () => failing(new ApiError(401, null)), "failed"],
+      ["403", () => failing(new ApiError(403, null)), "failed"],
+      ["413", () => failing(new ApiError(413, null)), "failed"],
+      ["429", () => failing(new ApiError(429, null)), "refused"],
+      ["unreachable", () => failing(new TypeError("fetch failed")), "failed"],
+      ["stalled", stalled, "failed"],
+    ];
+    const tight = {
+      ...SETTINGS,
+      ipLimit: 1,
+      accountLimit: 1,
+      dailyCeiling: cases.length,
+    };
+    for (const [index, [name, post, answer]] of cases.entries()) {
+      const ip = `203.0.113.${index}`;
+      const bound = { timeoutMs: 50 };
+      expect([name, await visit(ip, post(), tight, bound)]).toEqual([
+        name,
+        { status: answer },
+      ]);
+      expect([name, await visit(ip, delivered(), tight)]).toEqual([
+        name,
+        { status: "sent" },
+      ]);
+      const user = `user-${name}`;
+      expect([name, await asAccount(user, post(), tight, bound)]).toEqual([
+        name,
+        { status: answer },
+      ]);
+      expect([name, await asAccount(user, delivered(), tight)]).toEqual([
+        name,
+        { status: "sent" },
+      ]);
+    }
+  });
+
+  it("a slow post inside the bound is sent and counted once", async () => {
+    const bound = { timeoutMs: 400 };
+    for (const answer of ["sent", "sent", "refused"]) {
+      expect(await visit("198.51.100.7", later(150), SETTINGS, bound)).toEqual({
+        status: answer,
+      });
+    }
+  });
+
+  it("an API that accepts and never answers fails within the bound, aborting the post; a refused connection fails fast", async () => {
+    let closed = 0;
+    const server = createServer(() => {
+      /* never answer */
+    });
+    server.on("connection", (socket) => socket.on("close", () => closed++));
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    const { port } = server.address() as AddressInfo;
+    vi.stubEnv("KB_API_BASE_URL", `http://127.0.0.1:${port}`);
+    const tight = { ...SETTINGS, ipLimit: 1 };
+    try {
+      const started = Date.now();
+      expect(
+        await visit("198.51.100.7", core.postCapture, tight, {
+          timeoutMs: 300,
+        }),
+      ).toEqual({ status: "failed" });
+      expect(Date.now() - started).toBeLessThan(2000);
+      await vi.waitFor(() => expect(closed).toBe(1));
+      expect(await visit("198.51.100.7", delivered(), tight)).toEqual({
+        status: "sent",
+      });
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+    // The same port, now closed: refused at once, long before the bound.
+    const started = Date.now();
+    expect(
+      await visit("198.51.100.8", core.postCapture, tight, {
+        timeoutMs: 4000,
+      }),
+    ).toEqual({ status: "failed" });
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("concurrent sends at the address limit's edge never exceed it", async () => {
+    const post = later(20);
+    const answers = await Promise.all(
+      Array.from({ length: 10 }, () => visit("198.51.100.7", post, SETTINGS)),
     );
-    expect(Object.keys(sent).map((k) => k.toLowerCase())).not.toEqual(
-      expect.arrayContaining(["x-real-ip"]),
+    expect(answers.filter((a) => a.status === "sent")).toHaveLength(2);
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it("concurrent sends at the site ceiling's edge never exceed it", async () => {
+    const post = later(20);
+    const answers = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        visit(`192.0.2.${i}`, post, SETTINGS),
+      ),
     );
+    expect(answers.filter((a) => a.status === "sent")).toHaveLength(3);
+    expect(post).toHaveBeenCalledTimes(3);
+  });
+
+  it("concurrent sends at the account limit's edge never exceed it", async () => {
+    const post = later(20);
+    const answers = await Promise.all(
+      Array.from({ length: 10 }, () => asAccount("user-1", post, SETTINGS)),
+    );
+    expect(answers.filter((a) => a.status === "sent")).toHaveLength(2);
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("the visitor bucket is a sender", () => {
+  const bucket = (ip: string) => core.visitorBucket(hdrs({ "x-real-ip": ip }));
+
+  it("six addresses of one /64 share one budget", async () => {
+    const answers: string[] = [];
+    for (let i = 1; i <= 6; i++) {
+      answers.push(
+        (await visit(`2001:db8:1:2::${i}`, delivered(), WIDE)).status,
+      );
+    }
+    expect(answers).toEqual([
+      "sent",
+      "sent",
+      "sent",
+      "sent",
+      "sent",
+      "refused",
+    ]);
+  });
+
+  it("two /64s are independent", async () => {
+    const tight = { ...SETTINGS, ipLimit: 1 };
+    for (const [ip, answer] of [
+      ["2001:db8:1:2::1", "sent"],
+      ["2001:db8:1:3::1", "sent"],
+      ["2001:db8:1:2:ffff::9", "refused"],
+    ]) {
+      expect([ip, await visit(ip, delivered(), tight)]).toEqual([
+        ip,
+        { status: answer },
+      ]);
+    }
+  });
+
+  it("an IPv4-mapped address counts with its IPv4", async () => {
+    const tight = { ...SETTINGS, ipLimit: 1 };
+    expect(await visit("198.51.100.7", delivered(), tight)).toEqual({
+      status: "sent",
+    });
+    expect(await visit("::ffff:198.51.100.7", delivered(), tight)).toEqual({
+      status: "refused",
+    });
+    const v4 = `${core.IP_BUCKET}198.51.100.7`;
+    expect(bucket("::FFFF:c633:6407")).toBe(v4);
+    expect(bucket("0:0:0:0:0:ffff:198.51.100.7")).toBe(v4);
+  });
+
+  it("every spelling of one address shares a bucket", async () => {
+    const key = `${core.IP_BUCKET}2001:db8:1:2::/64`;
+    for (const spelling of [
+      "2001:db8:1:2::abcd",
+      "2001:DB8:1:2::ABCD",
+      "2001:0db8:0001:0002:0000:0000:0000:abcd",
+      "2001:db8:1:2:0:0:0:abcd",
+      " 2001:db8:1:2::abcd ",
+    ]) {
+      expect([spelling, bucket(spelling)]).toEqual([spelling, key]);
+    }
+    expect(bucket("2001:db8::1")).toBe(`${core.IP_BUCKET}2001:db8:0:0::/64`);
+    expect(bucket("::1")).toBe(`${core.IP_BUCKET}0:0:0:0::/64`);
+    const tight = { ...SETTINGS, ipLimit: 1 };
+    expect(await visit("2001:db8:1:2::abcd", delivered(), tight)).toEqual({
+      status: "sent",
+    });
+    expect(await visit("2001:DB8:1:2::ABCD", delivered(), tight)).toEqual({
+      status: "refused",
+    });
+  });
+
+  it("a malformed X-Real-IP goes to the unknown bucket", async () => {
+    for (const bad of [
+      "not-an-ip",
+      "1.2.3",
+      "1.2.3.4.5",
+      "256.1.1.1",
+      "1.2.3.-4",
+      "2001:db8::1::2",
+      "2001:db8:1:2:3:4:5:6:7",
+      "12345::",
+      "2001:db8:g::1",
+      "::ffff:1.2.3.999",
+      "fe80::1%eth0",
+      "[2001:db8::1]",
+      ":::",
+    ]) {
+      expect([bad, bucket(bad)]).toEqual([bad, core.UNKNOWN_IP_BUCKET]);
+    }
+    const tight = { ...SETTINGS, ipLimit: 2 };
+    expect(await visit("not-an-ip", delivered(), tight)).toEqual({
+      status: "sent",
+    });
+    expect(await visit(null, delivered(), tight)).toEqual({ status: "sent" });
+    expect(await visit("1.2.3.4.5", delivered(), tight)).toEqual({
+      status: "refused",
+    });
+  });
+
+  it("keeps IPv4 per address", () => {
+    for (const ip of ["198.51.100.7", "198.51.100.8", "0.0.0.0"]) {
+      expect(bucket(ip)).toBe(`${core.IP_BUCKET}${ip}`);
+    }
+  });
+});
+
+describe("the limiter's give-back", () => {
+  it("takes a slot as checkRateLimit does, and gives that slot back once", async () => {
+    const { takeRateLimit } = await import("@/lib/rate-limit");
+    const first = takeRateLimit("give-back", 2, 60_000);
+    const second = takeRateLimit("give-back", 2, 60_000);
+    expect([first.ok, second.ok]).toEqual([true, true]);
+    expect(takeRateLimit("give-back", 2, 60_000).ok).toBe(false);
+    second.release();
+    second.release();
+    expect(takeRateLimit("give-back", 2, 60_000).ok).toBe(true);
+    expect(takeRateLimit("give-back", 2, 60_000).ok).toBe(false);
   });
 });
 
