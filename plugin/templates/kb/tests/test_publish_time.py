@@ -335,6 +335,167 @@ def test_the_fill_command_commits_only_what_git_tracks(tmp_path, monkeypatch):
     assert '"best_effort": true' in files["four"].read_text()  # filled, never staged
 
 
+# --- a follow-up run finishes whatever an earlier run left ---------------------
+
+_PUBLIC = {
+    "docs/alpha/2026-10-01-one.md", "docs/alpha/2026-10-02-two.md",
+    "docs/.versions/alpha/2026-10-02-two/v0001.md",
+    "docs/.versions/alpha/2026-10-02-two/v0002.md",
+}
+_FINISH = "python -m server.published_fill --commit --push"
+
+
+def _box(tmp_path, monkeypatch):
+    """The box's checkout: the corpus with docs/ tracked and pushed to a bare origin."""
+    _docs, _tenant, files = _corpus(tmp_path)
+    kb = tmp_path / "kb"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(tmp_path / "origin.git")],
+                   check=True)
+    _git(kb, "init", "-q", "-b", "main")
+    _git(kb, "config", "user.name", "kb-test")
+    _git(kb, "config", "user.email", "kb-test@example.com")
+    _git(kb, "add", "docs")
+    _git(kb, "commit", "-q", "-m", "seed")
+    _git(kb, "remote", "add", "origin", str(tmp_path / "origin.git"))
+    _git(kb, "push", "-q", "origin", "main")
+    monkeypatch.setenv("KB_ROOT", str(kb))
+    monkeypatch.setenv("KB_DB_PATH", str(tmp_path / "absent.sqlite3"))
+    return kb, files
+
+
+def _fill(capsys, *args):
+    rc = published_fill.main(list(args))
+    out = capsys.readouterr()
+    return rc, out.out + out.err
+
+
+def _dirty(kb) -> set[str]:
+    return set(_git(kb, "diff", "HEAD", "--name-only").stdout.split())
+
+
+def _ahead(kb) -> int:
+    return int(_git(kb, "rev-list", "--count", "origin/main..HEAD").stdout)
+
+
+def _in_head(kb) -> set[str]:
+    return set(_git(kb, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").stdout.split())
+
+
+@pytest.mark.parametrize("follow_ups", [
+    [["--commit"], ["--commit", "--push"]],
+    [["--commit", "--push"]],
+], ids=["commit-then-push", "commit-push"])
+def test_a_follow_up_run_finishes_a_run_that_did_not_commit(tmp_path, monkeypatch, capsys,
+                                                             follow_ups):
+    kb, _files = _box(tmp_path, monkeypatch)
+    rc, out = _fill(capsys)  # no flag: it writes, and names the command that finishes
+    assert rc == 0 and _dirty(kb) == _PUBLIC and _FINISH in out, out
+    for i, args in enumerate(follow_ups):
+        rc, out = _fill(capsys, *args)
+        assert rc == 0, out
+        if i < len(follow_ups) - 1:
+            assert _dirty(kb) == set() and _ahead(kb) == 1 and _FINISH in out, out
+    assert _dirty(kb) == set() and _ahead(kb) == 0, out
+    assert _in_head(kb) == _PUBLIC
+    assert _git(kb, "log", "-1", "--pretty=%s").stdout.strip() == published_fill.COMMIT_MESSAGE
+    # A run on a clean, pushed tree has nothing to do: no commit, no push.
+    head = _git(kb, "rev-parse", "HEAD").stdout
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and "nothing to do" in out and _FINISH not in out, out
+    assert _git(kb, "rev-parse", "HEAD").stdout == head and _ahead(kb) == 0
+
+
+def test_a_follow_up_run_pushes_the_commit_an_earlier_run_left(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 0 and _dirty(kb) == set() and _ahead(kb) == 1 and _FINISH in out, out
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and _ahead(kb) == 0 and "pushed" in out, out
+    assert _git(tmp_path / "origin.git", "rev-parse", "main").stdout == \
+        _git(kb, "rev-parse", "HEAD").stdout
+
+
+def test_a_failed_push_exits_non_zero_and_a_re_run_pushes(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _git(kb, "remote", "set-url", "origin", str(tmp_path / "gone.git"))
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 1 and "the local commit stays" in out and _FINISH in out, out
+    assert _dirty(kb) == set() and _in_head(kb) == _PUBLIC
+    _git(kb, "remote", "set-url", "origin", str(tmp_path / "origin.git"))  # origin is back
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and _ahead(kb) == 0 and "pushed" in out, out
+
+
+def test_a_follow_up_run_commits_the_stamps_of_an_interrupted_run(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    plan = [p for p in published_fill.fill(dry_run=True).planned if p.skip is None]
+    for item in plan[:2]:  # a run cut off after two files, before any commit
+        published_fill._write(item)
+    _git(kb, "add", str(plan[0].path))  # ... one of them already staged
+    assert len(_dirty(kb)) == 2
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 0 and _dirty(kb) == set() and _in_head(kb) == _PUBLIC, out
+
+
+def test_the_fill_commits_only_its_own_stamps(tmp_path, monkeypatch, capsys):
+    kb, files = _box(tmp_path, monkeypatch)
+    for name in ("notes.md", "staged.md"):
+        (kb / "docs" / name).write_text("a\n")
+    _git(kb, "add", "docs/notes.md", "docs/staged.md")
+    _git(kb, "commit", "-q", "-m", "pages")
+    _git(kb, "push", "-q", "origin", "main")
+    (kb / "docs" / "notes.md").write_text("a\nb\n")  # an operator's change elsewhere
+    (kb / "docs" / "staged.md").write_text("a\nc\n")  # ... and a staged one
+    _git(kb, "add", "docs/staged.md")
+    two1 = files["two1"]  # an operator's change in a version file the fill then stamps
+    two1.write_bytes(two1.read_bytes().replace(b"First.", b"First!"))
+    private = kb / "docs" / "gamma" / "2026-10-05-five.md"  # a private project: untracked
+    private.parent.mkdir()
+    private.write_text('---\ntitle: "Five"\ndate: 2026-10-05\ntags: []\n---\n\nFive.\n')
+
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 1, out  # one of the fill's lines stays uncommitted: said, and not 0
+    assert _in_head(kb) == _PUBLIC - {"docs/.versions/alpha/2026-10-02-two/v0001.md"}
+    for left in ("docs/.versions/alpha/2026-10-02-two/v0001.md", "docs/notes.md",
+                 "docs/staged.md"):
+        assert left in out, out
+    assert _dirty(kb) == {"docs/.versions/alpha/2026-10-02-two/v0001.md", "docs/notes.md",
+                          "docs/staged.md"}
+    assert _git(kb, "diff", "--cached", "--name-only").stdout.split() == ["docs/staged.md"]
+    assert '"best_effort": true' in private.read_text()  # filled, never staged
+    assert "?? docs/gamma/" in _git(kb, "status", "--porcelain").stdout
+
+    rc, out = _fill(capsys, "--commit", "--push")  # git cannot rebase over them
+    assert rc == 1 and "push not attempted" in out and _ahead(kb) == 1, out
+
+
+def test_a_dry_run_says_what_a_commit_would_take_and_writes_nothing(tmp_path, monkeypatch,
+                                                                    capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    head = _git(kb, "rev-parse", "HEAD").stdout
+    rc, out = _fill(capsys, "--dry-run", "--commit", "--push")
+    assert rc == 0 and "would commit 4 file(s)" in out and _dirty(kb) == set(), out
+    rc, out = _fill(capsys)  # stamps, no commit
+    rc, out = _fill(capsys, "--dry-run", "--commit")
+    assert rc == 0 and "would commit 4 file(s)" in out and _dirty(kb) == _PUBLIC, out
+    assert _git(kb, "rev-parse", "HEAD").stdout == head
+
+
+def test_the_fill_waits_for_the_index_lock(tmp_path, monkeypatch, capsys):
+    import threading
+
+    kb, _files = _box(tmp_path, monkeypatch)
+    lock = kb / ".git" / "index.lock"
+    lock.write_text("")
+    monkeypatch.setattr(published_fill, "INDEX_LOCK_WAIT_S", 0.5)
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 4 and "index.lock" in out and _dirty(kb) == set(), out  # wrote nothing
+    threading.Timer(0.2, lock.unlink).start()  # a write's git that finishes in time
+    monkeypatch.setattr(published_fill, "INDEX_LOCK_WAIT_S", 5.0)
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 0 and _in_head(kb) == _PUBLIC, out
+
+
 # --- the fill works on bytes (any line ending, the body and the tail kept) ----
 
 _DAY_LINE = b'published: {"at": "2026-07-02", "best_effort": true}'
