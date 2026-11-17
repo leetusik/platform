@@ -199,26 +199,24 @@ export interface FeedbackWindow {
 
 const DAY_MS = 86_400_000;
 
-/** One wall-clock formatter per zone: building one costs far more than formatting with it. */
-const CLOCKS = new Map<string, Intl.DateTimeFormat>();
-
-/** The zone's offset from UTC at `at`, in ms: its wall clock then, read as if UTC, minus `at`. */
+/**
+ * The zone's offset from UTC at `at`, in ms: its wall clock then, read as if UTC, minus `at`.
+ *
+ * A fresh formatter each call, never one kept per zone: the zone is the viewer's `kb_tz` cookie as
+ * given, and every case, offset or alias spelling of it is a distinct string, so a module cache
+ * keyed by it would grow with each spelling a client sends. A render makes a few dozen calls.
+ */
 function zoneOffset(at: number, timeZone: string): number {
-  let clock = CLOCKS.get(timeZone);
-  if (!clock) {
-    clock = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    CLOCKS.set(timeZone, clock);
-  }
-  const parts = clock.formatToParts(at);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((p) => p.type === type)?.value ?? 0);
   const wall = Date.UTC(

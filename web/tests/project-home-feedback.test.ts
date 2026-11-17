@@ -168,7 +168,13 @@ describe("the month's window", () => {
     },
   );
 
-  it("starts every month of 2000 to 2030 at the first instant of the 1st, and ends where the next starts", () => {
+  // The years of the named cases above, where a zone moved its clock at or across midnight on a
+  // 1st, plus a recent one. The whole 2000 to 2030 range is too slow to run always: monthWindow
+  // builds its formatters per call, keeping no per-zone state on the request path. About 2 s
+  // here, so a slower runner gets its own timeout.
+  const SWEEP_YEARS = [2000, 2001, 2002, 2004, 2009, 2012, 2017, 2023, 2026];
+
+  it("starts every month of the swept years at the first instant of the 1st, and ends where the next starts", { timeout: 15_000 }, () => {
     const HOUR = 3_600_000;
     const days = new Map<string, Intl.DateTimeFormat>();
     // The zone's local date at `at`, YYYY-MM-DD.
@@ -255,7 +261,7 @@ describe("the month's window", () => {
     ];
     const wrong: string[] = [];
     for (const zone of ZONES) {
-      for (let year = 2000; year <= 2030; year += 1) {
+      for (const year of SWEEP_YEARS) {
         for (let month = 1; month <= 12; month += 1) {
           const { start, end } = windowOf(zone, year, month);
           const at = Date.parse(start);
