@@ -18,7 +18,7 @@ import {
   type BookListenSeedView,
 } from "@/hi2vi/listen";
 import type { KbListenEntry, KbListenState } from "@/lib/knowledge/listen";
-import { contOf, keptSectionId, planContinue } from "@/lib/book/model";
+import { contOf, planContinue } from "@/lib/book/model";
 import type { HeadView, RowView } from "@/lib/book/view";
 import type { Listen, ListenKept, ListenSeed } from "@/lib/listen/types";
 
@@ -365,7 +365,7 @@ describe("the book head's slot (F206: its own row under the facts)", () => {
   });
 });
 
-describe("the book's Continue reading (F242: at its kept section)", () => {
+describe("the book's Continue reading (F242: at its kept place, the saved block)", () => {
   const chapters = BOOK.chapters.map((c) => ({
     n: c.n,
     title: c.title,
@@ -373,7 +373,7 @@ describe("the book's Continue reading (F242: at its kept section)", () => {
     href: `${c.href}?from=library`,
   }));
 
-  it("carries the kept section in its address", () => {
+  it("names the kept section and opens the chapter's own address, which the reader resumes", () => {
     const plan = planContinue(
       TITLES.map((_, i) => ({
         n: i + 1,
@@ -385,27 +385,13 @@ describe("the book's Continue reading (F242: at its kept section)", () => {
     );
     const cont = contOf(plan, chapters, {
       section: "Deduplication",
-      sectionId: "deduplication",
       lede: "",
     });
-    expect(cont.href).toBe(`${BASE}/c6?from=library#deduplication`);
+    // no `#<section>`: a hash would win over the resume and land on the heading (tests/book-continue.test.ts)
+    expect(cont.href).toBe(`${BASE}/c6?from=library`);
+    expect(cont.facts).toContain("Left off at Deduplication");
     const none = contOf(plan, chapters, { section: "", lede: "" });
     expect(none.href).toBe(`${BASE}/c6?from=library`);
-  });
-
-  it("names the heading the kept block sits under", () => {
-    const blocks = [
-      { type: "paragraph", id: "p1" },
-      { type: "heading", id: "the-window" },
-      { type: "paragraph", id: "p2" },
-      { type: "heading", id: "deduplication" },
-      { type: "paragraph", id: "p3" },
-      { type: "glossary", id: "glossary" },
-    ];
-    expect(keptSectionId(blocks, "p3")).toBe("deduplication");
-    expect(keptSectionId(blocks, "deduplication")).toBe("deduplication");
-    expect(keptSectionId(blocks, "p1")).toBe("");
-    expect(keptSectionId(blocks, "glossary")).toBe("glossary");
-    expect(keptSectionId(blocks, "missing")).toBe("");
+    expect(none.facts).toContain("Left off at 68%");
   });
 });
