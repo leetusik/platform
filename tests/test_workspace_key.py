@@ -274,3 +274,65 @@ def test_a_workspace_key_reaches_no_capture_and_no_library_route(ws):
             headers=other,
         )
         assert res.status_code == 202, (scope, res.text)
+
+
+_ENGINE = {"X-Hi2vi-Checkout": "wskey-checkout", "X-Hi2vi-Engine": "v99"}
+
+
+def _last_used(client: TestClient, owner: dict, credential_id: str, *, project_id: str | None = None):
+    path = f"/app/projects/{project_id}/credentials" if project_id else "/app/credentials"
+    listed = client.get(path, headers=owner["session"])
+    assert listed.status_code == 200, listed.text
+    (row,) = [c for c in listed.json()["credentials"] if c["id"] == credential_id]
+    return row["last_used_at"]
+
+
+def test_every_workspace_route_stamps_the_keys_last_use(ws):
+    owner = _signup(ws)
+    project_id = owner["project"]["id"]
+    base = f"/api/workspace/{project_id}"
+    calls = {
+        "head": lambda h: ws.get(f"{base}/head", headers=h),
+        "manifest": lambda h: ws.get(f"{base}/manifest?since=0", headers=h),
+        "fetch": lambda h: ws.post(f"{base}/fetch", json={"paths": []}, headers=h),
+        "inbox": lambda h: ws.get(f"{base}/inbox", headers=h),
+        "commit": lambda h: ws.post(
+            f"{base}/commit", json={"batch_id": str(uuid4()), "ops": []}, headers=h
+        ),
+    }
+    for route, call in calls.items():
+        mint = _mint(ws, owner, "workspace", project_id=project_id)
+        credential_id = mint.json()["credential"]["id"]
+        assert _last_used(ws, owner, credential_id, project_id=project_id) is None
+        res = call({**_bearer(mint), **_ENGINE})
+        assert res.status_code == 200, (route, res.text)
+        assert _last_used(ws, owner, credential_id, project_id=project_id), route
+
+
+def test_a_failed_stamp_never_fails_a_workspace_request(ws, monkeypatch):
+    from server.accounts.service import AccountsService
+
+    async def broken(self, credential_id):
+        raise RuntimeError("stamp store down")
+
+    owner = _signup(ws)
+    project_id = owner["project"]["id"]
+    mint = _mint(ws, owner, "workspace", project_id=project_id)
+    monkeypatch.setattr(AccountsService, "touch_credential_last_used", broken)
+    res = ws.get(f"/api/workspace/{project_id}/head", headers={**_bearer(mint), **_ENGINE})
+    assert res.status_code == 200, res.text
+    monkeypatch.undo()
+
+
+def test_a_capture_key_on_feedback_is_still_stamped(ws):
+    owner = _signup(ws)
+    mint = _mint(ws, owner, "capture")
+    credential_id = mint.json()["credential"]["id"]
+    assert _last_used(ws, owner, credential_id) is None
+    res = ws.post(
+        "/api/feedback",
+        json={"message": "stamp me", "source": {"product": "app-x"}, "user_id": "u-1"},
+        headers=_bearer(mint),
+    )
+    assert res.status_code == 202, res.text
+    assert _last_used(ws, owner, credential_id)

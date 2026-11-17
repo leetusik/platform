@@ -34,7 +34,10 @@ Every route resolves the caller with ``resolve_api_workspace`` first, so only th
 project's workspace key gets through (another project's key: 404; any other caller:
 403; no or a revoked key: 401; no ``DATABASE_URL``: 404). Bodies are parsed by
 hand, after the caller is resolved: a body over ``MAX_BODY_BYTES`` is a 413 before
-it is parsed, and a malformed one a 400 with one line. Unmetered.
+it is parsed, and a malformed one a 400 with one line. Unmetered, but every answered
+request stamps the key's ``last_used_at`` after the response, best-effort and
+unthrottled, like a capture (``server.usage.metering.stamp_credential_used``): a
+failed stamp is logged and never changes the answer.
 """
 
 from __future__ import annotations
@@ -47,10 +50,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from server.api_auth import ApiAuthContext, resolve_api_workspace
+from server.usage.metering import stamp_credential_used
 from server.workspace import (
     AppendOp,
     CommitBatch,
@@ -93,7 +97,11 @@ def _bad(message: str) -> HTTPException:
     return HTTPException(status_code=400, detail=message)
 
 
-async def _caller(request: Request, project_id: str) -> tuple[ApiAuthContext, Writer]:
+async def _caller(
+    request: Request, project_id: str, background_tasks: BackgroundTasks
+) -> tuple[ApiAuthContext, Writer]:
+    """The resolved workspace caller and its writer; queues the key's last-used stamp."""
+
     try:
         pid = UUID(project_id)
     except ValueError:
@@ -110,6 +118,8 @@ async def _caller(request: Request, project_id: str) -> tuple[ApiAuthContext, Wr
         checkout=checkout.strip(),
         engine_version=engine.strip(),
     )
+    # After the response, best-effort: the key's last-used stamp (never raises).
+    background_tasks.add_task(stamp_credential_used, ctx.credential_id)
     return ctx, writer
 
 
@@ -336,10 +346,12 @@ def _iso_z(value: datetime) -> str:
 
 
 @router.get("/api/workspace/{project_id}/head")
-async def workspace_head(project_id: str, request: Request) -> JSONResponse:
+async def workspace_head(
+    project_id: str, request: Request, background_tasks: BackgroundTasks
+) -> JSONResponse:
     """P1: the head, the org and project, and the pending inbox count."""
 
-    ctx, _writer = await _caller(request, project_id)
+    ctx, _writer = await _caller(request, project_id, background_tasks)
     assert ctx.tenant_id is not None and ctx.project_id is not None
     try:
         head = await get_workspace_service().head(ctx.project_id, ctx.tenant_id)
@@ -358,10 +370,12 @@ async def workspace_head(project_id: str, request: Request) -> JSONResponse:
 
 
 @router.get("/api/workspace/{project_id}/manifest")
-async def workspace_manifest(project_id: str, request: Request) -> JSONResponse:
+async def workspace_manifest(
+    project_id: str, request: Request, background_tasks: BackgroundTasks
+) -> JSONResponse:
     """P2: every record changed after ``since``."""
 
-    ctx, _writer = await _caller(request, project_id)
+    ctx, _writer = await _caller(request, project_id, background_tasks)
     assert ctx.project_id is not None
     raw_since = request.query_params.get("since", "0")
     try:
@@ -391,10 +405,12 @@ async def workspace_manifest(project_id: str, request: Request) -> JSONResponse:
 
 
 @router.post("/api/workspace/{project_id}/fetch")
-async def workspace_fetch(project_id: str, request: Request) -> JSONResponse:
+async def workspace_fetch(
+    project_id: str, request: Request, background_tasks: BackgroundTasks
+) -> JSONResponse:
     """P3: the contents of the asked paths, paged by bytes."""
 
-    ctx, _writer = await _caller(request, project_id)
+    ctx, _writer = await _caller(request, project_id, background_tasks)
     assert ctx.project_id is not None
     body = await _json_body(request)
     paths = _list(body, "paths")
@@ -422,10 +438,12 @@ async def workspace_fetch(project_id: str, request: Request) -> JSONResponse:
 
 
 @router.get("/api/workspace/{project_id}/inbox")
-async def workspace_inbox(project_id: str, request: Request) -> JSONResponse:
+async def workspace_inbox(
+    project_id: str, request: Request, background_tasks: BackgroundTasks
+) -> JSONResponse:
     """The web's pending agenda changes, oldest first, for the engine to apply in turn."""
 
-    ctx, _writer = await _caller(request, project_id)
+    ctx, _writer = await _caller(request, project_id, background_tasks)
     assert ctx.project_id is not None
     try:
         entries = await get_workspace_service().inbox(ctx.project_id)
@@ -435,10 +453,12 @@ async def workspace_inbox(project_id: str, request: Request) -> JSONResponse:
 
 
 @router.post("/api/workspace/{project_id}/commit")
-async def workspace_commit(project_id: str, request: Request) -> JSONResponse:
+async def workspace_commit(
+    project_id: str, request: Request, background_tasks: BackgroundTasks
+) -> JSONResponse:
     """P4: one all-or-nothing batch (P5 to P7, P9), idempotent by ``batch_id``."""
 
-    ctx, writer = await _caller(request, project_id)
+    ctx, writer = await _caller(request, project_id, background_tasks)
     assert ctx.tenant_id is not None and ctx.project_id is not None
     batch = _batch(await _json_body(request))
     try:
