@@ -168,7 +168,9 @@ export default async function ChapterPage({
     cookies(),
   ]);
   if (loaded.kind === "legacy") {
-    return <LegacyReaderPage legacy={loaded.legacy} />;
+    return (
+      <LegacyReaderPage legacy={loaded.legacy} timeZone={viewerTimeZone(jar)} />
+    );
   }
   const reader = loaded.reader;
   const rawFrom = first(query[FROM_PARAM]);

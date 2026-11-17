@@ -11,12 +11,20 @@ import { LegacyReader } from "./legacy-reader";
  * P63-fk.S13: only an html CHAPTER of a book opens here now (`books/[book]/[chapter]/page.tsx`); an html
  * document opens in its Original layout on the Library's frame (`@/hi2vi/reader/document` `DocumentOriginal`).
  */
-export function LegacyReaderPage({ legacy }: { legacy: LoadedLegacy }) {
+export function LegacyReaderPage({
+  legacy,
+  timeZone,
+}: {
+  legacy: LoadedLegacy;
+  /** The viewer's zone (`viewerTimeZone`), for the Version history's dates (D5). */
+  timeZone: string | undefined;
+}) {
   return (
     <LegacyReader
       key={`${legacy.docId}:${legacy.view.version}`}
       view={legacy.view}
       frame={legacy.frame}
+      timeZone={timeZone}
     />
   );
 }

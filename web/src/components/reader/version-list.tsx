@@ -1,7 +1,7 @@
 import { READER } from "@/content";
 import type { ReaderVersions } from "@/lib/reader/types";
 
-import { publishedDate } from "@/lib/reader/date";
+import { versionDay } from "@/lib/reader/date";
 
 /**
  * The Version history sheet's body (`01-reader` §14, `VersionList`, board 17).
@@ -9,7 +9,7 @@ import { publishedDate } from "@/lib/reader/date";
  *  - the lead: "English · 2 earlier versions, newest first." (the variant's own
  *    language name), or "This is the only version.";
  *  - the rows, newest first: "vN" in mono, "Current" (accent tag) on the newest,
- *    "Published <date>", "Translated from English v1" on a translation; the open
+ *    "Published <date>" (on the viewer's day, `versionDay`), "Translated from English v1" on a translation; the open
  *    version is an `accent-soft` row with `aria-current` and "Reading now", every
  *    other row has a secondary "View" button ("View version N");
  *  - failed: "Unavailable" and the one-line reason (the chapter itself is fine).
@@ -22,6 +22,7 @@ export function VersionList({
   newest,
   noun,
   onOpen,
+  timeZone,
 }: {
   versions: ReaderVersions;
   /** The version on screen. */
@@ -29,6 +30,8 @@ export function VersionList({
   newest: number;
   noun: "chapter" | "document";
   onOpen: (n: number) => void;
+  /** The viewer's zone (`viewerTimeZone`); UTC when not known (D5). */
+  timeZone: string | undefined;
 }) {
   const t = READER.versions;
   if (!versions.ok) {
@@ -62,7 +65,7 @@ export function VersionList({
                 </span>
                 {v.date ? (
                   <span className="rd-ver__date">
-                    {t.published(publishedDate(v.date))}
+                    {t.published(versionDay(v.date, timeZone))}
                   </span>
                 ) : null}
                 {v.from ? (

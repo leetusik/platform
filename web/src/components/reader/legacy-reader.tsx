@@ -153,9 +153,12 @@ function newId(): string {
 export function LegacyReader({
   view,
   frame,
+  timeZone,
 }: {
   view: ReaderView;
   frame: LegacyFrame;
+  /** The viewer's zone for the Version history's dates (D5); UTC when not known. */
+  timeZone: string | undefined;
 }) {
   const router = useRouter();
   const loose = view.kind === "loose" || view.book === null;
@@ -1342,6 +1345,7 @@ export function LegacyReader({
                     newest={view.newest}
                     noun={noun}
                     onOpen={openVersion}
+                    timeZone={timeZone}
                   />
                 ) : null}
                 {panel === "display" ? (
