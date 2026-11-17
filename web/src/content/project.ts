@@ -203,9 +203,9 @@ export type ProjectCopy = typeof PROJECT;
  * Imported by path (`@/content/project`), never through the barrel. The older `PROJECT` above stays
  * for its other readers; nothing here renames or removes one of its keys.
  *
- * The Workspace panel's empty sentence is the signed one's first sentence only (operator D1,
- * 2026-11-16): the second, `Run [LINK COMMAND] in the project’s repo.`, is held back until the sync
- * phase names the command (D244-h0).
+ * The Workspace panel's empty state is the signed two sentences: `empty`, then `run.before`, the link
+ * command (`run.command`, read as code) and `run.after`. The command is the operator's signed words,
+ * filled with the page's origin and the project's id.
  */
 export const PROJECT_HOME = {
   head: {
@@ -227,6 +227,12 @@ export const PROJECT_HOME = {
     heading: "Workspace",
     coming: "Coming",
     empty: "No workspace linked yet.",
+    run: {
+      before: "Run ",
+      after: " in the project’s repo.",
+      command: (origin: string, projectId: string): string =>
+        `python3 workflow/scripts/workflow.py link ${origin}/projects/${projectId}`,
+    },
   },
   library: {
     heading: "Library",

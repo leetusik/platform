@@ -1,9 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   isMissingProjectStatus,
   libraryRows,
   mintOutcome,
+  projectHomeId,
+  requestOrigin,
   visibilityOutcome,
   visibilityReducer,
   workspaceWords,
@@ -12,16 +17,60 @@ import { MINT_CREDENTIAL_ERRORS } from "@/content/project";
 import { railFor } from "@/hi2vi/shell/model";
 import type { KbOrgLibrary } from "@/lib/knowledge/types";
 
-// Project home's core rules (job 01 round 03-instrument; operator D1): the Workspace panel's held-back
-// sentence, the Library's five newest, a refused visibility change, and Not found's statuses.
+// Project home's core rules (job 01 round 03-instrument; operator D1): the Workspace panel's signed
+// sentence with the link command, the Library's five newest, a refused visibility change, and Not
+// found's statuses.
 
 describe("Workspace panel (operator D1)", () => {
-  it("reads exactly the first signed sentence, without the held-back command", () => {
-    const w = workspaceWords();
+  it("reads the signed sentence with the link command for this origin and project", () => {
+    const w = workspaceWords({
+      origin: "https://hi2vi.com",
+      projectId: "p_42",
+    });
     expect(w.empty).toBe("No workspace linked yet.");
-    expect(w.empty).not.toContain("[LINK COMMAND]");
-    expect(w.empty).not.toMatch(/\bRun\b/);
+    expect(w.run).toEqual({
+      before: "Run ",
+      command:
+        "python3 workflow/scripts/workflow.py link https://hi2vi.com/projects/p_42",
+      after: " in the project’s repo.",
+    });
     expect(w.badge).toBe("Coming");
+  });
+
+  it("takes the origin from the request, behind a proxy or not", () => {
+    const h = (o: Record<string, string>) => new Headers(o);
+    expect(
+      requestOrigin(h({ host: "hi2vi.com", "x-forwarded-proto": "https" })),
+    ).toBe("https://hi2vi.com");
+    expect(requestOrigin(h({ host: "127.0.0.1:3030" }))).toBe(
+      "http://127.0.0.1:3030",
+    );
+    expect(
+      requestOrigin(
+        h({
+          host: "internal:3000",
+          "x-forwarded-host": "staging.hi2vi.com",
+          "x-forwarded-proto": "https,http",
+        }),
+      ),
+    ).toBe("https://staging.hi2vi.com");
+    expect(requestOrigin(h({}))).toBeNull();
+  });
+
+  it("finds the project id in project home's own path, and nowhere else", () => {
+    expect(projectHomeId("/projects/p_42")).toBe("p_42");
+    expect(projectHomeId("/projects/p_42?x=1")).toBe("p_42");
+    expect(projectHomeId("/projects/p_42/feedback")).toBeNull();
+    expect(projectHomeId(null)).toBeNull();
+  });
+
+  it("leaves no placeholder in the shipped words", () => {
+    const sources = [
+      "src/content/project.ts",
+      "src/app/(app)/projects/[projectId]/parts.tsx",
+      "src/app/(app)/projects/[projectId]/model.ts",
+    ].map((f) => readFileSync(join(__dirname, "..", f), "utf8"));
+    for (const s of sources) expect(s).not.toContain("[LINK COMMAND]");
   });
 });
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { PROJECT } from "@/content";
@@ -24,6 +24,7 @@ import {
   libraryCount,
   libraryRows,
   projectHomeFormat,
+  requestOrigin,
   todayIn,
   type LibraryRow,
 } from "./model";
@@ -46,7 +47,8 @@ import "./project-home.css";
 // - the head, Usage and Trend, and the keys: `getProjectUsage` (one read; 30-day window);
 // - Active total (Usage) and the Library's count: `getDocuments({project, limit: 1}).total`;
 // - the Library's rows: the org library listing (`getOrgLibrary`), this project's books and documents;
-// - Feedback: `listFeedback({project_id, limit: 5})`.
+// - Feedback: `listFeedback({project_id, limit: 5})`;
+// - Workspace's link command: the request's origin (`headers()`) and the project's id.
 // Every date is in the viewer's zone (the `kb_tz` cookie), UTC until it is known (decision 5).
 //
 // The <title> stays the static `PROJECT.title`: a `generateMetadata` title would cost a second uncached read.
@@ -119,6 +121,7 @@ export default async function ProjectHomePage({
     loadFeedback(token, project.id, format),
   ]);
   const count = libraryCount(documents.total);
+  const origin = requestOrigin(await headers());
   const series = usage.daily_counts.map((d) => d.searches);
   const lastDay = usage.daily_counts.at(-1)?.day ?? todayIn(format);
 
@@ -131,7 +134,7 @@ export default async function ProjectHomePage({
         created={date(project.created_at, format)}
         visibility={project.visibility}
       />
-      <WorkspacePanel />
+      <WorkspacePanel origin={origin} projectId={project.id} />
       <Grid min="26em">
         {rows === null ? (
           <LibraryFailed count={count} />
