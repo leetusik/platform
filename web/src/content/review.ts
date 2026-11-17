@@ -66,6 +66,25 @@ export const REVIEW = {
     loose: (project: string): string => `${project} · Document`,
     drift:
       "This question changed since your last review, so its card starts over. Your history is kept.",
+    /** The quiz item, re-asked as job 07 draws it (`ReviewCard.dc.html`, the Library's quiz words). */
+    hints: {
+      choice: "Choose one answer.",
+      cloze:
+        "Fill in the blank. Capitals and spaces around the answer don’t count.",
+      recall: "Answer it in your head, then show the answer.",
+    },
+    answers: "Answers",
+    optionTags: {
+      right: "Your answer, correct",
+      wrong: "Your answer, incorrect",
+      answer: "Correct answer",
+    },
+    blank: (n: number, total: number): string => `Blank ${n} of ${total}`,
+    answer: "Answer",
+    showAnswer: "Show answer",
+    /** `You wrote “<b>…</b>”. Accepted: <b>…</b>.` */
+    wrote: ["You wrote “", "”. Accepted: ", "."] as const,
+    answerShown: "Answer shown. Did you get it?",
   },
   foot: {
     check: "Check",
@@ -78,6 +97,10 @@ export const REVIEW = {
     rates: (rating: "good" | "again", ivl: string): string =>
       `Next rates it ${rating === "good" ? "Good" : "Again"} · in ${ivl}`,
     notSaved: "Not saved · check your connection",
+    /** The failed line as job 07 draws it: the state word, then its rest (F217, FG6). */
+    notSavedWord: "Not saved",
+    notSavedRest: "· check your connection",
+    incorrect: "Incorrect",
     recall: { ask: "Did you get it?", good: "I got it", again: "I missed it" },
     highlight: {
       ask: "Did it stay with you?",

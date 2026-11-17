@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ReviewCardView } from "@/components/review/card";
+import { ReviewCardView as OldCardView } from "@/components/review/card";
 import { ReviewEnd } from "@/components/review/end";
 import { READER_FRAME } from "@/content/reader-frame";
 import { REVIEW } from "@/content/review";
@@ -13,13 +13,7 @@ import type {
   TextSize,
   ThemeChoice,
 } from "@/lib/reader-cookie";
-import {
-  fresh,
-  reduce,
-  responseOf,
-  type ItemState,
-  type QuizAction,
-} from "@/lib/reader/quiz";
+import { reduce, type QuizAction } from "@/lib/reader/quiz";
 import {
   loadReviewContinue,
   loadReviewQueue,
@@ -28,25 +22,13 @@ import {
   setReviewCardStatus,
   type ContinueView,
 } from "@/lib/review/actions";
-import {
-  adjustCounts,
-  browserZone,
-  formatInterval,
-  landRating,
-  landSuspend,
-  reviewIdFor,
-  zoneIds,
-  type SettingsDraft,
-} from "@/lib/review/model";
+import { browserZone, zoneIds, type SettingsDraft } from "@/lib/review/model";
 import { freshFor, specFor } from "@/lib/review/spec";
-import type {
-  QueueMeta,
-  Rating,
-  ReviewCard,
-  ReviewQueue,
-} from "@/lib/review/types";
+import type { QueueMeta, Rating, ReviewQueue } from "@/lib/review/types";
 
-import { DueHead, type Saved } from "./due-head";
+import { ReviewCardView } from "./card";
+import { drawnForm } from "./card-model";
+import { DueHead } from "./due-head";
 import { Focus, type FocusSheet } from "./focus";
 import {
   dueHeadOf,
@@ -58,6 +40,17 @@ import {
 } from "./model";
 import { OldView } from "./old-view";
 import { Schedule } from "./schedule";
+import {
+  canSuspend,
+  rateLanded,
+  rateStart,
+  suspendLanded,
+  suspendStart,
+  undoLanded,
+  undoStart,
+  type Desk,
+  type Then,
+} from "./session";
 import { CardSkeleton, ReviewFailed } from "./states";
 
 /**
@@ -71,11 +64,14 @@ import { CardSkeleton, ReviewFailed } from "./states";
  *     + the Library's Sheet, from the end side, one at a time: Review settings (`Schedule`) and Display (the
  *       reader's own, one setting with the reader: the `kb_reader` cookie)
  *
- * The card and the end of a session are still the old views, bridged in the flow (`OldView`) until S8 and S9
- * rebuild them; nothing old is fixed to the window any more.
+ * The card is Review's own (`./card`, P64-3y.S8): a card in a form job 07 does not draw (several right answers,
+ * several blanks) keeps today's card, whole, bridged in the flow (`OldView`), as the Library's reader keeps today's
+ * quiz for those forms. The end of a session is still the old view, bridged, until S9; nothing old is fixed to the
+ * window any more.
  *
  * The queue's state, its sends and the settings are `ReviewApp`'s (`components/review/review-app.tsx`), moved
- * here unchanged, and they rate against the server idempotently:
+ * here unchanged (the rating, suspend and undo steps into `./session`), and they rate against the server
+ * idempotently:
  *  - the page makes a `review_id` per rating of a card, and **Try again sends the same one**, so a rating that did
  *    reach the server is never counted twice (`lib/review/model.ts` `reviewIdFor`); a reply lands only on the
  *    rating that sent it (`pending.seq`);
@@ -86,29 +82,9 @@ import { CardSkeleton, ReviewFailed } from "./states";
  */
 type Panel = FocusSheet | null;
 
-interface Toast {
-  id: number;
-  kind: "undo" | "retry";
-  card: ReviewCard;
-  text: string;
-}
-
-interface Sent {
-  cardId: string;
-  rating: Rating;
-  reviewId: string;
-}
-
-interface AppState {
+interface AppState extends Desk {
   status: "ready" | "loading" | "failed";
   ref: string | null;
-  meta: QueueMeta;
-  queue: ReviewCard[];
-  states: Record<string, ItemState>;
-  pending: (Sent & { seq: number }) | null;
-  failed: Sent | null;
-  saved: Saved | null;
-  toast: Toast | null;
   bybook: boolean;
   panel: Panel;
   draft: SettingsDraft | null;
@@ -355,92 +331,34 @@ export function ReviewFrame({
     set((q) => ({ ...q, states: { ...q.states, [card.card_id]: r.st } }));
     // After grading, focus moves to Next; after Show answer, to the answer.
     if (r.graded && a.t !== "self") focusAfter("[data-rv-main]");
-    else if (a.t === "reveal") focusAfter("[data-qz-answer]");
+    else if (a.t === "reveal") focusAfter("[data-rv-answer]");
   };
 
   // ---- rating ---------------------------------------------------------------------------------
+  /** After a step: read the queue again, or move the focus (the next card or end; Try again after a failure). */
+  const after = (then: Then) => {
+    if (then === "reload") void reload({ silent: false });
+    else if (then === "focus") focusAfter(CARD_OR_END);
+    else if (then === "focus-retry") focusAfter("[data-rv-main]");
+  };
   const rate = (rating: Rating) => {
-    const p = ref.current;
-    const card = p.queue[0];
-    if (!card || p.pending) return;
-    const spec = specFor(card);
-    let st = p.states[card.card_id] ?? fresh();
-    // Pressing a rating on a recall card also records the quiz's self-grade, so the margin
-    // marks it as the quiz does.
-    if (spec && spec.type === "recall" && st.ph === "revealed") {
-      st = reduce(spec, st, {
-        t: "self",
-        v: rating === "good" ? "got" : "missed",
-      }).st;
-    }
-    const response =
-      spec && st.ph === "graded" ? responseOf(spec, st) : undefined;
-    const reviewId = reviewIdFor(p.failed, card.card_id, rating);
-    const mine = ++seq.current;
-    set((q) => ({
-      ...q,
-      states: spec ? { ...q.states, [card.card_id]: st } : q.states,
-      pending: { cardId: card.card_id, rating, reviewId, seq: mine },
-      failed: null,
-      toast: null,
-    }));
-    void rateReviewCard({
-      cardId: card.card_id,
+    const mine = seq.current + 1;
+    const start = rateStart(ref.current, rating, mine);
+    if (!start) return;
+    seq.current = mine;
+    set((q) => ({ ...q, ...start.patch }));
+    const sent = {
+      card: start.card,
       rating,
-      reviewId,
-      response,
-    }).then((res) => {
+      reviewId: start.send.reviewId,
+      seq: mine,
+    };
+    void rateReviewCard(start.send).then((res) => {
       // A reply lands only on the rating that sent it.
-      const cur = ref.current;
-      if (!cur.pending || cur.pending.seq !== mine) return;
-      if (!res.ok) {
-        if (res.gone) {
-          // The card is not there any more (suspended elsewhere, or its document is gone).
-          set((q) => ({
-            ...q,
-            queue: q.queue.filter((c) => c.card_id !== card.card_id),
-            pending: null,
-          }));
-          void reload({ silent: false });
-          return;
-        }
-        set((q) => ({
-          ...q,
-          pending: null,
-          failed: { cardId: card.card_id, rating, reviewId },
-        }));
-        return;
-      }
-      const reply = res.data;
-      const landed = landRating(cur.queue, card, reply);
-      set((q) => {
-        const states = { ...q.states };
-        delete states[card.card_id];
-        return {
-          ...q,
-          queue: landed.queue,
-          states,
-          pending: null,
-          failed: null,
-          meta: {
-            ...q.meta,
-            now: new Date().toISOString(),
-            day: reply.day,
-            counts: reply.counts,
-            limit_reached: reply.limit_reached,
-            next_due_at: reply.next_due_at,
-          },
-          saved: {
-            word: REVIEW.head.saved,
-            rest: REVIEW.head.savedRest(
-              rating,
-              formatInterval(reply.card.interval),
-            ),
-          },
-        };
-      });
-      if (landed.refetch) void reload({ silent: false });
-      else focusAfter(CARD_OR_END);
+      const out = rateLanded(ref.current, sent, res, new Date().toISOString());
+      if (!out) return;
+      set((q) => ({ ...q, ...out.patch }));
+      after(out.then);
     });
   };
   const retry = () => {
@@ -449,102 +367,50 @@ export function ReviewFrame({
   };
 
   // ---- suspend and undo --------------------------------------------------------------------------
-  const showToast = (kindOf: Toast["kind"], card: ReviewCard, text: string) => {
-    toastSeq.current += 1;
-    return { id: toastSeq.current, kind: kindOf, card, text } satisfies Toast;
-  };
-  const suspendText = (card: ReviewCard) =>
-    card.source === "highlight"
-      ? REVIEW.suspend.highlight
-      : REVIEW.suspend.done;
-
-  const runSuspend = (card: ReviewCard) => {
-    set((q) => ({
-      ...q,
-      queue: q.queue.filter((c) => c.card_id !== card.card_id),
-      meta: { ...q.meta, counts: adjustCounts(q.meta.counts, card, -1) },
-      toast: showToast("undo", card, suspendText(card)),
-      failed: null,
-    }));
+  const runSuspend = (card: Desk["queue"][number]) => {
+    const id = ++toastSeq.current;
+    set((q) => ({ ...q, ...suspendStart(q, card, id) }));
     focusAfter(CARD_OR_END);
     void setReviewCardStatus({
       cardId: card.card_id,
       status: "suspended",
     }).then((res) => {
-      if (res.ok) {
-        const reply = res.data;
-        const landed = landSuspend(ref.current.queue, reply);
-        set((q) => ({
-          ...q,
-          queue: landed.queue,
-          meta: {
-            ...q.meta,
-            day: reply.day,
-            counts: reply.counts,
-            limit_reached: reply.limit_reached,
-            next_due_at: reply.next_due_at,
-          },
-        }));
-        if (landed.refetch) void reload({ silent: false });
-        return;
+      const out = suspendLanded(
+        ref.current,
+        card,
+        res,
+        res.ok ? toastSeq.current : ++toastSeq.current,
+      );
+      if (out.patch) {
+        const patch = out.patch;
+        set((q) => ({ ...q, ...patch }));
       }
-      if (res.gone) {
-        void reload({ silent: false });
-        return;
-      }
-      // Not suspended: the card comes back, and the line says so.
-      set((q) => ({
-        ...q,
-        queue: [card, ...q.queue.filter((c) => c.card_id !== card.card_id)],
-        meta: { ...q.meta, counts: adjustCounts(q.meta.counts, card, 1) },
-        toast: showToast("retry", card, REVIEW.suspend.failed),
-      }));
-      focusAfter(CARD_OR_END);
+      after(out.then);
     });
   };
   const suspend = () => {
-    const p = ref.current;
-    const card = p.queue[0];
-    if (card && !p.pending) runSuspend(card);
+    const card = canSuspend(ref.current);
+    if (card) runSuspend(card);
   };
   const undo = () => {
-    const card = ref.current.toast?.card;
-    if (!card) return;
-    set((q) => ({
-      ...q,
-      queue: [card, ...q.queue.filter((c) => c.card_id !== card.card_id)],
-      meta: { ...q.meta, counts: adjustCounts(q.meta.counts, card, 1) },
-      toast: null,
-    }));
+    const start = undoStart(ref.current);
+    if (!start) return;
+    const { card } = start;
+    set((q) => ({ ...q, ...start.patch }));
     focusAfter(CARD_OR_END);
     void setReviewCardStatus({ cardId: card.card_id, status: "active" }).then(
       (res) => {
-        if (res.ok) {
-          const reply = res.data;
-          set((q) => ({
-            ...q,
-            meta: {
-              ...q.meta,
-              day: reply.day,
-              counts: reply.counts,
-              limit_reached: reply.limit_reached,
-              next_due_at: reply.next_due_at,
-            },
-          }));
-          return;
+        const out = undoLanded(
+          ref.current,
+          card,
+          res,
+          res.ok ? toastSeq.current : ++toastSeq.current,
+        );
+        if (out.patch) {
+          const patch = out.patch;
+          set((q) => ({ ...q, ...patch }));
         }
-        if (res.gone) {
-          void reload({ silent: false });
-          return;
-        }
-        // Still suspended on the server: take the card out again, and keep the line.
-        set((q) => ({
-          ...q,
-          queue: q.queue.filter((c) => c.card_id !== card.card_id),
-          meta: { ...q.meta, counts: adjustCounts(q.meta.counts, card, -1) },
-          toast: showToast("undo", card, suspendText(card)),
-        }));
-        focusAfter(CARD_OR_END);
+        after(out.then);
       },
     );
   };
@@ -662,6 +528,11 @@ export function ReviewFrame({
   const ready = s.status === "ready";
   const spec = head ? specFor(head) : null;
   const st = head && spec ? (s.states[head.card_id] ?? freshFor(head)) : null;
+  const form = head ? drawnForm(head, spec) : null;
+  const sending =
+    s.pending && head && s.pending.cardId === head.card_id ? s.pending : null;
+  const failedHere =
+    s.failed && head && s.failed.cardId === head.card_id ? s.failed : null;
 
   return (
     <UiRoot>
@@ -702,24 +573,32 @@ export function ReviewFrame({
                     onBooks={(open) => set((q) => ({ ...q, bybook: open }))}
                   />
                   {loading ? <CardSkeleton /> : null}
-                  {ready && head && kind === "card" ? (
+                  {ready && head && kind === "card" && form ? (
+                    <ReviewCardView
+                      key={head.card_id}
+                      card={head}
+                      form={form}
+                      spec={spec}
+                      meta={s.meta}
+                      st={st}
+                      sending={sending}
+                      failed={failedHere}
+                      onAct={act}
+                      onRate={rate}
+                      onRetry={retry}
+                      onSuspend={suspend}
+                    />
+                  ) : null}
+                  {ready && head && kind === "card" && !form ? (
                     <OldView settings={dev}>
-                      <ReviewCardView
+                      <OldCardView
                         key={head.card_id}
                         card={head}
                         spec={spec}
                         meta={s.meta}
                         st={st}
-                        pending={
-                          s.pending && s.pending.cardId === head.card_id
-                            ? s.pending
-                            : null
-                        }
-                        failed={
-                          s.failed && s.failed.cardId === head.card_id
-                            ? s.failed
-                            : null
-                        }
+                        pending={sending}
+                        failed={failedHere}
                         onAct={act}
                         onRate={rate}
                         onRetry={retry}

@@ -377,7 +377,7 @@ describe("/review in the focused frame (F201)", () => {
     expect(out).toMatch(/data-ui-legacy=""><div class="rd-root rd-size-4"/);
   });
 
-  it("bridges the old card in the flow until S8, under the head and june's 23%", async () => {
+  it("draws Review's own card under the head and june's 23%", async () => {
     const korean = {
       card_id: "4f2b8c1e-6a3d-4e7f-9b21-0c5d8e7f6a10",
       source: "highlight",
@@ -430,7 +430,7 @@ describe("/review in the focused frame (F201)", () => {
       '<strong>7</strong> due</span><span aria-hidden="true">·</span><span><strong>33</strong> new highlights</span>',
     );
     expect(out).toMatch(
-      /<\/header><div data-ui-legacy=""><div class="rd-root rd-size-3"[^>]*><div style="container-type:inline-size;container-name:rd"><article class="rv-card"/,
+      /<\/header><div class="stack gap-4"><article class="card-page rv-card" tabindex="-1"/,
     );
     expect(out).toContain(
       'data-rv-card="4f2b8c1e-6a3d-4e7f-9b21-0c5d8e7f6a10"',
