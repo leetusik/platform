@@ -416,7 +416,9 @@ export function ChapterReader({
     }),
     [sheet, notesHost, closeSheet, pill, notesBookHref, slotHost, hidden],
   );
-  const docked = useListen() !== null;
+  // The frame re-renders when the Listen store changes (a Listen docking or leaving), so `useSlotLift` below
+  // measures the dock coming and going after that render; nothing else here reads the store.
+  useListen();
   const listenUnit = listen ? unitOfKey(listen.key) : null;
   useFollow(rootRef, listenUnit, listen?.chapter ?? null);
   // F206: no Listen for a visitor or an older version of the text.
@@ -440,8 +442,8 @@ export function ChapterReader({
   );
   useSlotLift(rootRef);
   const oldBody = useMemo<OldBodyValue>(
-    () => ({ settings, docked, topH }),
-    [settings, docked, topH],
+    () => ({ settings, topH }),
+    [settings, topH],
   );
 
   // ---- the parts -----------------------------------------------------------------------------------

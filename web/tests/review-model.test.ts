@@ -179,7 +179,7 @@ describe("the next due time, in the reader's zone", () => {
       "tomorrow at 07:15",
     );
     expect(whenText("2026-10-23T01:45:00Z", now, "Asia/Kolkata")).toBe(
-      "on 23 Oct at 07:15",
+      "on Oct 23 at 07:15",
     );
   });
 });

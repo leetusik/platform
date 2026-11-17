@@ -4,9 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { whenText } from "@/lib/review/model";
+
 // P64-3y: the old Listen and Review views retired once job 07's rebuilt pages stopped loading them. A retired
 // path that comes back, or an import of one, fails here; so does a retired sheet rule. What stays (the one
 // `<audio>` and its engine, the undrawn-form card's fallback, the legacy html reader's sheets) is held too.
+// P64-3y.F7: so does a prop, field, rule or comment only the retired views read (the tail below).
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(WEB, "src");
@@ -121,5 +124,119 @@ describe("the old Listen and Review views (P64-3y)", () => {
     expect(
       names.filter((c) => !new RegExp(`["'\` ]${c}["'\` ]`).test(drawn)),
     ).toEqual([]);
+  });
+});
+
+/** A source without its comments (block comments, and lines that are a comment alone). */
+const code = (rel: string) =>
+  read(rel)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+/** The field names an exported interface declares (nested object types count too; only absence is asked). */
+const fieldsOf = (rel: string, name: string): string[] => {
+  const m = code(rel).match(
+    new RegExp(`export interface ${name}\\s*\\{([\\s\\S]*?)\\n\\}`),
+  );
+  if (!m) throw new Error(`${name} is not in ${rel}`);
+  return [...m[1].matchAll(/^\s*(?:readonly\s+)?(\w+)\??:/gm)].map((x) => x[1]);
+};
+
+describe("the retired views' tail (P64-3y.F7): nothing only they read comes back", () => {
+  it("ReaderHead takes no `listen` (the old control's place), and no sheet or part draws `.read-listen`", () => {
+    const props = fieldsOf(
+      "src/hi2vi/reader/reader-head.tsx",
+      "ReaderHeadProps",
+    );
+    expect(props).toContain("audio");
+    expect(props).not.toContain("listen");
+    expect(
+      SOURCES.filter((f) => /read-listen/.test(code(relative(WEB, f)))).map(
+        (f) => relative(WEB, f),
+      ),
+    ).toEqual([]);
+  });
+
+  it("the old root carries no Listen: no `docked`, no `after` and no `slot` to render it", () => {
+    const value = fieldsOf("src/hi2vi/reader/old-root.tsx", "OldBodyValue");
+    expect(value).toEqual(expect.arrayContaining(["settings", "topH"]));
+    expect(value.filter((f) => f === "docked" || f === "after")).toEqual([]);
+    expect(code("src/hi2vi/reader/old-root.tsx")).not.toMatch(
+      /\b(docked|after|slot)\b/,
+    );
+    expect(
+      SOURCES.filter(
+        (f) =>
+          /<OldRoot[^>]*\bslot\b|\bdocked\s*[,:}]|\bafter:\s*null/.test(
+            code(relative(WEB, f)),
+          ) &&
+          /reader\/(chapter-reader|document\/document-reader|body\/)/.test(f),
+      ).map((f) => relative(WEB, f)),
+    ).toEqual([]);
+  });
+
+  it("what stays is named with its reader: the frame re-renders on the Listen store, so `useSlotLift` measures the dock coming and going", () => {
+    for (const rel of [
+      "src/hi2vi/reader/chapter-reader.tsx",
+      "src/hi2vi/reader/document/document-reader.tsx",
+    ]) {
+      const src = code(rel);
+      expect(src).toMatch(/\buseListen\(\);/);
+      expect(src).toMatch(/\buseSlotLift\(rootRef\)/);
+    }
+  });
+
+  it("the dock's view carries only what job 07's dock draws: no old `lead`, `busy`, `revoked`, `open` or `signIn`", () => {
+    const dock = fieldsOf("src/lib/listen/view.ts", "DockView");
+    expect(dock).toEqual(
+      expect.arrayContaining(["act", "shape", "pct", "word", "rest", "say"]),
+    );
+    expect(
+      dock.filter((f) =>
+        ["lead", "busy", "revoked", "open", "signIn"].includes(f),
+      ),
+    ).toEqual([]);
+    expect(code("src/lib/listen/view.ts")).not.toMatch(/export type Lead\b/);
+  });
+
+  it("the continue read carries no old end's `lede`; Review's end builds its line from the figures", () => {
+    const cont = fieldsOf("src/lib/review/actions.ts", "ContinueView");
+    expect(cont).toEqual(expect.arrayContaining(["book", "chapter", "pct"]));
+    expect(cont).not.toContain("lede");
+  });
+
+  it("the next due date is month first, the only way it is written (no day-first default)", () => {
+    expect(code("src/lib/review/model.ts")).not.toMatch(/monthFirst/);
+    expect(
+      whenText("2026-10-23T01:45:00Z", "2026-10-20T09:30:00Z", "Asia/Kolkata"),
+    ).toBe("on Oct 23 at 07:15");
+  });
+
+  it("no comment of the tail's files points at a retired view or says `/review` waits outside the Shell for a rebuild", () => {
+    const files = [
+      "src/hi2vi/reader/reader-head.tsx",
+      "src/hi2vi/reader/old-root.tsx",
+      "src/hi2vi/styles/library/reader.css",
+      "src/lib/listen/view.ts",
+      "src/lib/review/actions.ts",
+      "src/lib/review/model.ts",
+      "src/hi2vi/shell/legacy-page.tsx",
+      "src/hi2vi/shell/shell.css",
+    ];
+    const retired = RETIRED.map((p) =>
+      p.replace(/^src\//, "").replace(/\.tsx$/, ""),
+    );
+    const hits = files.flatMap((rel) => {
+      const text = read(rel);
+      return [
+        ...retired.filter((p) => text.includes(p)),
+        ...(/until (S10|S5)\b|lx-docked|`listen` leaves|place of Listen|`\/review`[^.]*until its own phase/.test(
+          text,
+        )
+          ? ["a stale line"]
+          : []),
+      ].map((what) => `${rel}: ${what}`);
+    });
+    expect(hits).toEqual([]);
   });
 });

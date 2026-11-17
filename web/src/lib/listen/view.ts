@@ -16,18 +16,14 @@ import type { Listen } from "./types";
 // `Dock` and `ListenNote` boards' tables (`11-listen` F7, F9, F10, F23). Pure: the
 // components only render these, so one state reads one way everywhere.
 
-export type Lead = "play" | "pause" | "again" | "retry" | "off";
-
 /**
  * P64-3y.S3 — the lead of job 07's dock (frame.md F208, F234; `ListenDockStates.dc.html`'s `LEAD`): Pause,
- * Play, a disabled Play, Start over, Try again and Sign in (the last two in words). `lead` above stays the
- * old dock's (`components/listen/dock.tsx`, the book page's until S5).
+ * Play, a disabled Play, Start over, Try again and Sign in (the last two in words).
  */
 export type DockLead =
   "pause" | "play" | "play-off" | "startover" | "retry" | "signin";
 
 export interface DockView {
-  lead: Lead;
   /** Job 07's lead (F208). */
   act: DockLead;
   /** The word's shape (job 07 `LR.dock`'s trio). */
@@ -36,11 +32,6 @@ export interface DockView {
   pct: number;
   word: string;
   rest: string;
-  busy: boolean;
-  revoked: boolean;
-  /** The chevron (Open the player); a signed-out dock carries Sign in instead. */
-  open: boolean;
-  signIn: boolean;
   /** The polite live region's words: state and chapter changes, never the position. */
   say: string;
 }
@@ -168,142 +159,47 @@ export function dockView(l: Listen): DockView {
   const book = l.kind === "book";
   const B = bookNums(l);
   const reset = LISTEN.time.tomorrow("09:00");
-  const rows: Record<
-    ListenKey,
-    [Lead, DockLead, NoteShape, string, string, boolean, boolean]
-  > = {
+  const rows: Record<ListenKey, [DockLead, NoteShape, string, string]> = {
     waiting: [
-      "off",
       "play-off",
       "wait",
       D.waiting(LISTEN.runner),
       seen ? D.lastSeen(seen) : "",
-      false,
-      false,
     ],
-    making: [
-      "off",
-      "play-off",
-      "wait",
-      D.preparing,
-      D.part(part, parts),
-      true,
-      false,
-    ],
-    ready: ["play", "play", "on", D.readyToPlay, D.restPreparing, false, false],
-    tap: ["play", "play", "on", D.readyToPlay, "", false, false],
-    loading: [
-      "pause",
-      "pause",
-      "wait",
-      D.loading,
-      book ? D.chapter(B.n) : "",
-      true,
-      false,
-    ],
+    making: ["play-off", "wait", D.preparing, D.part(part, parts)],
+    ready: ["play", "on", D.readyToPlay, D.restPreparing],
+    tap: ["play", "on", D.readyToPlay, ""],
+    loading: ["pause", "wait", D.loading, book ? D.chapter(B.n) : ""],
     playing: [
-      "pause",
       "pause",
       l.old ? "on" : "live",
       l.old ? D.earlier : D.playing,
       where(l),
-      false,
-      false,
     ],
-    paused: [
-      "play",
-      "play",
-      "on",
-      l.old ? D.earlier : D.paused,
-      where(l),
-      false,
-      false,
-    ],
-    buffering: ["pause", "pause", "wait", D.buffering, where(l), true, false],
-    "next-waiting": [
-      "pause",
-      "pause",
-      "wait",
-      D.preparing,
-      D.chapter(B.next),
-      true,
-      false,
-    ],
+    paused: ["play", "on", l.old ? D.earlier : D.paused, where(l)],
+    buffering: ["pause", "wait", D.buffering, where(l)],
+    "next-waiting": ["pause", "wait", D.preparing, D.chapter(B.next)],
     finished: [
-      "again",
       "startover",
       "done",
       D.finished,
       book && !oneChapter(l) ? D.allChapters(B.own) : "",
-      false,
-      false,
     ],
-    "fail-voice": [
-      "retry",
-      "retry",
-      "fail",
-      D.preparingStopped,
-      D.tryAgainLower,
-      false,
-      true,
-    ],
-    "fail-limit": [
-      "off",
-      "play-off",
-      "fail",
-      D.dailyLimit,
-      D.resumes(reset),
-      false,
-      false,
-    ],
-    "fail-play": [
-      "retry",
-      "retry",
-      "fail",
-      D.playbackStopped,
-      D.connectionLost,
-      false,
-      true,
-    ],
-    "fail-session": ["off", "signin", "fail", D.signedOut, "", false, true],
-    "fail-unreadable": [
-      "retry",
-      "retry",
-      "fail",
-      D.unreadable,
-      "",
-      false,
-      true,
-    ],
-    "offline-start": [
-      "off",
-      "play-off",
-      "fail",
-      D.offline,
-      D.offlineStart,
-      false,
-      false,
-    ],
-    "offline-play": [
-      "pause",
-      "pause",
-      "live",
-      D.offline,
-      D.loaded(aboutLeft(l.loaded)),
-      false,
-      false,
-    ],
+    "fail-voice": ["retry", "fail", D.preparingStopped, D.tryAgainLower],
+    "fail-limit": ["play-off", "fail", D.dailyLimit, D.resumes(reset)],
+    "fail-play": ["retry", "fail", D.playbackStopped, D.connectionLost],
+    "fail-session": ["signin", "fail", D.signedOut, ""],
+    "fail-unreadable": ["retry", "fail", D.unreadable, ""],
+    "offline-start": ["play-off", "fail", D.offline, D.offlineStart],
+    "offline-play": ["pause", "live", D.offline, D.loaded(aboutLeft(l.loaded))],
     "offline-stopped": [
-      "off",
       "play",
       "fail",
       D.offline,
       D.stoppedAt(clockPos(l.stoppedAt ?? l.pos)),
-      false,
-      false,
     ],
   };
-  const [lead, act, shape, word, rest, busy, revoked] = rows[l.state];
+  const [act, shape, word, rest] = rows[l.state];
   const say =
     l.state === "fail-session"
       ? D.say.signedOut
@@ -320,16 +216,11 @@ export function dockView(l: Listen): DockView {
               )
             : word;
   return {
-    lead,
     act,
     shape,
     pct: dockPct(l),
     word,
     rest,
-    busy,
-    revoked,
-    open: l.state !== "fail-session",
-    signIn: l.state === "fail-session",
     say,
   };
 }

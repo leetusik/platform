@@ -69,7 +69,7 @@ export function endView(
     body = E.doneBody(
       counts.done_today,
       meta.next_due_at
-        ? whenText(meta.next_due_at, meta.now, meta.day.time_zone, true)
+        ? whenText(meta.next_due_at, meta.now, meta.day.time_zone)
         : null,
     );
   }

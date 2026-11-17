@@ -28,7 +28,7 @@ import "@/app/reader.css";
  *     > div.rd-root.rd-size-N[data-md-color-scheme] (the old tokens, the text sizes and the schemes
  *       of `app/reader.css`, from the same `kb_reader` settings as the frame; `math-layer` and
  *       `scroll-box` watch its class; the annotation layer left it in P63-fk.S11)
- *       > the old body, then `after` (once the old Listen slot and player; unused since P64-3y)
+ *       > the old body
  *
  * Two inline declarations undo what the old root does to a whole page and must not do inside the
  * frame's column: `min-height: 100dvh` and its background (the frame paints the reader's ground).
@@ -36,13 +36,6 @@ import "@/app/reader.css";
  */
 export interface OldBodyValue {
   settings: ReaderSettings;
-  /**
-   * A Listen is docked (the store's). No longer read (P64-3y.S10): the old slot's lift above the dock (`lx-docked`)
-   * left `app/reader.css` with the old Listen; job 07's dock is in the flow. Optional so its two callers still type.
-   */
-  docked?: boolean;
-  /** Rendered after the body, inside the old root, where `slot` asks for it (no caller does since P64-3y). */
-  after?: ReactNode;
   /**
    * P64-3y.F4 — the reader's top bar's real height in px (`./frame-measure` `useReaderTopBar`; null until measured).
    * The old sheet lands an island's `[id]` under its own bar's height (`--rd-top-h`, one row: 3.5rem); the frame's
@@ -64,12 +57,9 @@ const STILL: CSSProperties = { ...UNDO_PAGE, display: "contents" };
 const NO_BOX: CSSProperties = { display: "contents" };
 
 export function OldRoot({
-  slot = true,
   still = false,
   children,
 }: {
-  /** Render the frame's `after` (the Listen slot and the player) after the children; once a page. */
-  slot?: boolean;
   /** No box of its own (`display: contents`): see `STILL`. */
   still?: boolean;
   children: ReactNode;
@@ -90,7 +80,6 @@ export function OldRoot({
         style={style}
       >
         {children}
-        {slot ? value?.after : null}
       </div>
     </Legacy>
   );

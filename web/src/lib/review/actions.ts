@@ -332,13 +332,11 @@ export async function saveReviewSettings(
 }
 
 /**
- * The end state's "Continue reading" block (Q9): the reader's most recent place, or nothing. `lede` is the old
- * end's line (`components/review/end.tsx`, until S10 removes it); job 07's end (F214, review-end FG5) builds its
- * line from `book`, `chapter` and `pct` (`hi2vi/review/end-model.ts` `contView`).
+ * The end state's "Continue reading" block (Q9): the reader's most recent place, or nothing. Job 07's end (F214,
+ * review-end FG5) builds its line from `book`, `chapter` and `pct` (`hi2vi/review/end-model.ts` `contView`).
  */
 export interface ContinueView {
   title: string;
-  lede: string;
   href: string;
   lang: string;
   /** The book's title; a loose document's project. */
@@ -355,13 +353,8 @@ export async function loadReviewContinue(): Promise<ContinueView | null> {
   try {
     const first = (await loadContinue(token, []))[0];
     if (!first) return null;
-    const where =
-      first.kind === "doc"
-        ? `${first.project} · Document`
-        : `${first.bookTitle} · Chapter ${first.n} of ${first.total}`;
     return {
       title: first.title,
-      lede: first.next ? where : `${where} · ${first.pct}% read`,
       href: first.href,
       lang: first.lang,
       book: first.kind === "doc" ? first.project : first.bookTitle,

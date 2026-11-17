@@ -51,7 +51,7 @@ export function ChapterBody({ reader }: { reader: LoadedReader }) {
   const chapter = `${reader.docId}:${view.version}:${view.lang}`;
   return (
     <div className="blocks-host" {...{ [HOOK.article]: "" }}>
-      <OldRoot slot={false} still>
+      <OldRoot still>
         <PrintMasthead view={view} />
         <PrintPrep />
       </OldRoot>
@@ -71,7 +71,7 @@ export function ChapterBody({ reader }: { reader: LoadedReader }) {
           }}
         />
       </div>
-      <OldRoot slot={false} still>
+      <OldRoot still>
         <PrintColophon view={view} />
       </OldRoot>
       <MathLayer chapter={chapter} />

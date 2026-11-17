@@ -8,7 +8,8 @@
       The box does not contain `position: fixed` parts: they are placed against the window, over the
       Shell's bar and rail (`container-type` applies size and style containment only, which make no
       containing block for them; checked in Chrome 157). So an old page with screen-fixed parts stays
-      out of the Shell until its own phase rebuilds it, as `/review` does (`app/review/layout.tsx`).
+      out of the Shell until its own phase rebuilds it. (`/review` is outside the Shell for good: Review's
+      own focused frame, `ReviewFrame`, outside the `(app)` group.)
    2. The chrome-less document view (`?view=full`, round 06 §4.4): the bar and the rail are hidden and the
       main column takes the whole width; nothing unmounts.
    3. Print drops the chrome, as kb-print.css does for the old frame.

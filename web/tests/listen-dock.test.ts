@@ -582,7 +582,8 @@ describe("the track (F208, listen:FG1)", () => {
       cr.indexOf('className="reader-frame"'),
     );
     expect(cr.indexOf("<ListenTrack")).toBeLessThan(cr.indexOf("<ReaderFoot"));
-    const body = read("src/hi2vi/reader/body/body.tsx");
-    expect(body).not.toMatch(/<OldRoot still>/);
+    // the body's old root renders nothing after the body (its old Listen slot left with the old Listen)
+    const root = read("src/hi2vi/reader/old-root.tsx");
+    expect(root).not.toMatch(/value\?\.after|\bslot\b\s*[?=:]/);
   });
 });

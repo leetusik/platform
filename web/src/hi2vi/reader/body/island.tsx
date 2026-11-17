@@ -21,7 +21,7 @@ const CONTENTS = { display: "contents" } as const;
 export function OldIsland({ children }: { children: ReactNode }) {
   return (
     <div {...{ [HOOK.island]: "" }} style={CONTENTS}>
-      <OldRoot slot={false} still>
+      <OldRoot still>
         <div className="kb-ch" {...{ [HOOK.islandBody]: "" }} style={CONTENTS}>
           {children}
         </div>

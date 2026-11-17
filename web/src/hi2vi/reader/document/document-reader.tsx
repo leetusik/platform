@@ -360,10 +360,12 @@ export function DocumentReader({
     }),
     [sheet, layer, notesHost, closeSheet, pill, slotHost, hidden],
   );
-  const docked = useListen() !== null;
+  // The frame re-renders when the Listen store changes (a Listen docking or leaving), so `useSlotLift` below
+  // measures the dock coming and going after that render; nothing else here reads the store.
+  useListen();
   const oldBody = useMemo<OldBodyValue>(
-    () => ({ settings, docked, after: null, topH }),
-    [settings, docked, topH],
+    () => ({ settings, topH }),
+    [settings, topH],
   );
   useFollow(rootRef, listen ? unitOfKey(listen.key) : null, null);
   // F206: no Listen for a visitor or an older version of the text.

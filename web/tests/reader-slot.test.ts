@@ -240,10 +240,8 @@ describe("the reader's top bar's real height", () => {
   });
 
   it("reaches an old island's landing margin as its own bar's height", () => {
-    // an island of the body (`<OldRoot slot={false} still>`); its text is the third argument
-    const ISLAND = { still: true, slot: false } as Parameters<
-      typeof OldRoot
-    >[0];
+    // an island of the body (`<OldRoot still>`); its text is the third argument
+    const ISLAND = { still: true } as Parameters<typeof OldRoot>[0];
     const render = (topH: number | null) =>
       renderToStaticMarkup(
         createElement(

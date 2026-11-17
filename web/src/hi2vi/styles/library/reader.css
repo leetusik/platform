@@ -4,9 +4,6 @@
    tokens' roles; the frame's classes are ./frame.css's, never redefined here.
 
    What the reader adds to frame.css, and nothing else:
-   - the place of Listen: the existing control, mounted in its old look (operator decision 3 of P63-fk), sits at
-     the end of the head's facts row, where the board's stand-in sat (frame.css leaves out the canvas's
-     `.read-facts > [data-proto="standin"] { margin-left: auto }`);
    - the sections' fold's one rule (P63-fk.S12, by the operator's answer: the fold is the head's own line);
    - P64-3y.F4: the reader's top bar's real height in one place of its own, `--reader-top-h` (the bar wraps to two
      rows, or three, on a narrow window: 03-library F89), which every "below the reader's top bar" reads (the
@@ -31,11 +28,6 @@
   .app.reader > .marks-slot,
   .app.reader > .reader-foot > .pill {
     translate: 0 calc(-1 * var(--reader-slot-lift, 0px));
-  }
-
-  /* the place of Listen: at the end of the facts row */
-  .read-listen {
-    margin-left: auto;
   }
 
   /* the sections' fold (a loose document, `Document.dc.html`, FG8; P63-fk.S12): Show all N sections / Show
