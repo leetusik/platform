@@ -388,15 +388,18 @@ describe("the player's view of each signed state (LX.player)", () => {
     ).toBe("");
   });
 
-  it("keeps a chapter before the Listen's first one still, and Previous off at that first one", () => {
+  // P64-3y.F2 (F211): a chapter before the Listen's first one is a row like any other (made ones play), and
+  // Previous sits at that first one; with no page's read of those chapters they say nothing and are still
+  // (`listen-player-chapters.test.ts` holds the whole rule).
+  it("keeps a chapter before the Listen's first one still while no read says it is made, with Previous at that first one", () => {
     const v = playerView(book("playing", 6, 750, {}, 6));
-    expect(v.hasPrev).toBe(false);
-    expect(v.rows.slice(0, 5).map((r) => r.playable)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
+    expect([v.hasPrev, v.prev]).toEqual([true, "c5"]);
+    expect(v.rows.slice(0, 5).map((r) => [r.playable, r.line])).toEqual([
+      [false, ""],
+      [false, ""],
+      [false, ""],
+      [false, ""],
+      [false, ""],
     ]);
     expect(v.rows[5]).toMatchObject({ playable: true, current: true });
   });

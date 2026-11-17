@@ -592,9 +592,12 @@ export interface PlayerRow {
   n: number;
   title: string;
   titleLang: string;
-  /** `16 min` once made, `Preparing… · part 2 of 9` while made, else `Not prepared yet`. */
+  /**
+   * `16 min` once made, `Preparing… · part 2 of 9` while made, else `Not prepared yet`; empty where no read says
+   * (a chapter before the Listen's first one that no page read, or one that can't be read aloud).
+   */
   line: string;
-  /** Made, and on this Listen's stream (a chapter before its first one is not). */
+  /** Made, wherever the Listen began (F211: made ones are buttons that play). */
   playable: boolean;
   current: boolean;
   /** `Playing` or `Paused` on the current row, else empty (the row reads its line). */
@@ -666,19 +669,24 @@ export function playerView(
   const pos = Math.max(0, Math.min(len, Number.isFinite(rawPos) ? rawPos : 0));
   const prev = prevChapter(l, l.ch);
   const next = nextChapter(l, l.ch);
-  const onStream = (cn: number) => cn >= fromN;
   const word =
     l.state === "playing"
       ? LISTEN.player.playing
       : l.state === "paused"
         ? LISTEN.player.paused
         : "";
+  // P64-3y.F2 (F211, `Listen.dc.html`'s `player`): a row says whether its chapter's audio is made, wherever the
+  // Listen began. From the Listen's first chapter on, its own state says so; before it, what the pages already read
+  // of the book in this language (`l.earlier`), and the chapter being made there is this Listen's (`l.making`) only.
   const rows: PlayerRow[] = book
     ? book.chapters.map((c) => {
-        const e = l.entries.find((x) => x.chapter === c.key);
-        const made = onStream(c.n) && e?.state === "made" && !!e.len;
+        const before = c.n < fromN;
+        const e = (before ? (l.earlier ?? []) : l.entries).find(
+          (x) => x.chapter === c.key,
+        );
+        const made = e?.state === "made" && !!e.len;
         const preparing =
-          onStream(c.n) && e?.state === "making" && c.key === l.making;
+          !before && e?.state === "making" && c.key === l.making;
         const named = chapterTitle(l, c.key);
         return {
           id: c.key,
@@ -691,7 +699,9 @@ export function playerView(
               ? LISTEN.player.preparing(
                   e?.part ? LISTEN.dock.part(e.part.n, e.part.of) : null,
                 )
-              : LISTEN.player.notPrepared,
+              : e && e.state !== "unavailable"
+                ? LISTEN.player.notPrepared
+                : "",
           playable: made,
           current: c.key === l.ch,
           word: c.key === l.ch ? word : "",
@@ -720,9 +730,10 @@ export function playerView(
     lead,
     seekable: len > 0 && !NO_SEEK.includes(l.state),
     isBook: !!book,
-    hasPrev: !!prev && onStream(prev.n),
+    // F211: Previous and Next sit at the two ends; only a chapter that does not exist leaves its place empty.
+    hasPrev: !!prev,
     hasNext: !!next,
-    prev: prev && onStream(prev.n) ? prev.key : null,
+    prev: prev?.key ?? null,
     next: next?.key ?? null,
     speed: l.speed,
     follow: l.follow,

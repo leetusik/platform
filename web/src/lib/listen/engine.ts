@@ -18,6 +18,7 @@ import {
   stallKey,
   unitOfKey,
 } from "./book";
+import { earlierOf, rememberRead } from "./earlier";
 import { segmentAt } from "./follow";
 import {
   polls,
@@ -379,6 +380,8 @@ export function createEngine(
         ? { n: s.part.n, of: s.part.of }
         : l.part;
     lastState = s;
+    // P64-3y.F2: what this read says of the book's chapters, for a later Listen that starts after them.
+    if (l.kind === "book") rememberRead(l.unit, s, l.lang);
     const before = l.title;
     const patch: Partial<Listen> = {
       old: s.old,
@@ -792,8 +795,15 @@ export function createEngine(
           null)
         : null;
       const prefs = getPrefs();
+      // P64-3y.F2: the chapters before this Listen's first one, as the reads already made say (F211's rows).
+      const unit = unitOfKey(seed.key);
+      const heard = s.listen.lang || seed.lang;
+      if (book) {
+        rememberRead(unit, seed.read, heard);
+        rememberRead(unit, seed.state, heard);
+      }
       const base: Listen = {
-        unit: unitOfKey(seed.key),
+        unit,
         key: seed.key,
         kind: book ? "book" : "doc",
         // A book's title is placed below (`placeAt`): the audio's, never another language's.
@@ -810,6 +820,7 @@ export function createEngine(
         chSoFar: s.so_far,
         making: s.part?.chapter ?? null,
         entries,
+        ...(book ? { earlier: earlierOf(unit, heard, book, fromCh) } : {}),
         spans: [],
         state: "loading",
         back: null,

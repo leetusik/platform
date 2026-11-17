@@ -1,6 +1,6 @@
 import { chapterN } from "@/lib/listen/book";
 import { askScroll, listenActions } from "@/lib/listen/store";
-import type { Listen } from "@/lib/listen/types";
+import type { Listen, ListenSeed } from "@/lib/listen/types";
 import type { PlayerLead } from "@/lib/listen/view";
 
 /**
@@ -23,8 +23,8 @@ export type PlayerEvent =
 /**
  * One press of the player. The seek bar and ±15 work in the chapter heard (a book) or the document, clamped
  * to its length, and land on the stream's own axis (where the chapter starts: the stream position less the
- * position in it). Previous, Next and a row move the Listen to that chapter at 0:00 (`seekChapter`); the page
- * under the sheet stays. Sign in leaves for the sign-in page (`signIn`).
+ * position in it). Previous, Next and a row move the Listen to that chapter at 0:00 (`moveTo`); the page under the
+ * sheet stays. Sign in leaves for the sign-in page (`signIn`).
  */
 export function pressPlayer(
   l: Listen,
@@ -55,13 +55,11 @@ export function pressPlayer(
         n === null
           ? null
           : (l.book?.chapters.find((c) => c.n === n + e.dir) ?? null);
-      // A chapter before the Listen's first one is not on its stream (the view draws no Previous there).
-      if (to && to.n >= (chapterN(l, l.from) ?? 1))
-        listenActions.seekChapter(to.key);
+      if (to) moveTo(l, to.key);
       return;
     }
     case "pick":
-      listenActions.seekChapter(e.id);
+      moveTo(l, e.id);
       return;
     case "speed":
       listenActions.setSpeed(e.v);
@@ -77,6 +75,44 @@ export function pressPlayer(
       else signIn();
       return;
   }
+}
+
+/**
+ * P64-3y.F2 — the book's Listen from `chapter`, as pressing Listen on that chapter's own page starts it: the key that
+ * page sends (`from_chapter`, and the language only where this Listen's key names one), its title and reader, and
+ * no state (the press reads it, as `bookStartOf`'s Continue listening without the server's read). Null off a book.
+ */
+export function chapterStartOf(l: Listen, chapter: string): ListenSeed | null {
+  if (l.kind !== "book" || !l.book || !("book" in l.key)) return null;
+  const c = l.book.chapters.find((x) => x.key === chapter);
+  if (!c) return null;
+  return {
+    key: { ...l.key, from_chapter: c.key },
+    title: c.title,
+    lang: l.lang,
+    state: null,
+    href: c.href,
+    book: l.book,
+    chapter: c.key,
+  };
+}
+
+/**
+ * Previous, Next and a row (F211): the Listen moves to that chapter at 0:00 and the page under the sheet stays. On
+ * the Listen's stream (its first chapter on), a chapter seek. Before its first chapter the stream has no such
+ * chapter, so the book's Listen starts from it through the one start press (`listenActions.start`), exactly as
+ * that chapter's own Listen would: the Listen under way ends there, its place saved as any new Listen saves it
+ * (`engine.start`), and the kept place is cleared (a Listen that starts clears it, F17).
+ */
+function moveTo(l: Listen, chapter: string): void {
+  const n = chapterN(l, chapter);
+  const first = chapterN(l, l.from) ?? 1;
+  if (n !== null && n < first) {
+    const seed = chapterStartOf(l, chapter);
+    if (seed) listenActions.start(seed, 0);
+    return;
+  }
+  listenActions.seekChapter(chapter);
 }
 
 /** The page of the Listen's text in the reader: its chapter (a book) or the document. */

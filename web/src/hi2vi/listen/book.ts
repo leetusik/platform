@@ -172,11 +172,14 @@ export function bookStartOf(
   const r = resumeOf(seed, kept);
   if (!r) return null;
   const { place, home } = r;
+  // P64-3y.F2: the page's own read of the book from chapter 1 in the place's language goes with the press, so the
+  // player knows the chapters before the one it resumes (F211's rows). Never sent: the press sends `key`.
+  const read = { read: home.state };
   const s: ListenSeed =
     seed.resume &&
     seed.resume.chapter === place.ch &&
     seed.resume.lang === place.lang
-      ? seed.resume
+      ? { ...seed.resume, ...read }
       : {
           ...home,
           key: {
@@ -190,6 +193,7 @@ export function bookStartOf(
           state: null,
           href: r.href,
           chapter: place.ch,
+          ...read,
         };
   return { seed: s, from: place.pos, href: r.href, chapter: place.ch };
 }

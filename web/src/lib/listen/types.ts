@@ -67,6 +67,12 @@ export interface ListenSeed {
   book: ListenBook | null;
   /** The chapter this page shows (a chapter page), else null. */
   chapter: string | null;
+  /**
+   * P64-3y.F2 — a read the page already made of the same book in the Listen's language, from an earlier chapter
+   * (the book page's load from chapter 1): what it says of the chapters before this Listen's first one (F211's rows).
+   * Client-side only: never sent (the press sends `key`).
+   */
+  read?: KbListenState | null;
 }
 
 /** One chapter's audio, as the making reports it (B1's entries). */
@@ -124,6 +130,11 @@ export interface Listen {
   making: string | null;
   /** Per-chapter audio (a book). */
   entries: ListenEntry[];
+  /**
+   * P64-3y.F2 — the audio of the chapters before `from`, as the pages already read it in this Listen's language
+   * (`./earlier`): this Listen's own state starts at `from`. A chapter no read covered is absent; absent: none known.
+   */
+  earlier?: ListenEntry[];
   /** The stream's chapters on its axis (the timeline), in order. */
   spans: ListenSpan[];
   /** F19's key. */

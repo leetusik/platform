@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { unitOfKey } from "@/lib/listen/book";
+import { rememberRead } from "@/lib/listen/earlier";
 import { listenActions, useKept, useListen } from "@/lib/listen/store";
 import type { ListenSeed } from "@/lib/listen/types";
 
@@ -44,6 +46,11 @@ export function ListenHeadSlot({
     },
     [text],
   );
+  // P64-3y.F2: what this page read of its book's chapters (this one to the end), for a later Listen of the book
+  // that starts after them (the opened player's rows, F211). No read is made for it.
+  useEffect(() => {
+    if (seed.book) rememberRead(unitOfKey(seed.key), seed.state, seed.lang);
+  }, [seed]);
   const head = headOf({ listen, seed, kept, starting });
 
   const onListen = (what: ListenWhat) => {
