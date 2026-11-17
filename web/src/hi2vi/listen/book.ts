@@ -277,9 +277,9 @@ export function bookRowsOf(
     const play: RowAudio["play"] =
       L && L.ch === c.key
         ? L.state === "playing"
-          ? "Playing"
+          ? B.playing
           : L.state === "paused"
-            ? "Paused"
+            ? B.paused
             : ""
         : "";
     if (line || play) out[c.key] = { line, play };

@@ -15,8 +15,6 @@ export const LISTEN = {
     starting: "Starting…",
     continue: "Continue listening",
     startOver: "Start over",
-    /** The pill's qualifier: "▶ Listen · 42 min", "▶ Continue listening · 18:05". */
-    pillQ: (q: string): string => `· ${q}`,
     /** Left part-way: "18:05 of 42:10". */
     resumeQ: (pos: string, len: string): string => `${pos} of ${len}`,
     /** P41-sr.W2 — a chapter's scope (F6, OQ1): "Chapters 2–5", "· about 3 h 30 min" once all are made. */
@@ -185,8 +183,6 @@ export const LISTEN = {
     pause: "Pause",
     startOver: "Start over",
     tryAgain: "Try again",
-    /** The round button on the resume offer (player-G3). */
-    continue: "Continue listening",
     speed: "Speed",
     /** F2: the multiplication sign, no space. */
     speedValue: (v: number): string => `${v}×`,
@@ -205,8 +201,6 @@ export const LISTEN = {
     /** The trio words for the four live states (player-G2). */
     playing: "Playing",
     paused: "Paused",
-    loading: "Loading…",
-    buffering: "Buffering…",
   },
   /** P41-sr.W2 — the book landing's audio (F31, book-G3): a row's own meta item, led by "Audio". */
   book: {
@@ -214,7 +208,6 @@ export const LISTEN = {
     audioPreparing: (part: string | null): string =>
       `Audio preparing…${part ? ` · ${part}` : ""}`,
     audioNone: "Audio not prepared yet",
-    audioHeld: "Audio held by the daily limit",
     playing: "Playing",
     paused: "Paused",
   },

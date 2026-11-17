@@ -103,10 +103,16 @@ function resumeOf(
 ): { pos: number; len: number | null } | null {
   const lang = seed.state?.listen.lang || seed.lang;
   const k = placeIn(kept, lang);
-  // P64-3y.F1 (F231): a Listen of this unit that ended keeping nothing leaves no place, read or kept.
-  if (k && k.unit === unitOfKey(seed.key) && k.none) return null;
-  if (k && k.unit === unitOfKey(seed.key) && k.ch === seed.chapter) {
-    return { pos: k.pos, len: k.len ?? chapterLen(seed) };
+  if (k && k.unit === unitOfKey(seed.key)) {
+    // P64-3y.F1 (F231): a Listen of this unit that ended keeping nothing leaves no place, read or kept.
+    if (k.none) return null;
+    // The unit's kept place is newer than the place the page read before its Listen; kept in
+    // another chapter, this chapter offers none (`LR.control`: `k.ch === unitId`, else Listen). At 0:00 or at
+    // the chapter's end it is none, as on the book page (`./book` `resumeOf`).
+    if (k.ch !== seed.chapter) return null;
+    const len = k.len ?? chapterLen(seed);
+    if (k.pos < 1 || (len !== null && k.pos >= len - 1)) return null;
+    return { pos: k.pos, len };
   }
   const s = seed.state;
   if (!s) return null;
@@ -237,6 +243,12 @@ function actOf(n: HeadNote): boolean {
   return (n.key === "outdated" || n.key === "fail-limit") && !!n.view.action;
 }
 
+/** No place for the unit, read or kept: what a Listen of the unit under way elsewhere leaves this page. */
+function clearedOf(unit: string, seed: ListenSeed): ListenKept {
+  const lang = seed.state?.listen.lang || seed.lang;
+  return { unit, ch: null, n: null, pos: 0, len: null, lang, none: true };
+}
+
 /**
  * The head's slot for a text page (a chapter or a document): `starting` is the page's own press, until its
  * Listen answers with a state other than `loading`.
@@ -249,9 +261,15 @@ export function headOf(p: {
 }): HeadView {
   const { listen, seed, kept, starting } = p;
   const unit = unitOfKey(seed.key);
-  const control = controlOf(seed, kept);
   const ofUnit = !!listen && listen.unit === unit;
   const here = ofUnit && (listen.kind !== "book" || listen.ch === seed.chapter);
+  // A Listen of this book under way in another chapter cleared the book's kept place (`Listen.dc.html`:
+  // "a Listen of that unit clears it"), and the place this page read before it is stale: the chapter's control
+  // offers Listen, never Continue listening.
+  const control = controlOf(
+    seed,
+    ofUnit && !here ? clearedOf(unit, seed) : kept,
+  );
   const hold =
     starting || ofUnit
       ? holdOf(ofUnit ? listen : shellOf(seed), !!seed.book)
