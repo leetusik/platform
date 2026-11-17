@@ -172,6 +172,15 @@ export const LISTEN = {
     next: "Next chapter",
     back: "Back 15 seconds",
     fwd: "Forward 15 seconds",
+    /** P64-3y.S4 — job 07's transport (frame.md F211, `ListenPlayer.dc.html`): its group, the skips' faces
+     * and the chapter buttons' words (their names stay `Previous chapter` / `Next chapter`). */
+    transport: "Playback",
+    backFace: "−15",
+    fwdFace: "+15",
+    previousShort: "Previous",
+    nextShort: "Next",
+    /** The Chapters list's name (`ListenPlayer.dc.html`). */
+    chapterList: "Chapters to listen to",
     play: "Play",
     pause: "Pause",
     startOver: "Start over",

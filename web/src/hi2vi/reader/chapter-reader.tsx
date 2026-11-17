@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 
-import { ListenPlayer } from "@/components/listen/player";
 import { NotesBridgeContext } from "@/components/reader/reader-notes";
 import {
   ReaderProgressContext,
@@ -32,6 +31,7 @@ import {
 } from "@/hi2vi/library";
 import {
   ListenHeadSlot,
+  ListenPlayerSheet,
   listenShown,
   ListenTrack,
   useFollow,
@@ -72,7 +72,7 @@ import {
   showBars,
   versionItems,
 } from "./model";
-import { OldBodyContext, OldRoot, type OldBodyValue } from "./old-root";
+import { OldBodyContext, type OldBodyValue } from "./old-root";
 import { ReaderEnd } from "./reader-end";
 import { ReaderFoot } from "./reader-foot";
 import { ReaderHead } from "./reader-head";
@@ -590,11 +590,8 @@ export function ChapterReader({
                 {notes ? (
                   <div className="marks-slot" data-an-ui="" ref={setSlotHost} />
                 ) : null}
-                {/* The opened player keeps its old look until S4 (decision 3): a dialog, placed against the
-                    window, in an old root that adds no box. */}
-                <OldRoot slot={false} still>
-                  <ListenPlayer signInHref={signIn} />
-                </OldRoot>
+                {/* The opened player (F211): the reader's sheet from the end side, opened by the dock. */}
+                <ListenPlayerSheet signInHref={signIn} />
               </OldBodyContext.Provider>
             </NotesBridgeContext.Provider>
           </ReaderProgressContext.Provider>

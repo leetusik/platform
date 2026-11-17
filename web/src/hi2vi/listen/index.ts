@@ -1,5 +1,5 @@
 // Listen's parts in the hi2vi frame (job 07, round 01; P64-3y): the head's slot (AudioHead, its control and
-// note), its model and follow along; the dock, its track and the pill (S3). The player (S4) joins them here.
+// note), its model and follow along; the dock, its track and the pill (S3); the opened player (S4).
 export { AudioHead, type AudioHeadProps } from "./audio-head";
 export { Control } from "./control";
 export { Held, Note } from "./note";
@@ -23,3 +23,6 @@ export { ListenPill } from "./pill";
 export { ListenTrack } from "./track";
 export { ListenHeadSlot } from "./head-slot";
 export { useFollow } from "./follow";
+export { ListenPlayerSheet } from "./player";
+export { PlayerBody } from "./player-body";
+export { goToText, pressPlayer, textHref, type PlayerEvent } from "./press";

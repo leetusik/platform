@@ -61,6 +61,40 @@
 .listen-pill .listen-q::before { content: "\00B7"; position: absolute; right: 100%; width: var(--space-4); text-align: center; }
 .listen-pill:hover { background: var(--hover); }
 
+/* 8 ── the opened player (F211): the reader's sheet, from the end side; its parts (frame.css section 8; P64-3y.S4) */
+/* the player's head: Go to the text and Close wrap (F211; Listen.dc.html) */
+.listen-sheet-head { flex-wrap: wrap; }
+.player { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+/* the one bold move: the position at the system's figure step, the only figure on the sheet */
+.position { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
+.position-at { font: 600 var(--fs-figure)/var(--lh-figure) var(--font); font-variant-numeric: tabular-nums; }
+.position-of { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* the seek bar: a native range, 44 px tall, a 4 px track in --edge (3:1) with the played part in --accent */
+.seek { display: block; width: 100%; height: var(--control-h); margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.seek::-webkit-slider-runnable-track { height: var(--seek-track); border-radius: var(--radius-xs); background: linear-gradient(to right, var(--accent) var(--at, 0%), var(--edge) var(--at, 0%)); }
+.seek::-moz-range-track { height: var(--seek-track); border-radius: var(--radius-xs); background: var(--edge); }
+.seek::-moz-range-progress { height: var(--seek-track); border-radius: var(--radius-xs); background: var(--accent); }
+.seek::-webkit-slider-thumb { width: var(--seek-thumb); height: var(--seek-thumb); margin-top: calc((var(--seek-track) - var(--seek-thumb)) / 2); border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); -webkit-appearance: none; appearance: none; }
+.seek::-moz-range-thumb { width: var(--seek-thumb); height: var(--seek-thumb); border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.seek:disabled { cursor: not-allowed; opacity: 1; }
+/* the transport, two rows: back 15, play, forward 15 (play fills the middle, so a new label never moves it); then the previous and
+   the next chapter at the two ends. A chapter that does not exist leaves its place empty. */
+.transport { display: flex; flex-direction: column; gap: var(--space-2); }
+.transport-main { display: grid; grid-template-columns: var(--control-h) minmax(0, 1fr) var(--control-h); gap: var(--space-2); }
+.transport-play { min-width: 0; }
+.transport-skip { min-width: var(--control-h); padding: 0; font-variant-numeric: tabular-nums; }
+.transport-ch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); }
+.transport-ch > .is-next { margin-left: auto; }
+/* speed: six choices in two even rows of three */
+.speed { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-1); width: 100%; }
+.speed > .btn { padding: 0 var(--space-2); }
+/* a row of the player: its name, then its control at the row's end */
+.player-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); min-height: var(--control-h); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.player-row > .label { font-weight: 500; }
+/* a button that is on or off: filled as a pressed choice (03-library F93), its two words in one cell so it keeps its width
+   (frame.css writes it on the system's .btn alone; a job sheet redefines no system name, so it is the player row's) */
+.player-row > .btn[role="switch"][aria-checked="true"], .player-row > .btn[role="switch"][aria-checked="true"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+
 /* 9 ── follow along (F210): a 2 px accent rule beside the block being read, outside the text's column (P64-3y.S2) */
 .read [data-follow="true"] { position: relative; }
 .read [data-follow="true"]::before { content: ""; position: absolute; top: 0.2em; bottom: 0.2em; left: calc(-1 * var(--space-4)); width: 2px; border-radius: 1px; background: var(--accent); }

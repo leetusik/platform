@@ -1,8 +1,15 @@
 import { LISTEN } from "@/content/listen";
+import { READER_DOCUMENT } from "@/content/reader-document";
 
-import { chapterN, nextChapter, ownChapters } from "./book";
+import {
+  chapterN,
+  chapterTitle,
+  nextChapter,
+  ownChapters,
+  prevChapter,
+} from "./book";
 import { aboutLeft, clockAt, clockPos, lengthWords } from "./format";
-import type { ListenKey, NoteKey } from "./machine";
+import { noteKey, type ListenKey, type NoteKey } from "./machine";
 import type { Listen } from "./types";
 
 // P41-sr.W1 — what the dock and the note say for a Listen, transcribed from the signed
@@ -502,5 +509,156 @@ export function noteView(
     lineLabel: book ? N.lineBook : N.lineDoc,
     ref,
     action,
+  };
+}
+
+/**
+ * P64-3y.S4 — the opened player's transport lead (frame.md F211, `ListenPlayerStates.dc.html`'s `LX.player`):
+ * the dock's lead, but signed out is a disabled Play (Sign in is the zone's button there).
+ */
+export type PlayerLead = "pause" | "play" | "play-off" | "startover" | "retry";
+
+/** One row of the player's Chapters (F211: made ones are buttons that play; the current says Playing/Paused). */
+export interface PlayerRow {
+  id: string;
+  n: number;
+  title: string;
+  titleLang: string;
+  /** `16 min` once made, `Preparing… · part 2 of 9` while made, else `Not prepared yet`. */
+  line: string;
+  /** Made, and on this Listen's stream (a chapter before its first one is not). */
+  playable: boolean;
+  current: boolean;
+  /** `Playing` or `Paused` on the current row, else empty (the row reads its line). */
+  word: string;
+}
+
+/** The board's `player` prop (`ListenPlayer.dc.html`), from the one Listen. */
+export interface PlayerView {
+  key: NoteKey;
+  meta: string;
+  title: string;
+  titleLang: string;
+  word: string;
+  shape: NoteShape;
+  text: string;
+  line: number | null;
+  lineLabel: string;
+  ref: string;
+  /** The zone's one button (FG8): Update audio or Sign in, else none. */
+  action: "update" | "signin" | "";
+  updating: boolean;
+  /** Seconds into the chapter (a book) or the document; `len` 0: nothing made yet, no length. */
+  pos: number;
+  len: number;
+  soFar: boolean;
+  lead: PlayerLead;
+  seekable: boolean;
+  isBook: boolean;
+  hasPrev: boolean;
+  hasNext: boolean;
+  /** The chapters Previous and Next move to. */
+  prev: string | null;
+  next: string | null;
+  speed: number;
+  follow: boolean;
+  /** `Chapter 6 of 14` (a book), else empty. */
+  where: string;
+  rows: PlayerRow[];
+}
+
+/** The states with no place to seek (`LX.player`'s `seekable`): signed out and offline before starting. */
+const NO_SEEK: readonly ListenKey[] = ["fail-session", "offline-start"];
+
+/**
+ * The opened player's view of a Listen (frame.md F211, F234 FG8; `LX.player`): the meta line and title, the
+ * zone (the note's word, sentence, line and reference, with a button only for Update audio and Sign in), the
+ * position in the chapter (a book) or the document (`0:00` alone while nothing is made), the transport's lead,
+ * Previous and Next, speed and follow along, and the book's chapters. Pure. `docWhere` is the document head's
+ * own meta line (`Document in <project>`), when the page has its project's name.
+ */
+export function playerView(
+  l: Listen,
+  opts: { docWhere?: string } = {},
+): PlayerView {
+  const key = noteKey(l.state, l.old);
+  const note = noteView(l, key);
+  const book = l.kind === "book" && l.book ? l.book : null;
+  const total = book?.chapters.length ?? 0;
+  const n = chapterN(l, l.ch) ?? 1;
+  const fromN = chapterN(l, l.from) ?? 1;
+  const act = dockView(l).act;
+  const lead: PlayerLead = act === "signin" ? "play-off" : act;
+  const rawLen = book ? l.chLen : l.len;
+  const len =
+    NOTHING_MADE.includes(l.state) || rawLen === null || !(rawLen > 0)
+      ? 0
+      : rawLen;
+  const rawPos = book ? l.chPos : l.pos;
+  const pos = Math.max(0, Math.min(len, Number.isFinite(rawPos) ? rawPos : 0));
+  const prev = prevChapter(l, l.ch);
+  const next = nextChapter(l, l.ch);
+  const onStream = (cn: number) => cn >= fromN;
+  const word =
+    l.state === "playing"
+      ? LISTEN.player.playing
+      : l.state === "paused"
+        ? LISTEN.player.paused
+        : "";
+  const rows: PlayerRow[] = book
+    ? book.chapters.map((c) => {
+        const e = l.entries.find((x) => x.chapter === c.key);
+        const made = onStream(c.n) && e?.state === "made" && !!e.len;
+        const preparing =
+          onStream(c.n) && e?.state === "making" && c.key === l.making;
+        const named = chapterTitle(l, c.key);
+        return {
+          id: c.key,
+          n: c.n,
+          title: named?.title ?? LISTEN.dock.chapter(c.n),
+          titleLang: named?.lang ?? "en",
+          line: made
+            ? lengthWords(e?.len ?? 0)
+            : preparing
+              ? LISTEN.player.preparing(
+                  e?.part ? LISTEN.dock.part(e.part.n, e.part.of) : null,
+                )
+              : LISTEN.player.notPrepared,
+          playable: made,
+          current: c.key === l.ch,
+          word: c.key === l.ch ? word : "",
+        };
+      })
+    : [];
+  return {
+    key,
+    meta: book
+      ? LISTEN.player.meta(book.title, n, total)
+      : (opts.docWhere ?? READER_DOCUMENT.where(l.key.project)),
+    title: l.title,
+    titleLang: l.titleLang ?? "en",
+    word: note.word,
+    shape: note.shape,
+    text: note.text,
+    line: note.line,
+    lineLabel: note.lineLabel,
+    ref: note.ref,
+    action:
+      key === "outdated" ? "update" : key === "fail-session" ? "signin" : "",
+    updating: l.updating,
+    pos,
+    len,
+    soFar: book ? l.chSoFar : l.soFar,
+    lead,
+    seekable: len > 0 && !NO_SEEK.includes(l.state),
+    isBook: !!book,
+    hasPrev: !!prev && onStream(prev.n),
+    hasNext: !!next,
+    prev: prev && onStream(prev.n) ? prev.key : null,
+    next: next?.key ?? null,
+    speed: l.speed,
+    follow: l.follow,
+    where: book ? LISTEN.player.where(n, total) : "",
+    rows,
   };
 }
