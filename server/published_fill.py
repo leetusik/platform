@@ -19,9 +19,12 @@ The rule (the store's own times, nothing invented):
 What it touches: the current file and every ``.versions/`` archive file under every
 content root (``docs/`` and ``tenants/<uuid>/``). For each file it inserts ONE header
 line and changes no other byte (the body included) and keeps the file's modification
-time, so the archive times the store re-derives stay what they were. A file that
-already has a ``published:`` line (a real stamp, or an earlier fill) is skipped, so a
-second run changes nothing. It never reads or writes the accounts database, and it
+time, so the archive times the store re-derives stay what they were. It works on the
+file's bytes: the new line ends the way the line it follows ends (``\n``, ``\r\n`` or
+``\r``), and a guard compares the result with the file byte for byte, so a file it
+cannot stamp that way is skipped as ``refused: <why>`` (shown even without
+``--verbose``), never rewritten. A file that already has a ``published:`` line (a
+real stamp, or an earlier fill) is skipped, so a second run changes nothing. It never reads or writes the accounts database, and it
 opens the document store read-only.
 
 It never runs by itself (not on start, not on reindex): it is an explicit command,
@@ -59,6 +62,8 @@ from server.reindex import RESERVED_DIRS
 _FILENAME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-(.+)\.(md|html)$")
 
 COMMIT_MESSAGE = "docs: stamp best-effort publish times"
+REFUSED = "refused: "
+_EOL_RE = re.compile(r"\r\n|\r|\n")
 INDEX_LOCK_WAIT_S = 10.0
 
 
@@ -203,11 +208,13 @@ def plan_root(root: Path, store_times: dict[str, str]) -> list[Planned]:
     for stem, current in sorted(_stems(root).items()):
         archives = _archives(root, stem)
         files: list[tuple[int, Path]] = sorted(archives.items())
+        raws: dict[Path, bytes] = {}
         texts: dict[Path, str] = {}
         metas: dict[Path, Optional[dict]] = {}
         for _v, path in files + ([(0, current)] if current is not None else []):
             try:
-                texts[path] = path.read_text(encoding="utf-8")
+                raws[path] = path.read_bytes()
+                texts[path] = _as_read(raws[path])
             except (OSError, UnicodeDecodeError) as exc:
                 planned.append(Planned(path, path.relative_to(root).as_posix(), 0,
                                        skip=f"unreadable: {exc}"))
@@ -251,19 +258,93 @@ def plan_root(root: Path, store_times: dict[str, str]) -> list[Planned]:
             if not at:
                 planned.append(Planned(path, rel, v, skip="no time"))
                 continue
+            try:
+                stamp_bytes(raws[path], at, is_html=path.suffix == ".html")
+            except Refused as exc:
+                planned.append(Planned(path, rel, v, at=at, source=source,
+                                       skip=f"{REFUSED}{exc}"))
+                continue
             planned.append(Planned(path, rel, v, at=at, source=source))
     return planned
 
 
+class Refused(ValueError):
+    """The file cannot take the one line without another byte changing."""
+
+
+def _as_read(raw: bytes) -> str:
+    """``raw`` as ``Path.read_text(encoding="utf-8")`` reads it (what reindex parses):
+    strict UTF-8, ``\r\n`` and a lone ``\r`` read as ``\n``; a BOM stays in."""
+    return raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _parse(text: str, is_html: bool) -> tuple[dict, str]:
+    return (documents.parse_html_frontmatter(text) if is_html
+            else documents.parse_frontmatter(text))
+
+
+def stamp_bytes(raw: bytes, at: str, *, is_html: bool) -> bytes:
+    """``raw`` with the one best-effort ``published:`` line inserted, every other byte
+    kept; raises ``Refused`` (saying why) when that cannot be done.
+
+    The line goes where ``documents.set_frontmatter_published`` puts it (after
+    ``version:``, else ``date:``, else first in the header) and ends the way the line
+    it follows ends: a header written in ``\r\n`` (or ``\r``) stays in it, and a
+    mixed file's new line matches its neighbour above, whose ending is the nearest
+    evidence of how that header was written. The guards compare bytes (the result
+    minus the inserted bytes is ``raw`` exactly) and then read the result back the
+    way reindex reads it (the same header plus this time, the same body).
+    """
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Refused(f"not UTF-8: {exc}") from None
+    # [(line, its ending)], split on exactly the three endings; the bare lines are
+    # what the header helpers see in text read with universal newlines.
+    pieces: list[tuple[str, str]] = []
+    pos = 0
+    for m in _EOL_RE.finditer(text):
+        pieces.append((text[pos:m.start()], m.group()))
+        pos = m.end()
+    pieces.append((text[pos:], ""))
+    bare = [line for line, _end in pieces]
+    line = documents.published_line(at, True)
+    new = documents.set_frontmatter_published("\n".join(bare), at, best_effort=True)
+    new_lines = new.split("\n")
+    if len(new_lines) != len(bare) + 1:
+        raise Refused("the header does not take exactly one new line")
+    k = next((i for i, (a, b) in enumerate(zip(bare, new_lines)) if a != b), len(bare))
+    if k < 1 or new_lines[k] != line or new_lines[:k] + new_lines[k + 1:] != bare:
+        raise Refused("the header does not take exactly one new line")
+    ending = pieces[k - 1][1]
+    if not ending:
+        raise Refused("the line the stamp follows has no line ending")
+    offset = len("".join(a + e for a, e in pieces[:k]).encode("utf-8"))
+    inserted = (line + ending).encode("utf-8")
+    out = raw[:offset] + inserted + raw[offset:]
+    if (len(out) != len(raw) + len(inserted) or out[:offset] != raw[:offset]
+            or out[offset + len(inserted):] != raw[offset:]):
+        raise Refused("another byte would change")
+    try:
+        old_meta, old_body = _parse(_as_read(raw), is_html)
+        new_meta, new_body = _parse(_as_read(out), is_html)
+    except documents.FrontmatterError as exc:
+        raise Refused(f"the header would not read back: {exc}") from None
+    published = new_meta.pop(documents.PUBLISHED_FIELD, None)
+    if (new_meta != old_meta or new_body != old_body
+            or documents.parse_published(published) != (at, True)):
+        raise Refused("the header would not read back as this time alone")
+    return out
+
+
 def _write(item: Planned) -> None:
     """Insert the one line, keep every other byte and the file's times."""
-    text = item.path.read_text(encoding="utf-8")
-    new = documents.set_frontmatter_published(text, item.at, best_effort=True)
-    line = documents.published_line(item.at, True) + "\n"
-    if new == text or new.replace(line, "", 1) != text:
-        raise ValueError(f"{item.rel}: the header could not take exactly one line")
+    raw = item.path.read_bytes()
+    if documents.has_published_line(_as_read(raw)):
+        raise Refused("stamped since the plan")
+    new = stamp_bytes(raw, item.at or "", is_html=item.path.suffix == ".html")
     stat = item.path.stat()
-    item.path.write_text(new, encoding="utf-8")
+    item.path.write_bytes(new)
     os.utime(item.path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
 
 
@@ -305,6 +386,9 @@ def fill(*, dry_run: bool, store: Optional[sqlite3.Connection] = None,
             continue
         try:
             _write(item)
+        except Refused as exc:
+            item.skip = f"{REFUSED}{exc}"
+            continue
         except (OSError, ValueError) as exc:
             report.errors.append(f"{item.rel}: {exc}")
             continue
@@ -336,7 +420,7 @@ def format_report(report: Report, *, dry_run: bool, verbose: bool) -> str:
     for p in report.planned:
         if p.skip is None:
             lines.append(f"{verb} {p.rel} v{p.version} at {p.at} ({p.source})")
-        elif verbose:
+        elif verbose or p.skip.startswith(REFUSED):
             lines.append(f"skip {p.rel} v{p.version}: {p.skip}")
     todo = report.count(None)
     lines.append(
@@ -358,8 +442,10 @@ def _parser() -> argparse.ArgumentParser:
         description=(
             "Give every version without a publish time one best-effort time, once, "
             "from the store's archive times (v1: the document's date). Inserts one "
-            "header line per file, changes no other byte, keeps file times, skips a "
-            "file that already has a time. Run it ONLY while KB writes are paused."
+            "header line per file, in the file's own line ending, changes no other "
+            "byte (a file it cannot stamp so is skipped as refused), keeps file "
+            "times, skips a file that already has a time. Run it ONLY while KB "
+            "writes are paused."
         ),
     )
     parser.add_argument("--dry-run", action="store_true",

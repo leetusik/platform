@@ -333,3 +333,99 @@ def test_the_fill_command_commits_only_what_git_tracks(tmp_path, monkeypatch):
         "docs/.versions/alpha/2026-10-02-two/v0002.md",
     }
     assert '"best_effort": true' in files["four"].read_text()  # filled, never staged
+
+
+# --- the fill works on bytes (any line ending, the body and the tail kept) ----
+
+_DAY_LINE = b'published: {"at": "2026-07-02", "best_effort": true}'
+
+
+def _crlf(text: str) -> bytes:
+    return text.replace("\n", "\r\n").encode()
+
+
+# (raw file, the bytes before which the one line goes, the ending it takes): the
+# line follows ``date:`` (no ``version:``) and takes the ending of the line it follows.
+_ENDINGS = {
+    "lf": (b'---\ntitle: "C"\ndate: 2026-07-02\ntags: []\n---\n\nBody\n', b"\n"),
+    "crlf": (_crlf('---\ntitle: "C"\ndate: 2026-07-02\ntags: []\n---\n\nBody\n'), b"\r\n"),
+    "cr": (b'---\rtitle: "C"\rdate: 2026-07-02\rtags: []\r---\r\rBody\r', b"\r"),
+    "crlf-head-lf-body": (
+        b'---\r\ntitle: "C"\r\ndate: 2026-07-02\r\ntags: []\r\n---\r\n\nBody\nTwo\r\n', b"\r\n"),
+    "mixed-head": (b'---\ntitle: "C"\r\ndate: 2026-07-02\rtags: []\n---\n\nBody\n', b"\r"),
+    "no-final-newline": (_crlf('---\ntitle: "C"\ndate: 2026-07-02\ntags: []\n---\n\nBody')
+                         , b"\r\n"),
+    "trailing-blanks": (b'---\ntitle: "C"\ndate: 2026-07-02\ntags: []\n---\n\nBody\n\n\n\n',
+                        b"\n"),
+    "crlf-trailing-blanks": (
+        _crlf('---\ntitle: "C"\ndate: 2026-07-02\ntags: []\n---\n\nBody\n\n\n'), b"\r\n"),
+    "html-crlf": (_crlf('<!--kb\ntitle: "C"\ndate: 2026-07-02\ntags: []\n-->\n\n'
+                        "<!DOCTYPE html><p>x</p>\n"), b"\r\n"),
+}
+
+
+@pytest.mark.parametrize("where", ["current", "archive"])
+@pytest.mark.parametrize("case", sorted(_ENDINGS))
+def test_the_fill_inserts_one_line_and_keeps_every_other_byte(tmp_path, case, where):
+    raw, ending = _ENDINGS[case]
+    ext = "html" if case.startswith("html") else "md"
+    docs = tmp_path / "docs"
+    rel = (f"alpha/2026-07-02-c.{ext}" if where == "current"
+           else f".versions/alpha/2026-07-02-c/v0001.{ext}")
+    path = docs / rel
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw)
+    os.utime(path, (1_700_000_000, 1_700_000_000))
+    cut = raw.index(b"date: 2026-07-02") + len(b"date: 2026-07-02") + len(ending)
+    want = raw[:cut] + _DAY_LINE + ending + raw[cut:]
+    roots = [(docs, None)]
+
+    dry = published_fill.fill(dry_run=True, store=None, roots=roots)
+    assert [(p.path, p.at, p.skip) for p in dry.planned] == [(path, "2026-07-02", None)]
+    assert path.read_bytes() == raw  # a dry run writes nothing
+
+    report = published_fill.fill(dry_run=False, store=None, roots=roots)
+    assert (report.errors, report.written) == ([], [path])
+    assert path.read_bytes() == want  # one line new, in its ending; no other byte
+    assert path.stat().st_mtime == 1_700_000_000
+    meta, _body = (documents.parse_html_frontmatter if ext == "html"
+                   else documents.parse_frontmatter)(path.read_text(encoding="utf-8"))
+    assert documents.parse_published(meta["published"]) == ("2026-07-02", True)
+
+    again = published_fill.fill(dry_run=False, store=None, roots=roots)
+    assert again.written == [] and [p.skip for p in again.planned] == ["stamped"]
+    assert path.read_bytes() == want
+
+
+def test_the_fill_leaves_a_file_with_a_byte_order_mark_alone(tmp_path):
+    # Reindex reads no header past a BOM (the file is skipped there too), so the
+    # fill skips it, with the reason, and never touches a byte.
+    docs = tmp_path / "docs"
+    path = docs / "alpha/2026-07-02-c.md"
+    path.parent.mkdir(parents=True)
+    raw = b"\xef\xbb\xbf" + _ENDINGS["crlf"][0]
+    path.write_bytes(raw)
+    report = published_fill.fill(dry_run=False, store=None, roots=[(docs, None)])
+    assert report.written == [] and [p.skip for p in report.planned] == ["no header"]
+    assert path.read_bytes() == raw
+
+
+def test_the_fill_refuses_a_change_beyond_its_one_line(tmp_path, monkeypatch):
+    docs = tmp_path / "docs"
+    path = docs / "alpha/2026-07-02-c.md"
+    path.parent.mkdir(parents=True)
+    raw = _ENDINGS["crlf"][0]
+    path.write_bytes(raw)
+    real = documents.set_frontmatter_published
+    monkeypatch.setattr(
+        "server.documents.set_frontmatter_published",
+        lambda text, at, best_effort=False: real(text, at, best_effort).replace("Body", "B"),
+    )
+    for dry_run in (True, False):
+        report = published_fill.fill(dry_run=dry_run, store=None, roots=[(docs, None)])
+        (item,) = report.planned
+        assert item.skip and item.skip.startswith("refused:"), item.skip
+        assert report.written == [] and report.errors == []
+        assert path.read_bytes() == raw
+        shown = published_fill.format_report(report, dry_run=dry_run, verbose=False)
+        assert f"skip alpha/2026-07-02-c.md v1: {item.skip}" in shown
