@@ -38,7 +38,10 @@ and whose result comes back in that sync's batch. Until then the item reads
 
 The early checks only (422 with one line): a title of 1 to 200 characters on one line
 with the signed refusal, full agenda ids (the engine's ``AGENDA_ID_PATTERN``), a known
-kind and its fields. Everything else is the engine's to refuse.
+kind and its fields, and, on a change, ids the workspace holds now (a stored item or a
+pending add; the engine's own line, ``<id> names no agenda item``). Everything else is
+the engine's to refuse; a refused change whose item has gone since is listed in the
+Workspace's ``unplaced``, with its entry for Discard and Try again.
 """
 
 from __future__ import annotations
@@ -347,6 +350,18 @@ async def _add(reader: WorkspaceReader, ctx: AuthContext, fields: dict[str, Any]
     return {"entry": _serialize(entry), "item": minted}
 
 
+async def _held(reader: WorkspaceReader, ids: list[str]) -> None:
+    """A 422 in the engine's own words for the first id the workspace does not hold."""
+
+    try:
+        held = await reader.held_ids()
+    except WorkspaceReadError as exc:
+        raise _unavailable() from exc
+    for aid in ids:
+        if aid not in held:
+            raise _field_error(f"{aid} names no agenda item")
+
+
 def _body(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise _field_error("the body must be a JSON object")
@@ -385,6 +400,7 @@ async def change_agenda_items(
         )
     items = _items(body.get("items"))
     fields = _fields(kind, items, body.get("fields"))
+    await _held(reader, [*items, *(fields[p] for p in ("before", "after") if p in fields)])
     entry = await _write(reader.project_id, ctx, kind=kind, items=items, fields=fields)
     return {"entry": _serialize(entry)}
 

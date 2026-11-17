@@ -42,6 +42,9 @@ linked engine applies or refuses it (``server/workspace_web_api.py``). The open 
 are read on every request, outside the memo and its key, and laid over the agenda as
 each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry}``; a pending add is
 its own row and a pending delete hides its item (:meth:`WorkspaceReader._overlay`).
+The Workspace's ``unplaced`` lists every open entry no row carries (its items gone or
+never there, or its refusal behind a newer entry on the same item), so a change that
+does not apply is never out of sight (:meth:`WorkspaceReader._unplaced`).
 """
 
 from __future__ import annotations
@@ -887,6 +890,15 @@ class WorkspaceReader:
 
         return self._overlay(await self._agenda_rows())
 
+    async def held_ids(self) -> set[str]:
+        """The ids a web change may name: the stored items and every pending add's id."""
+
+        ids = {row["id"] for row in await self._agenda_rows()}
+        ids.update(entry.minted_id for entry in self._inbox
+                   if entry.kind == INBOX_ADD and entry.state == INBOX_PENDING
+                   and entry.minted_id)
+        return ids
+
     async def agenda_ids(self) -> set[str]:
         """Every agenda id the web can see: the stored items and every open entry's ids."""
 
@@ -998,6 +1010,41 @@ class WorkspaceReader:
             out.append(row if entry is None else {**row, "sync": _sync_mark(entry)})
         return out
 
+    def _unplaced(self, rows: list[dict[str, Any]],
+                  shown: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Every open entry no shown row carries, oldest first, so none closes unseen.
+
+        ``rows`` are the stored items and ``shown`` the overlaid agenda. A pending entry
+        is listed when none of its items is a stored item or an open add's id (one that
+        is matched waits on its row, or is a delete hiding it); a refused entry when no
+        shown row's ``sync`` names it: its items are gone or never existed, or a newer
+        entry on the same item took the row's mark. Built per request, never memoized.
+        """
+
+        if not self._inbox:
+            return []
+        held = {row["id"] for row in rows}
+        held.update(entry.minted_id for entry in self._inbox
+                    if entry.kind == INBOX_ADD and entry.minted_id)
+        carried = {row["sync"]["entry"] for row in shown if isinstance(row.get("sync"), dict)}
+        out: list[dict[str, Any]] = []
+        for entry in self._inbox:
+            if entry.state == INBOX_PENDING:
+                if any(aid in held for aid in entry.items):
+                    continue
+            elif str(entry.id) in carried:
+                continue
+            out.append({
+                "entry": str(entry.id),
+                "kind": entry.kind,
+                "items": list(entry.items),
+                "fields": dict(entry.fields),
+                "sync": _sync_mark(entry),
+                "refused": None if entry.state == INBOX_PENDING else (entry.reason or ""),
+                "created": _iso_z(entry.created_at),
+            })
+        return out
+
     # -- the workspace ------------------------------------------------------------------
 
     async def _waiting(self) -> list[dict[str, Any]]:
@@ -1044,7 +1091,9 @@ class WorkspaceReader:
             }
 
         lists = await self._memoized(("workspace",), build)
-        return {**base, **lists, "agenda": self._overlay(lists["agenda"])}
+        shown = self._overlay(lists["agenda"])
+        return {**base, **lists, "agenda": shown,
+                "unplaced": self._unplaced(lists["agenda"], shown)}
 
 
 # -- helpers the reader composes ------------------------------------------------------

@@ -366,7 +366,7 @@ def test_try_again_sends_the_refused_change_anew(store):
 
 def test_the_overlay_never_reaches_the_memo(store):
     client, _engine = store
-    owner, project_id, key, _ = _linked(client)
+    owner, project_id, key, answer = _linked(client)
     import server.workspace_read as workspace_read
 
     _add(client, owner, project_id, "Export is slow")
@@ -385,11 +385,127 @@ def test_the_overlay_never_reaches_the_memo(store):
         assert {r["id"] for r in memo_rows} == {"A2-k5", "A1-h7"}
         assert all(r["sync"] is None for r in memo_rows)
 
+    # a change no row carries is listed per request, never memoized
+    gone = _change(client, owner, project_id, "edit", ["A1-h7"], {"title": "Renamed"})
+    path = "works/agenda/A1-h7/agenda.json"
+    assert _commit(client, project_id, key, ops=[
+        {"op": "delete", "path": path, "base_rev": answer["revs"][path]}]).status_code == 200
+    shape = client.get(_base(project_id), headers=_session(owner)).json()
+    assert gone.json()["entry"]["id"] in [u["entry"] for u in shape["unplaced"]]
+    for snap in workspace_read._memo.values():
+        if str(snap.project_id) == project_id:
+            assert "unplaced" not in snap.results.get(("workspace",), {})
+
     # another request with an empty inbox reads no overlay
     with _engine.begin() as conn:
         conn.execute(text("UPDATE workspace_inbox SET state = 'discarded' WHERE project_id = :p"),
                      {"p": project_id})
-    assert _sync_of(client, owner, project_id) == {"A2-k5": None, "A1-h7": None}
+    assert _sync_of(client, owner, project_id) == {"A2-k5": None}
+    assert client.get(_base(project_id), headers=_session(owner)).json()["unplaced"] == []
+
+
+def _unplaced(client, owner, project_id) -> list[dict]:
+    res = client.get(_base(project_id), headers=_session(owner))
+    assert res.status_code == 200, res.text
+    return res.json()["unplaced"]
+
+
+def _delete_file(client, project_id, key, answer, aid):
+    path = f"works/agenda/{aid}/agenda.json"
+    res = _commit(client, project_id, key,
+                  ops=[{"op": "delete", "path": path, "base_rev": answer["revs"][path]}])
+    assert res.status_code == 200, res.text
+
+
+def test_a_change_whose_item_is_gone_stays_listed_until_discarded(store):
+    client, _engine = store
+    owner, project_id, key, answer = _linked(client)
+    base = _base(project_id)
+    assert _unplaced(client, owner, project_id) == []
+
+    # a web edit, then another checkout deletes the item: the edit still shows, waiting
+    edit = _change(client, owner, project_id, "edit", ["A1-h7"], {"title": "Renamed"})
+    assert edit.status_code == 201, edit.text
+    edit = edit.json()["entry"]
+    _delete_file(client, project_id, key, answer, "A1-h7")
+    assert "A1-h7" not in _sync_of(client, owner, project_id)
+    [row] = _unplaced(client, owner, project_id)
+    assert row["entry"] == edit["id"] and row["kind"] == "edit"
+    assert row["items"] == ["A1-h7"] and row["fields"] == {"title": "Renamed"}
+    assert row["sync"] == "waiting" and row["refused"] is None
+    assert row["created"] == edit["created_at"]
+
+    # the engine refuses it: the line shows, with the entry Discard and Try again name
+    line = "refused, exit 1 (agenda-edit A1-h7): A1-h7 names no agenda item"
+    res = _commit(client, project_id, key, inbox=[
+        {"id": edit["id"], "state": "refused", "reason": line, "exit": 1}])
+    assert res.status_code == 200, res.text
+    [row] = _unplaced(client, owner, project_id)
+    assert row["refused"] == line and row["sync"] == {"refused": line, "entry": edit["id"]}
+
+    # Try again sends it anew (still listed, waiting); Discard closes it
+    again = client.post(f"{base}/inbox/{edit['id']}/retry", headers=_session(owner))
+    assert again.status_code == 201, again.text
+    again = again.json()["entry"]
+    assert [(u["entry"], u["sync"]) for u in _unplaced(client, owner, project_id)] == [
+        (again["id"], "waiting")]
+    res = client.post(f"{base}/inbox/{again['id']}/discard", headers=_session(owner))
+    assert res.status_code == 200, res.text
+    assert _unplaced(client, owner, project_id) == []
+
+
+def test_a_refusal_shown_on_an_item_stays_listed_when_the_item_goes(store):
+    client, _engine = store
+    owner, project_id, key, answer = _linked(client)
+
+    move = _change(client, owner, project_id, "move", ["A1-h7"], {"first": True}).json()["entry"]
+    line = "refused, exit 1 (agenda-move A1-h7): A1-h7 is already first"
+    _commit(client, project_id, key, inbox=[
+        {"id": move["id"], "state": "refused", "reason": line, "exit": 1}])
+    assert _sync_of(client, owner, project_id)["A1-h7"] == {"refused": line, "entry": move["id"]}
+    assert _unplaced(client, owner, project_id) == []  # shown on its item, not twice
+
+    _delete_file(client, project_id, key, answer, "A1-h7")
+    [row] = _unplaced(client, owner, project_id)
+    assert row["entry"] == move["id"] and row["refused"] == line and row["kind"] == "move"
+
+
+def test_a_refusal_behind_a_newer_change_stays_listed(store):
+    client, _engine = store
+    owner, project_id, key, _ = _linked(client)
+
+    solve = _change(client, owner, project_id, "solve", ["A2-k5"]).json()["entry"]
+    line = "refused: A2-k5 is In progress through P8-q4"
+    _commit(client, project_id, key, inbox=[
+        {"id": solve["id"], "state": "refused", "reason": line, "exit": 1}])
+    _change(client, owner, project_id, "edit", ["A2-k5"], {"note": "More."})
+    assert _sync_of(client, owner, project_id)["A2-k5"] == "waiting"  # the newest entry
+    [row] = _unplaced(client, owner, project_id)  # the older refusal is still in sight
+    assert row["entry"] == solve["id"] and row["refused"] == line
+
+
+def test_a_change_naming_an_id_the_workspace_lacks_is_refused_at_once(store):
+    client, _engine = store
+    owner, project_id, key, _ = _linked(client)
+
+    for kind, items, fields in (
+        ("edit", ["A99-zz"], {"title": "Ghost"}),
+        ("solve", ["A2-k5", "A99-zz"], None),
+        ("delete", ["A99-zz"], None),
+        ("move", ["A2-k5"], {"before": "A99-zz"}),
+    ):
+        res = _change(client, owner, project_id, kind, items, fields)
+        assert res.status_code == 422, (kind, items, res.text)
+        assert res.json()["detail"] == "A99-zz names no agenda item"
+    assert _inbox_count(client, project_id, key) == 0
+
+    # a pending add's id is the workspace's to come: a change may name it
+    minted = _add(client, owner, project_id, "Export is slow").json()["item"]
+    res = _change(client, owner, project_id, "edit", [minted], {"note": "Twice."})
+    assert res.status_code == 201, res.text
+    assert _change(client, owner, project_id, "move", ["A2-k5"],
+                   {"after": minted}).status_code == 201
+    assert _unplaced(client, owner, project_id) == []
 
 
 # -- the engine's side -----------------------------------------------------------------------

@@ -49,7 +49,8 @@
     "changed": "2026-11-11", "phases": ["P8-q4"], "deferred": ["D20-a3"], "outcome": "", "reason": "", "sync": null},
    {"id": "A1-h7", "title": "검색이 느려요", "lang": "ko", "note": "", "state": "solved", "created": "2026-10-01",
     "changed": "2026-10-20", "phases": [], "deferred": [], "outcome": "Indexed.", "reason": "", "sync": null}
-  ]
+  ],
+  "unplaced": []
  },
  "phase": {
   "id": "P8-q4", "short": "P8", "name": "Retry queue", "objective": "Failed uploads retry on their own.", "status": "in_progress",
