@@ -312,6 +312,28 @@ def test_public_book_route_is_404_on_a_private_project(documents_client):
     assert client.get("/app/books/secret/intro", headers=headers).status_code == 200
 
 
+def test_public_book_route_names_its_org(documents_client):
+    """P63: the public book read carries the owning org as the org library names it
+    (``org``: slug and display name), for a visitor's way back; a private project's
+    book stays the one 404, so the name leaks nowhere new."""
+
+    client, _ = documents_client
+    headers, tenant = _tenant_with_books(client)
+    # A slug-less tenant: addressed on its id, its slug null.
+    name = client.get(f"/app/orgs/{tenant}/library").json()["org"]["name"]
+    assert name
+    ok = client.get(f"/app/orgs/{tenant}/shelf/books/intro")
+    assert ok.json()["org"] == {"slug": None, "name": name}
+    org = f"org-{uuid4().hex[:10]}"
+    assert client.patch("/app/tenant", json={"slug": org}, headers=headers).status_code == 200
+    for hdrs in ({}, headers):
+        hit = client.get(f"/app/orgs/{org}/shelf/books/intro", headers=hdrs)
+        assert hit.json()["org"] == {"slug": org, "name": name}
+    assert client.get(f"/app/orgs/{org}/secret/books/intro", headers=headers).json()["org"]["name"] == name
+    priv = client.get(f"/app/orgs/{org}/secret/books/intro")
+    assert priv.status_code == 404 and "org" not in priv.json()
+
+
 def test_slugless_tenant_book_is_addressed_on_its_tenant_id(documents_client):
     """P30.S11 (OQ26): `org` is the slug, or the tenant id when there is none."""
 

@@ -93,6 +93,8 @@ export interface DocumentReaderProps {
   from?: string | null;
   /** The org's slug, from the document's address (a visitor's way back). */
   org?: string | null;
+  /** The org's display name, as the document's read names it (P63-fk.S26): the way back's label. */
+  orgName?: string | null;
   nonce?: string;
   /** The viewer's zone, for dates (decision 5). */
   timeZone?: string;
@@ -106,6 +108,7 @@ export function DocumentReader({
   bookmarks = [],
   from = null,
   org = null,
+  orgName = null,
   nonce,
   timeZone,
   children,
@@ -273,7 +276,7 @@ export function DocumentReader({
     member,
     from,
     org,
-    names: { project: view.project },
+    names: { project: view.project, org: orgName },
   });
   const origin = back?.origin ?? null;
   const go = (href: string) => router.push(href);

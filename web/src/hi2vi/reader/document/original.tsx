@@ -149,6 +149,8 @@ export interface DocumentOriginalProps {
   from?: string | null;
   /** The org's slug (a visitor's way back). */
   org?: string | null;
+  /** The org's display name, as the document's read names it (P63-fk.S26): the way back's label. */
+  orgName?: string | null;
   nonce?: string;
   /** The viewer's zone, for dates (decision 5). */
   timeZone?: string;
@@ -160,6 +162,7 @@ export function DocumentOriginal({
   marks = [],
   from = null,
   org = null,
+  orgName = null,
   nonce,
   timeZone,
 }: DocumentOriginalProps) {
@@ -493,7 +496,7 @@ export function DocumentOriginal({
     member,
     from,
     org,
-    names: { project: view.project },
+    names: { project: view.project, org: orgName },
   });
   const origin = back?.origin ?? null;
   const here = (version: number | null) =>

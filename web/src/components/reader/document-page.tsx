@@ -41,6 +41,7 @@ export function renderDocument(
         marks={legacy.marks ?? []}
         from={p.from}
         org={p.org ?? legacy.view.write?.org ?? null}
+        orgName={legacy.orgName ?? null}
         nonce={p.nonce}
         timeZone={p.timeZone}
       />
@@ -72,6 +73,7 @@ export function renderDocument(
       bookmarks={bookmarks}
       from={p.from}
       org={p.org}
+      orgName={reader.orgName ?? null}
       nonce={p.nonce}
       timeZone={p.timeZone}
     >

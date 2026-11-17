@@ -51,6 +51,10 @@ export function documentBack(p: {
   from: string | null | undefined;
   /** The org's slug, from the document's address. */
   org: string | null;
+  /**
+   * The names the reads carry: the project's, and the document's org's (its read's `org.name`, P63). The org's
+   * names only the public library of that same org (`org` above); any other, or none, reads the address's slug.
+   */
   names?: { project?: string | null; org?: string | null };
 }): { origin: ListOrigin; href: string; label: string } | null {
   const raw = typeof p.from === "string" && p.from !== "" ? p.from : null;
@@ -68,7 +72,14 @@ export function documentBack(p: {
       origin = { origin: "public-library", org: p.org, place: {} };
     else return null;
   }
-  return { origin, ...wayBack(origin, p.names) };
+  const own = origin.origin === "public-library" && origin.org === p.org;
+  return {
+    origin,
+    ...wayBack(origin, {
+      project: p.names?.project,
+      org: own ? p.names?.org : null,
+    }),
+  };
 }
 
 // ---- what marks a document takes (OQ14: by format) -----------------------------------------------------

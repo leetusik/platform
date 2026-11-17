@@ -29,9 +29,18 @@ export type QuizSavedItem =
       state: "graded";
       response: KbQuizAttempt["response"];
       correct: boolean;
+      /** The old look's line: `Your answer from 12 Nov 2026`, on the viewer's day (D5). */
       prov: string;
+      /** The Library look's line, the board's date form: `Your answer from Nov 12` (P63-fk.S26). */
+      line?: string;
     }
-  | { state: "fresh"; note: string };
+  | {
+      state: "fresh";
+      /** The old look's drift note (empty: nothing to say), on the viewer's day. */
+      note: string;
+      /** The same note in the Library look's date form (P63-fk.S26). */
+      libraryNote?: string;
+    };
 
 /** Keyed by the item's DOM id, `<block>--<item>`. */
 export type QuizSaved = Record<string, QuizSavedItem>;
@@ -77,10 +86,14 @@ export interface QuizSavedArgs {
   /** The chapter's variants (other languages), each with its CURRENT version. */
   variants: { stem: string; docId: number; version: number }[];
   langName: (lang: string) => string;
+  /** The viewer's zone (`viewerTimeZone`), every saved date's day (D5); UTC when not given. */
+  timeZone?: string;
 }
 
 export async function loadQuizSaved(args: QuizSavedArgs): Promise<QuizSaved> {
-  const { token, attempts, checked, here, loose } = args;
+  const { token, attempts, checked, here, loose, timeZone } = args;
+  // One date form per look: the old look's `12 Nov 2026`, the Library's `Nov 12` (the board's).
+  const library = { timeZone, form: "library" as const };
   const out: QuizSaved = {};
   if (attempts.length === 0) return out;
   const now = quizSpecs(checked);
@@ -130,15 +143,17 @@ export async function loadQuizSaved(args: QuizSavedArgs): Promise<QuizSaved> {
       const sameLang = loose ? a.doc === here.stem : a.lang === here.lang;
       const langName = args.langName(a.lang);
       if (spec.type === "cloze" && !sameLang) {
+        const drift = {
+          answeredAt: a.answered_at,
+          sameLang,
+          version: a.version,
+          langName,
+          otherLanguageCloze: true,
+        };
         out[key] = {
           state: "fresh",
-          note: driftNote({
-            answeredAt: a.answered_at,
-            sameLang,
-            version: a.version,
-            langName,
-            otherLanguageCloze: true,
-          }),
+          note: driftNote({ ...drift, timeZone }),
+          libraryNote: driftNote({ ...drift, ...library }),
         };
         return;
       }
@@ -150,29 +165,33 @@ export async function loadQuizSaved(args: QuizSavedArgs): Promise<QuizSaved> {
       if (
         shapeOf(then.get(key) ?? null, sameLang) !== shapeOf(spec, sameLang)
       ) {
+        const drift = {
+          answeredAt: a.answered_at,
+          sameLang,
+          version: a.version,
+          langName,
+          otherLanguageCloze: false,
+        };
         out[key] = {
           state: "fresh",
-          note: driftNote({
-            answeredAt: a.answered_at,
-            sameLang,
-            version: a.version,
-            langName,
-            otherLanguageCloze: false,
-          }),
+          note: driftNote({ ...drift, timeZone }),
+          libraryNote: driftNote({ ...drift, ...library }),
         };
         return;
       }
+      const from = {
+        answeredAt: a.answered_at,
+        sameLang,
+        version: a.version,
+        viewVersion: here.version,
+        langName,
+      };
       out[key] = {
         state: "graded",
         response: a.response,
         correct: a.correct,
-        prov: provenance({
-          answeredAt: a.answered_at,
-          sameLang,
-          version: a.version,
-          viewVersion: here.version,
-          langName,
-        }),
+        prov: provenance({ ...from, timeZone }),
+        line: provenance({ ...from, ...library }),
       };
     }),
   );

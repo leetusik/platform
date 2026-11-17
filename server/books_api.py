@@ -149,6 +149,9 @@ async def resolve_book_by_slug(
     return {
         **_app_book(found),
         "canonical_path": _book_canonical_path(org_label(tenant), project, book),
+        # P63: the owning org as the org library names it (its ``org`` key's slug and
+        # name), only past the visibility gate: a visitor's way back reads its name.
+        "org": {"slug": tenant.slug, "name": tenant.name},
     }
 
 

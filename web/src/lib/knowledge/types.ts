@@ -352,6 +352,18 @@ export interface KbDocument extends KbDocumentListItem {
   published?: string | null;
   /** True when `published` is a one-time best-effort fill, not the server's own stamp. */
   published_best_effort?: boolean;
+  /**
+   * The owning org as the org library names it (P63, `KbOrgLibrary.org`'s `slug` and `name`), on the
+   * two detail reads, past their visibility gate: a visitor's way back reads its name. Null in legacy
+   * mode; absent from an older backend.
+   */
+  org?: KbOwnerOrg | null;
+}
+
+/** An item's owning org as its read names it (P63): the slug (null when it has none) and the display name. */
+export interface KbOwnerOrg {
+  slug: string | null;
+  name: string;
 }
 
 /** `GET /app/documents` → `{total, items}` (offset-paged; `total` is the full count). */
@@ -533,6 +545,11 @@ export interface KbBook {
   chapters: KbBookChapter[];
   /** `/@{org}/{project}/books/{book}`, on the slug (or the tenant id when it has none). */
   canonical_path: string;
+  /**
+   * The owning org as the org library names it (P63): its slug and display name, on the public
+   * read (`GET /app/orgs/{org}/{project}/books/{book}`) only. Absent from an older backend.
+   */
+  org?: KbOwnerOrg | null;
 }
 
 /** One chapter variant in an org library listing (`GET /app/orgs/{org}/library`, P30.S22). */

@@ -17,6 +17,7 @@ import {
 } from "@/hi2vi/reader/aids";
 import { ChapterView, validateChapter } from "@/lib/native";
 import type { QuizViewContext } from "@/lib/native/render";
+import { loadQuizSaved } from "@/lib/reader/quiz-saved";
 import {
   fresh,
   landSend,
@@ -129,6 +130,41 @@ describe("a graded option stays focusable", () => {
     }
     expect(markup).toContain("Your answer, correct");
     expect(markup).toContain("Your answer from 12 Nov 2026");
+  });
+  it("a saved answer's line is the board's date on the viewer's day (P63-fk.S26)", async () => {
+    // Answered at 23:30 UTC on 12 Nov 2025: 13 Nov in Seoul. Another year, so the board's form names it.
+    const saved = await loadQuizSaved({
+      token: undefined,
+      attempts: [
+        {
+          id: "a1",
+          doc: "d",
+          lang: "en",
+          version: 1,
+          block_id: "q",
+          item_id: "pick",
+          item_type: "choice",
+          response: { selected: ["b"] },
+          correct: true,
+          attempt: 1,
+          answered_at: "2025-11-12T23:30:00Z",
+        },
+      ],
+      checked: validateChapter(QUIZ, "native"),
+      project: "p",
+      here: { stem: "d", lang: "en", version: 1, docId: 1, newest: 1 },
+      loose: true,
+      variants: [],
+      langName: () => "English",
+      timeZone: "Asia/Seoul",
+    });
+    const markup = chapter(QUIZ, { member: true, saved });
+    expect(markup).toContain("Your answer from Nov 13, 2025");
+    expect(markup).not.toContain("13 Nov 2025");
+    // The old look keeps its own words, on the same day.
+    expect(saved["q--pick"]).toMatchObject({
+      prov: "Your answer from 13 Nov 2025",
+    });
   });
 });
 

@@ -400,6 +400,20 @@ describe("the document's frame", () => {
     );
     expect(html).toContain(">Read v5</button>");
   });
+  it("a visitor's way back reads the org's name the read carries, else the address's slug (P63-fk.S26)", () => {
+    const visitor = view({ member: false, write: null, progress: null });
+    const page = (orgName: string | null) =>
+      inApp(
+        renderDocument(
+          { kind: "reader", reader: { ...loaded("md", visitor), orgName } },
+          { from: null, org: "june" },
+        ),
+      );
+    const named = page("June Lab");
+    expect(named).toContain(">Back to June Lab</button>");
+    expect(named).toContain('href="/@june"');
+    expect(page(null)).toContain(">Back to june</button>");
+  });
 });
 
 // ---- DocumentNotes and the bookmarks' writes ----------------------------------------------------------

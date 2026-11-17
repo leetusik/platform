@@ -21,6 +21,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { CHAPTER, SITE } from "@/content";
@@ -60,6 +61,7 @@ import { displayText } from "@/lib/native/display-text";
 import { planTerms } from "@/lib/native/terms";
 import { parseReaderCookie, type ReaderSettings } from "@/lib/reader-cookie";
 import { bookHref, readerHref, type ReaderTarget } from "@/lib/reader-href";
+import { viewerTimeZone } from "@/lib/time-zone";
 
 import { languageName } from "./language";
 import { chromeLangOf, loadNotes } from "./notes-load";
@@ -86,6 +88,11 @@ export interface LoadedReader {
   checked: CheckedChapter;
   /** The chapter or document id the asset relay and the links are keyed by. */
   docId: number;
+  /**
+   * A loose document's org's display name, as its read names it (P63, `KbDocument.org`): a visitor's way back
+   * reads it (`documentBack`'s `names.org`). Null when the read carries none; absent on a chapter.
+   */
+  orgName?: string | null;
   assets: Record<string, KbAsset> | null;
   /** `md` only: the document's absolute URL, which a relative link resolves against. */
   baseUrl?: string;
@@ -111,6 +118,8 @@ export interface LoadedLegacy {
   frame: LegacyFrame;
   /** The document id the relay and the view are keyed by. */
   docId: number;
+  /** As `LoadedReader.orgName`: a loose document's org's display name (P63), or null. */
+  orgName?: string | null;
   /**
    * P63-fk.S13 — a loose html document's bookmarks as its Notes sheet lists them (the Original layout,
    * `hi2vi/reader/document/original.tsx`): each a position, with its label, version and language, and the
@@ -136,6 +145,18 @@ export interface LegacyMark {
 export type ReaderLoad =
   | { kind: "reader"; reader: LoadedReader }
   | { kind: "legacy"; legacy: LoadedLegacy };
+
+/**
+ * The viewer's zone (D5) for a saved answer's day; UTC (undefined) outside a request, where there are no
+ * cookies to read.
+ */
+async function quizZone(): Promise<string | undefined> {
+  try {
+    return viewerTimeZone(await cookies());
+  } catch {
+    return undefined;
+  }
+}
 
 /** Map knowledge's miss statuses to `undefined`; anything else (an outage) rethrows. */
 async function orMiss<T>(run: () => Promise<T>): Promise<T | undefined> {
@@ -863,6 +884,7 @@ export async function loadChapterReader(args: {
         version: v.version,
       })),
     langName: languageName,
+    timeZone: await quizZone(),
   }).catch((): QuizSaved => ({}));
 
   return {
@@ -962,6 +984,7 @@ export async function loadLooseReader(args: {
       legacy: {
         view,
         docId: doc.id,
+        orgName: doc.org?.name || null,
         frame: {
           src: relayOf(doc.id, body.version, doc.version),
           look: raw.look,
@@ -1006,6 +1029,7 @@ export async function loadLooseReader(args: {
     loose: true,
     variants: [],
     langName: languageName,
+    timeZone: await quizZone(),
   }).catch((): QuizSaved => ({}));
 
   const view: ReaderView = {
@@ -1043,6 +1067,7 @@ export async function loadLooseReader(args: {
       view,
       checked,
       docId: doc.id,
+      orgName: doc.org?.name || null,
       assets: body.assets,
       baseUrl:
         body.format === "md"

@@ -117,6 +117,32 @@ function originOf(raw: string, owner: string, signedIn: boolean): ListOrigin {
   return decodeFrom(raw);
 }
 
+/**
+ * The book's way back (F324): `wayBack` with the names the reads carry. The org's name (the book
+ * read's `org.name`, P63; a member's own tenant's when an older backend carries none) names only the
+ * public library of the book's own org; any other org's list, or no name, reads the address's slug.
+ * Pure.
+ */
+export function bookBack(
+  from: ListOrigin,
+  read: {
+    /** The book's org segment (`canonicalOrg`): its slug, else its tenant id. */
+    owner: string;
+    /** The org's slug as the read names it, when it has one. */
+    slug?: string | null;
+    orgName: string | null;
+    project: string;
+  },
+): { href: string; label: string } {
+  const own =
+    from.origin === "public-library" &&
+    (from.org === read.owner || (!!read.slug && from.org === read.slug));
+  return wayBack(from, {
+    project: read.project,
+    org: own ? read.orgName : null,
+  });
+}
+
 export async function loadBook(
   org: string,
   project: string,
@@ -381,9 +407,11 @@ export async function loadBook(
     shapeNote: shapeOf(book.chapters).kind === "phases" ? t.phases : "",
     rows,
     data: hasData ? { chapters: touched, marks } : null,
-    back: wayBack(from, {
+    back: bookBack(from, {
+      owner,
+      slug: book.org?.slug,
+      orgName: book.org?.name || tenant?.name || null,
       project: book.project,
-      org: tenant?.name ?? null,
     }),
     homeHref: signedIn ? LIBRARY_HREF : publicLibraryHref(owner),
     signInHref: loginHref(withFrom(bookHref(target), fromRaw ? from : null)),

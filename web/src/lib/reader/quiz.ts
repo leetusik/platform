@@ -5,7 +5,9 @@
  * between states and word the foot; the server (`quiz-saved.ts`) calls them to decide
  * what a saved answer shows on return. Not `server-only`: both sides import it.
  */
+import { date as formatDate } from "@/lib/format";
 import type { Inline } from "@/lib/native/tree";
+import { DEFAULT_TIME_ZONE } from "@/lib/time-zone";
 
 // --- what the island is given about an item (the key ships in the page: S2) -----------
 
@@ -447,21 +449,71 @@ const MONTHS = [
   "Dec",
 ];
 
-/** `d Mon yyyy` in English, on the UTC day (chrome copy is English-only). */
-export function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+/**
+ * Which look a saved answer's line is worded for: `product`, the old look's `d Mon yyyy`
+ * (`12 Nov 2026`); `library`, the board's form through `format.ts` (`Nov 12`, `Dec 9, 2025` in
+ * another year: `BlocksQuizStates`, D239-ev). Both on the viewer's day (D5).
+ */
+export type QuizDateForm = "product" | "library";
+
+export interface QuizDateOptions {
+  /** The viewer's zone (`viewerTimeZone`); UTC when not known. */
+  timeZone?: string;
+  /** Default `product`. */
+  form?: QuizDateForm;
+  /** The Library form's "this year": default now. */
+  now?: Date | number;
 }
 
-export function provenance(args: {
-  answeredAt: string;
-  sameLang: boolean;
-  version: number;
-  viewVersion: number;
-  langName: string;
-}): string {
-  const day = dayLabel(args.answeredAt);
+/** The calendar day of an instant in `timeZone`, or null when it does not parse. */
+function dayIn(
+  iso: string,
+  timeZone: string,
+): { y: number; m: number; d: number } | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    }).formatToParts(at);
+  } catch {
+    return dayIn(iso, DEFAULT_TIME_ZONE);
+  }
+  const get = (type: string) =>
+    Number(parts.find((x) => x.type === type)?.value);
+  return { y: get("year"), m: get("month"), d: get("day") };
+}
+
+/**
+ * A saved answer's day, on the viewer's day (D5; UTC when the zone is not known): `d Mon yyyy` in
+ * English (`product`, chrome copy is English-only), or the board's `Nov 12` (`library`). An
+ * unreadable value is returned as given.
+ */
+export function dayLabel(iso: string, options: QuizDateOptions = {}): string {
+  const timeZone = options.timeZone || DEFAULT_TIME_ZONE;
+  if (options.form === "library") {
+    if (Number.isNaN(new Date(iso).getTime())) return iso;
+    return formatDate(iso, { timeZone, now: options.now });
+  }
+  const day = dayIn(iso, timeZone);
+  if (!day) return iso;
+  return `${day.d} ${MONTHS[day.m - 1]} ${day.y}`;
+}
+
+export function provenance(
+  args: {
+    answeredAt: string;
+    sameLang: boolean;
+    version: number;
+    viewVersion: number;
+    langName: string;
+  } & QuizDateOptions,
+): string {
+  const day = dayLabel(args.answeredAt, args);
   if (args.sameLang)
     return args.version !== args.viewVersion
       ? `Your answer from ${day}, on v${args.version}`
@@ -469,15 +521,17 @@ export function provenance(args: {
   return `Your answer from ${day}, in ${args.langName} v${args.version}`;
 }
 
-export function driftNote(args: {
-  answeredAt: string;
-  sameLang: boolean;
-  version: number;
-  langName: string;
-  /** The answer was typed in another language (a cloze). */
-  otherLanguageCloze: boolean;
-}): string {
-  const day = dayLabel(args.answeredAt);
+export function driftNote(
+  args: {
+    answeredAt: string;
+    sameLang: boolean;
+    version: number;
+    langName: string;
+    /** The answer was typed in another language (a cloze). */
+    otherLanguageCloze: boolean;
+  } & QuizDateOptions,
+): string {
+  const day = dayLabel(args.answeredAt, args);
   if (args.otherLanguageCloze)
     return `You answered this in ${args.langName} on ${day}. Typed answers stay in their language, so it starts fresh here.`;
   const where = args.sameLang

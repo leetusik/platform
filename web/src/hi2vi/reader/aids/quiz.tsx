@@ -137,7 +137,20 @@ export function LibraryBlank({ n, tail }: { n: number; tail?: ReactNode }) {
   );
 }
 
-export function LibraryQuiz(props: LibraryQuizProps) {
+/** A saved answer as the Library's look words it: its own lines (the board's date form), when the read has them. */
+function libraryLook(item: LibraryQuizItem): LibraryQuizItem {
+  const s = item.saved;
+  if (!s) return item;
+  if (s.state === "graded")
+    return s.line ? { ...item, saved: { ...s, prov: s.line } } : item;
+  return s.libraryNote !== undefined
+    ? { ...item, saved: { ...s, note: s.libraryNote } }
+    : item;
+}
+
+export function LibraryQuiz(given: LibraryQuizProps) {
+  // A saved answer seeds the state in the Library's own words (its lines, the board's date form).
+  const props = { ...given, items: given.items.map(libraryLook) };
   const { id, items, member } = props;
   const total = items.length;
   const { states, sign, saves, act, rootRef } = useQuiz(props, FOCUS);
