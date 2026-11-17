@@ -373,8 +373,11 @@ describe("/review in the focused frame (F201)", () => {
     // the two sheets are the Library's dialog, closed
     expect(out.match(/<dialog class="sheet at-end"/g)).toHaveLength(2);
     expect(out).not.toMatch(/rd-top|rd-line|rd-scrim|rd-sheet|an-slot/);
-    // the end is the old view, bridged in the flow until S9
-    expect(out).toMatch(/data-ui-legacy=""><div class="rd-root rd-size-4"/);
+    // the end is Review's own (S9), in the card's place; nothing old is bridged
+    expect(out).toMatch(
+      /<\/header><div class="stack gap-6"><section class="card-page end-page"/,
+    );
+    expect(out).not.toMatch(/data-ui-legacy|rd-root/);
   });
 
   it("draws Review's own card under the head and june's 23%", async () => {

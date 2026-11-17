@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { REVIEW } from "@/content/review";
 import { ReviewFrame } from "@/hi2vi/review";
+import { accountOf } from "@/hi2vi/review/saved-line";
 import { requireIdentity } from "@/lib/auth-guards";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 import { loadReviewContinue, loadReviewQueue } from "@/lib/review/actions";
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ReviewPage() {
-  await requireIdentity();
+  const { identity } = await requireIdentity();
   const settings = parseReaderCookie(
     (await cookies()).get(READER_COOKIE)?.value,
   );
@@ -43,6 +44,11 @@ export default async function ReviewPage() {
       ? await loadReviewContinue()
       : null;
   return (
-    <ReviewFrame initial={initial} settings={settings} initialNext={next} />
+    <ReviewFrame
+      initial={initial}
+      settings={settings}
+      initialNext={next}
+      account={accountOf(identity)}
+    />
   );
 }

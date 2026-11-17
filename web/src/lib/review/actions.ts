@@ -158,16 +158,15 @@ function shownHighlight(
   const start = anchor?.start;
   const end = anchor?.end;
   const quote =
-    front.quote &&
-    sec &&
-    typeof start === "number" &&
-    typeof end === "number"
+    front.quote && sec && typeof start === "number" && typeof end === "number"
       ? displayQuote(chapter.quotes, sec, start, end, front.quote)
       : null;
   const at = card.where.block_id ?? sec;
   const stored = at ? sectionLabel(chapter.tree, at, plainText) : null;
   const today = at ? sectionLabel(chapter.tree, at, displayText) : null;
-  const relabel = <T extends string | null | undefined>(title: T): T | string =>
+  const relabel = <T extends string | null | undefined>(
+    title: T,
+  ): T | string =>
     title && stored && today && title === stored && stored !== today
       ? today
       : title;
@@ -181,7 +180,11 @@ function shownHighlight(
     return card;
   return {
     ...card,
-    front: { ...card.front, quote: quote ?? front.quote, block_title: blockTitle },
+    front: {
+      ...card.front,
+      quote: quote ?? front.quote,
+      block_title: blockTitle,
+    },
     where: { ...card.where, block_title: whereTitle },
   };
 }
@@ -328,12 +331,22 @@ export async function saveReviewSettings(
   }
 }
 
-/** The end state's "Continue reading" block (Q9): the reader's most recent place, or nothing. */
+/**
+ * The end state's "Continue reading" block (Q9): the reader's most recent place, or nothing. `lede` is the old
+ * end's line (`components/review/end.tsx`, until S10 removes it); job 07's end (F214, review-end FG5) builds its
+ * line from `book`, `chapter` and `pct` (`hi2vi/review/end-model.ts` `contView`).
+ */
 export interface ContinueView {
   title: string;
   lede: string;
   href: string;
   lang: string;
+  /** The book's title; a loose document's project. */
+  book: string;
+  /** The chapter's place in its book; null for a loose document. */
+  chapter: { n: number; total: number } | null;
+  /** The share read; null for an offered next chapter (not started). */
+  pct: number | null;
 }
 
 export async function loadReviewContinue(): Promise<ContinueView | null> {
@@ -351,6 +364,9 @@ export async function loadReviewContinue(): Promise<ContinueView | null> {
       lede: first.next ? where : `${where} · ${first.pct}% read`,
       href: first.href,
       lang: first.lang,
+      book: first.kind === "doc" ? first.project : first.bookTitle,
+      chapter: first.kind === "doc" ? null : { n: first.n, total: first.total },
+      pct: first.next ? null : first.pct,
     };
   } catch {
     return null;

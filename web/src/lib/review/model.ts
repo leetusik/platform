@@ -153,14 +153,25 @@ export function dayDiff(a: string, b: string, tz: string): number {
   );
 }
 
-/** "today at 15:10", "tomorrow at 07:15" or "on 23 Oct at 07:15": `iso` in `tz`, 24-hour. */
-export function whenText(iso: string, nowIso: string, tz: string): string {
+/**
+ * "today at 15:10", "tomorrow at 07:15" or "on 23 Oct at 07:15": `iso` in `tz`, 24-hour. `monthFirst` writes the
+ * date month first, "on Oct 23 at 07:15" (job 07's end of a session, F227; P58-yw's dates).
+ */
+export function whenText(
+  iso: string,
+  nowIso: string,
+  tz: string,
+  monthFirst = false,
+): string {
   const at = localParts(iso, tz);
   const hhmm = `${pad(at.h)}:${pad(at.mi)}`;
   const diff = dayDiff(nowIso, iso, tz);
   if (diff <= 0) return `today at ${hhmm}`;
   if (diff === 1) return `tomorrow at ${hhmm}`;
-  return `on ${at.d} ${MONTHS[at.mo - 1] ?? ""} at ${hhmm}`;
+  const month = MONTHS[at.mo - 1] ?? "";
+  return monthFirst
+    ? `on ${month} ${at.d} at ${hhmm}`
+    : `on ${at.d} ${month} at ${hhmm}`;
 }
 
 /** "HH:00": the hour a review day starts. */

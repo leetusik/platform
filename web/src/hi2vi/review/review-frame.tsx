@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ReviewCardView as OldCardView } from "@/components/review/card";
-import { ReviewEnd } from "@/components/review/end";
 import { READER_FRAME } from "@/content/reader-frame";
 import { REVIEW } from "@/content/review";
 import { Display, Sheet } from "@/hi2vi/library";
@@ -29,6 +28,8 @@ import type { QueueMeta, Rating, ReviewQueue } from "@/lib/review/types";
 import { ReviewCardView } from "./card";
 import { drawnForm } from "./card-model";
 import { DueHead } from "./due-head";
+import { ReviewEndBody } from "./end";
+import { contView, endView, saveLifts } from "./end-model";
 import { Focus, type FocusSheet } from "./focus";
 import {
   dueHeadOf,
@@ -39,6 +40,8 @@ import {
   type SchedulePhase,
 } from "./model";
 import { OldView } from "./old-view";
+import { keepStep, restored, restoreKey } from "./saved-line";
+import { dropKept, readKept, writeKept } from "./saved-store";
 import { Schedule } from "./schedule";
 import {
   canSuspend,
@@ -66,8 +69,13 @@ import { CardSkeleton, ReviewFailed } from "./states";
  *
  * The card is Review's own (`./card`, P64-3y.S8): a card in a form job 07 does not draw (several right answers,
  * several blanks) keeps today's card, whole, bridged in the flow (`OldView`), as the Library's reader keeps today's
- * quiz for those forms. The end of a session is still the old view, bridged, until S9; nothing old is fixed to the
- * window any more.
+ * quiz for those forms. The end of a session is Review's own (`./end`, P64-3y.S9): it takes the card's place when the
+ * queue ends, with the head's held counts; a settings save that lifts the limit that ended it reads the queue again and
+ * moves to the first held card, any other save keeps the end (re-read quietly) with `Settings saved`. `/review` after
+ * the end shows that end for the rest of the day because the queue read does (the server's `limit_reached` and
+ * counts); its saved line comes back too, kept in this browser for the account and the review day (`./saved-line`,
+ * read after mount so the server render and the first client render agree). Nothing old is fixed to the window any
+ * more.
  *
  * The queue's state, its sends and the settings are `ReviewApp`'s (`components/review/review-app.tsx`), moved
  * here unchanged (the rating, suspend and undo steps into `./session`), and they rate against the server
@@ -169,10 +177,13 @@ export function ReviewFrame({
   initial,
   settings,
   initialNext,
+  account,
 }: {
   initial: InitialQueue;
   settings: ReaderSettings;
   initialNext: ContinueView | null;
+  /** The signed-in account's id: it keys the end's kept saved line (F241); null keeps nothing. */
+  account: string | null;
 }) {
   const [s, setS] = useState<AppState>(() =>
     init(initial, settings, initialNext),
@@ -318,6 +329,24 @@ export function ReviewFrame({
     nextAsked.current = true;
     void loadReviewContinue().then((next) => set((p) => ({ ...p, next })));
   }, [kind, set]);
+
+  // The end's saved line for the rest of the review day (F241): the line an end shows is kept in this browser, for
+  // this account and review day, and dropped once the session has cards again; `/review` opening on an end with no
+  // line yet reads it back. Both run after mount only, so the server render and the first client render agree.
+  const day = s.meta.day.start;
+  useEffect(() => {
+    const step = keepStep({ account, kind, saved: s.saved, day });
+    if (step.t === "store") writeKept(step.key, step.value);
+    else if (step.t === "drop") dropKept(step.key);
+  }, [account, kind, s.saved, day]);
+  useEffect(() => {
+    const key = restoreKey({ account, kind, saved: ref.current.saved });
+    if (key === null) return;
+    const out = restored(readKept(key), day);
+    if (out.drop) dropKept(key);
+    const back = out.line;
+    if (back) set((q) => (q.saved === null ? { ...q, saved: back } : q));
+  }, [account, kind, day, set]);
 
   // ---- answering a quiz card ----------------------------------------------------------------
   const act = (a: QuizAction) => {
@@ -479,6 +508,13 @@ export function ReviewFrame({
       return;
     }
     const mine = ++seq.current;
+    // Which end the save is made on, and the settings it replaces (F237: a save that lifts that end's limit).
+    const onEnd = dueHeadOf({
+      status: p.status,
+      meta: p.meta,
+      queue: p.queue,
+    }).kind;
+    const before = p.meta;
     set((q) => ({ ...q, phase: "saving" }));
     void saveReviewSettings(plan.input).then((res) => {
       const cur = ref.current;
@@ -501,8 +537,18 @@ export function ReviewFrame({
           ),
         },
       }));
-      // The limits change what is shown today: read the queue again.
-      void reload({ silent: false, focus: false });
+      // The limits change what is shown today: read the queue again. On an end, a save that lifts its limit brings the
+      // held cards back at the first of them (focused); any other save keeps the end where it is, re-read quietly.
+      if (onEnd !== null && onEnd !== "card") {
+        const lifts = saveLifts(
+          endView(onEnd, before).kind,
+          before.counts,
+          before.profile,
+          res.data,
+        );
+        if (lifts) void reload({ silent: false });
+        else void reload({ silent: true });
+      } else void reload({ silent: false, focus: false });
     });
   };
   const draftTz = s.draft?.tz ?? null;
@@ -607,14 +653,11 @@ export function ReviewFrame({
                     </OldView>
                   ) : null}
                   {ready && kind !== null && kind !== "card" ? (
-                    <OldView settings={dev}>
-                      <ReviewEnd
-                        kind={kind}
-                        meta={s.meta}
-                        next={s.next}
-                        onSettings={(el) => openPanel("settings", el)}
-                      />
-                    </OldView>
+                    <ReviewEndBody
+                      view={endView(kind, s.meta)}
+                      cont={s.next ? contView(s.next) : null}
+                      onLimits={(el) => openPanel("settings", el)}
+                    />
                   ) : null}
                 </>
               )}

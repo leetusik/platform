@@ -158,6 +158,10 @@ export const REVIEW = {
     continue: {
       label: "Continue reading",
       go: "Continue reading →",
+      /** The Continue line's facts after the book (job 07 F214: `{book} · Chapter n of N · p% read`). */
+      chapter: (n: number, total: number): string => `Chapter ${n} of ${total}`,
+      read: (pct: number): string => `${pct}% read`,
+      document: "Document",
     },
     emptyTitle: "No review cards yet",
     emptyBody:
