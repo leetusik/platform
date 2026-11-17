@@ -638,6 +638,13 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
+  /* a recall's head in the narrowest window (P63-fk.S21): at 390 px with 200% text, Answer and Show answer do not
+     fit one line, so Show answer goes under Answer instead of pushing the page sideways (F22, the archived checklist:
+     at 320 and 390 with 200% text the page never scrolls sideways). Where they fit, as at every width a board
+     draws, nothing moves. */
+  .blocks-answer-head {
+    flex-wrap: wrap;
+  }
   /* the reading aids (P63-fk.S10): a hidden window or way back stays hidden whatever its display; the holder is
      shown once the layer has placed it; In the glossary sits at the foot's end even alone; a gap keeps what touches
      its end on its line */

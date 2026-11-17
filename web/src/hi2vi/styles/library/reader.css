@@ -12,6 +12,13 @@
      masthead and colophon), so the new frame's chrome (the bar, the head, the end, the foot) prints nothing and
      the column gives the page its whole width, as the old reader's page did. */
 @scope (.ui) to ([data-ui-legacy]) {
+  /* the reader's root sets its own scheme (Display: light, dark, sepia) but is not the `.ui` root, so it takes the
+     base rule's colour itself, as the board's root (`.ui.app.bare.reader`) does: an inherited text colour then
+     follows the reader's scheme, not the device's (P63-fk.S21) */
+  .app.reader {
+    color: var(--ink);
+  }
+
   /* the place of Listen: at the end of the facts row */
   .read-listen {
     margin-left: auto;
