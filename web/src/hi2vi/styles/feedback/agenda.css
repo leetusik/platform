@@ -3,6 +3,51 @@
    Pre-created by P65-nh.S2 and imported once by ../index.css (so no page or component imports a sheet of its own).
    Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
    tokens' roles; the frame's classes are ./frame.css's, never redefined here (the waiting mark is the frame's
-   `Waiting`, `.badge.is-waiting.is-ink`). */
+   `Waiting`, `.badge.is-waiting.is-ink`). The boards' own <style> rules, as signed; the canvas-only rule (the
+   specimen's non-modal confirm, `.fi-send > .dlg:not(:modal)`) is not built. The title's link is an `a`
+   (`a.link-strong.fi-item-open`), where the board draws a button. */
 @scope (.ui) to ([data-ui-legacy]) {
+  /* the add, at the end of an item's head: one control tall whatever it holds, so the head never moves */
+  .fi-send {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    min-height: var(--control-h);
+  }
+
+  /* the agenda item: its id, its title as the row's link with the waiting mark beside it, its state. Under
+     30em of the list the id sits over the title and the state under it */
+  .fi-items {
+    container-type: inline-size;
+  }
+  .fi-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* the title and the waiting mark share the title's first baseline, and wrap together */
+  .fi-item-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--space-3);
+    min-width: 0;
+  }
+  /* the title is the row's link: it carries the row's 12 px, as td.has-control does in a table */
+  .fi-item-open {
+    padding-block: var(--space-3);
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  /* a mark that wraps under a long title keeps the row's 12 px under it, as the link does; on one line it
+     adds no height */
+  .fi-item-title .badge {
+    margin-bottom: var(--space-3);
+  }
+  @container (min-width: 30em) {
+    .fi-item {
+      grid-template-columns: 5.5em minmax(0, 1fr) auto;
+      padding-block: 0;
+    }
+  }
 }

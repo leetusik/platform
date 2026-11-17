@@ -12,7 +12,7 @@ import type { FeedbackDetail } from "@/lib/feedback/types";
 // F124, F126, F132, F142): every label stays, with the dash when absent; the optional long values and
 // raw JSON only with content; Tags always; operator comments oldest first; files named; Feedback not
 // found for a malformed id, another org's and (in a project's route) another project's; S6's two slots
-// empty; no old-page wrapper.
+// filled as not offered (the head's end empty, the Agenda part's sentence); no old-page wrapper.
 
 const detail = vi.fn();
 const projects = vi.fn();
@@ -316,14 +316,14 @@ describe("Feedback not found", () => {
 });
 
 describe("the page's frame", () => {
-  it("leaves S6's two slots empty: the head ends at its title, Details follows Comment", async () => {
+  it("fills S6's two slots as not offered: the head ends at its title, the Agenda part says why between Comment and Details", async () => {
     detail.mockResolvedValue(bare());
     const html = await orgPage();
     expect(html).toMatch(
       /<div class="page-head fi-head"><div class="page-title">.*?<\/p><\/div><\/div><\/header>/,
     );
     expect(html).toContain(
-      'No comment.</p></div></section><section class="panel" aria-label="Details">',
+      'No comment.</p></div></section><section class="panel" aria-label="Agenda"><div class="panel-head"><h2>Agenda</h2></div><div class="panel-body has-rule block"><p class="block-text">This feedback has no project, so there is no agenda to add it to.</p></div></section><section class="panel" aria-label="Details">',
     );
   });
 

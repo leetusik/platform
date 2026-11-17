@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import { itemHeading, NOT_FOUND } from "@/content/feedback-frame";
 import { requireIdentity } from "@/lib/auth-guards";
+import { canAdd, sent } from "@/lib/feedback/agenda";
 import { getFeedbackDetail } from "@/lib/feedback/app";
 import { zoneLabel } from "@/lib/feedback/format";
 import { feedbackBackHref, type FeedbackScope } from "@/lib/feedback/place";
@@ -14,6 +15,14 @@ import { ApiError } from "@/lib/knowledge/client";
 import type { KbProject } from "@/lib/knowledge/types";
 import { TIME_ZONE_COOKIE, viewerTimeZone } from "@/lib/time-zone";
 
+import {
+  AddedToAgenda,
+  AgendaHeadEnd,
+  AgendaPart,
+  AgendaScope,
+  AgendaSlot,
+  agendaPageState,
+} from "../agenda";
 import { FeedbackItem } from "./item";
 import { feedbackItemView, inScope, isFeedbackId, zoneMetaOf } from "./model";
 
@@ -106,14 +115,33 @@ export async function FeedbackItemBody({
     zone: zoneMetaOf(store.get(TIME_ZONE_COOKIE)?.value, (tz) => zoneLabel(tz)),
     format: { timeZone: viewerTimeZone(store) },
   });
-  // S6's two slots: `headEnd` (Add to agenda) and `agenda` (the Agenda part). Nothing renders in
-  // them yet; S6 fills them here, from `read` (the record, the org's projects, the project's name).
+  const backHref = feedbackBackHref(scope, from);
+  // The two slots (P65-nh.S6): Add to agenda at the head's end and the Agenda part, from the agenda
+  // seam, in the board's order: filed, else waiting, else not offered, else the add. Today no project
+  // has a workspace linked, so the head's end stays empty and the part says why.
+  const agenda = agendaPageState(
+    canAdd(read.record, read.projectName),
+    sent(read.record),
+  );
+  if (agenda.kind === "offered") {
+    // Never today. The phase that links workspaces passes `add`: a server action over `fileAgendaItem`.
+    return (
+      <AgendaScope project={agenda.project}>
+        <FeedbackItem
+          view={view}
+          backHref={backHref}
+          headEnd={<AgendaHeadEnd />}
+          agenda={<AgendaSlot />}
+        />
+      </AgendaScope>
+    );
+  }
   return (
     <FeedbackItem
       view={view}
-      backHref={feedbackBackHref(scope, from)}
-      headEnd={null}
-      agenda={null}
+      backHref={backHref}
+      headEnd={agenda.kind === "not-offered" ? null : <AddedToAgenda />}
+      agenda={<AgendaPart state={agenda} />}
     />
   );
 }
