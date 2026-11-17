@@ -70,7 +70,7 @@ export function WorkspacePanel({
             <>
               {" "}
               {w.run.before}
-              <code className="mono">{w.run.command}</code>
+              <code className="mono ph-cmd">{w.run.command}</code>
               {w.run.after}
             </>
           ) : null}

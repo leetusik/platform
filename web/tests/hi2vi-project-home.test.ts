@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { WorkspacePanel } from "@/app/(app)/projects/[projectId]/parts";
 import {
   isMissingProjectStatus,
   libraryRows,
@@ -62,6 +65,31 @@ describe("Workspace panel (operator D1)", () => {
     expect(projectHomeId("/projects/p_42?x=1")).toBe("p_42");
     expect(projectHomeId("/projects/p_42/feedback")).toBeNull();
     expect(projectHomeId(null)).toBeNull();
+  });
+
+  it("lets the link command, and only it, break anywhere inside its card", () => {
+    // A self-hosted origin with a port is one run longer than a phone's card; `.ui`'s keep-all
+    // would otherwise push the page sideways.
+    const html = renderToStaticMarkup(
+      createElement(WorkspacePanel, {
+        origin: "http://kb.example.test:60592",
+        projectId: "f4cd8de2-2872-45a5-a975-a964542f1dbc",
+      }),
+    );
+    const codes = [...html.matchAll(/<code\b[^>]*>/g)].map((m) => m[0]);
+    expect(codes).toEqual(['<code class="mono ph-cmd">']);
+    const css = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "src/app/(app)/projects/[projectId]/project-home.css",
+      ),
+      "utf8",
+    );
+    const rules = (css.match(/\.ph-cmd\s*\{[^}]*\}/g) ?? []).map((r) =>
+      r.replace(/\s+/g, " "),
+    );
+    expect(rules).toEqual([".ph-cmd { overflow-wrap: anywhere; }"]);
   });
 
   it("leaves no placeholder in the shipped words", () => {
