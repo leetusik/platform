@@ -4,7 +4,8 @@ import { documentBack } from "@/hi2vi/reader/document/model";
 import { decodeFrom } from "@/lib/library/from";
 
 // P63-fk.S26 — a visitor's way back names the org by the name its read carries, on its own
-// public library only, and by the address's slug when the read carries none.
+// public library only, and by the address's slug when the read carries none. P63-fk.F4: another
+// org's list is not trusted; the way back is the item's own default (way-back-label.test.ts).
 
 vi.mock("@/lib/auth-guards", () => ({
   optionalIdentity: vi.fn(async () => null),
@@ -17,6 +18,7 @@ vi.mock("next/headers", () => ({
 const { bookBack } = await import("@/lib/book/load");
 
 const read = {
+  member: false,
   owner: "p63-fid",
   slug: "p63-fid",
   orgName: "Personal",
@@ -30,17 +32,22 @@ describe("the book's way back", () => {
       label: "Personal",
     });
   });
-  it("reads the slug when the read has no name, or for another org's list", () => {
+  it("reads the slug when the read has no name; another org's list is the book's own", () => {
     expect(
       bookBack(decodeFrom("/@p63-fid"), { ...read, orgName: null }).label,
     ).toBe("p63-fid");
-    expect(bookBack(decodeFrom("/@someone"), read).label).toBe("someone");
+    expect(bookBack(decodeFrom("/@someone"), read)).toEqual({
+      href: "/@p63-fid",
+      label: "Personal",
+    });
   });
   it("keeps the other lists' names", () => {
     expect(bookBack(decodeFrom("/@p63-fid/platform"), read).label).toBe(
       "platform",
     );
-    expect(bookBack(decodeFrom(""), read).label).toBe("Library");
+    expect(bookBack(decodeFrom(""), { ...read, member: true }).label).toBe(
+      "Library",
+    );
   });
 });
 
@@ -59,13 +66,12 @@ describe("the document's way back", () => {
       }),
     ).toMatchObject({ href: "/@p63-fid?q=a", label: "Personal" });
   });
-  it("reads the slug when the read has no name, or for another org's list", () => {
+  it("reads the slug when the read has no name; another org's list is the document's own", () => {
     expect(
       documentBack({ member: false, from: null, org: "p63-fid" })?.label,
     ).toBe("p63-fid");
     expect(
-      documentBack({ member: false, from: "/@someone", org: "p63-fid", names })
-        ?.label,
-    ).toBe("someone");
+      documentBack({ member: false, from: "/@someone", org: "p63-fid", names }),
+    ).toMatchObject({ href: "/@p63-fid", label: "Personal" });
   });
 });

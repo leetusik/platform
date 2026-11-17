@@ -21,6 +21,8 @@ import type {
 } from "@/lib/knowledge/types";
 import {
   decodeFrom,
+  itemWayBack,
+  LIBRARY_ORIGIN,
   wayBack,
   withFrom,
   type ListOrigin,
@@ -118,14 +120,17 @@ function originOf(raw: string, owner: string, signedIn: boolean): ListOrigin {
 }
 
 /**
- * The book's way back (F324): `wayBack` with the names the reads carry. The org's name (the book
- * read's `org.name`, P63; a member's own tenant's when an older backend carries none) names only the
- * public library of the book's own org; any other org's list, or no name, reads the address's slug.
- * Pure.
+ * The book's way back (F324, P63-fk.F4): `itemWayBack` with what the reads carry. The list `from` names
+ * is kept only when it is the book's own (a member's Library or project page, the public library of the
+ * book's org, its project's page there); anything else is the book's default, as with no list. The org's
+ * name (the book read's `org.name`, P63; a member's own tenant's when an older backend carries none)
+ * labels the book's own public library, else the slug of the book's own address. Pure.
  */
 export function bookBack(
   from: ListOrigin,
   read: {
+    /** A signed-in reader: their lists are theirs to go back to; a visitor's default is the org's library. */
+    member: boolean;
     /** The book's org segment (`canonicalOrg`): its slug, else its tenant id. */
     owner: string;
     /** The org's slug as the read names it, when it has one. */
@@ -134,13 +139,15 @@ export function bookBack(
     project: string;
   },
 ): { href: string; label: string } {
-  const own =
-    from.origin === "public-library" &&
-    (from.org === read.owner || (!!read.slug && from.org === read.slug));
-  return wayBack(from, {
+  const back = itemWayBack(from, {
+    member: read.member,
+    orgs: [read.owner, read.slug],
     project: read.project,
-    org: own ? read.orgName : null,
+    orgName: read.orgName,
   });
+  return back
+    ? { href: back.href, label: back.label }
+    : wayBack(LIBRARY_ORIGIN);
 }
 
 export async function loadBook(
@@ -408,6 +415,7 @@ export async function loadBook(
     rows,
     data: hasData ? { chapters: touched, marks } : null,
     back: bookBack(from, {
+      member: signedIn,
       owner,
       slug: book.org?.slug,
       orgName: book.org?.name || tenant?.name || null,

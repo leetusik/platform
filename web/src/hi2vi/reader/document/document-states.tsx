@@ -25,7 +25,8 @@ import { documentBack } from "./model";
  *   `StateBlock`: Document not found in a member's or a visitor's words.
  *
  * Who is reading, the nonce and the display settings come from the route's layout (`ReaderSegment`); the
- * org from the address (`/@<org>/<project>/<slug>`), the list from `?from=`.
+ * org and the project from the address (`/@<org>/<project>/<slug>`; P63-fk.F4: they name the way back
+ * until the document is read), the list from `?from=`.
  */
 function decoded(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -40,7 +41,7 @@ function decoded(value: string | string[] | undefined): string {
 /** The way back from the address and `?from=`, as the page draws it. */
 function useBack() {
   const { member } = useContext(ReaderSegmentContext);
-  const params = (useParams() ?? {}) as { org?: string | string[] };
+  const params = (useParams() ?? {}) as Record<string, string | string[]>;
   const search = useSearchParams();
   const at = decoded(params.org);
   const org = at.startsWith("@") && at.length > 1 ? at.slice(1) : null;
@@ -48,6 +49,7 @@ function useBack() {
     member,
     from: search?.get(FROM_PARAM) ?? null,
     org,
+    names: { project: decoded(params.project) || null },
   });
   const homeHref = member || !org ? LIBRARY_HREF : publicLibraryHref(org);
   return { member, back, homeHref };

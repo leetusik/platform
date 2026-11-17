@@ -4,10 +4,15 @@
  *
  * A list's place rides in one query value, `?from=`, on the item's address: the list's own
  * address (`/library?view=all&page=2&q=…&filter=…`, `/projects/{id}/library?page=…`,
- * `/@{org}/{project}?…`, `/@{org}?…`), built by `reader-href.ts`. Decoding launders it with
- * `safeNextPath` and then accepts only those three list origins, rebuilt from their known parts:
- * a hostile or foreign value (`//evil.example.com`, `https://…`, not a path, any other page) is
- * the Library, never an address of its own.
+ * `/@{org}/{project}?…`, `/@{org}?…`), built by `reader-href.ts`. Decoding accepts only the exact
+ * form our links emit (`safeNextPath` leaves it unchanged: no `..`, no control character), a
+ * same-origin path, and only those three list origins with segments of their real charset (no
+ * escape, no space), rebuilt from their known parts: anything else is the Library.
+ *
+ * P63-fk.F4: the way back names the place it links to from the item's own data, never from text
+ * the address carries. `itemWayBack` trusts a decoded list only when it is the item's own (a
+ * member's Library, its org's public library, its project's library); any other is the item's own
+ * default, exactly as with no `from`.
  *
  * F328: a chapter opened straight from a list (Continue reading) carries the same value, and the
  * reader passes it on to its book (`withFrom(bookHref(…), from)`), so the book's way back names
@@ -56,6 +61,13 @@ export const LIBRARY_ORIGIN: ListOrigin = { origin: "library", place: {} };
 const MAX_PART_LENGTH = 200;
 const PAGE = /^[1-9][0-9]{0,5}$/;
 const PARSE_BASE = "https://from.invalid";
+/** An org segment: its slug (`server/accounts/slugs.py`) or its tenant's id (a UUID), unescaped. */
+const ORG_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_ORG_LENGTH = 64;
+/** A project's name, as the content plane accepts it (`server/gitops.py`), unescaped. */
+const PROJECT_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+/** A member's project id (a UUID), unescaped. */
+const PROJECT_ID_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 
 /** The list's address: the value `?from=` carries. */
 export function encodeFrom(from: ListOrigin): string {
@@ -100,15 +112,9 @@ function projectPlace(place: ListPlace): ListPlace {
   return out;
 }
 
-function decodeSegment(value: string): string | null {
-  try {
-    const decoded = decodeURIComponent(value);
-    return decoded.length > 0 && decoded.length <= MAX_PART_LENGTH
-      ? decoded
-      : null;
-  } catch {
-    return null;
-  }
+/** A path segment as our links write it: matched as it stands, never decoded (no escape passes). */
+function segmentOf(value: string, shape: RegExp, max: number): string | null {
+  return value.length <= max && shape.test(value) ? value : null;
 }
 
 /**
@@ -120,7 +126,10 @@ export function decodeFrom(
   raw: string | string[] | null | undefined,
 ): ListOrigin {
   if (typeof raw !== "string" || raw.length === 0) return LIBRARY_ORIGIN;
+  // What `safeNextPath` refuses (control characters, `\`, `//`, encoded slashes) or rewrites
+  // (`..`, `.`) is no address our links wrote.
   const safe = safeNextPath(raw);
+  if (safe !== raw) return LIBRARY_ORIGIN;
   let url: URL;
   try {
     url = new URL(safe, PARSE_BASE);
@@ -139,7 +148,7 @@ export function decodeFrom(
     segments[0] === "projects" &&
     segments[2] === "library"
   ) {
-    const project = decodeSegment(segments[1]);
+    const project = segmentOf(segments[1], PROJECT_ID_SEGMENT, 64);
     if (project === null) return LIBRARY_ORIGIN;
     return {
       origin: "project-library",
@@ -148,20 +157,21 @@ export function decodeFrom(
       place: projectPlace(place),
     };
   }
-  if (segments.length >= 1 && segments.length <= 2) {
-    const org = decodeSegment(segments[0]);
-    if (org === null || !org.startsWith("@") || org.length < 2) {
-      return LIBRARY_ORIGIN;
-    }
+  if (
+    (segments.length === 1 || segments.length === 2) &&
+    segments[0].startsWith("@")
+  ) {
+    const org = segmentOf(segments[0].slice(1), ORG_SEGMENT, MAX_ORG_LENGTH);
+    if (org === null) return LIBRARY_ORIGIN;
     if (segments.length === 1) {
-      return { origin: "public-library", org: org.slice(1), place };
+      return { origin: "public-library", org, place };
     }
-    const project = decodeSegment(segments[1]);
+    const project = segmentOf(segments[1], PROJECT_SEGMENT, 100);
     if (project === null) return LIBRARY_ORIGIN;
     return {
       origin: "project-library",
       viewer: "visitor",
-      org: org.slice(1),
+      org,
       project,
       place: projectPlace(place),
     };
@@ -169,7 +179,7 @@ export function decodeFrom(
   return LIBRARY_ORIGIN;
 }
 
-/** The names the way back reads, which the page has loaded; a missing one reads the address's. */
+/** The names the way back reads, which the page has loaded; a missing one reads the origin's own segment. */
 export interface WayBackNames {
   /** The project's name, for a project's library. */
   project?: string | null;
@@ -178,8 +188,10 @@ export interface WayBackNames {
 }
 
 /**
- * The way back (F324): its href, at the list's place, and its label: `Library`, the project's
- * name, or the org's name.
+ * The way back (F324) to a list the page **trusts**: its href, at the list's place, and its label:
+ * `Library`, the project's name, or the org's name. A missing name reads the origin's own segment,
+ * so pass only an origin built from the item's own address, or one `itemWayBack` kept; a decoded
+ * `?from=` goes through `itemWayBack`, never straight here (P63-fk.F4).
  */
 export function wayBack(
   from: ListOrigin,
@@ -193,6 +205,73 @@ export function wayBack(
       return { href, label: names.org || from.org };
     case "project-library":
       return { href, label: names.project || from.project };
+  }
+}
+
+/** The item a way back belongs to, as its own address and reads name it. */
+export interface WayBackItem {
+  /** A signed-in reader: their lists (the Library, a project's member page) are theirs to go back to. */
+  member: boolean;
+  /**
+   * The segments the item's own org goes by in an address (`/@{org}`): the org of its own address
+   * first (the label when the read names no org), then any other it is known by (its slug, its
+   * tenant id). Empty when it has none.
+   */
+  orgs: readonly (string | null | undefined)[];
+  /** The item's own project, as its read names it (a project's name is its segment); null when unread. */
+  project?: string | null;
+  /** The org's display name, as the item's read carries it. */
+  orgName?: string | null;
+}
+
+/**
+ * The way back for one item (F324, P63-fk.F4): the list `from` names when it is the item's own,
+ * else the item's own default, its label always from the item's data:
+ *
+ * - the Library, for a member: `Library`;
+ * - the public library of the item's own org: the org's name, else the slug of the item's own address;
+ * - the item's own project's library (its org and its name, for a visitor's `/@{org}/{project}`): the
+ *   project's name. A member's `/projects/{id}/library` names its project by an id the item's reads do
+ *   not carry, so it is taken as the item's own project once the project is read; before that (a
+ *   loading or not-found state) it is not trusted;
+ * - anything else (another org's list, another project's, a member's list for a visitor, no `from`):
+ *   the item's default, a member's Library or a visitor's public library of the item's own org;
+ *   null when a visitor's item has no org.
+ */
+export function itemWayBack(
+  from: ListOrigin | null,
+  item: WayBackItem,
+): { origin: ListOrigin; href: string; label: string } | null {
+  const orgs = item.orgs.filter((o): o is string => !!o);
+  const own = orgs[0] ?? null;
+  const project = item.project || null;
+  const ownOrg = (org: string) => orgs.includes(org);
+  const trusted = (o: ListOrigin): boolean => {
+    switch (o.origin) {
+      case "library":
+        return item.member;
+      case "public-library":
+        return ownOrg(o.org);
+      case "project-library":
+        if (project === null) return false;
+        return o.viewer === "member"
+          ? item.member
+          : ownOrg(o.org) && o.project === project;
+    }
+  };
+  let origin: ListOrigin;
+  if (from && trusted(from)) origin = from;
+  else if (item.member) origin = LIBRARY_ORIGIN;
+  else if (own) origin = { origin: "public-library", org: own, place: {} };
+  else return null;
+  const href = encodeFrom(origin);
+  switch (origin.origin) {
+    case "library":
+      return { origin, href, label: LIBRARY.title };
+    case "public-library":
+      return { origin, href, label: item.orgName || own || origin.org };
+    case "project-library":
+      return { origin, href, label: project as string };
   }
 }
 

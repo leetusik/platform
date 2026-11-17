@@ -1,11 +1,6 @@
 import { READER_DOCUMENT } from "@/content/reader-document";
 import type { Mark } from "@/hi2vi/library/mark-row-model";
-import {
-  decodeFrom,
-  LIBRARY_ORIGIN,
-  wayBack,
-  type ListOrigin,
-} from "@/lib/library/from";
+import { decodeFrom, itemWayBack, type ListOrigin } from "@/lib/library/from";
 import { positionNear } from "@/lib/reader/note-list";
 import type { ReaderBookmark, ReaderNotes } from "@/lib/reader/types";
 
@@ -41,10 +36,12 @@ export function foldSections<T>(
 // ---- the way back (F324, F328: S2's contract) ----------------------------------------------------------
 
 /**
- * Where the way back goes and what it is called: the list the reader came through (`?from=`); without one, a
- * member's Library, or a visitor's public library of the address's org. A visitor never gets a member's list
- * (the Library, a project's member page): those would only bounce to sign in. Null: nowhere to go back to (a
- * visitor on a document with no org).
+ * Where the way back goes and what it is called: the list the reader came through (`?from=`) when it is the
+ * document's own (a member's Library or project page, the public library of the document's org, its project's
+ * page there); else, as with no list, a member's Library, or a visitor's public library of the address's org.
+ * A visitor never gets a member's list (those would only bounce to sign in), and another org's or project's
+ * list is not trusted (P63-fk.F4): the label always comes from the document's data. Null: nowhere to go back
+ * to (a visitor on a document with no org).
  */
 export function documentBack(p: {
   member: boolean;
@@ -52,34 +49,19 @@ export function documentBack(p: {
   /** The org's slug, from the document's address. */
   org: string | null;
   /**
-   * The names the reads carry: the project's, and the document's org's (its read's `org.name`, P63). The org's
-   * names only the public library of that same org (`org` above); any other, or none, reads the address's slug.
+   * The names the reads carry: the document's project (its name, which is its segment), and its org's (its
+   * read's `org.name`, P63). Absent in the loading and not-found states: the org then reads the address's
+   * slug, and no project's list is trusted.
    */
   names?: { project?: string | null; org?: string | null };
 }): { origin: ListOrigin; href: string; label: string } | null {
   const raw = typeof p.from === "string" && p.from !== "" ? p.from : null;
-  let origin: ListOrigin | null = raw === null ? null : decodeFrom(raw);
-  if (
-    origin &&
-    !p.member &&
-    (origin.origin === "library" ||
-      (origin.origin === "project-library" && origin.viewer === "member"))
-  )
-    origin = null;
-  if (!origin) {
-    if (p.member) origin = LIBRARY_ORIGIN;
-    else if (p.org)
-      origin = { origin: "public-library", org: p.org, place: {} };
-    else return null;
-  }
-  const own = origin.origin === "public-library" && origin.org === p.org;
-  return {
-    origin,
-    ...wayBack(origin, {
-      project: p.names?.project,
-      org: own ? p.names?.org : null,
-    }),
-  };
+  return itemWayBack(raw === null ? null : decodeFrom(raw), {
+    member: p.member,
+    orgs: [p.org],
+    project: p.names?.project,
+    orgName: p.names?.org,
+  });
 }
 
 // ---- what marks a document takes (OQ14: by format) -----------------------------------------------------
