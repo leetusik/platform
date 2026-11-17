@@ -5,7 +5,7 @@ import type { ListenSeed } from "@/lib/listen/types";
 import type { DockLead } from "@/lib/listen/view";
 
 import { Dock } from "./dock";
-import { controlOf, trackOf } from "./model";
+import { controlOf, trackOf, type HeadControl } from "./model";
 import { ListenPill } from "./pill";
 
 /**
@@ -22,6 +22,8 @@ export function ListenTrack({
   chapter,
   hidden,
   signInHref,
+  held = false,
+  pillOf = null,
 }: {
   seed: ListenSeed | null;
   /** The page's text has Listen (F206: a member, the newest version, a seed). */
@@ -30,12 +32,25 @@ export function ListenTrack({
   chapter: boolean;
   hidden: boolean;
   signInHref: string;
+  /**
+   * The book page (listen:FG2, C01): the track is held, drawn empty at rest, so `.listen-book`'s grid keeps its side
+   * column whether or not a Listen is under way.
+   */
+  held?: boolean;
+  /** The book page's pill: the book's control and its start (the chapter's own is `seed`'s, `controlOf`). */
+  pillOf?: { control: HeadControl; go: () => void } | null;
 }) {
   const listen = useListen();
   const kept = useKept();
-  const t = trackOf({ listen, shown: shown && !!seed, pill, chapter, hidden });
-  if (!t.show) return null;
+  const t = trackOf({
+    listen,
+    shown: shown && (!!seed || !!pillOf),
+    pill,
+    chapter,
+    hidden,
+  });
   const className = t.overFoot ? "dock-track over-foot" : "dock-track";
+  if (!t.show) return held ? <div className={className} /> : null;
 
   if (t.show === "dock" && listen) {
     const onLead = (lead: DockLead) => {
@@ -69,7 +84,14 @@ export function ListenTrack({
       </div>
     );
   }
-  if (!seed) return null;
+  if (pillOf) {
+    return (
+      <div className={className}>
+        <ListenPill control={pillOf.control} onGo={pillOf.go} />
+      </div>
+    );
+  }
+  if (!seed) return held ? <div className={className} /> : null;
   const control = controlOf(seed, kept);
   return (
     <div className={className}>

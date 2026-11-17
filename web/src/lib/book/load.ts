@@ -46,6 +46,7 @@ import {
   headOf,
   isDone,
   isStale,
+  keptSectionId,
   orderChapters,
   planContinue,
   rowState,
@@ -350,7 +351,8 @@ export async function loadBook(
     href: r.href,
   }));
   const cont = contOf(plan, contChapters, {
-    section: plan.kind === "continue" ? (sectionAt ?? "") : "",
+    section: plan.kind === "continue" ? (sectionAt?.title ?? "") : "",
+    sectionId: plan.kind === "continue" ? (sectionAt?.id ?? "") : "",
     lede: lede ?? "",
   });
   const start =
@@ -446,15 +448,19 @@ async function datesOf(
   };
 }
 
-/** The heading the saved place is under, in the variant's current text. */
+/** The heading the saved place is under, in the variant's current text: its title, and its id (F242). */
 async function sectionOf(
   token: string | undefined,
   variant: KbBookVariant,
   anchorId: string,
-): Promise<string> {
+): Promise<{ title: string; id: string }> {
   const doc = await getDocument(token, variant.doc_id);
-  if (doc.format !== "native" || !doc.source) return "";
-  return sectionTitle(doc.source, anchorId);
+  if (doc.format !== "native" || !doc.source) return { title: "", id: "" };
+  const blocks = validateChapter(doc.source, "native").tree.blocks;
+  return {
+    title: sectionTitle(doc.source, anchorId),
+    id: keptSectionId(blocks, anchorId),
+  };
 }
 
 /** A native chapter's lede (its header's `summary`), or "". */

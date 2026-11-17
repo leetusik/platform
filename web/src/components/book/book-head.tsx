@@ -9,9 +9,10 @@ export const BOOK_HEAD_ID = "book-head";
 
 /**
  * BookHead (`BookHead.dc.html`): the title, and the second title beside it on its baseline when the read
- * carries one; at the head's end the place of Listen (a member only, `listen`); the description; one row
- * of facts: where the book lives, then a member's state and track, or a visitor's count and the line that
- * reading is not saved. No subject fact (frame.md F320). `loading` draws the skeleton in the same elements.
+ * carries one; the description; one row of facts: where the book lives, then a member's state and track, or a
+ * visitor's count and the line that reading is not saved. No subject fact (frame.md F320). Under the facts, its
+ * own row, the Listen slot (job 07 F206: a member's only, `listen`, AudioHead). `loading` draws the skeleton in
+ * the same elements.
  */
 export function BookHead({
   head,
@@ -58,7 +59,6 @@ export function BookHead({
               </span>
             ) : null}
           </div>
-          {head.member && listen ? listen : null}
         </div>
         {head.description ? (
           <p className="book-desc">{head.description}</p>
@@ -82,6 +82,7 @@ export function BookHead({
           </>
         )}
       </div>
+      {head.member && listen ? listen : null}
     </header>
   );
 }

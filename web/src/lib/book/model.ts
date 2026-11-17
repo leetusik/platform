@@ -240,12 +240,14 @@ export interface ContChapter {
 
 /**
  * BookContinue (the board's table): the title, the facts, the lede in `next` and `start`, the button.
- * `section` is where a `continue` was left (a heading), `lede` the named chapter's lede.
+ * `section` is where a `continue` was left (a heading), `lede` the named chapter's lede. `sectionId`, the id of that
+ * heading: Continue reading opens the chapter at its kept section (job 07 F242: the address carries `#<id>`, which
+ * the reader lands on before the saved place); none opens the chapter as before.
  */
 export function contOf(
   plan: ContPlan,
   chapters: ContChapter[],
-  found: { section: string; lede: string },
+  found: { section: string; lede: string; sectionId?: string },
 ): ContView {
   const t = BOOK_PAGE.cont;
   const total = chapters.length;
@@ -282,7 +284,9 @@ export function contOf(
       lede: "",
       action: t.continueReading,
       primary: true,
-      href,
+      href: found.sectionId
+        ? `${href.split("#")[0]}#${encodeURIComponent(found.sectionId)}`
+        : href,
     };
   }
   if (plan.kind === "next") {
@@ -309,6 +313,25 @@ export function contOf(
     primary: true,
     href,
   };
+}
+
+/**
+ * The id of the section a saved place sits in (job 07 F242): the nearest heading at or before the place's block, as
+ * `sectionPlace` (`@/lib/library/continue`) names it; the Glossary is its own block. "" when the block is not in the
+ * text or no heading with an id comes before it.
+ */
+export function keptSectionId(
+  blocks: readonly { type: string; id?: string | null }[],
+  anchorId: string,
+): string {
+  let heading = "";
+  for (const block of blocks) {
+    if (block.type === "heading") heading = block.id ?? "";
+    if (block.id === anchorId) {
+      return block.type === "glossary" ? (block.id ?? "") : heading;
+    }
+  }
+  return "";
 }
 
 /** Version history: one chapter's region open at a time on the page; a second press closes it. */

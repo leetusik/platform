@@ -98,4 +98,17 @@
 /* 9 ── follow along (F210): a 2 px accent rule beside the block being read, outside the text's column (P64-3y.S2) */
 .read [data-follow="true"] { position: relative; }
 .read [data-follow="true"]::before { content: ""; position: absolute; top: 0.2em; bottom: 0.2em; left: calc(-1 * var(--space-4)); width: 2px; border-radius: 1px; background: var(--accent); }
+
+/* 10 ── the book page (F208, F209, listen:FG2, C01; Listen.dc.html's book view, BookChapters.dc.html; P64-3y.S5) */
+/* the book's rows (F209): the audio line on the row's second line, under the title, with Playing or Paused beside it */
+.row-audio { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); min-width: 0; padding-bottom: var(--space-2); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* listen:FG2: below 64em of the app the track follows the column; from 64em it is a side column beside it, sticky under
+   the bar. Held for a member whether or not a Listen is under way (C01); a visitor's column stands alone */
+.listen-book { display: flow-root; }
+.listen-book > .dock-track { margin-top: var(--space-6); }
+@container app (min-width: 64em) {
+  .listen-book.has-track { display: grid; grid-template-columns: minmax(0, 52em) var(--sheet-w); justify-content: center; column-gap: var(--space-6); }
+  .listen-book.has-track > .column { margin-inline: 0; }
+  .listen-book.has-track > .dock-track { position: sticky; top: calc(var(--top-h) + var(--space-4)); bottom: auto; align-self: start; margin-top: 0; padding-inline: 0; }
+}
 }
