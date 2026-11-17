@@ -117,7 +117,6 @@ const NONE = queue({ counts: counts(0, 0, 0), next_due_at: null });
 // The continue read's pointer (lib/library/continue.ts's first item, as loadReviewContinue maps it).
 const CONT = {
   title: "Capture: from a widget to a message",
-  lede: "The platform handbook · Chapter 6 of 14 · 68% read",
   href: "/@june/platform/books/handbook/capture",
   lang: "en",
   book: "The platform handbook",

@@ -10,10 +10,11 @@ import "@/app/reader.css";
 import "@/app/review.css";
 
 /**
- * THE BRIDGE (P64-3y.S7; the end of a session until S9 rebuilds it, and a card in a form job 07 does not draw,
- * P64-3y.S8): an old in-flow view of `/review` inside the new focused frame, as P63-fk's reader bridged its body
- * (`hi2vi/reader/old-root.tsx`).
- * The old card and end read the old review page's root around them, so here they get one:
+ * THE BRIDGE (P64-3y.S7, P64-3y.S8): an old in-flow view of `/review` inside the new focused frame, as P63-fk's
+ * reader bridged its body (`hi2vi/reader/old-root.tsx`). It holds one thing: the card in a form job 07 does not draw
+ * (several right answers, several blanks), today's card (`components/review/card.tsx`). The end of a session is
+ * Review's own (`./end`) and never sits in it.
+ * The old card reads the old review page's root around it, so here it gets one:
  *
  *   Legacy ([data-ui-legacy]: no rule of the system reaches in)
  *     > div.rd-root.rd-size-N[data-md-color-scheme] (the old tokens, text sizes and schemes of `app/reader.css`,

@@ -1,8 +1,8 @@
 /**
  * Review's session on the page, as pure steps (job 07 `pages/review/result.md` § Behaviour; frame.md F223). No React
  * and no `"use client"`: the page (`review-frame.tsx`) applies each step's patch to its state and does what the step
- * says next (read the queue again, move the focus); the tests read them. The rules are `ReviewApp`'s, moved here
- * unchanged from the page (P64-3y.S7) so each can be proved alone:
+ * says next (read the queue again, move the focus); the tests read them. The rules were the earlier page's
+ * (`ReviewApp`, since removed), moved here unchanged (P64-3y.S7) so each can be proved alone:
  *
  *  - a rating sends with a fresh `review_id` (Try again repeats the failed one: `reviewIdFor`), and **the reply
  *    lands only on the rating that sent it** (`pending.seq`): a reply that comes back after another send began, or

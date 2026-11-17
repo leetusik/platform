@@ -240,3 +240,42 @@ describe("the retired views' tail (P64-3y.F7): nothing only they read comes back
     expect(hits).toEqual([]);
   });
 });
+
+describe("the retired views' last traces (P64-3y.F8): no line of this change promises a step that is done", () => {
+  const HI2VI = ["listen", "review", "reader"].flatMap((d) =>
+    walk(join(SRC, "hi2vi", d))
+      .filter((f) => /\.(tsx?|css)$/.test(f))
+      .map((f) => relative(WEB, f)),
+  );
+
+  it("no source of Listen, Review or the reader waits on a slice (`until S<n>`, `S<n> rebuilds`) or names a retired file", () => {
+    const retired = RETIRED.map((p) =>
+      p.replace(/^src\//, "").replace(/\.tsx$/, ""),
+    );
+    const hits = HI2VI.flatMap((rel) => {
+      const text = read(rel);
+      return [
+        ...(text.match(
+          /\buntil (?:S|F)\d+\b|\b(?:S|F)\d+ (?:rebuilds|removes|replaces)\b/g,
+        ) ?? []),
+        ...retired.filter((p) => text.includes(p)),
+      ].map((what) => `${rel}: ${what}`);
+    });
+    expect(hits).toEqual([]);
+  });
+
+  it("the bridge says what it holds today (the undrawn-form card, no end), and the reader's barrel what `OldRoot` holds (no Listen)", () => {
+    expect(read("src/hi2vi/review/old-view.tsx")).not.toMatch(
+      /end of a session until|old card and end/,
+    );
+    expect(read("src/hi2vi/reader/index.ts")).not.toMatch(/\(Listen,/);
+  });
+
+  it("the end's continue fixture carries no removed `lede`", () => {
+    const fixture = read("tests/review-end.test.ts").match(
+      /const CONT = \{([\s\S]*?)\n\};/,
+    );
+    expect(fixture).not.toBeNull();
+    expect(fixture?.[1]).not.toMatch(/^\s*lede:/m);
+  });
+});

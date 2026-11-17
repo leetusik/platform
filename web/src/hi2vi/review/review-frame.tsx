@@ -77,7 +77,7 @@ import { CardSkeleton, ReviewFailed } from "./states";
  * read after mount so the server render and the first client render agree). Nothing old is fixed to the window any
  * more.
  *
- * The queue's state, its sends and the settings are `ReviewApp`'s (`components/review/review-app.tsx`), moved
+ * The queue's state, its sends and the settings were the earlier page's (`ReviewApp`, since removed), moved
  * here unchanged (the rating, suspend and undo steps into `./session`), and they rate against the server
  * idempotently:
  *  - the page makes a `review_id` per rating of a card, and **Try again sends the same one**, so a rating that did
