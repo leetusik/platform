@@ -218,6 +218,7 @@
       "server/workspace_read.py",
       "server/workspace_web_api.py",
       "tests/test_workspace_read.py",
+      "tests/test_workspace_inbox.py",
       "tests/fixtures/workspace/tree.json",
       "tests/fixtures/workspace/expected.json",
       "server/waitlist.py",

@@ -5,7 +5,12 @@ as the bearer, and every request names the checkout and the engine's version
 (``X-Hi2vi-Checkout``, ``X-Hi2vi-Engine``; 400 without them):
 
 - ``GET  /api/workspace/{project_id}/head`` → ``{head, org_id, project_id,
-  inbox_pending}``. The first probe links the project (its store row at head 0).
+  inbox_pending}``. The first probe links the project (its store row at head 0). An
+  ``X-Hi2vi-Base: <synced head>`` equal to the head counts as a sync for the web's
+  sync line (``server.workspace_read.note_head_probe``, throttled).
+- ``GET  /api/workspace/{project_id}/inbox`` → ``{entries: [{id, created_at, kind,
+  items, fields, minted_id}]}``, the web's pending agenda changes, oldest first; the
+  engine applies each as its agenda command and sends its result in a batch.
 - ``GET  /api/workspace/{project_id}/manifest?since=<head>`` → ``{head, changes:
   [{path, rev, sha256, size, deleted, kind}]}``, every record changed after
   ``since`` (``0``: the whole set).
@@ -20,7 +25,9 @@ as the bearer, and every request names the checkout and the engine's version
   base_rev}``, ``move {from, to, base_rev}`` and ``append {path, lines}``, each with
   an optional ``origin``; ``derived`` are ``{path, content}`` projections kept at
   the landed head; ``inbox`` are ``{id, state, reason, exit}`` results for the web's
-  agenda entries. The append-only lines travel as ``append`` ops: the top-level
+  agenda entries (``applied``, or ``refused`` with the engine's line as ``reason``;
+  one per entry; a result for an entry no longer pending is a 409 conflict
+  ``{path: null, inbox, state}``). The append-only lines travel as ``append`` ops: the top-level
   ``events`` list is accepted and not stored.
 
 Every route resolves the caller with ``resolve_api_workspace`` first, so only that
@@ -36,6 +43,7 @@ import base64
 import binascii
 import json
 import re
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -57,7 +65,14 @@ from server.workspace import (
     Writer,
     get_workspace_service,
 )
-from server.workspace.types import INBOX_STATES, KIND_APPEND, KIND_FILE
+from server.workspace.types import (
+    INBOX_REFUSED,
+    INBOX_RESULT_STATES,
+    KIND_APPEND,
+    KIND_FILE,
+    InboxEntry,
+)
+from server.workspace_read import note_head_probe
 
 router = APIRouter()
 
@@ -243,15 +258,28 @@ def _inbox(raw: Any) -> InboxResult:
     except ValueError:
         raise _bad("an inbox result's id must be an inbox entry id") from None
     state = raw.get("state")
-    if state not in INBOX_STATES:
-        raise _bad(f"inbox {entry_id}: state must be one of {', '.join(INBOX_STATES)}")
+    if state not in INBOX_RESULT_STATES:
+        # An entry the engine could not run stays pending: it sends no result for it.
+        raise _bad(f"inbox {entry_id}: state must be {' or '.join(INBOX_RESULT_STATES)}")
     reason = raw.get("reason")
     if reason is not None and not isinstance(reason, str):
         raise _bad(f"inbox {entry_id}: reason must be a string")
+    if state == INBOX_REFUSED and not (reason or "").strip():
+        raise _bad(f"inbox {entry_id}: a refusal carries the engine's line as its reason")
     exit_code = raw.get("exit")
     if exit_code is not None and (isinstance(exit_code, bool) or not isinstance(exit_code, int)):
         raise _bad(f"inbox {entry_id}: exit must be a number")
     return InboxResult(id=entry_id, state=state, reason=reason, exit_code=exit_code)
+
+
+def _inbox_results(body: dict[str, Any]) -> tuple[InboxResult, ...]:
+    results = tuple(_inbox(raw) for raw in _list(body, "inbox"))
+    seen: set[UUID] = set()
+    for result in results:
+        if result.id in seen:
+            raise _bad(f"inbox {result.id}: one result per entry")
+        seen.add(result.id)
+    return results
 
 
 def _list(body: dict[str, Any], key: str) -> list[Any]:
@@ -275,12 +303,36 @@ def _batch(body: dict[str, Any]) -> CommitBatch:
         origin=_origin(body.get("origin")),
         ops=tuple(_op(raw) for raw in _list(body, "ops")),
         derived=tuple(_derived(raw) for raw in _list(body, "derived")),
-        inbox=tuple(_inbox(raw) for raw in _list(body, "inbox")),
+        inbox=_inbox_results(body),
     )
 
 
 def _store_unavailable(exc: Exception) -> HTTPException:
     return HTTPException(status_code=503, detail="the workspace store is unavailable")
+
+
+def _synced_base(request: Request) -> int | None:
+    """``X-Hi2vi-Base``, the head the checkout last synced, when it is a head number."""
+
+    raw = (request.headers.get("x-hi2vi-base") or "").strip()
+    if not raw.isascii() or not raw.isdigit() or len(raw) > 18:
+        return None
+    return int(raw)
+
+
+def _entry(entry: InboxEntry) -> dict[str, Any]:
+    return {
+        "id": str(entry.id),
+        "created_at": _iso_z(entry.created_at),
+        "kind": entry.kind,
+        "items": list(entry.items),
+        "fields": dict(entry.fields),
+        "minted_id": entry.minted_id,
+    }
+
+
+def _iso_z(value: datetime) -> str:
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @router.get("/api/workspace/{project_id}/head")
@@ -291,6 +343,10 @@ async def workspace_head(project_id: str, request: Request) -> JSONResponse:
     assert ctx.tenant_id is not None and ctx.project_id is not None
     try:
         head = await get_workspace_service().head(ctx.project_id, ctx.tenant_id)
+        base = _synced_base(request)
+        if base is not None:
+            # A checkout already at the head counts as synced (throttled).
+            await note_head_probe(ctx.project_id, base)
     except WorkspaceReadError as exc:
         raise _store_unavailable(exc) from exc
     return JSONResponse({
@@ -363,6 +419,19 @@ async def workspace_fetch(project_id: str, request: Request) -> JSONResponse:
             "content": content,
         })
     return JSONResponse({"files": files, "rest": list(page.rest)})
+
+
+@router.get("/api/workspace/{project_id}/inbox")
+async def workspace_inbox(project_id: str, request: Request) -> JSONResponse:
+    """The web's pending agenda changes, oldest first, for the engine to apply in turn."""
+
+    ctx, _writer = await _caller(request, project_id)
+    assert ctx.project_id is not None
+    try:
+        entries = await get_workspace_service().inbox(ctx.project_id)
+    except WorkspaceReadError as exc:
+        raise _store_unavailable(exc) from exc
+    return JSONResponse({"entries": [_entry(entry) for entry in entries]})
 
 
 @router.post("/api/workspace/{project_id}/commit")

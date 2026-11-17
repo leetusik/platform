@@ -26,13 +26,34 @@ OP_MOVE = "move"
 OP_APPEND = "append"
 OP_NAMES = (OP_PUT, OP_DELETE, OP_MOVE, OP_APPEND)
 
-#: The states of a web inbox entry; an engine's result may set only the two final ones.
+#: The states of a web inbox entry; an engine's result may set only ``applied`` or
+#: ``refused``, and only the web discards.
 INBOX_PENDING = "pending"
 INBOX_APPLIED = "applied"
 INBOX_REFUSED = "refused"
 INBOX_DISCARDED = "discarded"
 INBOX_STATES = (INBOX_PENDING, INBOX_APPLIED, INBOX_REFUSED, INBOX_DISCARDED)
 INBOX_RESULT_STATES = (INBOX_APPLIED, INBOX_REFUSED)
+#: An entry still open on the web: waiting for an engine, or refused and not yet discarded.
+INBOX_OPEN_STATES = (INBOX_PENDING, INBOX_REFUSED)
+
+#: The changes an inbox entry carries, each one engine agenda command
+#: (``agenda-add``, ``agenda-edit``, ``agenda-move``, ``agenda-defer`` …).
+INBOX_ADD = "add"
+INBOX_DELETE = "delete"
+INBOX_KINDS = (INBOX_ADD, "edit", "move", "defer", "solve", "drop", "reopen", INBOX_DELETE)
+
+#: The engine's agenda id rule, word for word (``AGENDA_ID_PATTERN``): a number and a
+#: two-symbol tail of lowercase Crockford base32 without ``i l o u``, at least one
+#: symbol a letter. Only a full id is ever stored: numbers are reused, so a brief id
+#: could name a re-minted item.
+ID_TAIL_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+ID_TAIL_LETTERS = "abcdefghjkmnpqrstvwxyz"
+ID_TAIL_PATTERN = "(?:[a-hjkmnp-tv-z][0-9a-hjkmnp-tv-z]|[0-9][a-hjkmnp-tv-z])"
+AGENDA_ID_PATTERN = rf"A[0-9]+-{ID_TAIL_PATTERN}"
+#: The engine's title rule and the signed field error, word for word.
+AGENDA_TITLE_MAX = 200
+AGENDA_TITLE_REFUSAL = "Enter a title of 1–200 characters."
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
@@ -102,6 +123,27 @@ class InboxResult:
     state: str
     reason: str | None = None
     exit_code: int | None = None
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class InboxEntry:
+    """One web agenda change: ``items`` are full agenda ids (an add's is its minted id).
+
+    ``fields`` hold the change's words (``title``, ``note``, ``outcome``, ``reason``,
+    ``before`` / ``after`` / ``first`` / ``last``); ``reason`` and ``exit_code`` are
+    the engine's, once it refused the entry.
+    """
+
+    id: UUID
+    kind: str
+    items: tuple[str, ...]
+    fields: dict[str, Any]
+    minted_id: str | None
+    state: str
+    created_at: datetime
+    reason: str | None = None
+    exit_code: int | None = None
+    resolved_at: datetime | None = None
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)

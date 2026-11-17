@@ -3,7 +3,9 @@
 The sole ORM boundary for the workspace domain. It never commits: the service owns
 the transaction, and every write here runs inside the service's batch transaction,
 after it took the project's ``workspaces`` row with :meth:`lock_workspace`; the one
-exception is :meth:`touch_last_sync`, a single guarded ``UPDATE`` of that row. Every
+exceptions are :meth:`touch_last_sync`, a single guarded ``UPDATE`` of that row, and the
+web's inbox writes (:meth:`insert_inbox`, :meth:`close_inbox`), which touch only the
+inbox and never a record. Every
 query is scoped by ``project_id``; the caller (the workspace API, behind
 ``resolve_api_workspace``) has already proved the project is the key's own.
 """
@@ -13,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Collection, Iterable, Sequence
 from datetime import datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -30,8 +32,10 @@ from server.persistence.models import (
     WorkspaceRevisionModel,
 )
 from server.workspace.types import (
+    INBOX_DISCARDED,
     INBOX_PENDING,
     FileContent,
+    InboxEntry,
     ManifestEntry,
     RevisionRecord,
     WorkingRecord,
@@ -456,6 +460,79 @@ class WorkspaceRepository:
         )
         return int(result.scalar_one())
 
+    async def inbox_entries(
+        self, project_id: UUID, states: Collection[str]
+    ) -> list[InboxEntry]:
+        """This project's entries in ``states``, oldest first (``created_at``, then id)."""
+
+        result = await self._session.execute(
+            select(WorkspaceInboxModel)
+            .where(
+                WorkspaceInboxModel.project_id == project_id,
+                WorkspaceInboxModel.state.in_(list(states)),
+            )
+            .order_by(WorkspaceInboxModel.created_at, WorkspaceInboxModel.id)
+        )
+        return [_entry(row) for row in result.scalars()]
+
+    async def get_inbox(self, project_id: UUID, entry_id: UUID) -> InboxEntry | None:
+        result = await self._session.execute(
+            select(WorkspaceInboxModel).where(
+                WorkspaceInboxModel.project_id == project_id,
+                WorkspaceInboxModel.id == entry_id,
+            )
+        )
+        row = result.scalar_one_or_none()
+        return _entry(row) if row is not None else None
+
+    async def insert_inbox(
+        self,
+        project_id: UUID,
+        *,
+        kind: str,
+        items: Sequence[str],
+        fields: dict[str, Any],
+        minted_id: str | None,
+        user_id: UUID | None,
+        at: datetime,
+    ) -> InboxEntry:
+        row = WorkspaceInboxModel(
+            id=uuid4(),
+            project_id=project_id,
+            kind=kind,
+            items=list(items),
+            fields=dict(fields),
+            minted_id=minted_id,
+            user_id=user_id,
+            state=INBOX_PENDING,
+            created_at=at,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return _entry(row)
+
+    async def close_inbox(
+        self, project_id: UUID, entry_id: UUID, *, from_states: Collection[str], at: datetime
+    ) -> InboxEntry | None:
+        """Discard the entry if its state is among ``from_states``; ``None`` otherwise.
+
+        One guarded ``UPDATE``: an engine batch holding the row ``FOR UPDATE``
+        (:meth:`lock_inbox`) makes it wait, and it then sees the batch's state.
+        """
+
+        result = await self._session.execute(
+            update(WorkspaceInboxModel)
+            .where(
+                WorkspaceInboxModel.project_id == project_id,
+                WorkspaceInboxModel.id == entry_id,
+                WorkspaceInboxModel.state.in_(list(from_states)),
+            )
+            .values(state=INBOX_DISCARDED, resolved_at=at)
+            .returning(WorkspaceInboxModel)
+        )
+        row = result.scalar_one_or_none()
+        return _entry(row) if row is not None else None
+
     async def lock_inbox(self, project_id: UUID, ids: Collection[UUID]) -> dict[UUID, str]:
         """The states of this project's entries among ``ids``, locked ``FOR UPDATE``."""
 
@@ -496,6 +573,21 @@ class WorkspaceRepository:
                 resolved_at=at,
             )
         )
+
+
+def _entry(row: WorkspaceInboxModel) -> InboxEntry:
+    return InboxEntry(
+        id=row.id,
+        kind=row.kind,
+        items=tuple(str(item) for item in row.items or []),
+        fields=dict(row.fields or {}),
+        minted_id=row.minted_id,
+        state=row.state,
+        created_at=row.created_at,
+        reason=row.reason,
+        exit_code=row.exit_code,
+        resolved_at=row.resolved_at,
+    )
 
 
 def _revision(row: WorkspaceRevisionModel) -> RevisionRecord:

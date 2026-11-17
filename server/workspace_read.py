@@ -36,6 +36,12 @@ batch named (``X-Hi2vi-Engine``).
 derived)``, where ``derived`` is a hash of the two derived records (a batch that
 changes no file may still re-render them at the same head). File contents are kept by
 their sha256, so a new head re-reads only what changed. Nothing is persisted.
+
+**The web's changes.** An agenda change made on the web is an inbox entry until a
+linked engine applies or refuses it (``server/workspace_web_api.py``). The open entries
+are read on every request, outside the memo and its key, and laid over the agenda as
+each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry}``; a pending add is
+its own row and a pending delete hides its item (:meth:`WorkspaceReader._overlay`).
 """
 
 from __future__ import annotations
@@ -56,7 +62,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from server.persistence.engine import get_session_maker
 from server.workspace import WorkspaceReadError
 from server.workspace.repository import WorkspaceRepository
-from server.workspace.types import KIND_APPEND, WorkingRecord
+from server.workspace.types import (
+    INBOX_ADD,
+    INBOX_DELETE,
+    INBOX_OPEN_STATES,
+    INBOX_PENDING,
+    KIND_APPEND,
+    InboxEntry,
+    WorkingRecord,
+)
 
 #: A linked workspace reads ``fresh`` while its last sync is younger than this, then
 #: ``behind`` (the signed sync line's cut-off).
@@ -453,11 +467,15 @@ class WorkspaceReader:
         project_id: UUID,
         facts: SyncFacts,
         snapshot: _Snapshot | None,
+        inbox: Iterable[InboxEntry] = (),
     ) -> None:
         self._session_maker = session_maker
         self.project_id = project_id
         self.facts = facts
         self._snap = snapshot
+        #: This request's open inbox entries (pending or refused), oldest first: read
+        #: per request and never part of the memo or its key.
+        self._inbox = tuple(inbox)
 
     @property
     def linked(self) -> bool:
@@ -865,7 +883,22 @@ class WorkspaceReader:
     # -- agenda -----------------------------------------------------------------------
 
     async def agenda(self) -> list[dict[str, Any]]:
-        """Every agenda item, in the engine's listing order."""
+        """Every agenda item, in the engine's listing order, with this request's sync marks."""
+
+        return self._overlay(await self._agenda_rows())
+
+    async def agenda_ids(self) -> set[str]:
+        """Every agenda id the web can see: the stored items and every open entry's ids."""
+
+        ids = {row["id"] for row in await self._agenda_rows()}
+        for entry in self._inbox:
+            ids.update(entry.items)
+            if entry.minted_id:
+                ids.add(entry.minted_id)
+        return ids
+
+    async def _agenda_rows(self) -> list[dict[str, Any]]:
+        """The stored items at the head (memoized and shared: never changed after)."""
 
         async def build():
             paths = self._paths(AGENDA, "/agenda.json", depth=1)
@@ -931,6 +964,40 @@ class WorkspaceReader:
     async def item(self, aid: str) -> dict[str, Any] | None:
         return next((it for it in await self.agenda() if it["id"] == aid), None)
 
+    def _overlay(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """``rows`` with each item's ``sync`` from the open inbox entries naming it.
+
+        ``'waiting'`` while the newest open entry naming the item is pending, ``{refused,
+        entry}`` while it is refused (the engine's line, verbatim, and the entry Discard
+        and Try again name). A pending add is its own row, first; a pending delete hides
+        its item. A marked row is a copy: the memoized rows are never changed.
+        """
+
+        if not self._inbox:
+            return list(rows)
+        latest: dict[str, InboxEntry] = {}
+        deleting: set[str] = set()
+        for entry in self._inbox:
+            for aid in entry.items:
+                latest[aid] = entry
+                if entry.kind == INBOX_DELETE and entry.state == INBOX_PENDING:
+                    deleting.add(aid)
+        stored = {row["id"] for row in rows}
+        out: list[dict[str, Any]] = []
+        for entry in reversed(self._inbox):  # newest first: each add goes first
+            aid = entry.minted_id
+            if entry.kind != INBOX_ADD or not aid or aid in stored or aid in deleting:
+                continue
+            stored.add(aid)
+            out.append(_added_item(entry, _sync_mark(latest.get(aid, entry))))
+        for row in rows:
+            aid = row["id"]
+            if aid in deleting:
+                continue
+            entry = latest.get(aid)
+            out.append(row if entry is None else {**row, "sync": _sync_mark(entry)})
+        return out
+
     # -- the workspace ------------------------------------------------------------------
 
     async def _waiting(self) -> list[dict[str, Any]]:
@@ -973,10 +1040,11 @@ class WorkspaceReader:
                 "deferred": await self.job_rows(),
                 "docs": docs,
                 "retired": retired,
-                "agenda": await self.agenda(),
+                "agenda": await self._agenda_rows(),
             }
 
-        return {**base, **(await self._memoized(("workspace",), build))}
+        lists = await self._memoized(("workspace",), build)
+        return {**base, **lists, "agenda": self._overlay(lists["agenda"])}
 
 
 # -- helpers the reader composes ------------------------------------------------------
@@ -1107,6 +1175,33 @@ def _phase_ids(text: str) -> list[str]:
     return seen
 
 
+def _sync_mark(entry: InboxEntry) -> str | dict[str, Any]:
+    if entry.state == INBOX_PENDING:
+        return "waiting"
+    return {"refused": entry.reason or "", "entry": str(entry.id)}
+
+
+def _added_item(entry: InboxEntry, sync: str | dict[str, Any]) -> dict[str, Any]:
+    """A web add not yet in the workspace, as an item row, from its own entry."""
+
+    title = _str(entry.fields.get("title"))
+    day = (_iso_z(entry.created_at) or "")[:10] or None
+    return {
+        "id": entry.minted_id,
+        "title": title,
+        "lang": _lang(title),
+        "note": _str(entry.fields.get("note")) or "",
+        "state": "open",
+        "created": day,
+        "changed": day,
+        "phases": [],
+        "deferred": [],
+        "outcome": "",
+        "reason": "",
+        "sync": sync,
+    }
+
+
 def _derived_fingerprint(derived: dict[str, str]) -> str:
     digest = hashlib.sha256()
     for path in sorted(derived):
@@ -1132,6 +1227,7 @@ async def open_reader(
                 if row is None:
                     facts = SyncFacts(linked=False, head=0, last_sync_at=None, engine_version=None)
                     return WorkspaceReader(session_maker, project_id, facts, None)
+                inbox = await repository.inbox_entries(project_id, INBOX_OPEN_STATES)
                 facts = SyncFacts(linked=True, head=int(row.head), last_sync_at=row.last_sync_at,
                                   engine_version=row.engine_version)
                 derived = {path: content
@@ -1150,7 +1246,7 @@ async def open_reader(
                     _memo.move_to_end(key)
     except SQLAlchemyError as exc:
         raise WorkspaceReadError("failed to read the workspace") from exc
-    return WorkspaceReader(session_maker, project_id, facts, snapshot)
+    return WorkspaceReader(session_maker, project_id, facts, snapshot, inbox)
 
 
 async def note_head_probe(

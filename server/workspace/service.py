@@ -19,6 +19,11 @@ Owns the session lifecycle (one transaction per call) and the rules of a sync ba
 - **Appends never conflict.** An append op's lines take the project's next
   sequence numbers, whatever the sender last saw.
 - **Moves keep history.** A move's revision names the path it came from.
+- **The web writes only the inbox.** A web agenda change is a pending entry until an
+  engine's batch carries its result (``applied`` or ``refused``) under the batch lock;
+  a result for an entry no longer pending is a conflict (409, nothing applied), so
+  no entry is applied twice. The web closes an open entry (Discard) or closes a
+  refused one while writing its replacement (Try again).
 
 Errors from SQLAlchemy surface as ``WorkspacePersistenceError`` (writes) or
 ``WorkspaceReadError`` (reads); a malformed batch is a ``WorkspaceInputError``.
@@ -38,7 +43,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from server.persistence.engine import get_session_maker
 from server.workspace.repository import WorkspaceRepository
 from server.workspace.types import (
+    INBOX_KINDS,
+    INBOX_OPEN_STATES,
     INBOX_PENDING,
+    INBOX_REFUSED,
     INBOX_RESULT_STATES,
     KIND_APPEND,
     KIND_FILE,
@@ -52,6 +60,7 @@ from server.workspace.types import (
     DeleteOp,
     FetchPage,
     HeadRecord,
+    InboxEntry,
     ManifestEntry,
     MoveOp,
     PutOp,
@@ -75,6 +84,16 @@ class WorkspacePersistenceError(RuntimeError):
 
 class WorkspaceReadError(RuntimeError):
     """Raised when the workspace store cannot be read."""
+
+
+class InboxStateError(LookupError):
+    """An inbox entry that is not there (``state`` ``None``: the route answers 404) or
+    not in a state the change needs (the route answers 409 with its state)."""
+
+    def __init__(self, entry_id: UUID, state: str | None) -> None:
+        super().__init__(f"inbox entry {entry_id} is {state or 'not found'}")
+        self.entry_id = entry_id
+        self.state = state
 
 
 def sha256_hex(data: bytes) -> str:
@@ -198,6 +217,90 @@ class WorkspaceService:
                     return await repository.history(project_id, path)
             except SQLAlchemyError as exc:
                 raise WorkspaceReadError("failed to read a workspace history") from exc
+
+    # -- the web's inbox ----------------------------------------------------------------
+
+    async def inbox(self, project_id: UUID, states: Sequence[str] = (INBOX_PENDING,)
+                    ) -> list[InboxEntry]:
+        """The project's entries in ``states`` (default: pending), oldest first."""
+
+        async with self._session_maker() as session:
+            repository = WorkspaceRepository(session)
+            try:
+                async with session.begin():
+                    return await repository.inbox_entries(project_id, states)
+            except SQLAlchemyError as exc:
+                raise WorkspaceReadError("failed to read the workspace inbox") from exc
+
+    async def inbox_entry(self, project_id: UUID, entry_id: UUID) -> InboxEntry | None:
+        async with self._session_maker() as session:
+            repository = WorkspaceRepository(session)
+            try:
+                async with session.begin():
+                    return await repository.get_inbox(project_id, entry_id)
+            except SQLAlchemyError as exc:
+                raise WorkspaceReadError("failed to read the workspace inbox") from exc
+
+    async def add_inbox(
+        self,
+        project_id: UUID,
+        *,
+        kind: str,
+        items: Sequence[str],
+        fields: dict[str, Any],
+        minted_id: str | None,
+        user_id: UUID | None,
+        replaces: UUID | None = None,
+    ) -> InboxEntry:
+        """Write one pending entry; ``replaces`` (Try again) closes that refused entry
+        in the same transaction, or nothing is written (:class:`InboxStateError`)."""
+
+        if kind not in INBOX_KINDS:
+            raise WorkspaceInputError(f"unknown agenda change {kind!r}")
+        now = _utc_now()
+        async with self._session_maker() as session:
+            repository = WorkspaceRepository(session)
+            try:
+                async with session.begin():
+                    if replaces is not None:
+                        closed = await repository.close_inbox(
+                            project_id, replaces, from_states=(INBOX_REFUSED,), at=now
+                        )
+                        if closed is None:
+                            current = await repository.get_inbox(project_id, replaces)
+                            raise InboxStateError(
+                                replaces, current.state if current is not None else None
+                            )
+                    return await repository.insert_inbox(
+                        project_id, kind=kind, items=items, fields=fields,
+                        minted_id=minted_id, user_id=user_id, at=now,
+                    )
+            except SQLAlchemyError as exc:
+                raise WorkspacePersistenceError("failed to write the workspace inbox") from exc
+
+    async def discard_inbox(self, project_id: UUID, entry_id: UUID) -> InboxEntry:
+        """Close an open (pending or refused) entry; :class:`InboxStateError` otherwise.
+
+        Discarding a pending entry races an engine that is applying it: whichever
+        lands first wins, and the other gets the entry's new state (the engine's
+        batch a 409, this call an :class:`InboxStateError`).
+        """
+
+        async with self._session_maker() as session:
+            repository = WorkspaceRepository(session)
+            try:
+                async with session.begin():
+                    closed = await repository.close_inbox(
+                        project_id, entry_id, from_states=INBOX_OPEN_STATES, at=_utc_now()
+                    )
+                    if closed is None:
+                        current = await repository.get_inbox(project_id, entry_id)
+                        raise InboxStateError(
+                            entry_id, current.state if current is not None else None
+                        )
+                    return closed
+            except SQLAlchemyError as exc:
+                raise WorkspacePersistenceError("failed to write the workspace inbox") from exc
 
     # -- P4 commit ----------------------------------------------------------------
 

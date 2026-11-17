@@ -198,9 +198,10 @@ app.include_router(feedback_api.router)
 # route answers 404. Unmetered.
 app.include_router(workspace_api.router)
 
-# The web's workspace reads: GET /app/projects/{id}/workspace and its phase, slice,
-# deferred, doc and agenda routes, built from the store's head (server/workspace_read.py,
-# memoized per head). Session-only; another tenant's project answers 404. Read-only.
+# The web's workspace routes: GET /app/projects/{id}/workspace and its phase, slice,
+# deferred, doc and agenda reads, built from the store's head (server/workspace_read.py,
+# memoized per head), and the agenda writes, which only add inbox entries that a linked
+# engine applies. Session-only; another tenant's project answers 404.
 app.include_router(workspace_web_api.router)
 
 # One process-wide lock serializes the whole write critical section (file → index
