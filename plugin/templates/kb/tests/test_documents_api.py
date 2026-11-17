@@ -407,3 +407,35 @@ def test_documents_require_auth(documents_client):
     assert client.get("/app/documents/1").status_code == 404
     # Delete stays session-only (require_user, no optional-identity fallback) -> 401.
     assert client.delete("/app/documents/1").status_code == 401
+
+
+def test_the_library_text_reads(documents_client):
+    """``/app/search/text`` and ``/app/search/snippets`` (P63): the Library's table reads
+    its search's text matches and its page's excerpts, tenant-scoped and session-only."""
+    client, _ = documents_client
+    headers, tenant = _signup(client, f"text-{uuid4()}@example.com")
+    _, other = _signup(client, f"text-other-{uuid4()}@example.com")
+    _project(client, headers, "alpha")
+    mine = _seed_doc(tenant, "alpha", slug="a", title="A note", markdown="a lantern here")
+    _seed_doc(tenant, "alpha", slug="b", title="lantern", markdown="nothing to see")
+    theirs = _seed_doc(other, "alpha", slug="c", title="C note", markdown="a lantern there")
+
+    res = client.get("/app/search/text", params={"q": "lantern"}, headers=headers)
+    assert res.status_code == 200, res.text
+    assert res.json() == {"query": "lantern", "total": 1, "ids": [mine]}
+
+    res = client.get(
+        "/app/search/snippets", params={"q": "lantern", "ids": [mine, theirs]}, headers=headers
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["query"] == "lantern" and set(body["snippets"]) == {str(mine)}
+    assert "<mark>lantern</mark>" in body["snippets"][str(mine)]
+
+    # One page of the table at most; ids are required.
+    many = {"q": "lantern", "ids": list(range(1, 52))}
+    assert client.get("/app/search/snippets", params=many, headers=headers).status_code == 422
+    assert client.get("/app/search/snippets", params={"q": "x"}, headers=headers).status_code == 422
+    # Session-only, like /app/search.
+    assert client.get("/app/search/text", params={"q": "x"}).status_code == 401
+    assert client.get("/app/search/snippets", params={"q": "x", "ids": [1]}).status_code == 401

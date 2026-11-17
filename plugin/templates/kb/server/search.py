@@ -124,6 +124,42 @@ def _cut_around_match(hl: str) -> Optional[str]:
     return ("…" if a > 0 else "") + out + ("…" if z < n else "")
 
 
+def _text_cuts(
+    conn: sqlite3.Connection,
+    match: str,
+    ids: list[int],
+    *,
+    tenant_id: Optional[str] = None,
+) -> dict[int, str]:
+    """The snippet cut around the first match in the text, for each of ``ids`` that has one.
+
+    One query (highlight() over the text column, ``_cut_around_match``); an id whose text
+    holds no match (a title or tag match), another tenant's id (``tenant_id`` set), or any
+    failure gives no cut.
+    """
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    sql = f"SELECT documents_fts.rowid AS id, {_HIGHLIGHT} AS hl FROM documents_fts"
+    params: list[Any] = [match, *ids]
+    if tenant_id is not None:
+        sql += " JOIN documents d ON d.id = documents_fts.rowid"
+    sql += f" WHERE documents_fts MATCH ? AND documents_fts.rowid IN ({marks})"
+    if tenant_id is not None:
+        sql += " AND d.tenant_id = ?"
+        params.append(tenant_id)
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.Error:
+        return {}
+    cuts: dict[int, str] = {}
+    for row in rows:
+        cut = _cut_around_match(row["hl"] or "")
+        if cut is not None:
+            cuts[int(row["id"])] = cut
+    return cuts
+
+
 def _widen_snippets(
     conn: sqlite3.Connection, page: list[dict[str, Any]], match: str, kw_ids: set[int]
 ) -> list[dict[str, Any]]:
@@ -134,22 +170,7 @@ def _widen_snippets(
     every other field are untouched.
     """
     ids = [int(r["id"]) for r in page if int(r["id"]) in kw_ids]
-    if not ids:
-        return page
-    marks = ",".join("?" * len(ids))
-    try:
-        rows = conn.execute(
-            f"SELECT rowid AS id, {_HIGHLIGHT} AS hl FROM documents_fts "
-            f"WHERE documents_fts MATCH ? AND rowid IN ({marks})",
-            [match, *ids],
-        ).fetchall()
-    except sqlite3.Error:
-        return page
-    cuts: dict[int, str] = {}
-    for row in rows:
-        cut = _cut_around_match(row["hl"] or "")
-        if cut is not None:
-            cuts[int(row["id"])] = cut
+    cuts = _text_cuts(conn, match, ids)
     for r in page:
         if int(r["id"]) in cuts:
             r["snippet"] = cuts[int(r["id"])]
@@ -189,6 +210,17 @@ def _recency(date_str: Optional[str], today: datetime.date) -> float:
     return math.exp(-age_days * _LN2 / HALF_LIFE_DAYS)
 
 
+def _phrases(q: str) -> list[str]:
+    """Each whitespace token of ``q`` as an FTS5 phrase (see ``build_match_query``)."""
+    parts: list[str] = []
+    for tok in q.split():
+        quoted = '"' + tok.replace('"', '""') + '"'
+        if _has_cjk(tok):
+            quoted += "*"
+        parts.append(quoted)
+    return parts
+
+
 def build_match_query(q: str) -> str:
     """Wrap each whitespace token in FTS5 double quotes (internal ``"`` doubled).
 
@@ -197,13 +229,20 @@ def build_match_query(q: str) -> str:
     contains CJK/Hangul/Kana characters is emitted as a prefix query (``"tok"*``) so it
     matches inflected forms; pure-ASCII tokens keep exact porter-stemmed matching.
     """
-    parts: list[str] = []
-    for tok in q.split():
-        quoted = '"' + tok.replace('"', '""') + '"'
-        if _has_cjk(tok):
-            quoted += "*"
-        parts.append(quoted)
-    return " ".join(parts)
+    return " ".join(_phrases(q))
+
+
+def text_match_query(q: str) -> str:
+    """The MATCH expression for a match in a document's text (P63, the Library's table).
+
+    The whole query as ``search`` matches it, and at least one of its phrases in the
+    ``markdown`` column: exactly the keyword hits whose snippet over the text marks
+    something. Empty when ``q`` has no token.
+    """
+    parts = _phrases(q)
+    if not parts:
+        return ""
+    return f"({' '.join(parts)}) AND markdown : ({' OR '.join(parts)})"
 
 
 def _parse_tags(raw_tags: Any) -> list[str]:
@@ -463,3 +502,59 @@ def search(
     page = _attach_chapters(conn, results[offset : offset + limit])
     page = _widen_snippets(conn, page, match, set(kw))
     return {"results": page, "total": len(records), "mode": "hybrid"}
+
+
+# The Library's documents table (P63) reads, for a search, every document whose text
+# matches (``text_matches``: ids only, to count and page the table) and the excerpt of the
+# rows on its page (``text_snippets``, at most TEXT_SNIPPET_IDS ids). Both are keyword-only:
+# they never embed the query, so a table render pays for no embedding whatever the
+# library's size. A document that matches only by meaning has nothing in its text to mark,
+# so the table never showed one.
+TEXT_SNIPPET_IDS = 50
+
+
+def text_matches(
+    conn: sqlite3.Connection, q: str, *, tenant_id: Optional[str] = None
+) -> list[int]:
+    """The ids of every document whose text matches ``q`` (``text_match_query``), ascending.
+
+    Unbounded, like the org's listing the table pages: one id per matching document of the
+    tenant (``tenant_id``), chapter variants and superseded copies included (the table keeps
+    only its own rows, by id). Never embeds the query. Blank ``q`` -> ``[]``.
+    """
+    match = text_match_query(q or "")
+    if not match:
+        return []
+    sql = (
+        "SELECT d.id FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid "
+        "WHERE documents_fts MATCH ?"
+    )
+    params: list[Any] = [match]
+    if tenant_id is not None:
+        sql += " AND d.tenant_id = ?"
+        params.append(tenant_id)
+    sql += " ORDER BY d.id"
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        raise SearchQueryError(str(exc)) from exc
+    return [int(r["id"]) for r in rows]
+
+
+def text_snippets(
+    conn: sqlite3.Connection,
+    q: str,
+    ids: list[int],
+    *,
+    tenant_id: Optional[str] = None,
+) -> dict[int, str]:
+    """The excerpt snippet of each of ``ids`` whose text matches ``q``: id -> snippet.
+
+    The same snippet ``search`` gives a text match on its page (``<mark>`` around each
+    match, ``…`` where the text goes on, cut around the first match). An id that is not a
+    text match, or not the tenant's, is absent. Never embeds the query.
+    """
+    match = text_match_query(q or "")
+    if not match or not ids:
+        return {}
+    return _text_cuts(conn, match, [int(i) for i in ids], tenant_id=tenant_id)

@@ -412,6 +412,25 @@ export interface KbSearchPage {
 }
 
 /**
+ * `GET /app/search/text` (P63, the Library's documents table): the ids, ascending, of every document
+ * of the tenant whose TEXT matches `q` as `/app/search` matches it. Keyword-only: never embeds.
+ */
+export interface KbTextMatches {
+  query: string;
+  total: number;
+  ids: number[];
+}
+
+/**
+ * `GET /app/search/snippets` (P63): id → the snippet `/app/search` gives a text match on its page
+ * (literal `<mark>…</mark>` delimiters), for the asked ids that match in their text. At most 50 ids.
+ */
+export interface KbTextSnippets {
+  query: string;
+  snippets: Record<string, string>;
+}
+
+/**
  * The query for `getDocuments`/`searchDocuments`. `project` is a control-plane
  * project UUID (the backend bridges it to a name). All fields optional; blanks are
  * omitted from the URL by `documentsQueryString`.

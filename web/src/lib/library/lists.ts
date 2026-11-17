@@ -288,9 +288,12 @@ export function shelvesOf(
   };
 }
 
-/** Where a document matched the search: only a match in the text carries an excerpt. */
+/**
+ * Where a document matched the search: only a match in the text carries an excerpt, and only on
+ * the page drawn (null for a row whose snippet this render did not read).
+ */
 export type DocMatch =
-  { where: "title" | "tag" } | { where: "text"; excerpt: Cut };
+  { where: "title" | "tag" } | { where: "text"; excerpt: Cut | null };
 
 /** One row of the documents table (`LibraryDocs`' `items`). */
 export interface DocItem {
@@ -327,11 +330,22 @@ export interface DocsTable {
   filter: string | null;
 }
 
-/** What the table reads beside the listing: each document's tags, and the search's snippets. */
+/** What the table reads beside the listing: each document's tags, and the search's text matches. */
 export interface DocsSource {
   tags: ReadonlyMap<number, readonly string[]>;
-  /** id → the search's snippet, for the documents whose text matched; null when nothing was searched. */
-  text: ReadonlyMap<number, string> | null;
+  /**
+   * The documents whose text matched, by id: the search's snippet, or null when this render did not
+   * read it (a row off the page). A snippet that marks nothing is no match (a match by meaning).
+   * Null when nothing was searched.
+   */
+  text: ReadonlyMap<number, string | null> | null;
+}
+
+/** Each document's tags, from the listing itself (P63, OQ8: it carries every loose document's). */
+export function listingTags(
+  listing: KbOrgLibrary,
+): ReadonlyMap<number, readonly string[]> {
+  return new Map(listing.documents.map((d) => [d.id, d.tags ?? []]));
 }
 
 export interface DocsOptions {
@@ -346,11 +360,14 @@ export function matchOf(
   d: { id: number; title: string },
   tags: readonly string[],
   q: string,
-  text: ReadonlyMap<number, string> | null,
+  text: ReadonlyMap<number, string | null> | null,
 ): DocMatch | null {
   if (holds(d.title, q)) return { where: "title" };
   if (tags.some((t) => holds(t, q))) return { where: "tag" };
-  const excerpt = excerptOf(text?.get(d.id), q);
+  if (!text?.has(d.id)) return null;
+  const snippet = text.get(d.id);
+  if (snippet == null) return { where: "text", excerpt: null };
+  const excerpt = excerptOf(snippet, q);
   return excerpt ? { where: "text", excerpt } : null;
 }
 

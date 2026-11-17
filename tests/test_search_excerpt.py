@@ -116,3 +116,105 @@ def test_a_stemmed_match_marks_the_text_word_with_both_ellipses(conn):
     snippet = search.search(conn, "lanterns")["results"][0]["snippet"]
     assert snippet.startswith("…") and snippet.endswith("…")
     assert _MARK.findall(snippet) == ["lantern"]
+
+
+# ---- the Library table's text reads (P63) --------------------------------------
+# All documents counts and pages a search over every document whose TEXT matches, and
+# shows the excerpt of the rows on its page. ``text_matches`` and ``text_snippets`` serve
+# both in two reads whatever the library's size, and never embed the query: with an
+# embeddings key set, ``search`` embeds once per call, so a table that paged it to its
+# ``total`` paid once per page of 50.
+
+
+def _doc(conn, i: int, *, title: str = "", body: str = "", tags=(), tenant: str = "t") -> int:
+    return db.upsert_document(
+        conn, project="p", slug=f"s{i}", date="2026-01-01", title=title or f"T{i}",
+        tags=list(tags), source_repo=None, rel_path=f"p/2026-01-01-s{i}.md",
+        markdown=body or "alpha beta gamma", tenant_id=tenant,
+    )
+
+
+@pytest.fixture
+def embedded(monkeypatch):
+    """Embeddings on, the query embedding stubbed (no network) and its calls counted."""
+    from server import config, embeddings
+
+    calls = {"n": 0}
+
+    def fake(texts, *, kind, retries=0):
+        calls["n"] += 1
+        return [[1.0, 0.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(config, "embeddings_enabled", lambda: True)
+    monkeypatch.setattr(embeddings, "embed_texts", fake)
+    return calls
+
+
+def test_the_tables_text_reads_never_embed_the_query(conn, embedded):
+    from server import config, embeddings
+
+    model = config.embedding_model()
+    needle = 0
+    for i in range(600):
+        did = _doc(conn, i, body="the needle sits here among words" if i == 437 else "")
+        db.upsert_embedding(
+            conn, doc_id=did, model=model, content_hash="h", dims=3,
+            vector=embeddings.pack_vector([1.0, 0.0, float(i % 7)]),
+        )
+        if i == 437:
+            needle = did
+    # The hybrid search would pay: its total is every embedded document.
+    assert search.search(conn, "needle", limit=50, tenant_id="t")["total"] == 600
+    embedded["n"] = 0
+    assert search.text_matches(conn, "needle", tenant_id="t") == [needle]
+    cuts = search.text_snippets(conn, "needle", [needle], tenant_id="t")
+    assert _MARK.findall(cuts[needle]) == ["needle"]
+    assert embedded["n"] == 0
+
+
+def test_every_text_match_is_counted_past_500(conn):
+    ids = [_doc(conn, i, body="a needle here" if i < 620 else "") for i in range(700)]
+    assert search.text_matches(conn, "needle", tenant_id="t") == ids[:620]
+
+
+def test_a_text_match_is_a_keyword_hit_whose_text_snippet_marks_something(conn):
+    corpus = {
+        "text": dict(body="a lantern in the text"),
+        "title": dict(title="lantern", body="nothing here"),
+        "tag": dict(tags=["lantern"], body="nothing here"),
+        "stem": dict(body="two lanterns burned"),
+        "split": dict(title="old lantern", body="a keeper stood"),
+        "neither": dict(body="nothing at all"),
+        "korean": dict(body="마지막에 등불이 꺼졌다"),
+    }
+    ids = {k: _doc(conn, i, **v) for i, (k, v) in enumerate(corpus.items())}
+    for q in ["lantern", "lantern keeper", "등불", "keeper"]:
+        marked = {
+            r["id"]
+            for r in search.search(conn, q, limit=50, tenant_id="t")["results"]
+            if "<mark>" in r["snippet"]
+        }
+        assert set(search.text_matches(conn, q, tenant_id="t")) == marked, q
+    assert search.text_matches(conn, "lantern", tenant_id="t") == sorted(
+        [ids["text"], ids["stem"]]
+    )
+    assert search.text_matches(conn, "lantern keeper", tenant_id="t") == [ids["split"]]
+
+
+def test_the_text_reads_keep_to_the_tenant_and_to_text_matches(conn):
+    mine = _doc(conn, 1, body="a lantern here")
+    title_only = _doc(conn, 2, title="lantern", body="nothing")
+    theirs = _doc(conn, 3, body="a lantern there", tenant="other")
+    assert search.text_matches(conn, "lantern", tenant_id="t") == [mine]
+    cuts = search.text_snippets(conn, "lantern", [mine, title_only, theirs], tenant_id="t")
+    assert set(cuts) == {mine}
+    # The cut is the one the search gives the same match on its page.
+    (hit,) = [r for r in search.search(conn, "lantern", tenant_id="t")["results"] if r["id"] == mine]
+    assert cuts[mine] == hit["snippet"]
+
+
+@pytest.mark.parametrize("q", ["", "   ", '"', "*", "-", 'a"b', "NEAR(", "AND"])
+def test_the_text_reads_take_any_query(conn, q):
+    _doc(conn, 1, body="a lantern here")
+    assert isinstance(search.text_matches(conn, q, tenant_id="t"), list)
+    assert isinstance(search.text_snippets(conn, q, [1], tenant_id="t"), dict)

@@ -34,6 +34,10 @@ documents surface codes against — eight reads and one delete:
   (P21.S1): member-only (``require_user``, **no** public fallback), 204 on success.
 * ``GET /app/search`` — full-text/hybrid search over the tenant's documents →
   ``{query, mode, total, limit, offset, results}``.
+* ``GET /app/search/text`` — the ids of every tenant document whose TEXT matches
+  ``q`` → ``{query, total, ids}``; and ``GET /app/search/snippets?ids=…`` — the
+  excerpt snippet of up to 50 of them → ``{query, snippets}`` (P63, the Library's
+  documents table). Keyword-only: neither embeds the query.
 
 These reuse the S1 content-store/search layer **as-is** (``server/db.py`` +
 ``server/search.py``), scoped with ``tenant_id=str(ctx.tenant.id)`` from
@@ -948,3 +952,48 @@ async def search(
         "offset": offset,
         "results": out["results"],
     }
+
+
+@router.get("/app/search/text")
+async def search_text(
+    q: str,
+    ctx: AuthContext = Depends(require_user),
+    conn=Depends(get_conn),
+) -> dict[str, object]:
+    """Every document of the caller's tenant whose text matches ``q`` (P63, the Library).
+
+    → ``{query, total, ids}``: the ids, ascending, of the documents whose text holds the
+    query as ``/app/search`` matches it (``search.text_match_query``). The Library's
+    documents table counts and pages its search over these (its title and tag matches
+    are its own), so one read serves any library size. Keyword-only: the query is never
+    embedded, so it costs no embedding call whatever the embeddings setting.
+    """
+    try:
+        ids = search_mod.text_matches(conn, q, tenant_id=str(ctx.tenant.id))
+    except search_mod.SearchQueryError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid FTS query: {exc}")
+    return {"query": q, "total": len(ids), "ids": ids}
+
+
+@router.get("/app/search/snippets")
+async def search_snippets(
+    q: str,
+    ids: list[int] = Query(...),
+    ctx: AuthContext = Depends(require_user),
+    conn=Depends(get_conn),
+) -> dict[str, object]:
+    """The excerpt snippet of each of ``ids`` whose text matches ``q`` (P63, the Library).
+
+    → ``{query, snippets}``, ``snippets`` id → the snippet ``/app/search`` gives a text
+    match on its page (``<mark>`` delimiters, cut around the first match). At most
+    ``search.TEXT_SNIPPET_IDS`` ids (one page of the table), else **422**; an id that is
+    not a text match or not the caller's tenant's is absent. Keyword-only, like
+    ``/app/search/text``.
+    """
+    if len(ids) > search_mod.TEXT_SNIPPET_IDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"at most {search_mod.TEXT_SNIPPET_IDS} ids",
+        )
+    snippets = search_mod.text_snippets(conn, q, ids, tenant_id=str(ctx.tenant.id))
+    return {"query": q, "snippets": {str(k): v for k, v in snippets.items()}}

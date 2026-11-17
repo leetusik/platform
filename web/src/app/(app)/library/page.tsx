@@ -72,7 +72,11 @@ async function readDocs(
     name: p.name,
   }));
   try {
-    const source = await loadDocsSource(token, place.q);
+    const source = await loadDocsSource(token, lists.listing, {
+      q: place.q,
+      filter: place.filter,
+      page: place.page,
+    });
     const table = docsTable(lists.listing, source, {
       q: place.q,
       filter: place.filter,

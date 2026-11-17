@@ -5,9 +5,10 @@ import { notFound, unstable_rethrow } from "next/navigation";
 import { PROJECT_LIBRARY } from "@/content/project-library";
 import { requireIdentity } from "@/lib/auth-guards";
 import type { FormatOptions } from "@/lib/format";
-import { readProjectPlace } from "@/lib/library/list-place";
+import { readProjectPlace, type ProjectPlace } from "@/lib/library/list-place";
 import { loadDocsSource } from "@/lib/library/load-lists";
 import type { DocsSource } from "@/lib/library/lists";
+import type { KbOrgLibrary } from "@/lib/knowledge/types";
 import { loadMemberProjectOnce } from "@/lib/project-library/load";
 import { projectLibraryView } from "@/lib/project-library/model";
 import { viewerTimeZone } from "@/lib/time-zone";
@@ -21,7 +22,7 @@ import { ProjectHead, ProjectParts } from "./parts";
  * the address's (`?page=…&q=…`), so every book and document opened here carries this list on (F324).
  *
  * An id that is no project of the active org is Project not found (`notFound()`); a fault of the
- * page's reads is the route's Error; a fault of the table's own reads (tags, the text search) is the
+ * page's reads is the route's Error; a fault of the table's own reads (the text search) is the
  * table's failed state, the rest standing. Dates are in the viewer's zone. The tab title is the
  * project's name, through the site's template (one read a request, `loadMemberProjectOnce`).
  */
@@ -50,10 +51,16 @@ export async function generateMetadata({
 
 async function readSource(
   token: string,
-  q: string,
+  listing: KbOrgLibrary,
+  project: string,
+  place: ProjectPlace,
 ): Promise<DocsSource | null> {
   try {
-    return await loadDocsSource(token, q);
+    return await loadDocsSource(token, listing, {
+      q: place.q,
+      filter: project,
+      page: place.page,
+    });
   } catch (error) {
     unstable_rethrow(error);
     return null;
@@ -73,7 +80,7 @@ export default async function ProjectLibraryPage({
   const read = await loadMemberProjectOnce(token, identity, projectId);
   if (!read) notFound();
   const format: FormatOptions = { timeZone: viewerTimeZone(await cookies()) };
-  const source = await readSource(token, place.q);
+  const source = await readSource(token, read.listing, read.project, place);
   const view = projectLibraryView(
     read.listing,
     read.state,

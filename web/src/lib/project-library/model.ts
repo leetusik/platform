@@ -10,6 +10,7 @@ import type { FormatOptions } from "@/lib/format";
 import type { ListOrigin } from "@/lib/library/from";
 import {
   docsTable,
+  listingTags,
   nameBreaks,
   secondTitleLang,
   shelvesOf,
@@ -71,10 +72,7 @@ export function projectOrigin(
  * names a private one), and no search (a visitor cannot search).
  */
 export function visitorSource(listing: KbOrgLibrary): DocsSource {
-  return {
-    tags: new Map(listing.documents.map((d) => [d.id, d.tags ?? []])),
-    text: null,
-  };
+  return { tags: listingTags(listing), text: null };
 }
 
 /**
