@@ -140,8 +140,14 @@ describe("the rail", () => {
       "/projects/p%201",
       null,
       "/projects/p%201/library",
-      "/feedback?project=p%201",
+      "/projects/p%201/feedback",
     ]);
+  });
+
+  it("links the org form's Feedback to the org's list at rest", () => {
+    expect(
+      railFor("/dashboard").items.find((i) => i.key === "feedback")?.href,
+    ).toBe("/feedback");
   });
 });
 

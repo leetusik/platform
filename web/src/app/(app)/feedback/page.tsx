@@ -10,6 +10,7 @@ import {
   type DataTableColumn,
 } from "@/components/ui";
 import { FEEDBACK } from "@/content";
+import { LegacyPage } from "@/hi2vi/shell/legacy-page";
 import { requireIdentity } from "@/lib/auth-guards";
 import { listFeedback } from "@/lib/feedback/app";
 import {
@@ -212,51 +213,58 @@ export default async function FeedbackListPage({
       ? FEEDBACK.list.emptyNoProjects
       : FEEDBACK.list.emptyNoMatches;
 
+  // P65: an old page inside the Shell until its own slice rebuilds it, in the list's own boundary
+  // (no shared `feedback/layout.tsx`), so the list and the item are rebuilt apart.
   return (
-    <div className="kb-page-flow">
-      <div className="kb-pageframe">
-        <div className="kb-pageframe__title-wrap">
-          <div className="kb-app-eyebrow">
-            {tenantName} · {FEEDBACK.eyebrow}
+    <LegacyPage>
+      <div className="kb-page-flow">
+        <div className="kb-pageframe">
+          <div className="kb-pageframe__title-wrap">
+            <div className="kb-app-eyebrow">
+              {tenantName} · {FEEDBACK.eyebrow}
+            </div>
+            <h1 className="kb-app-title">{FEEDBACK.title}</h1>
           </div>
-          <h1 className="kb-app-title">{FEEDBACK.title}</h1>
-        </div>
-      </div>
-
-      <div>
-        <FilterBar active={active} projects={projects} />
-        <p className="kb-hintline">{FEEDBACK.filters.searchHint}</p>
-      </div>
-
-      <section className="kb-panel" aria-labelledby="feedback-list">
-        <div className="kb-panel__head">
-          <h2 id="feedback-list" className="kb-app-h2">
-            {FEEDBACK.list.heading}
-          </h2>
-          <span className="kb-panel__caption">{FEEDBACK.list.timeNote}</span>
         </div>
 
-        <DataTable
-          columns={columns(projectNames)}
-          rows={page.records}
-          rowKey={(record) => record.id}
-          empty={empty}
-        />
+        <div>
+          <FilterBar active={active} projects={projects} />
+          <p className="kb-hintline">{FEEDBACK.filters.searchHint}</p>
+        </div>
 
-        {/* Forward only: keyset paging has no previous cursor, and browser back
+        <section className="kb-panel" aria-labelledby="feedback-list">
+          <div className="kb-panel__head">
+            <h2 id="feedback-list" className="kb-app-h2">
+              {FEEDBACK.list.heading}
+            </h2>
+            <span className="kb-panel__caption">{FEEDBACK.list.timeNote}</span>
+          </div>
+
+          <DataTable
+            columns={columns(projectNames)}
+            rows={page.records}
+            rowKey={(record) => record.id}
+            empty={empty}
+          />
+
+          {/* Forward only: keyset paging has no previous cursor, and browser back
             is "previous". `next_cursor` is OMITTED when exhausted, so the test is
             `!== undefined`. */}
-        {page.next_cursor !== undefined ? (
-          <nav aria-label={FEEDBACK.pagination.ariaLabel} className="kb-pager">
-            <Link
-              href={nextPageHref(active, page.next_cursor)}
-              className={appButtonClass("secondary", "sm")}
+          {page.next_cursor !== undefined ? (
+            <nav
+              aria-label={FEEDBACK.pagination.ariaLabel}
+              className="kb-pager"
             >
-              {FEEDBACK.pagination.nextLabel}
-            </Link>
-          </nav>
-        ) : null}
-      </section>
-    </div>
+              <Link
+                href={nextPageHref(active, page.next_cursor)}
+                className={appButtonClass("secondary", "sm")}
+              >
+                {FEEDBACK.pagination.nextLabel}
+              </Link>
+            </nav>
+          ) : null}
+        </section>
+      </div>
+    </LegacyPage>
   );
 }
