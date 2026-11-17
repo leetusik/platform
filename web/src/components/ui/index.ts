@@ -1,11 +1,8 @@
 // Barrel for the token-driven UI primitives (P12.S1). Pages import components +
 // their CVA fns from "@/components/ui". The palette is hi2vi_web's adopted brand
 // green; token names are stable so later slices and the P14 gate compose on them.
-export { Button, buttonVariants } from "./button";
-export type { ButtonProps } from "./button";
-
 // Flat app-chrome button language (P12.S2) — the authenticated console's buttons,
-// distinct from the marketing pill `Button` (reserved for P14). Plus the `Tag` chip.
+// plus the `Tag` chip. (The marketing pill `Button` went with the old landing.)
 export { AppButton, appButtonClass, Tag } from "./app-button";
 export type {
   AppButtonProps,

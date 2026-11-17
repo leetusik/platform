@@ -45,7 +45,9 @@ channel. Upgrade by re-running either command; the `uv` form takes `--reinstall`
     knowledge usage
 
 `init` is idempotent — re-run it any time; it logs in, reuses your project, and
-keeps your key. Passwords never go through `argv`: use `--password-stdin`,
+keeps your key. If the service holds new sign-ups on its waitlist (hi2vi.com
+does), `init`, `signup` and `login` stop with one `error:` line saying so and exit 1,
+saving nothing; you get a mail when your account opens, then run `init` again. Passwords never go through `argv`: use `--password-stdin`,
 `$KNOWLEDGE_PASSWORD`, or an interactive prompt. Your `vk_` API key is show-once
 and the CLI stores it for you — it is never printed. Everything except `usage`
 keeps working after the 30-day session expires; only `usage` needs `knowledge

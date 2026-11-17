@@ -24,16 +24,13 @@ type Page = (props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => Promise<ReactElement>;
 
-/** The `next` the page hands its card and form. */
+/** The `next` the page hands its screen (the form and the link to the other screen read it). */
 async function nextOf(page: Page, raw: string | string[] | undefined) {
-  const card = (await page({
+  const screen = (await page({
     searchParams: Promise.resolve(raw === undefined ? {} : { next: raw }),
-  })) as ReactElement<{
-    next?: string;
-    children: ReactElement<{ next?: string }>;
-  }>;
-  expect(isValidElement(card)).toBe(true);
-  return { card: card.props.next, form: card.props.children.props.next };
+  })) as ReactElement<{ next?: string }>;
+  expect(isValidElement(screen)).toBe(true);
+  return screen.props.next;
 }
 
 beforeEach(() => {
@@ -46,7 +43,7 @@ describe.each([
 ])("/%s ?next=", (_name, page) => {
   it("honours a safe next", async () => {
     const safe = "/@acme/handbook/books/phases/p8?lang=ko#s-2";
-    expect(await nextOf(page, safe)).toEqual({ card: safe, form: safe });
+    expect(await nextOf(page, safe)).toBe(safe);
     expect(redirectIfAuthenticated).toHaveBeenCalledWith(safe);
   });
 
@@ -56,10 +53,37 @@ describe.each([
     ["/%2F%2Fevil.example"],
     ["javascript:alert(1)"],
   ])("ignores %j", async (unsafe) => {
-    expect(await nextOf(page, unsafe)).toEqual({
-      card: "/library",
-      form: "/library",
-    });
-    expect(redirectIfAuthenticated).toHaveBeenCalledWith("/library");
+    expect(await nextOf(page, unsafe)).toBe("/dashboard");
+    expect(redirectIfAuthenticated).toHaveBeenCalledWith("/dashboard");
+  });
+});
+
+// The email typed goes with the person between /login and /signup (it lives in the
+// `(auth)` layout's memory, never in the address): no URL the screens build holds it.
+describe("the email carried between the screens", () => {
+  const EMAIL = "june+carry@example.com";
+
+  it.each([
+    ["sign-in", "/@acme/handbook/books/b/k?lang=ko"],
+    ["sign-up", "/dashboard"],
+  ] as const)("is in the %s field and in no href", async (screen, next) => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { AuthEmailProvider } = await import("@/app/(auth)/auth-email");
+    const { SignInForm } = await import("@/app/(auth)/sign-in-form");
+    const html = renderToStaticMarkup(
+      createElement(
+        AuthEmailProvider,
+        { initialEmail: EMAIL, children: null },
+        createElement(SignInForm, { screen, next }),
+      ),
+    );
+    expect(html).toContain(`value="${EMAIL}"`);
+    const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href).not.toContain("june");
+      expect(decodeURIComponent(href)).not.toContain(EMAIL);
+    }
   });
 });

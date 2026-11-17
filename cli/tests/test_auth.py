@@ -263,3 +263,106 @@ def test_unrouted_control_plane_is_explained_not_a_bare_404(home, monkeypatch, c
 
 def test_whoami_without_a_session_says_so(home):
     assert main.main(["--base-url", "http://api.test", "whoami"]) == 1
+
+
+# --- the waitlist (KB_SIGNUP_WAITLIST on, as at hi2vi.com) ----------------------
+
+
+class WaitlistApi(FakeApi):
+    """The server with the waitlist switch on: sign-up answers 202 with no token,
+    and a waitlisted account's right-password sign-in answers 403 (server/auth_api.py).
+    """
+
+    def __init__(self, users=None, projects=None):
+        super().__init__(users, projects)
+        self.waitlisted = set()
+
+    def handler(self, request):
+        path, method = request.url.path, request.method
+        body = json.loads(request.content) if request.content else {}
+        email = body.get("email", "").strip().lower()
+        if (method, path) == ("POST", "/auth/signup") and email not in self.users:
+            self.calls.append((method, path))
+            self.users[email] = body["password"]
+            self.waitlisted.add(email)
+            return httpx.Response(202, json={"status": "waitlisted", "email": email})
+        if (
+            (method, path) == ("POST", "/auth/login")
+            and email in self.waitlisted
+            and self.users.get(email) == body["password"]
+        ):
+            self.calls.append((method, path))
+            return httpx.Response(
+                403, json={"detail": "waitlisted", "status": "waitlisted", "email": email}
+            )
+        return super().handler(request)
+
+
+@pytest.fixture
+def wapi(monkeypatch):
+    fake = WaitlistApi()
+    transport = httpx.MockTransport(fake.handler)
+    monkeypatch.setattr(auth, "KnowledgeClient", functools.partial(KnowledgeClient, transport=transport))
+    return fake
+
+
+def _config_file(home):
+    return home / ".config" / "knowledge-kb" / "config.json"
+
+
+def _one_plain_line(err):
+    lines = [line for line in err.splitlines() if line.strip()]
+    assert len(lines) == 1, err
+    assert lines[0].startswith("error: ")
+    assert "Traceback" not in err and "HTTP 403" not in err
+    return lines[0]
+
+
+def test_signup_waitlisted_says_so_and_writes_nothing(home, wapi, capsys):
+    assert _run_pw(("signup", "--email", "Ada@Example.com"), PW) == 1
+    out = capsys.readouterr()
+    line = _one_plain_line(out.err)
+    assert "waitlist" in line and "account created" in line
+    assert "ada@example.com" in line  # the email the server returned
+    assert PW not in out.out + out.err
+    assert not _config_file(home).exists()
+
+
+def test_init_waitlisted_stops_before_any_later_step(home, wapi, capsys):
+    assert _run_pw(("init", "--email", "ada@example.com"), PW) == 1
+    out = capsys.readouterr()
+    line = _one_plain_line(out.err)
+    assert "waitlist" in line and "account created" in line
+    assert wapi.calls == [("POST", "/auth/signup")]  # no project, no key mint
+    assert wapi.minted == 0 and not wapi.projects
+    assert not _config_file(home).exists()
+
+
+def test_login_waitlisted_is_the_waitlist_line_not_http_403(home, wapi, capsys):
+    wapi.users["ada@example.com"] = PW
+    wapi.waitlisted.add("ada@example.com")
+    assert _run_pw(("login", "--email", "ada@example.com"), PW) == 1
+    out = capsys.readouterr()
+    line = _one_plain_line(out.err)
+    assert "waitlist" in line and "account created" not in line
+    assert "ada@example.com" in line
+    assert PW not in out.out + out.err
+    assert not _config_file(home).exists()
+
+
+def test_init_rerun_lands_in_the_waitlist_line_through_the_409_fallback(home, wapi, capsys):
+    wapi.users["ada@example.com"] = PW
+    wapi.waitlisted.add("ada@example.com")
+    assert _run_pw(("init", "--email", "ada@example.com"), PW) == 1
+    line = _one_plain_line(capsys.readouterr().err)
+    assert "waitlist" in line
+    assert wapi.calls == [("POST", "/auth/signup"), ("POST", "/auth/login")]
+    assert not _config_file(home).exists()
+
+
+def test_a_waitlisted_account_with_a_wrong_password_stays_the_generic_401(home, wapi, capsys):
+    wapi.users["ada@example.com"] = PW
+    wapi.waitlisted.add("ada@example.com")
+    assert _run_pw(("login", "--email", "ada@example.com"), "wrong-password") == 1
+    err = capsys.readouterr().err
+    assert "invalid email or password" in err and "waitlist" not in err

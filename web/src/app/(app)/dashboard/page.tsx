@@ -1,451 +1,153 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { CopyLinkButton } from "@/components/copy-link-button";
-import {
-  appButtonClass,
-  Badge,
-  DataTable,
-  type DataTableColumn,
-} from "@/components/ui";
-import { StatTiles, type StatTileVM, TrendChart } from "@/components/usage";
-import { DASHBOARD } from "@/content";
+import { DASHBOARD } from "@/content/dashboard";
+import { Keys, Trend, Usage } from "@/hi2vi/frame";
+import { Grid, Stack } from "@/hi2vi/ui";
 import { requireIdentity } from "@/lib/auth-guards";
+import type { FormatOptions } from "@/lib/format";
 import {
   getDashboard,
+  getDocuments,
   getUsage,
   listOrgCredentials,
 } from "@/lib/knowledge/app";
-import { credentialStatus } from "@/lib/knowledge/credential-status";
-import type {
-  KbActivityEvent,
-  KbCredential,
-  KbDashboardProject,
-} from "@/lib/knowledge/types";
-import { orgSegment } from "@/lib/reader-href";
 
-import { CreateProjectForm } from "./create-project-form";
-import { MintOrgKeyForm } from "./mint-org-key-form";
-import { OrgSlugForm } from "./org-slug-form";
-import { RevokeOrgKeyButton } from "./revoke-org-key-button";
+import { ActivityPanel } from "./activity-panel";
+import { HashLanding } from "./hash-landing";
+import {
+  createOrgProject,
+  mintOrgKey,
+  revokeOrgKey,
+  saveOrgSlug,
+} from "./actions";
+import "./org-home.css";
+import {
+  activityLines,
+  keyRow,
+  ORG_KEYS_HEAD_ID,
+  projectRows,
+} from "./org-home-model";
+import { ProjectsPanel } from "./projects-panel";
+import { UrlPanel } from "./url-panel";
 
-// P12.S3 — the tenant dashboard: the post-login home and the app's first real data
-// page. A server component throughout (only the create-project header button is a
-// client island), rendered inside the S2/S2R `(app)` shell (the topbar with the
-// tenant name + the teal-active rail already wrap this) — so it renders ONLY inside
-// `.kb-app-main`, never re-drawing chrome.
-//
-// Two PARALLEL calls: `/app/usage` for the stat tiles + 30-day search trend, and the
-// P12.S3 `/app/dashboard` rollup for the richer projects table (per-project Docs /
-// Keys / Last-used) + the recent-activity feed. `Promise.all` makes the second call
-// free in wall-clock terms. A non-401 failure from either propagates to the error
-// boundary — an outage must surface, not masquerade as an empty dashboard (the
-// 401→/login redirect lives inside `requireIdentity`). Tenant name comes from the
-// shell's cached `/auth/me`; no extra round-trip here.
+/**
+ * Org home (job 01 round 03-instrument, `OrgHome.dc.html`): a system page inside the Shell, in the
+ * signed order: the org's name; the read-out in two groups; Projects; Trend with Public URL beside
+ * Recent activity; Org API keys. The toast region is the Shell's (`publishToast`).
+ *
+ * Reads, in parallel: `/app/usage` (the 30-day figures and the trend), `/app/credentials` (the org's
+ * keys, and their lines in the feed), `/app/documents` (`total`: Active total, the documents the org
+ * holds now), and the Projects panel's own: `/app/dashboard` (the rows and the project feed) with one
+ * `/app/documents?project=<id>` a project for its Documents column. A failure of the Projects reads
+ * is that panel's own state (Projects did not load.); any other failure is the route's error page.
+ */
 export const metadata: Metadata = { title: DASHBOARD.title };
 
-// Column priorities are round 03 §4.6's, verbatim: 1 Project + Action · 2 Docs,
-// Visibility, Last used · 3 Keys, Created. `data-pri` rides on every th/td and the
-// responsive layer drops the 3s below 64rem of `kbmain`.
-const columns: DataTableColumn<KbDashboardProject>[] = [
-  {
-    key: "name",
-    header: DASHBOARD.projects.columns.project,
-    priority: 1,
-    // §4.3 — the project name IS a link now, so a row can be reached by tapping
-    // the name as well as by the ghost Open button. The ROW itself stays
-    // unclickable and takes no `cursor: pointer`: two real targets, no
-    // row-swallowing click handler.
-    cell: (project) => (
-      <Link href={`/projects/${project.id}`} className="kb-dtable__name">
-        {project.name}
-      </Link>
-    ),
-  },
-  {
-    key: "documents",
-    header: DASHBOARD.projects.columns.documents,
-    priority: 2,
-    align: "right",
-    className: "num",
-    cell: (project) => project.documents.toLocaleString("en-US"),
-  },
-  {
-    key: "keys",
-    header: DASHBOARD.projects.columns.keys,
-    priority: 3,
-    align: "right",
-    className: "num",
-    cell: (project) => project.keys.toLocaleString("en-US"),
-  },
-  {
-    // P19 — per-project Public/Private badge, straight off the rollup's `visibility`
-    // (active=Public / idle=Private reuse the closed Badge status enum, no new CSS).
-    key: "visibility",
-    header: DASHBOARD.projects.columns.visibility,
-    priority: 2,
-    cell: (project) => (
-      <Badge status={project.visibility === "public" ? "active" : "idle"}>
-        {project.visibility === "public"
-          ? DASHBOARD.projects.visibility.public
-          : DASHBOARD.projects.visibility.private}
-      </Badge>
-    ),
-  },
-  {
-    key: "created",
-    header: DASHBOARD.projects.columns.created,
-    priority: 3,
-    className: "mono",
-    cell: (project) => formatCreated(project.created_at),
-  },
-  {
-    key: "last_used",
-    header: DASHBOARD.projects.columns.lastUsed,
-    priority: 2,
-    className: "mono",
-    cell: (project) => relativeTime(project.last_used_at),
-  },
-  {
-    key: "action",
-    header: DASHBOARD.projects.columns.action,
-    priority: 1,
-    actions: true,
-    // The `/projects/[id]` detail route lands in S4 (the next slice); the Open link
-    // is the designed affordance and goes live then. Acceptable — the phase is not
-    // deployed until P14.
-    cell: (project) => (
-      <Link
-        href={`/projects/${project.id}`}
-        className={appButtonClass("ghost", "sm")}
-      >
-        {DASHBOARD.projects.openLabel}
-      </Link>
-    ),
-  },
-];
-
-// P18.S3 — the org-level API-keys table. Mirrors the project page's credential
-// columns (name / key stub / derived status / created / last used / revoke) at ORG
-// scope: an org key carries `project_id null` and grants the whole org. Revoke rides
-// by credential id alone (no project id).
-// PRIORITIES are round 04 §4.3's, which closes the gap P28.S2 recorded: round 03
-// §4.6 never rated this table, so S2 defaulted every column to 1; the later round
-// rates it "Name, Key, Status, Actions = 1 · Last used = 2 · Created = 3" and that
-// answer replaces the default here (the same way round 05 corrects round 04).
-const orgKeyColumns: DataTableColumn<KbCredential>[] = [
-  {
-    key: "name",
-    priority: 1,
-    header: DASHBOARD.orgKeys.columns.name,
-    cell: (credential) => (
-      <>
-        {credential.name === null ? (
-          <span className="text-[var(--kb-hint)] italic">
-            {DASHBOARD.orgKeys.unnamed}
-          </span>
-        ) : (
-          <span className="kb-dtable__name">{credential.name}</span>
-        )}
-        {/* A capture-only key says so beside its name (the kit's Badge, idle tone
-            as for Private: the restricted form); a full key shows nothing new. */}
-        {credential.scope === "capture" ? (
-          <>
-            {" "}
-            <Badge status="idle">{DASHBOARD.orgKeys.captureBadge}</Badge>
-          </>
-        ) : null}
-      </>
-    ),
-  },
-  {
-    key: "key",
-    priority: 1,
-    header: DASHBOARD.orgKeys.columns.key,
-    className: "mono",
-    // `token_prefix` is a display stub (`"vk_"` + a slice), never a usable
-    // credential. The plaintext key exists only in the mint response.
-    cell: (credential) => `${credential.token_prefix}…`,
-  },
-  {
-    key: "status",
-    priority: 1,
-    header: DASHBOARD.orgKeys.columns.status,
-    // Derived three-state status (`credential-status.ts`): revoked / active / idle,
-    // encoded in FORM as well as color via the `Badge` (WCAG 1.4.1).
-    cell: (credential) => {
-      const status = credentialStatus(credential);
-      return (
-        <Badge status={status}>{DASHBOARD.orgKeys.status[status]}</Badge>
-      );
-    },
-  },
-  {
-    key: "created",
-    priority: 3,
-    header: DASHBOARD.orgKeys.columns.created,
-    className: "mono",
-    cell: (credential) => formatCreated(credential.created_at),
-  },
-  {
-    key: "last_used",
-    priority: 2,
-    header: DASHBOARD.orgKeys.columns.lastUsed,
-    className: "mono",
-    // `null` until the key is first used to ingest → `relativeTime` renders "—".
-    cell: (credential) => relativeTime(credential.last_used_at),
-  },
-  {
-    key: "action",
-    header: (
-      <span className="sr-only">{DASHBOARD.orgKeys.columns.actions}</span>
-    ),
-    priority: 1,
-    actions: true,
-    // A revoked key has nothing to revoke; its struck badge tells the story.
-    cell: (credential) =>
-      credential.revoked_at === null ? (
-        <RevokeOrgKeyButton
-          credentialId={credential.id}
-          credentialLabel={credential.name ?? credential.token_prefix}
-        />
-      ) : null,
-  },
-];
-
-/** `"2026-03-12T09:31:02+00:00"` → `"2026-03-12"` (mono ISO date); unparseable → first 10 chars. */
-function formatCreated(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso.slice(0, 10);
-  return at.toISOString().slice(0, 10);
+interface ProjectsData {
+  dashboard: Awaited<ReturnType<typeof getDashboard>>;
+  docs: Map<string, number>;
 }
 
-/** `"2h ago"` / `"3d ago"` / `"just now"`; `"—"` when null or unparseable. */
-function relativeTime(iso: string | null): string {
-  if (!iso) return "—";
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "—";
-  const seconds = Math.floor((Date.now() - at.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+async function readProjects(token: string): Promise<ProjectsData | null> {
+  try {
+    const dashboard = await getDashboard(token);
+    const counts = await Promise.all(
+      dashboard.projects.map(
+        async (p) =>
+          [
+            p.id,
+            (await getDocuments(token, { project: p.id, limit: 1 })).total,
+          ] as const,
+      ),
+    );
+    return { dashboard, docs: new Map(counts) };
+  } catch {
+    return null;
+  }
 }
 
-/** The bolded body of one activity line, per its type's template. */
-function activityBody(event: KbActivityEvent) {
-  const template = DASHBOARD.activity.templates[event.type];
-  const emphasised =
-    template.emphasis === "project"
-      ? event.project_name
-      : (event.credential_name ?? DASHBOARD.activity.unnamedKey);
-  return (
-    <>
-      {template.text} ·{" "}
-      <b className="font-semibold text-[var(--kb-ink)]">{emphasised}</b>
-    </>
-  );
+/** One `now` and one zone for every date on the page, server and client alike (no hydration drift). */
+function pageFormat(): FormatOptions {
+  return {
+    now: Date.now(),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
+
+/** Today's calendar date in the zone the page formats in. */
+function today(format: FormatOptions): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: format.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(format.now);
 }
 
 export default async function DashboardPage() {
   const { token, identity } = await requireIdentity();
-  const tenantName = identity.tenant?.name ?? "—";
-  // P25 — the org's public slug, straight off the session identity (`serialize_tenant`
-  // carries it, so this costs no extra call). `null` until the operator claims one in
-  // the Public URL panel below. P37-1p: that panel shows the org's library URL,
-  // `/@{slug}`, where the retired public graph line was; it is composed with the
-  // reader's `orgSegment` (the slug, once claimed) because the dashboard fetches no
-  // payload carrying a `canonical_path` for it.
-  const orgSlug = identity.tenant?.slug ?? null;
-  const publicLibraryPath =
-    identity.tenant && orgSlug ? `/@${orgSegment(identity.tenant)}` : null;
+  const orgName = identity.tenant?.name ?? "";
+  const slug = identity.tenant?.slug ?? null;
+  const format = pageFormat();
 
-  const [usage, dashboard, orgCredentials] = await Promise.all([
+  const [usage, orgKeys, held, projects] = await Promise.all([
     getUsage(token),
-    getDashboard(token),
     listOrgCredentials(token),
+    getDocuments(token, { limit: 1 }),
+    readProjects(token),
   ]);
 
-  // The four tiles. "Active total" is derived (`documents_created − documents_deleted`),
-  // not a `totals` key; no deltas (operator decision).
-  const tiles: StatTileVM[] = [
-    {
-      key: "documents_created",
-      eyebrow: DASHBOARD.usage.tiles.documentsCreated,
-      value: usage.totals.documents_created,
-    },
-    {
-      key: "searches",
-      eyebrow: DASHBOARD.usage.tiles.searches,
-      value: usage.totals.searches,
-    },
-    {
-      key: "deleted",
-      eyebrow: DASHBOARD.usage.tiles.deleted,
-      value: usage.totals.documents_deleted,
-    },
-    {
-      key: "active_total",
-      eyebrow: DASHBOARD.usage.tiles.activeTotal,
-      value: usage.totals.documents_created - usage.totals.documents_deleted,
-    },
-  ];
-
   const series = usage.daily_counts.map((day) => day.searches);
-  const peak = series.length > 0 ? Math.max(...series) : 0;
+  const lastDay = usage.daily_counts.at(-1)?.day ?? today(format);
 
   return (
-    // Round 04 §4.1 — every console page is ONE `.kb-page-flow`: the six blocks
-    // below are its direct children in one order at every width, and the flow's
-    // `gap: var(--kb-space-md)` is the page's whole vertical rhythm. Every
-    // block-level `margin-top` the page used to carry is GONE (the record: "the
-    // flow is where a reviewer reads the page's order off one element").
-    <div className="kb-page-flow">
-      {/* Round 04 §4.4 (P28.S5) — the create-project DISCLOSURE owns the page
-          frame now: its trigger stays in `.kb-pageframe__actions` and the revealed
-          `.kb-inlineform--framed` is the frame's next sibling, so one piece of
-          client state spans both. The title wrap below stays server-rendered — it
-          is passed through as `children` and never crosses into the island. Both
-          elements land as direct children of this `.kb-page-flow`. */}
-      <CreateProjectForm>
-        <div className="kb-pageframe__title-wrap">
-          <div className="kb-app-eyebrow">
-            {tenantName} · {DASHBOARD.eyebrow}
+    <div className="column">
+      <header className="page-top">
+        <div className="page-head">
+          <div className="page-title">
+            <h1>{orgName}</h1>
           </div>
-          <h1 className="kb-app-title">{DASHBOARD.title}</h1>
-          <p className="kb-app-sub">{DASHBOARD.sub}</p>
         </div>
-      </CreateProjectForm>
-
-      <StatTiles tiles={tiles} />
-
-      {/* Trend panel — heading + mono caption + the line/area search trend.
-          §4.3: the figure's `h-[120px]` is deleted and the figure wears
-          `.kb-trend-wrap`, whose round 03 clamp — `clamp(6rem, 3.6rem + 9cqi,
-          8.5rem)` — owns the height from here on (136px at desktop, 96px at 390).
-          Nothing in the repo wore that class until now, so the clamp was inert. */}
-      <section className="kb-panel" aria-labelledby="trend-head">
-        <div className="kb-panel__head">
-          <h2 id="trend-head" className="kb-app-h2">
-            {DASHBOARD.trend.heading}
-          </h2>
-          <span className="kb-panel__caption">
-            {DASHBOARD.trend.caption(usage.totals.searches, peak)}
-          </span>
-        </div>
-        <figure className="kb-trend-wrap m-0 block">
-          <TrendChart
-            series={series}
-            ariaLabel={DASHBOARD.trend.ariaLabel}
-            empty={DASHBOARD.trend.empty}
-          />
-        </figure>
-      </section>
-
-      {/* §4.5 — `.kb-app-cols` replaces the inline 1.7fr/1fr grid, so the stack
-          happens when `kbmain` crosses 64rem (the rail's fold moves that line by
-          15rem) rather than when the WINDOW does. */}
-      <div className="kb-app-cols">
-        <div className="kb-panel">
-          <div className="kb-panel__head">
-            <h2 className="kb-app-h2">{DASHBOARD.projects.heading}</h2>
-          </div>
-          <DataTable
-            columns={columns}
-            rows={dashboard.projects}
-            rowKey={(project) => project.id}
-            empty={DASHBOARD.projects.empty}
-          />
-        </div>
-
-        <div className="kb-panel">
-          <div className="kb-panel__head">
-            <h2 className="kb-app-h2">{DASHBOARD.activity.heading}</h2>
-          </div>
-          {dashboard.activity.length === 0 ? (
-            <p className="text-[0.88rem] text-[var(--kb-secondary)]">
-              {DASHBOARD.activity.empty}
-            </p>
-          ) : (
-            // §4.3 — `.kb-activity` replaces the inline Tailwind list. The mono
-            // time column holds its 4.6rem at every width (that is what makes the
-            // feed scannable), and the sentence's one bolded entity is styled by
-            // `.kb-activity__row b`, so the <b> carries no utility of its own.
-            <ul className="kb-activity">
-              {dashboard.activity.map((event, index) => (
-                <li
-                  key={`${event.type}-${event.at}-${index}`}
-                  className="kb-activity__row"
-                >
-                  <span className="kb-activity__time">
-                    {relativeTime(event.at)}
-                  </span>
-                  <span>{activityBody(event)}</span>
-                </li>
-              ))}
-            </ul>
+      </header>
+      <Usage
+        figures={{
+          docs30: usage.totals.documents_created,
+          searches30: usage.totals.searches,
+          deleted30: usage.totals.documents_deleted,
+          docs: held.total,
+        }}
+      />
+      <ProjectsPanel
+        rows={
+          projects
+            ? projectRows(projects.dashboard.projects, projects.docs, format)
+            : null
+        }
+        create={createOrgProject}
+      />
+      <Grid className="orghome-pair">
+        <Stack gap={5}>
+          <Trend series={series} lastDay={lastDay} format={format} />
+          <UrlPanel slug={slug} save={saveOrgSlug} />
+        </Stack>
+        <ActivityPanel
+          lines={activityLines(
+            projects?.dashboard.activity ?? [],
+            orgKeys,
+            format,
           )}
-        </div>
-      </div>
-
-      {/* Public URL (P25.S5) — the org slug. §4.3 takes the field OUT of the panel
-          head: it is always visible (not a disclosure), so it cannot sit beside the
-          lead — it is a `.kb-fieldrow` row under the head at every width, with a
-          VISIBLE label (on a phone the heading is two lines above the input and
-          cannot act as its label). Below the row, the org's public library URL
-          with a copy button once a slug exists. */}
-      <section className="kb-panel" aria-labelledby="org-slug-head">
-        <div className="kb-panel__head kb-panel__head--start">
-          <div className="kb-panel__headmain">
-            <h2 id="org-slug-head" className="kb-app-h2">
-              {DASHBOARD.orgSlug.heading}
-            </h2>
-            <p className="kb-panel__lead">{DASHBOARD.orgSlug.lead}</p>
-          </div>
-        </div>
-
-        <OrgSlugForm defaultValue={orgSlug ?? ""} />
-
-        {publicLibraryPath ? (
-          <div className="kb-urlline">
-            <span className="kb-urlline__label">
-              {DASHBOARD.orgSlug.libraryUrlLabel}
-            </span>
-            <code className="kb-urlline__url">{publicLibraryPath}</code>
-            <CopyLinkButton path={publicLibraryPath} />
-          </div>
-        ) : (
-          <p className="kb-panel__lead">{DASHBOARD.orgSlug.empty}</p>
-        )}
-      </section>
-
-      {/* Org API keys — a full-width panel below the projects/activity grid. The
-          panel head carries the heading, the lead and the "New key" disclosure
-          TRIGGER; the table lists metadata only (`token_prefix`, never the full
-          key). One org key grants the whole org.
-          Round 04 §4.4 (P28.S5) — the disclosure owns the head now: `<MintOrgKeyForm>`
-          renders `.kb-panel__head` around this server-rendered `__headmain` and puts
-          the revealed `.kb-inlineform` after it, as the head's next sibling. */}
-      <section className="kb-panel" aria-labelledby="org-keys-head">
-        <MintOrgKeyForm>
-          <div className="kb-panel__headmain">
-            <h2 id="org-keys-head" className="kb-app-h2">
-              {DASHBOARD.orgKeys.heading}
-            </h2>
-            <p className="kb-panel__lead">{DASHBOARD.orgKeys.lead}</p>
-          </div>
-        </MintOrgKeyForm>
-
-        <DataTable
-          columns={orgKeyColumns}
-          rows={orgCredentials}
-          rowKey={(credential) => credential.id}
-          empty={DASHBOARD.orgKeys.empty}
         />
-      </section>
+      </Grid>
+      <Keys
+        scope="org"
+        subject={orgName}
+        rows={orgKeys.map(keyRow)}
+        mint={mintOrgKey}
+        revoke={revokeOrgKey}
+        format={format}
+        headId={ORG_KEYS_HEAD_ID}
+      />
+      <HashLanding id={ORG_KEYS_HEAD_ID} />
     </div>
   );
 }

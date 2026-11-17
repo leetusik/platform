@@ -1,8 +1,3 @@
-// Barrel for the authenticated app shell (P12.S2) — the light-console topbar +
-// [rail | main] chrome that the `(app)` route group's layout wraps every signed-in
-// page in.
-export { AppFrame } from "./app-frame";
+// Barrel for the signed-in app's frame: `AppShell`, the hi2vi Shell around every signed-in page
+// (P58). Its parts live in `src/hi2vi/shell/`.
 export { AppShell } from "./app-shell";
-export { LogoutButton } from "./logout-button";
-export { NavbarNav } from "./navbar-nav";
-export { RAIL_ID, RailNav } from "./rail-nav";

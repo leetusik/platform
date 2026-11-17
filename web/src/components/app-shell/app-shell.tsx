@@ -1,166 +1,101 @@
-import { cookies } from "next/headers";
-import Link from "next/link";
-
 import { FullWidthExit } from "@/app/(public)/documents/[id]/full-width-exit";
-import { ToastRegion } from "@/components/states";
-import { APP_SHELL, BRAND, SKIP_TO_CONTENT } from "@/content";
+import { SKIP_TO_CONTENT } from "@/content";
+import { loadShellData, requestNonce } from "@/hi2vi/shell/data";
+import { LegacyPage } from "@/hi2vi/shell/legacy-page";
+import { ShellOrgNameProvider } from "@/hi2vi/shell/org-name";
+import { Shell } from "@/hi2vi/shell/shell";
+import { ToastRegion } from "@/hi2vi/shell/toast";
+import { Legacy } from "@/hi2vi/ui/boundary";
+import { UiRoot } from "@/hi2vi/ui/root";
 import type { KbIdentity } from "@/lib/knowledge/types";
 import { reviewDue } from "@/lib/library/due";
-import { isRailCollapsed, RAIL_COOKIE } from "@/lib/rail-cookie";
+import { ORG_ROUTE } from "@/lib/session";
 
-import { AppFrame } from "./app-frame";
-import { LogoutButton } from "./logout-button";
-import { OrgMenu } from "./org-menu";
+import "@/hi2vi/shell/shell.css";
 
 /**
- * The authenticated app shell (P12.S2, re-skinned P12.S2R) — the chrome S3–S6
- * render inside, wearing the Knowledge Base light "workspace" console: the `.kb-app`
- * frame carries `data-md-color-scheme="default"` (the light scheme; the login gate
- * is dark), a sticky `.kb-topbar` sunken paper band (fold toggle · logo mark + serif
- * "knowledge" wordmark · divider · workspace crumb · spacer · user email · ghost Sign
- * out) over a `.kb-app-layout` [rail | main] grid.
+ * The signed-in app's frame: the hi2vi Shell (P58; job 01 round 03-instrument, the org rail per job 03
+ * round 02, F320), behind the export every signed-in route already renders, so they all get it at once.
  *
- * A SERVER component: the identity is server-fetched by the caller and rendered here,
- * so a live session token's surroundings never cross a client boundary. The topbar
- * band and the grid are structurally owned by the `<AppFrame>` client island — they
- * share the rail-fold bit — but everything INSIDE them is passed down as already-
- * rendered server nodes, so the identity OBJECT still never becomes a client prop and
- * nothing here joins the client bundle. Only the genuinely-interactive bits — the fold
- * toggle, the logout button, and the pathname-aware rail — are islands.
+ *   UiRoot > .page > .app > .app-frame > [Shell: header.top + nav.rail] + main.app-main#main-content
+ *                                                                          ├─ the page
+ *                                                                          └─ .toast-region (last child)
  *
- * The fold preference is read SERVER-side from the `kb_rail` cookie so the first paint
- * already carries the right grid (no flash of an expanded rail). That read costs no new
- * dynamic surface: every consumer of this shell has already read the session cookie via
- * `requireIdentity()` / `optionalIdentity()`, so the subtree was dynamic regardless.
+ * A SERVER component: the identity, the org's projects and the Review count are read here and handed to
+ * the client `Shell` as plain data; the session token never crosses to the client. The rail and the
+ * current project follow the path in the client, so the frame persists across client navigation.
+ *
+ * `legacy` (default on) puts the page inside `LegacyPage`, the old-page boundary: the `(public)` shells,
+ * the versions page and the not-founds get it this way. The `(app)` layout passes
+ * `legacy={false}` and lets each old route folder's own `layout.tsx` wrap its pages, so a route turns
+ * into a system page by deleting that one file (org home S7, project home S8).
+ *
+ * On a reader path the request carries a nonce CSP; `UiRoot`'s scheme script takes its nonce.
  */
 export async function AppShell({
   identity,
   fullWidth,
+  legacy = true,
   children,
 }: {
   identity: KbIdentity;
   /**
-   * Round 06 §4.4 — the chrome-less document view (`?view=full`). It sets
-   * `data-kb-view="full"` on `.kb-app` and mounts the exit pill; NOTHING is
-   * conditionally unmounted, because `kb-docview.css` is what hides the chrome,
-   * so entering and leaving the view costs no refetch and no remount.
+   * Round 06 §4.4 — the chrome-less document view (`?view=full`): the bar and the rail are hidden by
+   * CSS (`shell.css`), the old page carries `data-kb-view="full"` for `kb-docview.css`, and the exit
+   * pill (`position: fixed`) is mounted outside the old page and pins to the screen. Nothing unmounts.
    */
   fullWidth?: boolean;
+  /** Wrap the page in the old-page boundary (default). `false`: the route decides, per folder. */
+  legacy?: boolean;
   children: React.ReactNode;
 }) {
-  const tenantName = identity.tenant?.name ?? APP_SHELL.noTenant;
-  const store = await cookies();
-  // P30.S22 — the Review pill; never fails the shell (a fault is 0).
-  const due = await reviewDue();
-  const collapsed = isRailCollapsed(store.get(RAIL_COOKIE)?.value);
-  // Round 03 §4.2 — the phone account disclosure's avatar: the first character of
-  // the email's local part, uppercased. An empty local part can't happen for a
-  // signed-in identity, but `[0]` on "" is `undefined`, so fall back to the label.
-  const initial = (identity.user.email.split("@")[0]?.[0] ?? "?").toUpperCase();
-  // The org menu exists only for a user in more than one org: everyone else gets
-  // exactly the shell they had (rendered on the server, passed down as slots).
-  const multiOrg = identity.tenants.length > 1;
+  const [due, nonce, data] = await Promise.all([
+    reviewDue(),
+    requestNonce(),
+    loadShellData(identity),
+  ]);
+  const active = identity.tenant ?? identity.tenants[0] ?? null;
+  const org = active
+    ? { id: active.id, name: active.name }
+    : { id: "", name: "—" };
 
   return (
-    // A FRAGMENT, not a single root: round 03 §5.5's `.kb-toast-region` has to be
-    // a root-level SIBLING of `.kb-app`, never a child. `.kb-app` declares
-    // `container: kbapp / inline-size`, and a container is a containing block for
-    // `position: fixed` descendants — a toast inside it would pin to the bottom of
-    // the document instead of the bottom of the screen. This shell renders
-    // straight into the root layout's `<body>` (the `(app)` layout adds no wrapper
-    // and `(public)` has no layout at all), so the sibling here really is at the
-    // layout root. See `components/states/toast-region.tsx`: the region is empty
-    // and nothing emits a toast yet.
-    <>
-      {/* `data-kb-scheme="auto"` (§6) means "nobody has chosen a scheme yet", and
-          is the whole switch for the `prefers-color-scheme: dark` block in
-          kb-console-responsive.css. `data-md-color-scheme` is unchanged and still
-          the real switch; the auth gate keeps `slate` and carries NO
-          `data-kb-scheme`, so it stays dark in both OS schemes, and the landing
-          page is untouched because the block is scoped to `.kb-app`. */}
-      <div
-        className="kb-app"
-        data-md-color-scheme="default"
-        data-kb-scheme="auto"
-        data-kb-view={fullWidth ? "full" : undefined}
-      >
-        {/* Skip link (§4.1), reusing the marketing header's one `SKIP_TO_CONTENT`
-            constant — its href is `#main-content`, which is the id this shell's
-            `<main>` has always carried, so the two surfaces keep ONE target and one
-            copy string. (The record writes `main#content`; same link, same
-            behaviour, no forked constant — see P28.S2's result.md.) */}
+    <UiRoot nonce={nonce}>
+      {/* The skip link keeps the old `.kb-skip` look: the system has no skip-link class yet. */}
+      <Legacy>
         <a className="kb-skip" href={SKIP_TO_CONTENT.href}>
           {SKIP_TO_CONTENT.label}
         </a>
-        <AppFrame
-          defaultCollapsed={collapsed}
-          due={due}
-          railOrgMenu={
-            multiOrg ? (
-              <OrgMenu
-                tenants={identity.tenants}
-                active={identity.tenant}
-                placement="rail"
-              />
-            ) : undefined
-          }
-          navbarOrgMenu={
-            multiOrg ? (
-              <OrgMenu
-                tenants={identity.tenants}
-                active={identity.tenant}
-                placement="navbar"
-              />
-            ) : undefined
-          }
-          topbar={
-            <>
-              {/* P30.S22 (`06-library` open question 3): the wordmark goes to the library. */}
-              <Link className="kb-topbar__brand" href="/library">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={BRAND.logo} alt="" width={22} height={22} />
-                <span className="kb-topbar__word">{BRAND.wordmark}</span>
-              </Link>
-              <span className="kb-topbar__divider" />
-              <span className="kb-topbar__crumb">
-                {APP_SHELL.workspaceLabel} <b>{tenantName}</b>
-              </span>
-              <span className="kb-topbar__spacer" />
-              <span className="kb-topbar__user">{identity.user.email}</span>
-              {/* `.kb-topbar__signout` is the class the phone rule hides — the wide
-                  sign-out and the one inside the disclosure are the same island. */}
-              <LogoutButton className="kb-topbar__signout" />
-              {/* The phone account disclosure (§4.2): a native <details>, so it works
-                  with no JS, is keyboard-operable and needs no focus trap or scrim.
-                  Rendered at EVERY width — `display: none` above 40rem decides. */}
-              <details className="kb-account">
-                <summary aria-label={APP_SHELL.accountMenuLabel}>
-                  <span className="kb-account__avatar">{initial}</span>
-                </summary>
-                <div className="kb-account__menu">
-                  <div className="kb-account__email">{identity.user.email}</div>
-                  <div className="kb-account__org">
-                    {APP_SHELL.workspaceLabel} <b>{tenantName}</b>
-                  </div>
-                  <LogoutButton variant="secondary" />
-                </div>
-              </details>
-            </>
-          }
-        >
-          {children}
-        </AppFrame>
+      </Legacy>
+      <div className="page">
+        <div className="app" data-view={fullWidth ? "full" : undefined}>
+          <div className="app-frame">
+            <Shell
+              org={org}
+              orgs={data.orgs}
+              projects={data.projects}
+              email={identity.user.email}
+              due={due}
+              orgRoute={ORG_ROUTE}
+            />
+            <main id="main-content" className="app-main">
+              <ShellOrgNameProvider name={org.name}>
+                {legacy ? (
+                  <LegacyPage fullWidth={fullWidth}>{children}</LegacyPage>
+                ) : (
+                  children
+                )}
+              </ShellOrgNameProvider>
+              <ToastRegion />
+            </main>
+          </div>
+        </div>
       </div>
-
-      {/* §5.5 — outside `.kb-app` on purpose (see the note above the fragment).
-          Empty, and always mounted: an `aria-live` region has to exist before
-          the message arrives or the announcement is lost. */}
-      <ToastRegion />
-
-      {/* Round 06 §4.4 — the full-width view's exit pill, here for exactly the
-          reason the toast region is here: a `position: fixed` child of `.kb-app`
-          would pin to the document, not the screen. */}
-      {fullWidth ? <FullWidthExit /> : null}
-    </>
+      {fullWidth ? (
+        <Legacy>
+          <FullWidthExit />
+        </Legacy>
+      ) : null}
+    </UiRoot>
   );
 }

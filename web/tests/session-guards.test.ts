@@ -207,7 +207,7 @@ describe("return address through the member guard and the gate", () => {
     );
     withRequestPath("//evil.example");
     await expect(requireIdentity()).rejects.toThrow(
-      /^REDIRECT:\/api\/auth\/org\?next=%2Flibrary$/,
+      /^REDIRECT:\/api\/auth\/org\?next=%2Fdashboard$/,
     );
   });
 
@@ -224,7 +224,7 @@ describe("return address through the member guard and the gate", () => {
     vi.mocked(fetch).mockImplementation(async () => json(200, ME));
     for (const unsafe of ["//evil.example", "/\\evil", "javascript:alert(1)"]) {
       await expect(redirectIfAuthenticated(unsafe)).rejects.toThrow(
-        /^REDIRECT:\/library$/,
+        /^REDIRECT:\/dashboard$/,
       );
     }
   });

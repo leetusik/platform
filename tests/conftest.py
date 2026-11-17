@@ -15,3 +15,6 @@ def _no_ambient_gemini_key(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     # Tests never trigger the boot reindex implicitly.
     monkeypatch.setenv("KB_STARTUP_REINDEX", "0")
+    # Sign-up answers as it does by default (201 with a token) unless a test turns
+    # the waitlist on itself, whatever the developer's shell exports.
+    monkeypatch.delenv("KB_SIGNUP_WAITLIST", raising=False)

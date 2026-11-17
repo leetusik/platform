@@ -17,6 +17,9 @@ import {
   setTenantSlug,
 } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
+import type { MintInput, MintResult, RevokeResult } from "@/hi2vi/frame";
+
+import type { CreateProjectResult, SaveSlugResult } from "./org-home-model";
 
 /**
  * P12.S3 — create-project as a SERVER ACTION, the architectural rule for authed
@@ -57,6 +60,8 @@ export interface CreateProjectState {
   error: string | null;
   /** Bumped on each success so the client island can reset + collapse the form. */
   ok?: number;
+  /** P58 org home: which signed sentence a failure maps to (the name, or the send). */
+  reason?: "invalid-name" | "failed";
 }
 
 /**
@@ -73,7 +78,7 @@ export async function createProjectAction(
 ): Promise<CreateProjectState> {
   const parsed = nameSchema.safeParse(formData.get("name"));
   if (!parsed.success) {
-    return { error: CREATE_PROJECT_ERRORS.invalidName };
+    return { error: CREATE_PROJECT_ERRORS.invalidName, reason: "invalid-name" };
   }
 
   // OUTSIDE the try on purpose: `requireIdentity()` signals "no session" by calling
@@ -87,13 +92,19 @@ export async function createProjectAction(
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 400 || error.status === 422) {
-        return { error: CREATE_PROJECT_ERRORS.invalidName };
+        return {
+          error: CREATE_PROJECT_ERRORS.invalidName,
+          reason: "invalid-name",
+        };
       }
       if (error.status === 401) {
-        return { error: CREATE_PROJECT_ERRORS.sessionExpired };
+        return {
+          error: CREATE_PROJECT_ERRORS.sessionExpired,
+          reason: "failed",
+        };
       }
     }
-    return { error: CREATE_PROJECT_ERRORS.generic };
+    return { error: CREATE_PROJECT_ERRORS.generic, reason: "failed" };
   }
 
   // The page re-fetches `/app/dashboard` + `/app/usage` on the next render, so the
@@ -140,6 +151,8 @@ export interface MintOrgCredentialState {
   key?: string;
   /** Bumped on each success; the client island keys the show-once modal on it. */
   ok?: number;
+  /** P58 org home: a refused name, or any other failure. */
+  reason?: "invalid-name" | "failed";
 }
 
 export interface RevokeOrgCredentialState {
@@ -166,11 +179,14 @@ export async function mintOrgCredentialAction(
     typeof rawName === "string" && rawName.trim() !== "" ? rawName : undefined;
   const name = orgKeyNameSchema.safeParse(candidate);
   if (!name.success) {
-    return { error: MINT_ORG_CREDENTIAL_ERRORS.invalidName };
+    return {
+      error: MINT_ORG_CREDENTIAL_ERRORS.invalidName,
+      reason: "invalid-name",
+    };
   }
   const scope = orgKeyScopeSchema.safeParse(formData.get("scope") ?? undefined);
   if (!scope.success) {
-    return { error: MINT_ORG_CREDENTIAL_ERRORS.invalidName };
+    return { error: MINT_ORG_CREDENTIAL_ERRORS.invalidName, reason: "failed" };
   }
 
   // OUTSIDE the try on purpose: `requireIdentity()` signals "no session" by calling
@@ -185,13 +201,19 @@ export async function mintOrgCredentialAction(
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 400 || error.status === 422) {
-        return { error: MINT_ORG_CREDENTIAL_ERRORS.invalidName };
+        return {
+          error: MINT_ORG_CREDENTIAL_ERRORS.invalidName,
+          reason: "invalid-name",
+        };
       }
       if (error.status === 401) {
-        return { error: MINT_ORG_CREDENTIAL_ERRORS.sessionExpired };
+        return {
+          error: MINT_ORG_CREDENTIAL_ERRORS.sessionExpired,
+          reason: "failed",
+        };
       }
     }
-    return { error: MINT_ORG_CREDENTIAL_ERRORS.generic };
+    return { error: MINT_ORG_CREDENTIAL_ERRORS.generic, reason: "failed" };
   }
 
   // Re-renders the page (refetching the org-credentials list), so the new row appears
@@ -266,6 +288,8 @@ export interface SetOrgSlugState {
   error: string | null;
   /** Bumped on each success (the island needs no reset — the field keeps its value). */
   ok?: number;
+  /** P58 org home: which signed sentence a failure maps to. */
+  reason?: "invalid" | "taken" | "failed";
 }
 
 /**
@@ -291,7 +315,7 @@ export async function setOrgSlugAction(
   const candidate = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   const parsed = orgSlugSchema.safeParse(candidate);
   if (!parsed.success) {
-    return { error: SET_ORG_SLUG_ERRORS.invalid };
+    return { error: SET_ORG_SLUG_ERRORS.invalid, reason: "invalid" };
   }
 
   // OUTSIDE the try on purpose: `requireIdentity()` signals "no session" by calling
@@ -303,21 +327,68 @@ export async function setOrgSlugAction(
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 400 || error.status === 422) {
-        return { error: SET_ORG_SLUG_ERRORS.invalid };
+        return { error: SET_ORG_SLUG_ERRORS.invalid, reason: "invalid" };
       }
       if (error.status === 401) {
-        return { error: SET_ORG_SLUG_ERRORS.sessionExpired };
+        return { error: SET_ORG_SLUG_ERRORS.sessionExpired, reason: "failed" };
       }
       if (error.status === 404) {
-        return { error: SET_ORG_SLUG_ERRORS.notFound };
+        return { error: SET_ORG_SLUG_ERRORS.notFound, reason: "failed" };
       }
       if (error.status === 409) {
-        return { error: SET_ORG_SLUG_ERRORS.taken };
+        return { error: SET_ORG_SLUG_ERRORS.taken, reason: "taken" };
       }
     }
-    return { error: SET_ORG_SLUG_ERRORS.generic };
+    return { error: SET_ORG_SLUG_ERRORS.generic, reason: "failed" };
   }
 
   revalidatePath("/dashboard", "page");
   return { error: null, ok: Date.now() };
+}
+
+// ── Org home (P58) ──────────────────────────────────────────────────────────
+// The signed panels' calls: plain arguments in, a typed answer out, so `Keys` (`mint`, `revoke`), the
+// Projects panel and the Public URL panel take them as props. Each runs the action above and maps its
+// answer by `reason`, never by its copy: the panels show the signed sentences
+// (`@/content/dashboard` `ORG_HOME`, `@/content/hi2vi-frame` `KEYS`).
+
+function form(fields: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(fields)) data.set(key, value);
+  return data;
+}
+
+/** Create a project; `name` as typed (the action trims it as the API stores it). */
+export async function createOrgProject(
+  name: string,
+): Promise<CreateProjectResult> {
+  const state = await createProjectAction({ error: null }, form({ name }));
+  if (state.error === null) return { ok: true, name: name.trim() };
+  return { ok: false, reason: state.reason ?? "failed" };
+}
+
+/** Claim or change the org's public name. */
+export async function saveOrgSlug(slug: string): Promise<SaveSlugResult> {
+  const state = await setOrgSlugAction({ error: null }, form({ slug }));
+  if (state.error === null)
+    return { ok: true, slug: slug.trim().toLowerCase() };
+  return { ok: false, reason: state.reason ?? "failed" };
+}
+
+/** `Keys`' `mint` at org scope. */
+export async function mintOrgKey(input: MintInput): Promise<MintResult> {
+  const fields: Record<string, string> = { scope: input.access };
+  if (input.name !== null) fields.name = input.name;
+  const state = await mintOrgCredentialAction({ error: null }, form(fields));
+  if (state.error === null && state.key) return { ok: true, key: state.key };
+  return { ok: false, reason: state.reason ?? "failed" };
+}
+
+/** `Keys`' `revoke` at org scope. */
+export async function revokeOrgKey(id: string): Promise<RevokeResult> {
+  const state = await revokeOrgCredentialAction(
+    { error: null },
+    form({ credentialId: id }),
+  );
+  return state.error === null ? { ok: true } : { ok: false };
 }

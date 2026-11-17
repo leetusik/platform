@@ -243,10 +243,19 @@ BM25-only (`mode:"bm25"`), **zero code change** either way.
   with `sudo vi`). Leaving it empty is a supported launch choice — add the key later
   and restart the api with no other change.
 
-### 4b. Optional `KB_SMTP_*` — Feedback's owner alert mail
+### 4b. Optional `KB_SMTP_*` — the api's outgoing mail
 
-When a Feedback event is captured, the api mails the project owner after the response,
-best-effort. It reads five names from the box's `.env` (through the api's `env_file:`):
+The api sends three mails, all best-effort and all from one sender:
+
+- **Feedback's owner alert**: when a Feedback event is captured, the project owner gets a
+  mail after the response.
+- **The waitlist mail**: with the waitlist on (§4c), a new sign-up gets "You're on the
+  hi2vi waitlist" after the response.
+- **The approval mail**: approving a waitlisted account (§4c) sends it "Your hi2vi account
+  is open", with a sign-in link built from `KB_PUBLIC_BASE_URL` (`https://hi2vi.com`,
+  already set in `compose.prod.yml`) + `/login`.
+
+All three read the same five names from the box's `.env` (through the api's `env_file:`):
 
 | Name | What |
 |---|---|
@@ -257,12 +266,50 @@ best-effort. It reads five names from the box's `.env` (through the api's `env_f
 | `KB_SMTP_FROM` | the sender address (unset: the login) |
 
 - Optional: with no host, or no sender (neither `KB_SMTP_FROM` nor `KB_SMTP_USER`), no
-  alert mail goes out and capture works unchanged.
-- The account is the one vocky's worker already uses. Copy the five values from vocky's
-  `.env` **on the box** into `/opt/knowledge/.env` (an editor on the box, `sudo vi`);
-  never through this repo, a laptop or a transcript. Then recreate the api
-  (`docker compose -f compose.prod.yml up -d --force-recreate --no-deps api`, or the
-  next Production Deploy).
+  mail goes out and everything else works unchanged (capture, sign-up, approval).
+- At hi2vi.com the sender is the **hi@hi2vi.com** mailbox: `KB_SMTP_FROM=hi@hi2vi.com`,
+  and the login is that mailbox (its provider refuses a sender that does not match the
+  login). Because the three mails share the sender, setting hi@hi2vi.com also moves
+  Feedback's owner alert to hi@hi2vi.com, away from any account the box used before.
+- Placement: the five lines go into `/opt/knowledge/.env` on the box, the password never
+  shown on a screen, pasted into a chat or committed. Set them over ssh from the
+  operator's machine with a script that reads each value by name from the operator's
+  local git-ignored `.env` and writes it into the box's file without printing it, or with
+  an editor on the box (`sudo vi`). Verify by name only
+  (`grep -c '^KB_SMTP_PASSWORD=' /opt/knowledge/.env` prints `1`, never the value). Then
+  recreate the api (`docker compose -f compose.prod.yml up -d --force-recreate --no-deps
+  api`, or the next Production Deploy, which force-recreates it).
+
+### 4c. Optional `KB_SIGNUP_WAITLIST` — hold new sign-ups for approval
+
+Not a secret, but it lives in the box's `.env` next to the mail settings
+(`KB_SIGNUP_WAITLIST=on`).
+
+- **Off by default.** With the line absent (or anything but `1`, `true`, `yes`, `on`), a
+  sign-up gets an account and a session at once, so a self-hosted install behaves as it
+  always did. **On at hi2vi.com.**
+- With it on, a new sign-up is created on the waitlist: it gets no session, sees the
+  waitlist screen and, with `KB_SMTP_*` set, the waitlist mail. Signing in with the right
+  password shows the same waitlist screen until the account is approved. Accounts that
+  existed before the switch are all approved.
+- **The operator's two commands**, on the box in `/opt/knowledge`:
+
+  ```bash
+  docker compose -f compose.prod.yml exec api python -m server.waitlist list
+  #   the waitlisted accounts, oldest first (email and when they signed up)
+  docker compose -f compose.prod.yml exec api python -m server.waitlist approve <email>
+  #   approves one account and sends it the approval mail, once
+  ```
+
+  `approve` exits **0** when the account is approved (just now, or already: then it says
+  nothing changed and sends no mail), **1** for an unknown email (nothing changes) or a
+  missing `DATABASE_URL`, and **2** when the approval landed but its mail failed: the
+  account stays approved, so tell the person yourself. With `KB_SMTP_*` unset it
+  approves, exits 0 and says no mail was sent.
+- The account status is a database column added by migration `0010`; it rides the
+  Production Deploy's `alembic upgrade head` like every migration, with nothing to run by
+  hand. Turning the switch on or off later needs only the `.env` line and an api
+  recreate (as in §4b).
 
 ---
 
@@ -284,8 +331,17 @@ best-effort. It reads five names from the box's `.env` (through the api's `env_f
 - [ ] **Origin cert coverage** — ✅ already covered by the `*.hi2vi.com` wildcard
       (`hi2vi.crt`); nothing to issue.
 - [ ] **`GOOGLE_API_KEY`** obtained (recommended) — or a deliberate BM25-only launch.
-- [ ] **`KB_SMTP_*`** (§4b, optional) copied on the box from vocky's `.env` — or a
-      deliberate launch with no Feedback alert mail.
+- [ ] **`KB_SMTP_*`** (§4b, optional) set in `/opt/knowledge/.env` for the
+      hi@hi2vi.com mailbox (`KB_SMTP_FROM=hi@hi2vi.com`), values never printed — or a
+      deliberate launch with no outgoing mail (no Feedback alert, no waitlist mails).
+- [ ] **`KB_SIGNUP_WAITLIST=on`** (§4c) in `/opt/knowledge/.env` for hi2vi.com — or a
+      deliberate open sign-up.
+- [ ] **Api recreated** after any `.env` change (`up -d --force-recreate --no-deps api`,
+      or the next Production Deploy), and both names checked by name only
+      (`grep -c '^KB_SIGNUP_WAITLIST=on$' /opt/knowledge/.env` prints `1`).
+- [ ] **Waitlist commands** known: `docker compose -f compose.prod.yml exec api python -m
+      server.waitlist list` and `… approve <email>` (exit 0 approved, 1 unknown, 2 approved
+      but the mail failed) (§4c).
 
 Next: `README.md` §1 (clone, place `known_hosts`, write `.env`) → §2 (bring-up, incl.
 the `ssh`-in-image assertion) → §3 (land the vhosts through the edge repo) → §5 (validation).

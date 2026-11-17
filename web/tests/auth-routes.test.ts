@@ -187,6 +187,18 @@ describe("POST /api/auth/signup", () => {
     await expect(res.json()).resolves.toEqual({ ok: false });
   });
 
+  it("passes knowledge's 422 (its password minimum) through on both routes, never as a 502", async () => {
+    // knowledge's pydantic body check answers 422 for a password under 8 characters.
+    stubKb(422, { detail: [{ type: "string_too_short", loc: ["body", "password"] }] });
+    const up = await signupPOST(makeReq("/api/auth/signup", { ip: "10.0.2.4" }));
+    expect(up.status).toBe(422);
+    expect(setCookieOf(up)).toBeNull();
+    await expect(up.json()).resolves.toEqual({ ok: false });
+    const inn = await loginPOST(makeReq("/api/auth/login", { ip: "10.0.2.5" }));
+    expect(inn.status).toBe(422);
+    expect(setCookieOf(inn)).toBeNull();
+  });
+
   it("keeps its own throttle bucket, independent of login's", async () => {
     stubKb(201, { token: TOKEN, user: USER, tenant: TENANT });
     const ip = "10.0.2.3";
@@ -194,6 +206,43 @@ describe("POST /api/auth/signup", () => {
     for (let i = 0; i < 6; i += 1) await loginPOST(makeReq("/api/auth/login", { ip }));
     // ...signup from the same IP must still be allowed (separate bucket).
     expect((await signupPOST(makeReq("/api/auth/signup", { ip }))).status).toBe(200);
+  });
+});
+
+// P58 — the waitlist (server: sign-up 202, sign-in 403, both `status: "waitlisted"` and
+// no token). The BFF answers the client `200 {ok:false, waitlisted:true}` and sets no
+// cookie at all: a waitlisted account never holds a session.
+describe("the waitlist", () => {
+  const WAITLISTED = { status: "waitlisted", email: "owner@example.com" };
+
+  it("a waitlisted sign-up (202) says waitlisted and sets no cookie", async () => {
+    stubKb(202, WAITLISTED);
+    const res = await signupPOST(makeReq("/api/auth/signup", { ip: "10.0.4.1" }));
+    expect(res.status).toBe(200);
+    expect(setCookieOf(res)).toBeNull();
+    await expect(res.json()).resolves.toEqual({ ok: false, waitlisted: true });
+  });
+
+  it("a waitlisted sign-in (403) says waitlisted and sets no cookie", async () => {
+    stubKb(403, { detail: "waitlisted", ...WAITLISTED });
+    const res = await loginPOST(makeReq("/api/auth/login", { ip: "10.0.4.2" }));
+    expect(res.status).toBe(200);
+    expect(setCookieOf(res)).toBeNull();
+    await expect(res.json()).resolves.toEqual({ ok: false, waitlisted: true });
+  });
+
+  it("any other 403 from sign-in is still an upstream fault (502)", async () => {
+    stubKb(403, { detail: "forbidden" });
+    const res = await loginPOST(makeReq("/api/auth/login", { ip: "10.0.4.3" }));
+    expect(res.status).toBe(502);
+    expect(setCookieOf(res)).toBeNull();
+  });
+
+  it("a 2xx with no token and no waitlist is an upstream fault, never a token-less cookie", async () => {
+    stubKb(201, { user: USER, tenant: TENANT });
+    const res = await signupPOST(makeReq("/api/auth/signup", { ip: "10.0.4.4" }));
+    expect(res.status).toBe(502);
+    expect(setCookieOf(res)).toBeNull();
   });
 });
 

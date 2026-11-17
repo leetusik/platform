@@ -18,7 +18,7 @@
  * islands build these links too.
  */
 
-import { DEFAULT_NEXT_PATH, loginHref } from "./next-path";
+import { loginHref } from "./next-path";
 
 /** The part of a tenant the org segment is built from. */
 export interface OrgOwner {
@@ -169,11 +169,10 @@ export function signInToSaveHref(
 
 /**
  * The library — "the reader's home" (`01-reader` *Wiring*: the logo, and a loose
- * document's "‹ Library" and "‹ Back to the library"). It is the app's landing
- * (`DEFAULT_NEXT_PATH`, `/library` since P30.S22), so the landing and the reader's links
- * move together.
+ * document's "‹ Library" and "‹ Back to the library"). It is no longer the landing after
+ * sign-in (that is org home, `SIGN_IN_LANDING_PATH` in `next-path.ts`).
  */
-export const LIBRARY_HREF = DEFAULT_NEXT_PATH;
+export const LIBRARY_HREF = "/library";
 
 /** Where the per-book list was opened from (`05-annotations` round 02, `book-page` 7). */
 export type NotesFrom = "chapter" | "book";

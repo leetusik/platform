@@ -1,0 +1,113 @@
+/*
+ * Project home's page classes (job 01, round 03-instrument: `ProjectHomeHead`, `ProjectHomeLibrary`,
+ * `ProjectHomeFeedback` and `ProjectHomeWorkspace` boards), copied value for value. Scoped like the
+ * system's sheets (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block,
+ * imported by the route's files, never through `globals.css`.
+ *
+ * Not carried: `.ph-keep` (frame.md F26: `.ui` already sets `word-break: keep-all`), the Workspace
+ * panel's phase rows and track (no workspace data yet, operator D1), and the canvas-only
+ * `.ph-pair > .sc-host` wrapper rules (the panels are the grid's own children here).
+ */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* the head: the button's three labels share one cell, so it keeps its width through the change */
+  .ph-swap {
+    display: inline-grid;
+    justify-items: center;
+  }
+  .ph-swap > * {
+    grid-area: 1 / 1;
+    visibility: hidden;
+  }
+  .ph-swap > .is-on {
+    visibility: visible;
+  }
+  /* the action stays at the end of the head when the head wraps */
+  .ph-end {
+    margin-left: auto;
+  }
+
+  /* a part's panel: its foot stays at the bottom when a neighbour is taller */
+  .ph-part {
+    display: flex;
+    flex-direction: column;
+  }
+  .ph-part > .panel-foot {
+    margin-top: auto;
+  }
+  /* a row still loading keeps a row's height */
+  .ph-wait {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: calc(var(--control-h) + 1px);
+  }
+  .ph-list {
+    container-type: inline-size;
+  }
+  /* a row whose name is a link: the link carries the row's 12 px, as td.has-control does in a table */
+  .ph-open {
+    padding-block: var(--space-3);
+  }
+  .ph-open:hover {
+    text-decoration: none;
+  }
+  .ph-open:hover .ph-name-text {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .ph-sub {
+    font-weight: 400;
+  }
+  /* a wrapped name leaves no single word on its last line */
+  .ph-name-text {
+    text-wrap: pretty;
+  }
+
+  /* a document: title, length, date. Under 30em the length and the date take a second line. */
+  .ph-doc {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-block: 0 var(--space-3);
+  }
+  .ph-doc > .ph-open {
+    grid-column: 1 / -1;
+  }
+  .ph-date {
+    text-align: right;
+  }
+  @container (min-width: 30em) {
+    .ph-doc {
+      grid-template-columns: minmax(0, 1fr) 6em 6em;
+      padding-block: 0;
+    }
+    .ph-doc > .ph-open {
+      grid-column: auto;
+    }
+    .ph-len {
+      text-align: right;
+    }
+  }
+
+  /* a message: rating, text, when. Under 30em the time takes a second line under the text. */
+  .ph-msg {
+    grid-template-columns: 2.5em minmax(0, 1fr);
+    padding-block: 0 var(--space-3);
+  }
+  .ph-rating {
+    font-weight: 600;
+  }
+  .ph-said {
+    font-weight: 400;
+  }
+  .ph-when {
+    grid-column: 2;
+  }
+  @container (min-width: 30em) {
+    .ph-msg {
+      grid-template-columns: 2.5em minmax(0, 1fr) 6em;
+      padding-block: 0;
+    }
+    .ph-when {
+      grid-column: auto;
+      text-align: right;
+    }
+  }
+}

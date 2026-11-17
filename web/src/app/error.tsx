@@ -1,64 +1,46 @@
 "use client";
 
-import Link from "next/link";
-
-import { Editorial, ErrorRef } from "@/components/states";
-import { AppButton, appButtonClass } from "@/components/ui";
-import { STATES } from "@/content";
+import {
+  boundaryRetry,
+  type BoundaryRetryProps,
+  errorState,
+  StateBlock,
+} from "@/hi2vi/states";
+import { UiRoot } from "@/hi2vi/ui";
 
 /**
- * The ROOT error boundary — a deviation from round 03 §5, recorded as such in
- * this slice's result.md and as an `## Operator Questions` entry in phase.md.
+ * The root error (job 01 round 03-instrument, Shared states: Error), for a throw no nearer boundary
+ * catches: a throw in a route group's own layout (a segment's `error.tsx` never wraps the layout of its
+ * own segment), above all the `(app)` layout's session and project reads (`requireIdentity()`, the
+ * Shell's lists) when the API is down, and a page throw in a group with no `error.tsx` of its own.
  *
- * §5.1 designs one 500 page, `app/(app)/error.tsx`, and says the shell stays.
- * But the likeliest real 500 in this app escapes that boundary entirely:
- * `(app)/layout.tsx` awaits `requireIdentity()` (an `/auth/me` round trip to the
- * API), a throw there is a LAYOUT throw, and a segment's `error.tsx` never
- * catches its own layout. With no boundary above it the visitor would get Next's
- * default full-page error — the precise outcome §5.1 exists to prevent. Every
- * `(public)` page is in the same position: that group has no layout at all, so
- * its pages have no boundary of their own either.
+ * A layout that threw renders nothing, so there is no Shell to keep and no org to name: like the
+ * signed-out root not-found, the block stands alone in its own `UiRoot`. It holds the signed title,
+ * sentence and Try again, the reference line when there is a digest, and in place of Back to <org name>
+ * the signed-out not-found's one link, "Go to hi2vi" (`errorState({ orgName: null })`).
  *
- * So this renders the SAME designed `.kb-editorial` block, without the console
- * shell. Shell-less is the minimal choice rather than a new decision: when
- * identity itself is what failed there is no org and no email to build a topbar
- * from, so "the shell stays" cannot apply, and rendering the designed block bare
- * invents no visual. `.kb-app` + `.kb-app-main` are kept purely as the frame
- * they are — the paper, the gutters, the `data-kb-scheme` dark adoption (§6),
- * and the `kbmain` container the editorial's own phone rule queries — not as
- * chrome: there is no topbar, navbar or rail here.
- *
- * `global-error.tsx` is deliberately NOT used. It replaces `<html>`/`<body>`,
- * loses the fonts and the token sheet, and only catches ROOT-layout throws,
- * which is a much bigger hammer than the gap being closed.
+ * Try again is `boundaryRetry`: the boundary's `retry` (Next 16.3: re-fetch, then re-render),
+ * `unstable_retry` on 16.2, `reset` (re-render only) where neither is passed. A root-layout throw is
+ * `global-error`'s, and there is none: the root layout reads no request data and makes no call.
  */
 export default function RootError({
   error,
-  reset,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
   return (
-    <div className="kb-app" data-md-color-scheme="default" data-kb-scheme="auto">
-      <main className="kb-app-main">
-        <Editorial
-          code={STATES.error.code}
-          title={STATES.error.title}
-          sub={STATES.error.sub}
-          actions={
-            <>
-              <AppButton variant="primary" onClick={reset}>
-                {STATES.error.retryLabel}
-              </AppButton>
-              <Link href="/dashboard" className={appButtonClass("ghost")}>
-                {STATES.error.homeLabel}
-              </Link>
-            </>
-          }
-          detail={error.digest ? <ErrorRef digest={error.digest} /> : undefined}
-        />
-      </main>
-    </div>
+    <UiRoot>
+      <div className="page">
+        <div className="app">
+          <main id="main-content" className="app-main">
+            <StateBlock
+              state={errorState({ orgName: null, digest: error.digest })}
+              onRetry={() => boundaryRetry(boundary)()}
+            />
+          </main>
+        </div>
+      </div>
+    </UiRoot>
   );
 }

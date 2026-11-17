@@ -15,7 +15,8 @@ Two modes, switched per-call on ``config.database_url()``:
     2. a ``vk_`` credential -> its own ``tenant_id`` (org-scoped authorization); an
        org-level key (``project_id NULL``) carries no bound project, a project-bound
        key additionally carries its ``project_id`` for attribution;
-    3. a session token -> the tenant the request names in ``X-Hi2vi-Org`` (403 when
+    3. a session token of an ``approved`` user (a waitlisted user's session never
+       resolves) -> the tenant the request names in ``X-Hi2vi-Org`` (403 when
        the user is not a member, or the id is malformed), else the user's first
        tenant (``server.accounts.auth.active_tenant``). Steps 1 and 2 never read
        the header: a key or the master bearer always acts in its own tenant.
@@ -196,11 +197,12 @@ async def _resolve_tenant_bearer(
         return None
 
     # 3. Session token -> the active tenant: the X-Hi2vi-Org header's org (403 for a
-    #    non-member), else the user's first (own-corpus reads/writes).
+    #    non-member), else the user's first (own-corpus reads/writes). Only an
+    #    approved user's session resolves: a waitlisted user's is unresolvable (401).
     auth_token = await service.get_active_auth_token_by_hash(token_hash)
     if auth_token is not None:
         user = await service.get_user_by_id(auth_token.user_id)
-        if user is not None:
+        if user is not None and user.is_approved:
             tenants = await service.list_tenants_for_user(user.id)
             if tenants:
                 return ApiAuthContext(tenant_id=active_tenant(request, tenants).id)

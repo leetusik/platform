@@ -110,6 +110,39 @@ class AccountsService:
                 await session.rollback()
                 raise AccountsReadError("failed to read user") from exc
 
+    async def list_users_by_status(self, status: str) -> tuple[UserRecord, ...]:
+        """Return the users with ``status``, oldest first."""
+
+        async with self._session_maker() as session:
+            repository = AccountsRepository(session)
+            try:
+                return await repository.list_users_by_status(status)
+            except SQLAlchemyError as exc:
+                await session.rollback()
+                raise AccountsReadError("failed to list users") from exc
+
+    async def update_user_status(
+        self, email: str, *, from_status: str, to_status: str
+    ) -> UserRecord | None:
+        """Move one user from ``from_status`` to ``to_status``; the updated record, or None.
+
+        None when no user has that email or the user is not in ``from_status``: then
+        nothing was written.
+        """
+
+        async with self._session_maker() as session:
+            repository = AccountsRepository(session)
+            try:
+                record = await repository.update_user_status(
+                    email, from_status=from_status, to_status=to_status
+                )
+                await session.commit()
+            except SQLAlchemyError as exc:
+                await session.rollback()
+                raise AccountsPersistenceError("failed to update user status") from exc
+
+        return record
+
     # -- tenancy ----------------------------------------------------------
 
     async def create_tenant_with_owner(

@@ -1,0 +1,128 @@
+/* hi2vi — the old-page boundary (see ./README.md).
+
+   The system is scoped to `@scope (.ui) to ([data-ui-legacy])`, so none of its rules reaches an element at or under
+   `[data-ui-legacy]`. Two things cross a scope boundary anyway, because they inherit: the custom properties the system
+   declares on the `.ui` root (several share a name with the old styles: `--font-sans`, `--font-mono`, `--radius-xs`,
+   `--accent`), and the inherited properties the root sets (colour, font, numerals, word breaks, colour scheme).
+
+   1. On `:root`, each system custom property is copied, as the old page sees it there, into a new name of its own
+      (`--hi2vi-legacy-*`). Nothing reads those names but the rule below, so no element outside `.ui` changes: these
+      declarations add names and change no value.
+   2. At the boundary, every system custom property is set back to that copy, and every inherited property the `.ui`
+      root sets is set back to what the old pages inherit from `<body>` (the root layout's `font-sans text-ink
+      antialiased` on Tailwind's preflight: `line-height: 1.5` and the default font features on `html`).
+
+   A page's old content inside the shell therefore sees exactly what it saw as a child of `<body>`.
+   tests/hi2vi-styles.test.ts holds the list below equal to every custom property the system declares. */
+:root {
+  --hi2vi-legacy-bg: var(--bg);
+  --hi2vi-legacy-surface: var(--surface);
+  --hi2vi-legacy-ink: var(--ink);
+  --hi2vi-legacy-ink-2: var(--ink-2);
+  --hi2vi-legacy-line: var(--line);
+  --hi2vi-legacy-edge: var(--edge);
+  --hi2vi-legacy-accent: var(--accent);
+  --hi2vi-legacy-accent-tint: var(--accent-tint);
+  --hi2vi-legacy-on-accent: var(--on-accent);
+  --hi2vi-legacy-danger: var(--danger);
+  --hi2vi-legacy-danger-tint: var(--danger-tint);
+  --hi2vi-legacy-hover: var(--hover);
+  --hi2vi-legacy-scrim: var(--scrim);
+  --hi2vi-legacy-shadow: var(--shadow);
+  --hi2vi-legacy-space-1: var(--space-1);
+  --hi2vi-legacy-space-2: var(--space-2);
+  --hi2vi-legacy-space-3: var(--space-3);
+  --hi2vi-legacy-space-4: var(--space-4);
+  --hi2vi-legacy-space-5: var(--space-5);
+  --hi2vi-legacy-space-6: var(--space-6);
+  --hi2vi-legacy-space-7: var(--space-7);
+  --hi2vi-legacy-space-8: var(--space-8);
+  --hi2vi-legacy-radius-xs: var(--radius-xs);
+  --hi2vi-legacy-radius-s: var(--radius-s);
+  --hi2vi-legacy-radius-m: var(--radius-m);
+  --hi2vi-legacy-fs-meta: var(--fs-meta);
+  --hi2vi-legacy-fs-text: var(--fs-text);
+  --hi2vi-legacy-fs-head: var(--fs-head);
+  --hi2vi-legacy-fs-title: var(--fs-title);
+  --hi2vi-legacy-fs-figure: var(--fs-figure);
+  --hi2vi-legacy-lh-meta: var(--lh-meta);
+  --hi2vi-legacy-lh-text: var(--lh-text);
+  --hi2vi-legacy-lh-head: var(--lh-head);
+  --hi2vi-legacy-lh-title: var(--lh-title);
+  --hi2vi-legacy-lh-figure: var(--lh-figure);
+  --hi2vi-legacy-font-sans: var(--font-sans);
+  --hi2vi-legacy-font-mono: var(--font-mono);
+  --hi2vi-legacy-font: var(--font);
+  --hi2vi-legacy-rail-w: var(--rail-w);
+  --hi2vi-legacy-top-h: var(--top-h);
+  --hi2vi-legacy-content-max: var(--content-max);
+  --hi2vi-legacy-control-h: var(--control-h);
+  --hi2vi-legacy-pill-h: var(--pill-h);
+  --hi2vi-legacy-mark-h: var(--mark-h);
+  --hi2vi-legacy-mark-pad: var(--mark-pad);
+  --hi2vi-legacy-dot: var(--dot);
+  --hi2vi-legacy-plot-h: var(--plot-h);
+  --hi2vi-legacy-gutter: var(--gutter);
+  --hi2vi-legacy-gutter-narrow: var(--gutter-narrow);
+}
+
+.ui [data-ui-legacy] {
+  --bg: var(--hi2vi-legacy-bg);
+  --surface: var(--hi2vi-legacy-surface);
+  --ink: var(--hi2vi-legacy-ink);
+  --ink-2: var(--hi2vi-legacy-ink-2);
+  --line: var(--hi2vi-legacy-line);
+  --edge: var(--hi2vi-legacy-edge);
+  --accent: var(--hi2vi-legacy-accent);
+  --accent-tint: var(--hi2vi-legacy-accent-tint);
+  --on-accent: var(--hi2vi-legacy-on-accent);
+  --danger: var(--hi2vi-legacy-danger);
+  --danger-tint: var(--hi2vi-legacy-danger-tint);
+  --hover: var(--hi2vi-legacy-hover);
+  --scrim: var(--hi2vi-legacy-scrim);
+  --shadow: var(--hi2vi-legacy-shadow);
+  --space-1: var(--hi2vi-legacy-space-1);
+  --space-2: var(--hi2vi-legacy-space-2);
+  --space-3: var(--hi2vi-legacy-space-3);
+  --space-4: var(--hi2vi-legacy-space-4);
+  --space-5: var(--hi2vi-legacy-space-5);
+  --space-6: var(--hi2vi-legacy-space-6);
+  --space-7: var(--hi2vi-legacy-space-7);
+  --space-8: var(--hi2vi-legacy-space-8);
+  --radius-xs: var(--hi2vi-legacy-radius-xs);
+  --radius-s: var(--hi2vi-legacy-radius-s);
+  --radius-m: var(--hi2vi-legacy-radius-m);
+  --fs-meta: var(--hi2vi-legacy-fs-meta);
+  --fs-text: var(--hi2vi-legacy-fs-text);
+  --fs-head: var(--hi2vi-legacy-fs-head);
+  --fs-title: var(--hi2vi-legacy-fs-title);
+  --fs-figure: var(--hi2vi-legacy-fs-figure);
+  --lh-meta: var(--hi2vi-legacy-lh-meta);
+  --lh-text: var(--hi2vi-legacy-lh-text);
+  --lh-head: var(--hi2vi-legacy-lh-head);
+  --lh-title: var(--hi2vi-legacy-lh-title);
+  --lh-figure: var(--hi2vi-legacy-lh-figure);
+  --font-sans: var(--hi2vi-legacy-font-sans);
+  --font-mono: var(--hi2vi-legacy-font-mono);
+  --font: var(--hi2vi-legacy-font);
+  --rail-w: var(--hi2vi-legacy-rail-w);
+  --top-h: var(--hi2vi-legacy-top-h);
+  --content-max: var(--hi2vi-legacy-content-max);
+  --control-h: var(--hi2vi-legacy-control-h);
+  --pill-h: var(--hi2vi-legacy-pill-h);
+  --mark-h: var(--hi2vi-legacy-mark-h);
+  --mark-pad: var(--hi2vi-legacy-mark-pad);
+  --dot: var(--hi2vi-legacy-dot);
+  --plot-h: var(--hi2vi-legacy-plot-h);
+  --gutter: var(--hi2vi-legacy-gutter);
+  --gutter-narrow: var(--hi2vi-legacy-gutter-narrow);
+  color-scheme: normal;
+  color: var(--color-ink);
+  font: 400 1rem/1.5 var(--font-sans);
+  font-feature-settings: var(--default-font-feature-settings, normal);
+  font-variation-settings: var(--default-font-variation-settings, normal);
+  font-variant-numeric: normal;
+  word-break: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

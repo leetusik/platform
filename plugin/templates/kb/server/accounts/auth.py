@@ -107,8 +107,9 @@ async def require_user(request: Request) -> AuthContext:
 
     Extract the token, hash it, look up the active session, load the user, and
     pick their active tenant (``active_tenant``: the ``X-Hi2vi-Org`` header's org,
-    or the first tenant). A session miss raises ``AuthError`` (generic 401); a
-    header naming an org the user is not in raises a 403.
+    or the first tenant). A session miss, or a user who is not ``approved`` (a
+    waitlisted account), raises ``AuthError`` (generic 401); a header naming an org
+    the user is not in raises a 403.
     """
 
     token = extract_bearer_token(request)
@@ -131,6 +132,10 @@ async def require_user(request: Request) -> AuthContext:
     user = await service.get_user_by_id(auth_token.user_id)
     if user is None:
         raise AuthError("token references a missing user")
+    if not user.is_approved:
+        # A waitlisted user never holds a session (sign-up and sign-in mint none);
+        # a token that exists anyway is refused with the same generic 401.
+        raise AuthError("user is not approved")
 
     tenants = await service.list_tenants_for_user(user.id)
     if not tenants:
@@ -146,7 +151,7 @@ async def optional_user(request: Request) -> AuthContext | None:
     caller **exactly** as ``require_user`` does — same token extraction, same
     session/user/tenant lookup, same best-effort ``last_used_at`` stamp on a
     successful resolve — but **returns ``None`` instead of raising** on every miss
-    path (no header, unknown/expired token, missing user, no tenant). It never
+    path (no header, unknown/expired token, missing or waitlisted user, no tenant). It never
     raises ``AuthError``. Once a session resolved, the active tenant is picked by
     ``active_tenant`` exactly as in ``require_user``, so an ``X-Hi2vi-Org`` naming an
     org the user is not in is a 403 here too (never a silent anonymous read).
@@ -177,7 +182,8 @@ async def optional_user(request: Request) -> AuthContext | None:
         logger.warning("failed to stamp last_used_at for auth token", exc_info=True)
 
     user = await service.get_user_by_id(auth_token.user_id)
-    if user is None:
+    if user is None or not user.is_approved:
+        # A waitlisted user reads as signed out, exactly like an unknown token.
         return None
 
     tenants = await service.list_tenants_for_user(user.id)

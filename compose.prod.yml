@@ -17,8 +17,8 @@
 # deploy/hi2vi.conf for the apex vhost that serves it (landed on the edge through
 # the edge repo, by the operator; the Production Deploy installs no vhost). NO
 # SECRETS live here: KB_API_TOKEN, GOOGLE_API_KEY and the optional KB_SMTP_* come
-# from the box's gitignored `.env`; the deploy key + known_hosts are bind-mounted
-# from the box.
+# from the box's gitignored `.env` (as does the KB_SIGNUP_WAITLIST switch); the
+# deploy key + known_hosts are bind-mounted from the box.
 
 services:
   api:
@@ -45,13 +45,17 @@ services:
       #   POSTGRES_PASSWORD=<generated>     # accounts-plane Postgres password
       #   KB_OPERATOR_EMAIL=<operator email> # pins KB_API_TOKEN -> tenant #1 (P10)
       #   KB_OPERATOR_PASSWORD=<operator pw> # seeds the operator user (P10.S6 seed)
-      # Optional — Feedback's owner alert mail (no host, or no sender = no alert
-      # mail; deploy/SECRETS.md §4b):
+      # Optional — the api's outgoing mail: Feedback's owner alert and the sign-up
+      # waitlist's two mails share this sender (no host, or no sender = no mail;
+      # deploy/SECRETS.md §4b). At hi2vi.com the sender is hi@hi2vi.com:
       #   KB_SMTP_HOST=<smtp host>
       #   KB_SMTP_PORT=<smtp port>           # default 587
       #   KB_SMTP_USER=<smtp user>
       #   KB_SMTP_PASSWORD=<smtp password>   # the secret of the five
       #   KB_SMTP_FROM=<sender address>      # default: KB_SMTP_USER
+      # Optional — the sign-up waitlist switch (not a secret; off when absent, so a
+      # self-hosted install signs up as before; deploy/SECRETS.md §4c):
+      #   KB_SIGNUP_WAITLIST=on              # on at hi2vi.com
       # Provisioned in P8.S4's runbook. `docker compose config` needs this file
       # to exist (a dummy one suffices for local validation).
       - .env

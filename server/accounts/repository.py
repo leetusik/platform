@@ -23,6 +23,7 @@ from server.accounts.types import (
     TenantMemberRecord,
     TenantRecord,
     UserRecord,
+    validate_user_status,
 )
 from server.persistence.models import (
     AuthTokenModel,
@@ -46,7 +47,11 @@ class AccountsRepository:
     async def create_user(self, payload: CreateUser) -> UserRecord:
         """Persist a user and return the stored record."""
 
-        model = UserModel(email=payload.email, password_hash=payload.password_hash)
+        model = UserModel(
+            email=payload.email,
+            password_hash=payload.password_hash,
+            status=validate_user_status(payload.status),
+        )
         self._session.add(model)
         await self._session.flush()
         await self._session.refresh(model)
@@ -63,6 +68,38 @@ class AccountsRepository:
         """Return one user by id, or None when missing."""
 
         model = await self._session.get(UserModel, user_id)
+        return self._to_user_record(model) if model is not None else None
+
+    async def list_users_by_status(self, status: str) -> tuple[UserRecord, ...]:
+        """Return the users with ``status``, oldest first (``created_at``, then ``id``)."""
+
+        statement = (
+            select(UserModel)
+            .where(UserModel.status == validate_user_status(status))
+            .order_by(UserModel.created_at, UserModel.id)
+        )
+        models = (await self._session.execute(statement)).scalars().all()
+        return tuple(self._to_user_record(model) for model in models)
+
+    async def update_user_status(
+        self, email: str, *, from_status: str, to_status: str
+    ) -> UserRecord | None:
+        """Move one user from ``from_status`` to ``to_status``; the updated record, or None.
+
+        One conditional ``UPDATE ... WHERE email = ? AND status = ?``, so a user not
+        in ``from_status`` (or no such user) is left untouched and answers None.
+        """
+
+        statement = (
+            update(UserModel)
+            .where(
+                UserModel.email == email,
+                UserModel.status == validate_user_status(from_status),
+            )
+            .values(status=validate_user_status(to_status))
+            .returning(UserModel)
+        )
+        model = (await self._session.execute(statement)).scalar_one_or_none()
         return self._to_user_record(model) if model is not None else None
 
     # -- tenancy ----------------------------------------------------------
@@ -397,6 +434,7 @@ class AccountsRepository:
             email=model.email,
             password_hash=model.password_hash,
             created_at=model.created_at,
+            status=model.status,
         )
 
     def _to_tenant_record(self, model: TenantModel) -> TenantRecord:

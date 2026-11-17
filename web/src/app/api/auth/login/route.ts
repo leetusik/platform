@@ -28,7 +28,10 @@ export async function POST(req: Request): Promise<Response> {
     call: login,
     // 401 = invalid email OR password (knowledge answers an identical generic 401
     // for both so accounts cannot be enumerated — the BFF preserves that property
-    // by passing the bare status with no body detail). 400 = backend validation.
-    passThroughStatuses: [401, 400],
+    // by passing the bare status with no body detail). 400 and 422 = backend
+    // validation (knowledge's body check answers 422 for a password under 8).
+    // A waitlisted account's 403 is not passed through: `login()` reads it as the
+    // waitlist, which the BFF answers `200 {ok:false, waitlisted:true}`, no cookie.
+    passThroughStatuses: [401, 400, 422],
   });
 }

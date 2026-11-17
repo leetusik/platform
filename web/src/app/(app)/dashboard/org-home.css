@@ -1,0 +1,15 @@
+/*
+ * Org home's page rules (job 01 round 03-instrument, `OrgHome.dc.html` `.orghome-pair`): the pair
+ * under the projects table keeps one bottom edge, the shorter half's last panel stretching. Scoped
+ * like the system's sheets (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])`
+ * block, imported by the route's page and loading files, never through `globals.css`. The read-out's
+ * rules are the system's `.usage` (frame.md F17), not the board's `.orghome-usage` copy.
+ */
+@scope (.ui) to ([data-ui-legacy]) {
+  .orghome-pair > * {
+    min-width: 0;
+  }
+  .orghome-pair > .stack > :last-child {
+    flex: 1 0 auto;
+  }
+}

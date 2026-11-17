@@ -196,7 +196,7 @@ describe("GET /api/auth/org — the reset", () => {
       const res = await orgGET(
         new Request(`http://localhost:3030/api/auth/org?next=${encodeURIComponent(next)}`),
       );
-      expect(res.headers.get("location")).toBe("/library");
+      expect(res.headers.get("location")).toBe("/dashboard");
     }
   });
 });

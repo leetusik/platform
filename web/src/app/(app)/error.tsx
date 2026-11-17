@@ -1,54 +1,39 @@
 "use client";
 
-import Link from "next/link";
-
-import { Editorial, ErrorRef } from "@/components/states";
-import { AppButton, appButtonClass } from "@/components/ui";
-import { STATES } from "@/content";
+import {
+  boundaryRetry,
+  type BoundaryRetryProps,
+  errorState,
+  StateBlock,
+  useShellOrgName,
+} from "@/hi2vi/states";
 
 /**
- * Round 03 §5.1 — the console's whole-page 500.
+ * The signed-in app's whole-page error (job 01 round 03-instrument, Shared states: Error).
  *
- * **The shell stays**, and it stays for a structural reason rather than a
- * decorative one: a Next `error.tsx` renders INSIDE its own segment's layout, so
- * this boundary is a child of `(app)/layout.tsx`'s `<AppShell>`. Topbar, navbar
- * and rail are all still there, and the difference between "this page failed"
- * and "the app is gone" is preserved exactly as the record asks.
+ * A segment's `error.tsx` renders inside its own segment's layout, so this boundary is a child of
+ * `(app)/layout.tsx`'s `AppShell`: the Shell stays, and the block goes straight into `main.app-main`,
+ * under `.ui`, above the route folders' `LegacyPage` layouts (so with no `Legacy`). The rail keeps the
+ * failing page's item current (the Shell follows the path).
  *
- * Which is also why this file renders ONLY the `.kb-editorial` div and not
- * §5.1's `<main class="kb-app-main">` wrapper: `AppFrame` already renders that
- * landmark, and copying the snippet literally here would nest a second `<main>`.
+ * Try again is `boundaryRetry`: Next 16.3's `retry` refreshes the route from the server and re-renders
+ * the segment, so a server-side failure that has cleared shows the page again (`unstable_retry` on
+ * 16.2; `reset`, a re-render only, where neither is passed). The reference line shows with a digest.
  *
- * What it CANNOT catch is a throw from that same layout — `(app)/layout.tsx`
- * awaits `requireIdentity()`, an `/auth/me` round trip, and a boundary never
- * catches its own layout. That case is `app/error.tsx`'s (see the deviation
- * recorded in this slice's result.md).
+ * It cannot catch a throw from `(app)/layout.tsx` itself (the session read): that is the root
+ * `app/error.tsx`'s, which renders without the Shell (states:Q1, not drawn).
  */
 export default function AppError({
   error,
-  reset,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
+  const orgName = useShellOrgName();
   return (
-    <Editorial
-      code={STATES.error.code}
-      title={STATES.error.title}
-      sub={STATES.error.sub}
-      actions={
-        <>
-          <AppButton variant="primary" onClick={reset}>
-            {STATES.error.retryLabel}
-          </AppButton>
-          <Link href="/dashboard" className={appButtonClass("ghost")}>
-            {STATES.error.homeLabel}
-          </Link>
-        </>
-      }
-      // §5.1 puts the mono ref line on errors only, and only when there is a
-      // real reference: Next omits `digest` in development.
-      detail={error.digest ? <ErrorRef digest={error.digest} /> : undefined}
+    <StateBlock
+      state={errorState({ orgName, digest: error.digest })}
+      onRetry={() => boundaryRetry(boundary)()}
     />
   );
 }

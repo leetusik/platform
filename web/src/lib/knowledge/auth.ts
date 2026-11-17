@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getJson, sendJson } from "./client";
+import { ApiError, getJson, sendJson } from "./client";
 import type { KbIdentity, KbSession, KbTenant, KbUser } from "./types";
 
 // P12.S2 — typed server-side calls against knowledge's `/auth/*` surface, used only
@@ -13,6 +13,12 @@ import type { KbIdentity, KbSession, KbTenant, KbUser } from "./types";
 // Callers get one shape (`{ token, user, tenant }`), with `tenants[0]` as the
 // active tenant — matching knowledge's own `require_user`. Callers key off STATUS
 // CODES (401/409/400), never knowledge's `detail` text.
+//
+// P58 — the waitlist (`KB_SIGNUP_WAITLIST`, `users.status`). A waitlisted account gets
+// no token: sign-up answers `202 {status: "waitlisted", email}` and sign-in answers the
+// right password with `403 {detail: "waitlisted", status: "waitlisted", email}`. Both
+// calls return `KbWaitlisted` for it instead of a session, so nothing downstream can
+// seal a token that is not there.
 
 /** The raw signup/login envelope before normalization (either tenant shape). */
 interface RawAuthResponse {
@@ -22,6 +28,29 @@ interface RawAuthResponse {
   tenant?: KbTenant;
   /** Login answers this. */
   tenants?: KbTenant[];
+}
+
+/** The waitlisted answer's body (sign-up's 202; sign-in's 403 adds `detail`). */
+interface RawWaitlisted {
+  status: "waitlisted";
+  email: string;
+}
+
+/** The waitlist marker the server sends, in `status` (both answers) and `detail` (the 403). */
+export const WAITLISTED = "waitlisted";
+
+/** A sign-up or sign-in that the waitlist answered: an account, but no session. */
+export interface KbWaitlisted {
+  waitlisted: true;
+  /** The account's email as the server answered it (lowercased), else as sent. */
+  email: string;
+}
+
+/** What sign-up and sign-in resolve to: a session, or the waitlist. */
+export type KbAuthAnswer = KbSession | KbWaitlisted;
+
+export function isWaitlisted(answer: KbAuthAnswer): answer is KbWaitlisted {
+  return "waitlisted" in answer && answer.waitlisted === true;
 }
 
 /** The raw `/auth/me` envelope. */
@@ -66,35 +95,78 @@ export function normalizeAuthResponse(raw: RawAuthResponse): KbSession {
 }
 
 /**
- * `POST /auth/signup` → 201 `{token, user, tenant}`. Throws `ApiError` on 409
- * (duplicate email) / 400 (validation) — the route maps the STATUS to the client
- * without echoing knowledge's detail text.
+ * A 2xx signup/login body as an answer: the waitlist when it says so, a session when
+ * it carries a token. A 2xx with neither is an upstream fault (`ApiError(502)`), never
+ * a session with an undefined token.
  */
-export async function signup(
+export function authAnswer(
+  raw: RawAuthResponse | RawWaitlisted | undefined,
   email: string,
-  password: string,
-): Promise<KbSession> {
-  const raw = await sendJson<RawAuthResponse>("/auth/signup", "POST", {
-    email,
-    password,
-  });
+): KbAuthAnswer {
+  if (raw && "status" in raw && raw.status === WAITLISTED) {
+    return {
+      waitlisted: true,
+      email: typeof raw.email === "string" ? raw.email : email,
+    };
+  }
+  if (
+    !raw ||
+    !("token" in raw) ||
+    typeof raw.token !== "string" ||
+    !raw.token
+  ) {
+    throw new ApiError(502, null);
+  }
   return normalizeAuthResponse(raw);
 }
 
 /**
- * `POST /auth/login` → 200 `{token, user, tenants[]}`. Throws `ApiError` on 401
- * (identical for unknown-email and bad-password — knowledge does not let callers
- * enumerate accounts, and neither does the BFF) / 400 (validation).
+ * `POST /auth/signup` → 201 `{token, user, tenant}`, or 202 `{status: "waitlisted",
+ * email}` (no token) with the waitlist on. Throws `ApiError` on 409 (duplicate email)
+ * / 400 (validation) — the route maps the STATUS to the client without echoing
+ * knowledge's detail text.
+ */
+export async function signup(
+  email: string,
+  password: string,
+): Promise<KbAuthAnswer> {
+  const raw = await sendJson<RawAuthResponse | RawWaitlisted>(
+    "/auth/signup",
+    "POST",
+    { email, password },
+  );
+  return authAnswer(raw, email);
+}
+
+/**
+ * `POST /auth/login` → 200 `{token, user, tenants[]}`. A waitlisted account's right
+ * password answers 403 `{detail: "waitlisted", …}`, returned as `KbWaitlisted`; any
+ * other 403 still throws. Throws `ApiError` on 401 (identical for unknown-email and
+ * bad-password — knowledge does not let callers enumerate accounts, and neither does
+ * the BFF) / 400 (validation).
  */
 export async function login(
   email: string,
   password: string,
-): Promise<KbSession> {
-  const raw = await sendJson<RawAuthResponse>("/auth/login", "POST", {
-    email,
-    password,
-  });
-  return normalizeAuthResponse(raw);
+): Promise<KbAuthAnswer> {
+  let raw: RawAuthResponse | RawWaitlisted;
+  try {
+    raw = await sendJson<RawAuthResponse | RawWaitlisted>(
+      "/auth/login",
+      "POST",
+      { email, password },
+    );
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.status === 403 &&
+      error.detail === WAITLISTED
+    ) {
+      return { waitlisted: true, email };
+    }
+    throw error;
+  }
+  return authAnswer(raw, email);
 }
 
 /**

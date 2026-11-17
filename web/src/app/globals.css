@@ -23,6 +23,10 @@
    count, the control edges, and the library page. After the console sheets it adds to, before
    the corrections sheet, which stays last. */
 @import "./library.css";
+/* The hi2vi design system (src/hi2vi/) uses no Tailwind utility, so Tailwind scans none of its files.
+   Its sheets are imported by the root layout after this file, not through Tailwind: a theme variable the
+   system reads would make Tailwind emit its own value of it on `:root` (src/hi2vi/styles/README.md). */
+@source not "../hi2vi";
 /* Operator-authorised corrections to a SIGNED record, and nothing else (P28.S5 —
    see the charter at the top of the file). It is imported LAST on purpose, so it
    wins at equal specificity over every round sheet above it. Later slices insert
@@ -65,8 +69,6 @@
   --color-slate: var(--kb-secondary);
   --color-steel: var(--kb-secondary);
   --color-muted: var(--kb-hint); /* hints, captions */
-  --color-on-dark: #f6f2e8; /* warm off-white for marketing dark bands (P14) */
-  --color-on-dark-muted: #cbc2b2;
   --color-on-primary: #fbfaf5; /* text on the teal CTA */
 
   /* The teal accent — the whole green ramp collapses to one accent hue */
@@ -208,32 +210,9 @@
   /* ── Breakpoints (sm/md/lg/xl keep Tailwind defaults; add xs = 480px) ────── */
   --breakpoint-xs: 30rem;
 
-  /* ── Marketing tonal-band system (P14.S2 — ADDITIVE, renames/revalues nothing)
-   * The public landing is a light page that drops into scheme-INDEPENDENT
-   * warm-charcoal bands at three moments (hero, connect, footer). These bands
-   * stay dark in both schemes; a `.mkt-band--dark`/`--deep` wrapper re-points the
-   * accent/text/border custom properties (see components/marketing/marketing.css)
-   * so teal steps to the lighter on-dark tier for contrast. Values verbatim from
-   * design/rounds/01-landing/output/build-prompt.md §1. `--color-on-dark(-muted)`
-   * and `--color-on-primary` are already staged above; `--color-on-dark-hint` is
-   * new (→ `text-on-dark-hint`). */
-  --color-on-dark-hint: #938a7a; /* hint / meta on dark */
-
-  --kb-band-dark: #1c1a15; /* warm-charcoal marketing band (hero, connect, CTA) */
-  --kb-band-dark-soft: #232019; /* raised card on a dark band */
-  --kb-band-dark-deep: #14120e; /* footer / deepest anchor */
-  --kb-border-on-dark: rgba(236, 228, 215, 0.14);
-  --kb-border-on-dark-strong: rgba(236, 228, 215, 0.24);
-  --kb-accent-on-dark: #62bdb2; /* teal ON dark bands — the contrast step */
-  --kb-accent-on-dark-strong: #86d4ca;
-  --kb-accent-on-dark-soft: rgba(98, 189, 178, 0.18);
-  --kb-shadow-card: 0 1px 2px rgba(38, 33, 28, 0.04),
-    0 10px 30px rgba(38, 33, 28, 0.06);
-
   /* Data-viz categorical inks (made for the graph motif, which P37-1p retired) —
    * the documented accent extension, data-viz surfaces ONLY. Teal is the anchor;
-   * the `-dark` variants are the slate-scheme steps for a recessed plate.
-   * `--kb-ink-bronze-dark` is still read by `marketing.css`. */
+   * the `-dark` variants are the slate-scheme steps for a recessed plate. */
   --kb-ink-teal: #0f6f66;
   --kb-ink-bronze: #8a6a2a;
   --kb-ink-plum: #764f6c;

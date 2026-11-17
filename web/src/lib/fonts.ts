@@ -51,3 +51,81 @@ export const jetbrains = localFont({
   weight: "100 800",
   display: "swap",
 });
+
+/*
+ * The hi2vi design system's three faces (`public/fonts/plex/`, see the fonts README): IBM Plex Sans,
+ * IBM Plex Sans KR and IBM Plex Mono, static weights only, the ones the system sets. Their variables
+ * are read by `src/hi2vi/styles/tokens.css` (`--font-sans`, `--font-mono`) inside a `.ui` root and
+ * nowhere else, so the old pages keep the faces above.
+ *
+ * `preload: false`: a root-layout font preloads on every route, and only `.ui` pages use these, so an
+ * old page fetches none of them. `adjustFontFallback: false`: each variable then names its face alone,
+ * so the stacks in tokens.css read exactly as the signed ones do (Plex Sans, then Plex Sans KR for the
+ * Hangul Plex Sans lacks, then system-ui), with no metric-adjusted Arial between the two Plex faces.
+ */
+export const plexSans = localFont({
+  src: [
+    {
+      path: "../../public/fonts/plex/IBMPlexSans-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/plex/IBMPlexSans-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/plex/IBMPlexSans-SemiBold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+  ],
+  variable: "--font-plex-sans",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+});
+
+export const plexSansKr = localFont({
+  src: [
+    {
+      path: "../../public/fonts/plex/IBMPlexSansKR-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/plex/IBMPlexSansKR-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/plex/IBMPlexSansKR-SemiBold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+  ],
+  variable: "--font-plex-sans-kr",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+});
+
+export const plexMono = localFont({
+  src: [
+    {
+      path: "../../public/fonts/plex/IBMPlexMono-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/plex/IBMPlexMono-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+  ],
+  variable: "--font-plex-mono",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+});

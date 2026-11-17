@@ -6,7 +6,8 @@
  * the user's password, and then hands the browser to the attacker's page with our
  * origin in the referrer and the user primed to trust whatever it says. So this
  * guard is written to **fail closed**: anything it does not positively recognise as
- * an in-app path becomes the default landing (`/library`), and it never throws.
+ * an in-app path becomes the landing after sign-in (`/dashboard`, org home), and it
+ * never throws.
  *
  * THE ACCEPTED SHAPE — the contract `P28.S6`'s public-graph gate line had to match
  * (retired with the graph in P37-1p; it emitted `/login?next={publicBase}/documents/{id}`
@@ -49,10 +50,10 @@
  */
 
 /**
- * Where a missing or rejected `next` lands. P30.S22 (`06-library` open question 3): the
- * library, for every member; it was `/dashboard`. A safe `next` still wins.
+ * Where a missing or rejected `next` lands: org home, the landing after sign-in (hi2vi,
+ * frame:Q6; it was the library from P30.S22). A safe `next` still wins.
  */
-export const DEFAULT_NEXT_PATH = "/library";
+export const SIGN_IN_LANDING_PATH = "/dashboard";
 
 /** The sign-in gate. */
 export const LOGIN_PATH = "/login";
@@ -87,7 +88,7 @@ const PARSE_BASE = "https://next-path.invalid";
 
 /**
  * Normalise a `?next=` value to a safe in-app path, or fall back to
- * `DEFAULT_NEXT_PATH`. Never throws; never returns anything but a path beginning
+ * `SIGN_IN_LANDING_PATH`. Never throws; never returns anything but a path beginning
  * with a single `/`.
  */
 export function safeNextPath(
@@ -95,40 +96,44 @@ export function safeNextPath(
 ): string {
   // A repeated key arrives as an array — ambiguous input on a security boundary is
   // rejected rather than resolved.
-  if (typeof raw !== "string" || raw.length === 0) return DEFAULT_NEXT_PATH;
-  if (raw.length > MAX_NEXT_PATH_LENGTH) return DEFAULT_NEXT_PATH;
+  if (typeof raw !== "string" || raw.length === 0) return SIGN_IN_LANDING_PATH;
+  if (raw.length > MAX_NEXT_PATH_LENGTH) return SIGN_IN_LANDING_PATH;
 
   // Relative, and not protocol-relative. `/\` is `//` to a URL parser.
-  if (!raw.startsWith("/")) return DEFAULT_NEXT_PATH;
-  if (raw.startsWith("//") || raw.startsWith("/\\")) return DEFAULT_NEXT_PATH;
-  if (raw.includes("\\")) return DEFAULT_NEXT_PATH;
+  if (!raw.startsWith("/")) return SIGN_IN_LANDING_PATH;
+  if (raw.startsWith("//") || raw.startsWith("/\\")) {
+    return SIGN_IN_LANDING_PATH;
+  }
+  if (raw.includes("\\")) return SIGN_IN_LANDING_PATH;
 
   // Control characters and whitespace: parsers strip some of these before
   // resolving, so `/\t/evil.example` is not the path it looks like.
-  if (/[\x00-\x20\x7f]/.test(raw)) return DEFAULT_NEXT_PATH;
+  if (/[\x00-\x20\x7f]/.test(raw)) return SIGN_IN_LANDING_PATH;
 
   let url: URL;
   try {
     url = new URL(raw, PARSE_BASE);
   } catch {
-    return DEFAULT_NEXT_PATH;
+    return SIGN_IN_LANDING_PATH;
   }
   // A relative path can never change the origin. If it did, it was not relative.
-  if (url.origin !== PARSE_BASE) return DEFAULT_NEXT_PATH;
+  if (url.origin !== PARSE_BASE) return SIGN_IN_LANDING_PATH;
 
   const path = `${url.pathname}${url.search}${url.hash}`;
   // Belt and braces: `new URL("/..//evil", base).pathname` normalises, but re-check
   // rather than trust the shape of the output.
-  if (!path.startsWith("/") || path.startsWith("//")) return DEFAULT_NEXT_PATH;
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    return SIGN_IN_LANDING_PATH;
+  }
 
   // Encoded bypasses: judge the path as a decoding layer would see it.
-  if (!decodedPathIsSafe(url.pathname)) return DEFAULT_NEXT_PATH;
+  if (!decodedPathIsSafe(url.pathname)) return SIGN_IN_LANDING_PATH;
 
   const segment = url.pathname;
   if (
     LOOP_PATHS.some((p) => segment === p || segment.startsWith(`${p}/`))
   ) {
-    return DEFAULT_NEXT_PATH;
+    return SIGN_IN_LANDING_PATH;
   }
 
   return path;
@@ -178,7 +183,7 @@ function decodeOnce(value: string): string | null {
  */
 export function loginHref(next?: string | null): string {
   const safe = safeNextPath(next);
-  return safe === DEFAULT_NEXT_PATH
+  return safe === SIGN_IN_LANDING_PATH
     ? LOGIN_PATH
     : `${LOGIN_PATH}?next=${encodeURIComponent(safe)}`;
 }

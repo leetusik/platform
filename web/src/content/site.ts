@@ -5,12 +5,14 @@
 // origin (production origin is a P14 deploy concern).
 import type { SiteMeta } from "./types";
 
+//
+// The tab title and the description name hi2vi (operator, OQ15). The description is the landing's signed
+// title sentence (job 06-landing round 01); the landing itself sets its own absolute title.
 export const SITE: SiteMeta = {
-  name: "knowledge",
-  title: "knowledge",
-  titleTemplate: "%s · knowledge",
-  description:
-    "knowledge — the tenant dashboard for your projects, credentials, documents, and usage.",
+  name: "hi2vi",
+  title: "hi2vi",
+  titleTemplate: "%s · hi2vi",
+  description: "One place for your project’s work with its coding agents.",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://127.0.0.1:3030",
 };
 

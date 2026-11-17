@@ -70,6 +70,10 @@ already exists) → create a project → mint an API key → write the local con
 verify it resolves. It is **idempotent** — re-running logs in, reuses the existing
 project, and keeps the existing key. Safe to run twice.
 
+If the service holds new sign-ups on a **waitlist** (hi2vi.com does), `init`,
+`signup` and `login` stop with one `error: … on the hi2vi waitlist …` line and exit
+`1`, saving nothing; the account opens later by mail, and then `init` runs as above.
+
 **Passwords never go through `argv`.** There is deliberately no `--password` flag:
 argv is world-readable via `ps` and lands in shell history. The password is read, in
 order, from `--password-stdin` (one line on stdin), then the `$KNOWLEDGE_PASSWORD`

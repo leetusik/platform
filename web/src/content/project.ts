@@ -197,3 +197,59 @@ export const PROJECT = {
 } as const;
 
 export type ProjectCopy = typeof PROJECT;
+
+/**
+ * P58 — project home's words (job 01, round 03-instrument, `ProjectHome*.dc.html`), verbatim.
+ * Imported by path (`@/content/project`), never through the barrel. The older `PROJECT` above stays
+ * for its other readers; nothing here renames or removes one of its keys.
+ *
+ * The Workspace panel's empty sentence is the signed one's first sentence only (operator D1,
+ * 2026-11-16): the second, `Run [LINK COMMAND] in the project’s repo.`, is held back until the sync
+ * phase names the command (D244-h0).
+ */
+export const PROJECT_HOME = {
+  head: {
+    back: (org: string): string => `Back to ${org}`,
+    badge: { public: "Public", private: "Private" },
+    created: (when: string): string => `Created ${when}`,
+    makePublic: "Make public",
+    makePrivate: "Make private",
+    saving: "Saving…",
+    failed: "Could not update visibility. Try again.",
+    toast: {
+      public: (name: string): string =>
+        `${name} is now public. Anyone with the link can read its documents.`,
+      private: (name: string, org: string): string =>
+        `${name} is now private. Only ${org} can read its documents.`,
+    },
+  },
+  workspace: {
+    heading: "Workspace",
+    coming: "Coming",
+    empty: "No workspace linked yet.",
+  },
+  library: {
+    heading: "Library",
+    one: "document",
+    book: "Book",
+    chapter: "chapter",
+    all: "See all in Library",
+    empty:
+      "No documents yet. An agent publishes them with one of this project’s API keys.",
+    failed: "Documents did not load.",
+    retry: "Try again",
+  },
+  feedback: {
+    heading: "Feedback",
+    all: "See all in Feedback",
+    empty:
+      "No feedback yet. Your users’ messages arrive through a Capture only key.",
+  },
+  notFound: {
+    title: "Project not found",
+    text: (org: string): string =>
+      `This project doesn’t exist, or it isn’t part of ${org}.`,
+    back: (org: string): string => `Back to ${org}`,
+  },
+  loading: "Loading…",
+} as const;

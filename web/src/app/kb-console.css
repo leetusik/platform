@@ -26,31 +26,17 @@
 .kb-app { background: var(--kb-paper); color: var(--kb-ink); font-family: var(--kb-font-body); }
 
 /* Topbar — WEARS THE PAPER: a sunken warm band, ink text, one hairline below.
-   No colored bar. Sticky. (→ components/app-shell/app-shell.tsx <header>) */
+   No colored bar. Sticky. (→ components/public-shell.tsx <header>; P58 removed the
+   member shell's crumb, divider and user rules and the rail's, which nothing renders) */
 .kb-topbar { display: flex; align-items: center; gap: 0.85rem; height: var(--kb-app-topbar-h); padding: 0 1.1rem; background: var(--kb-surface-sunken); border-bottom: 1px solid var(--kb-border); }
 .kb-topbar__brand { display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; }
 .kb-topbar__brand img { width: 22px; height: 22px; display: block; }
 .kb-topbar__word { font-family: var(--kb-font-display); font-weight: var(--kb-weight-semibold); font-size: 1.15rem; letter-spacing: -0.01em; color: var(--kb-ink); }
-.kb-topbar__divider { width: 1px; height: 1.3rem; background: var(--kb-border-strong); }
-.kb-topbar__crumb { font-size: 0.86rem; color: var(--kb-secondary); }
-.kb-topbar__crumb b { font-weight: var(--kb-weight-semibold); color: var(--kb-ink); }
 .kb-topbar__spacer { flex: 1 1 auto; }
-.kb-topbar__user { font-family: var(--kb-font-mono); font-size: var(--kb-text-caption); color: var(--kb-hint); }
 
 /* Layout grid [ rail | main ] */
 .kb-app-layout { display: grid; grid-template-columns: var(--kb-app-rail-w) minmax(0, 1fr); min-height: 30rem; }
 .kb-app-main { padding: 1.6rem 1.7rem 2.2rem; min-width: 0; }
-
-/* Rail nav — reads like a table of contents. Active = teal text + 2px teal
-   left rail + soft-teal wash. (→ components/app-shell/rail-nav.tsx) */
-.kb-rail { background: var(--kb-paper); border-right: 1px solid var(--kb-border); padding: 1.3rem 0.85rem; }
-.kb-rail__head { margin: 0 0.55rem 0.7rem; }
-.kb-rail__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
-.kb-rail__link { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.48rem 0.6rem; border-radius: var(--kb-radius-sm); border-left: 2px solid transparent; font-size: 0.9rem; color: var(--kb-secondary); text-decoration: none; transition: color var(--kb-ease), background var(--kb-ease), border-color var(--kb-ease); }
-.kb-rail__link:hover { color: var(--kb-ink); background: var(--kb-surface-sunken); }
-.kb-rail__link.is-active, .kb-rail__link[aria-current="page"] { color: var(--kb-accent); font-weight: var(--kb-weight-semibold); border-left-color: var(--kb-accent); background: var(--kb-accent-soft); }
-.kb-rail__soon { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.48rem 0.6rem; border-radius: var(--kb-radius-sm); border-left: 2px solid transparent; font-size: 0.9rem; color: var(--kb-hint); }
-.kb-rail__pill { font-family: var(--kb-font-mono); font-size: 0.56rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--kb-hint); border: 1px solid var(--kb-border); border-radius: var(--kb-radius-pill); padding: 0.12em 0.5em; }
 
 /* -------- Panels (static console sections; chrome, not links) ------------- */
 .kb-panel { background: var(--kb-surface); border: 1px solid var(--kb-border); border-radius: var(--kb-radius); padding: 1.2rem 1.3rem; }
@@ -181,7 +167,6 @@
 .kb-appbtn.is-hover.kb-appbtn--primary { background: var(--kb-accent-strong); }
 .kb-appbtn.is-hover.kb-appbtn--secondary { border-color: var(--kb-accent); color: var(--kb-accent-strong); }
 .kb-appbtn.is-hover.kb-appbtn--ghost { border-color: var(--kb-border-strong); color: var(--kb-ink); }
-.kb-rail__link.is-hover { color: var(--kb-ink); background: var(--kb-surface-sunken); }
 .kb-dtable tbody tr.is-hover { background: var(--kb-accent-soft); }
 .kb-field__input.is-focus { outline: none; border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }
 .kb-appsearch.is-focus { border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }
