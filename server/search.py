@@ -55,6 +55,106 @@ _RANK = "bm25(documents_fts, 8.0, 4.0, 1.0)"
 _SNIPPET_TOKENS = 64
 _SNIPPET = f"snippet(documents_fts, 2, '<mark>', '</mark>', '…', {_SNIPPET_TOKENS})"
 
+# The snippet is only the fallback for a match in the text: FTS5 weights a fragment
+# that starts a column or follows "." or ":" (https://www.sqlite.org/fts5.html, 5.1.3,
+# read 2026-11-17), so on real prose it starts at the match's sentence and leaves a
+# few characters before it. A hit on the page that matches in the text has its
+# snippet rebuilt from highlight() (5.1.2: the whole column, every phrase match
+# marked, so the same tokens FTS5 matched, stems and CJK prefixes included), cut
+# around the first match: at least _WANT_BEFORE plain characters before it and
+# _WANT_AFTER after it where the text has them (the Library cuts 48 and 72, P63-S25),
+# never more than _CUT_CAP raw characters either side.
+_HL_OPEN, _HL_CLOSE = "", ""  # private-use: never in a document's text
+_HIGHLIGHT = "highlight(documents_fts, 2, char(57344), char(57345))"
+_WANT_BEFORE = 64
+_WANT_AFTER = 96
+_CUT_CAP = 480
+_CUT_STEP = 8
+_SNAP = 16  # how far a cut may move to land on white space
+_HEADING_RE = re.compile(r"(^|[\s>…])#{1,6}[ \t]+")
+_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_EMPH_RE = re.compile(r"\*\*|__|`+|~~")
+_SENTINEL_RE = re.compile("[]")
+
+
+def _plain_len(text: str) -> int:
+    """Length of ``text`` as the web's ``plainText`` reads it (lib/library/excerpt.ts)."""
+    t = _HEADING_RE.sub(r"\1", _SENTINEL_RE.sub("", text))
+    t = _EMPH_RE.sub("", _LINK_RE.sub(r"\1", t))
+    return len(_WS_RE.sub(" ", t).strip())
+
+
+def _cut_around_match(hl: str) -> Optional[str]:
+    """The snippet for a text match, from ``hl`` (the column with sentinel marks).
+
+    The same shape as FTS5's snippet: ``<mark>`` around each match, ``…`` where the text
+    goes on before or after. None when ``hl`` marks nothing (the match was elsewhere).
+    """
+    i = hl.find(_HL_OPEN)
+    if i < 0:
+        return None
+    e = hl.find(_HL_CLOSE, i)
+    e = len(hl) if e < 0 else e + 1
+    n = len(hl)
+
+    # Before: step back until the plain text holds enough, then snap to white space.
+    a = i
+    while a > 0 and i - a < _CUT_CAP and _plain_len(hl[a:i]) < _WANT_BEFORE:
+        a = max(0, a - _CUT_STEP)
+    if a > 0:
+        ws = next((k for k in range(a, min(a + _SNAP, i)) if hl[k].isspace()), None)
+        if ws is not None:
+            a = ws + 1
+
+    # After: step on likewise; never end inside a later mark.
+    z = e
+    while z < n and z - e < _CUT_CAP and _plain_len(hl[e:z]) < _WANT_AFTER:
+        z = min(n, z + _CUT_STEP)
+    if z < n:
+        ws = next((k for k in range(z, max(z - _SNAP, e), -1) if hl[k].isspace()), None)
+        if ws is not None:
+            z = ws
+    cut = hl[a:z]
+    if cut.rfind(_HL_OPEN) > cut.rfind(_HL_CLOSE):
+        close = hl.find(_HL_CLOSE, z)
+        z = n if close < 0 else close + 1
+        cut = hl[a:z]
+
+    out = cut.replace(_HL_OPEN, "<mark>").replace(_HL_CLOSE, "</mark>")
+    return ("…" if a > 0 else "") + out + ("…" if z < n else "")
+
+
+def _widen_snippets(
+    conn: sqlite3.Connection, page: list[dict[str, Any]], match: str, kw_ids: set[int]
+) -> list[dict[str, Any]]:
+    """Rebuild the snippet of each keyword hit on the page that matches in the text.
+
+    One query over the page's keyword hits only; a hit whose text holds no match (a
+    title or tag match), or any failure, keeps FTS5's snippet. Matching, ranking and
+    every other field are untouched.
+    """
+    ids = [int(r["id"]) for r in page if int(r["id"]) in kw_ids]
+    if not ids:
+        return page
+    marks = ",".join("?" * len(ids))
+    try:
+        rows = conn.execute(
+            f"SELECT rowid AS id, {_HIGHLIGHT} AS hl FROM documents_fts "
+            f"WHERE documents_fts MATCH ? AND rowid IN ({marks})",
+            [match, *ids],
+        ).fetchall()
+    except sqlite3.Error:
+        return page
+    cuts: dict[int, str] = {}
+    for row in rows:
+        cut = _cut_around_match(row["hl"] or "")
+        if cut is not None:
+            cuts[int(row["id"])] = cut
+    for r in page:
+        if int(r["id"]) in cuts:
+            r["snippet"] = cuts[int(r["id"])]
+    return page
+
 # Recency signal: a document's freshness contribution decays exponentially with age.
 # recency = exp(-age_days * ln2 / HALF_LIFE_DAYS) — 0 days -> 1.0, HALF_LIFE_DAYS -> 0.5.
 # The final score adds RECENCY_WEIGHT * recency to the higher-is-better bm25 signal.
@@ -331,6 +431,7 @@ def search(
             rec["_score"] = rec["_kwscore"]
         results = [_finalize(r) for r in kw_order]
         page = _attach_chapters(conn, results[offset : offset + limit])
+        page = _widen_snippets(conn, page, match, set(kw))
         return {"results": page, "total": total, "mode": "bm25"}
 
     # --- RRF fusion of the keyword ordering and the vector ordering ---
@@ -360,4 +461,5 @@ def search(
     fused.sort(key=lambda r: (r["_score"], r["date"], r["id"]), reverse=True)
     results = [_finalize(r) for r in fused]
     page = _attach_chapters(conn, results[offset : offset + limit])
+    page = _widen_snippets(conn, page, match, set(kw))
     return {"results": page, "total": len(records), "mode": "hybrid"}

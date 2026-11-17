@@ -6,6 +6,12 @@ search's ``snippet``. FTS5's ``snippet()`` counts tokens, not characters, and ce
 the fragment on the hit, so the server asks for its most (64) and these pins hold the
 widths on prose: an early match keeps all the text before it, a middle one 48 and 72
 at least, a late one all the text after it.
+
+FTS5 also weights a fragment that follows "." or ":", so on real sentences its
+snippet starts at the match's sentence (``…At the end the <mark>lantern</mark>``);
+the word lists below have no full stops and never showed it. The search therefore
+cuts a text match's snippet itself, around highlight()'s first mark, and the
+sentence fixtures at the end pin that.
 """
 from __future__ import annotations
 
@@ -67,3 +73,46 @@ def test_the_marks_and_ellipses_are_as_before(conn):
     hit = search.search(conn, words[150])["results"][0]["snippet"]
     assert hit.startswith("…") and hit.endswith("…")
     assert snippet.count("<mark>") == 1 and snippet.count("</mark>") == 1
+
+
+_KEEPER = (
+    "The keeper climbed the stairs every evening before dark. He trimmed the wick "
+    "and wiped the glass. Ships passed far out on the water and nobody thanked him. "
+    "The winter was long and the oil ran low. "
+)
+
+
+def _sentences() -> str:
+    return (
+        "## The keeper\n\n" + "Early the bell rang. " + _KEEPER * 4
+        + "Midway the gull cried once. " + _KEEPER * 4
+        + "At the end the lantern went out."
+    )
+
+
+@pytest.mark.parametrize("q", ["bell", "gull", "lantern"])
+def test_an_excerpt_holds_the_signed_widths_on_sentences(conn, q):
+    body = _sentences()
+    before, after, snippet = _widths(conn, body, q)
+    start = body.index(q)
+    end = start + len(q)
+    assert before >= min(BEFORE, start), snippet
+    assert after >= min(AFTER, len(body) - end), snippet
+
+
+def test_an_excerpt_holds_the_signed_widths_on_korean_sentences(conn):
+    filler = "도서관은 모든 글을 위한 자리를 남겨 둔다. 읽는 사람은 천천히 문장을 따라간다. " * 6
+    body = filler + "마지막에 등불이 꺼졌다. " + filler
+    before, after, snippet = _widths(conn, body, "등불")
+    assert before >= BEFORE and after >= AFTER, snippet
+
+
+def test_a_stemmed_match_marks_the_text_word_with_both_ellipses(conn):
+    body = _sentences() + " " + _KEEPER * 2
+    db.upsert_document(
+        conn, project="p", slug="s", date="2026-11-01", title="Long", tags=[],
+        source_repo=None, rel_path="p/2026-11-01-s.md", markdown=body,
+    )
+    snippet = search.search(conn, "lanterns")["results"][0]["snippet"]
+    assert snippet.startswith("…") and snippet.endswith("…")
+    assert _MARK.findall(snippet) == ["lantern"]
