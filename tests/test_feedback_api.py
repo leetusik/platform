@@ -1128,6 +1128,14 @@ def test_the_session_list_pages_by_number_with_a_total(fb):
     for bad in ("page=0", "page=-1", "page=x", "page="):
         assert fb.get(f"/app/feedback?{bad}", headers=a["session"]).status_code == 400, bad
 
+    # The web's six-digit cap is still a page (past the last: empty, with the total). A page
+    # past it is a 400 naming ``page``, before its offset can overflow the database's bigint.
+    assert read("page=999999") == {"records": [], "total": 120}
+    assert read("page=999999&limit=100") == {"records": [], "total": 120}
+    for huge in (1_000_000, 2**63 // 50 + 2, 2**63, 10**23 - 1):
+        res = fb.get(f"/app/feedback?page={huge}&limit=50", headers=a["session"])
+        assert res.status_code == 400 and "page" in res.json()["detail"], (huge, res.text)
+
 
 def test_the_key_routes_keep_their_cursor_contract(fb):
     owner = _signup(fb)

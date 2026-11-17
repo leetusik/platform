@@ -124,6 +124,10 @@ ALLOWED_TARGET_ROLES = ("user", "assistant", "system", "tool")
 
 DEFAULT_LIST_LIMIT = 50
 MAX_LIST_LIMIT = 100
+#: The highest ``page`` ``/app/feedback`` reads: the web's six-digit cap. Its offset,
+#: ``(page - 1) * MAX_LIST_LIMIT``, stays far inside the database's bigint, so a larger
+#: page is a 400 here rather than an overflow (a 500) in SQL.
+MAX_LIST_PAGE = 999_999
 #: A capture-supplied project name is a get-or-create key; vocky's bound.
 MAX_CAPTURE_PROJECT_NAME_LENGTH = 200
 #: ``/api/project/usage``'s window when the caller names none.
@@ -1474,8 +1478,8 @@ async def list_app_feedback(request: Request) -> Response:
         query = normalize_list_query(request, keyset=False)
         query.filters.search = normalize_optional_text(request.query_params.get("q"))
         number = _parse_int_param(request.query_params.get("page"), field_name="page")
-        if number is not None and number < 1:
-            raise FeedbackValidationError("page must be 1 or more")
+        if number is not None and not 1 <= number <= MAX_LIST_PAGE:
+            raise FeedbackValidationError(f"page must be between 1 and {MAX_LIST_PAGE}")
         query.page = 1 if number is None else number
         query.with_total = True
     except FeedbackValidationError as exc:
