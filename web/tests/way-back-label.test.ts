@@ -138,9 +138,9 @@ describe("decodeFrom refuses what no list of ours emits", () => {
     ["an encoded letter", "/@%61cme"],
     ["an encoded project", "/@acme/plat%20form"],
     ["a space", "/@acme/plat form"],
-    ["a long org", `/@${"a".repeat(65)}`],
-    ["a long project", `/@acme/${"p".repeat(101)}`],
-    ["a long project id", `/projects/${"1".repeat(65)}/library`],
+    ["a long org", `/@${"a".repeat(41)}`],
+    ["a long project", `/@acme/${"p".repeat(201)}`],
+    ["a long project id", `/projects/${"1".repeat(37)}/library`],
     ["an absolute URL", "https://evil.example.com/@acme?page=2"],
     ["a protocol-relative URL", "//evil.example.com/library?page=2"],
     ["a dot-dot path", "/@acme/x/../platform"],
@@ -259,6 +259,96 @@ describe("still: the item's own lists, named from its data", () => {
     expect(bookBack(decodeFrom("/projects/p1/library"), visitorBook)).toEqual({
       href: "/@p63-fid",
       label: "Personal",
+    });
+  });
+});
+
+// P63-fk.F5 — every length `decodeFrom` checks is what the server emits: a project's name up to 200
+// characters (`server/app_api.py` `CreateProjectInput.name`), a project's id and a tenant's id as UUIDs
+// (36), an org slug up to 40 (`server/accounts/slugs.py`).
+describe("each segment as long as the server makes it, and no longer", () => {
+  const p = (n: number) => "p".repeat(n);
+  const long = [100, 101, 150, 200];
+  it.each(long)(
+    "a visitor's document from a project page of %i characters",
+    (n) => {
+      expect(
+        documentBack({
+          member: false,
+          from: `/@p63-fid/${p(n)}?page=2&q=x`,
+          org: "p63-fid",
+          names: { project: p(n), org: "Personal" },
+        }),
+      ).toMatchObject({ href: `/@p63-fid/${p(n)}?page=2&q=x`, label: p(n) });
+    },
+  );
+  it.each(long)(
+    "a visitor's book from a project page of %i characters",
+    (n) => {
+      expect(
+        bookBack(decodeFrom(`/@p63-fid/${p(n)}?page=3`), {
+          ...visitorBook,
+          project: p(n),
+        }),
+      ).toEqual({ href: `/@p63-fid/${p(n)}?page=3`, label: p(n) });
+    },
+  );
+  it.each(long)("the book's states at a project of %i characters", (n) => {
+    const from = `/@p63-fid/${p(n)}?page=2`;
+    expect(
+      statePlace(
+        `/@p63-fid/${p(n)}/books/guide?from=${encodeURIComponent(from)}`,
+        false,
+      ).back,
+    ).toEqual({ href: from, label: p(n) });
+  });
+  it.each(long)(
+    "the document's loading state at a project of %i characters",
+    (n) => {
+      nav.params = { org: "@p63-fid", project: p(n), slug: "note" };
+      nav.search = new URLSearchParams({ from: `/@p63-fid/${p(n)}?page=2` });
+      const html = renderToStaticMarkup(
+        createElement(
+          ReaderSegmentContext.Provider,
+          { value: { member: false, settings: DEFAULT_READER_SETTINGS } },
+          createElement(DocumentLoading),
+        ),
+      );
+      expect(html).toContain(`href="/@p63-fid/${p(n)}?page=2"`);
+      expect(html).toContain(`>${p(n)}<`);
+    },
+  );
+  it("a project name of 201 characters is refused: the item's default", () => {
+    expect(decodeFrom(`/@p63-fid/${p(201)}`)).toEqual(LIBRARY_ORIGIN);
+    expect(
+      documentBack({
+        member: false,
+        from: `/@p63-fid/${p(201)}?page=2`,
+        org: "p63-fid",
+        names: { project: p(201), org: "Personal" },
+      }),
+    ).toMatchObject({ href: "/@p63-fid", label: "Personal" });
+  });
+  it("a member's project id (a UUID) and org segments at their longest", () => {
+    const id = "0f1e2d3c-aaaa-bbbb-cccc-1234567890ab";
+    expect(decodeFrom(`/projects/${id}/library?page=2`)).toEqual({
+      origin: "project-library",
+      viewer: "member",
+      project: id,
+      place: { page: 2 },
+    });
+    const slug = `${"a".repeat(19)}-${"b".repeat(20)}`;
+    expect(slug).toHaveLength(40);
+    expect(decodeFrom(`/@${slug}`)).toEqual({
+      origin: "public-library",
+      org: slug,
+      place: {},
+    });
+    expect(decodeFrom(`/@${id}/${p(200)}`)).toMatchObject({
+      origin: "project-library",
+      viewer: "visitor",
+      org: id,
+      project: p(200),
     });
   });
 });

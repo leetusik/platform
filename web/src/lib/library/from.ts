@@ -57,17 +57,33 @@ export type ListOrigin =
 /** Where a missing or rejected `from` goes back to. */
 export const LIBRARY_ORIGIN: ListOrigin = { origin: "library", place: {} };
 
-/** No search or filter of ours comes near this; a longer one is dropped, not trusted. */
+/**
+ * `filter` is a project's name (`server/app_api.py` `CreateProjectInput.name`, `max_length=200`).
+ * `q` is the reader's own text, which the server does not cap: a longer one is dropped from the way
+ * back (the list stays, without its search), not trusted.
+ */
 const MAX_PART_LENGTH = 200;
 const PAGE = /^[1-9][0-9]{0,5}$/;
 const PARSE_BASE = "https://from.invalid";
+// Every length below is what the server makes (P63-fk.F5): change it with its source, never narrower.
+/** A UUID as the server writes it (`tenants.id`, `projects.id` are `sa.UUID()`): 36 characters. */
+const UUID_LENGTH = 36;
+/** An org slug's longest (`server/accounts/slugs.py` `ORG_SLUG_MAX_LENGTH`). */
+const ORG_SLUG_MAX_LENGTH = 40;
 /** An org segment: its slug (`server/accounts/slugs.py`) or its tenant's id (a UUID), unescaped. */
 const ORG_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const MAX_ORG_LENGTH = 64;
-/** A project's name, as the content plane accepts it (`server/gitops.py`), unescaped. */
-const PROJECT_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-/** A member's project id (a UUID), unescaped. */
-const PROJECT_ID_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+/** `orgSegment(owner)` is the slug, else the tenant's id: the longer of the two. */
+const MAX_ORG_LENGTH = Math.max(ORG_SLUG_MAX_LENGTH, UUID_LENGTH);
+/**
+ * A visitor's project segment is the project's name: its charset as the content plane accepts it
+ * (`server/gitops.py` `_PROJECT_NAME_RE`, which sets no length), its length as the control plane
+ * does (`server/app_api.py` `CreateProjectInput.name`, `max_length=200`). Unescaped.
+ */
+const PROJECT_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const MAX_PROJECT_NAME_LENGTH = 200;
+/** A member's project id (`/app/projects/{project_id}`, a UUID), unescaped. */
+const PROJECT_ID_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+const MAX_PROJECT_ID_LENGTH = UUID_LENGTH;
 
 /** The list's address: the value `?from=` carries. */
 export function encodeFrom(from: ListOrigin): string {
@@ -148,7 +164,11 @@ export function decodeFrom(
     segments[0] === "projects" &&
     segments[2] === "library"
   ) {
-    const project = segmentOf(segments[1], PROJECT_ID_SEGMENT, 64);
+    const project = segmentOf(
+      segments[1],
+      PROJECT_ID_SEGMENT,
+      MAX_PROJECT_ID_LENGTH,
+    );
     if (project === null) return LIBRARY_ORIGIN;
     return {
       origin: "project-library",
@@ -166,7 +186,11 @@ export function decodeFrom(
     if (segments.length === 1) {
       return { origin: "public-library", org, place };
     }
-    const project = segmentOf(segments[1], PROJECT_SEGMENT, 100);
+    const project = segmentOf(
+      segments[1],
+      PROJECT_SEGMENT,
+      MAX_PROJECT_NAME_LENGTH,
+    );
     if (project === null) return LIBRARY_ORIGIN;
     return {
       origin: "project-library",

@@ -50,8 +50,11 @@ export function documentBack(p: {
   org: string | null;
   /**
    * The names the reads carry: the document's project (its name, which is its segment), and its org's (its
-   * read's `org.name`, P63). Absent in the loading and not-found states: the org then reads the address's
-   * slug, and no project's list is trusted.
+   * read's `org.name`, P63). In the loading and not-found states there is no read: they pass the project
+   * segment of the document's own address (`/@{org}/{project}/…`), which is trusted because it is where
+   * the reader is, never text `?from=` carries; a project's list is then kept only when it is that same
+   * project (or a member's own project page), and labelled by that segment. The org's name is absent
+   * there, so the org reads the address's slug. With no project at all, no project's list is trusted.
    */
   names?: { project?: string | null; org?: string | null };
 }): { origin: ListOrigin; href: string; label: string } | null {
