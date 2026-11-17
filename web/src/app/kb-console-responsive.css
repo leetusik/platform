@@ -72,9 +72,6 @@
 /* -------- Fluid display ramp (DECISION #6) -------------------------------- */
 /* Display type is fluid; UI and body type are FIXED. Shrinking 0.82rem body
    text on a phone makes it unreadable — only the voice sizes move. */
-.kb-app-title { font-size: var(--kb-app-title-size); }
-.kb-app-h2 { font-size: var(--kb-app-h2-size); }
-.kb-panel__head .kb-app-h2 { font-size: var(--kb-app-h2-size); }
 .kb-tile__num { font-size: var(--kb-tile-num-size); }
 
 /* -------- Shell: topbar --------------------------------------------------- */
@@ -195,17 +192,6 @@
   .kb-dtable tr > td:last-child .kb-appbtn { width: 100%; }
   .kb-dtable__empty td { display: block; padding: 2.2rem 1rem; text-align: center; }
   .kb-dtable__empty td::before { content: none; }
-}
-
-/* -------- Search ---------------------------------------------------------- */
-.kb-searchbar { display: flex; align-items: center; gap: 0.6rem; }
-.kb-searchbar__field { flex: 1 1 auto; min-width: 0; }
-.kb-searchbar__filter { flex: none; width: 12rem; }
-.kb-searchbar__filter .kb-field__input { min-height: 2.45rem; padding: 0.45rem 0.7rem; font-size: 0.9rem; }
-@container kbmain (width < 40rem) {
-  .kb-searchbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-  .kb-searchbar__filter { width: 100%; }
-  .kb-searchbar__filter .kb-field__input { min-height: var(--kb-tap); font-size: 1rem; }
 }
 
 /* -------- Editorial full-page states (DECISION #8) ------------------------ */

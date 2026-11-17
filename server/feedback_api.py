@@ -544,11 +544,12 @@ def _require_scope_value(value: str | None, *, field_name: str) -> str:
     return trimmed
 
 
-def normalize_list_query(request: Request) -> ListFeedbackQuery:
+def normalize_list_query(request: Request, *, keyset: bool = True) -> ListFeedbackQuery:
     """Vocky's list filters (``source_product``, ``source_integration``,
     ``recorded_by``, ``conversation_id``, ``session_id``, ``user_id``,
     ``trigger_type``, ``feedback_value``, ``channel``, ``target_type``, ``tag``, the
-    ``start/end_ingested_at`` window), ``limit`` (1..100, default 50) and ``cursor``."""
+    ``start/end_ingested_at`` window), ``limit`` (1..100, default 50) and, with
+    ``keyset`` (the key routes), ``cursor``; without it ``cursor`` is never read."""
 
     params = request.query_params
     start = _parse_timestamp(params.get("start_ingested_at"), field_name="start_ingested_at")
@@ -575,7 +576,7 @@ def normalize_list_query(request: Request) -> ListFeedbackQuery:
             tag=_normalize_tag(params.get("tag")),
         ),
         limit=_normalize_limit(_parse_int_param(params.get("limit"), field_name="limit")),
-        cursor=decode_cursor(params.get("cursor")),
+        cursor=decode_cursor(params.get("cursor")) if keyset else None,
     )
 
 
@@ -1464,19 +1465,18 @@ async def list_app_feedback(request: Request) -> Response:
     """List and search (``q``: a case-insensitive substring) the active org's
     feedback, newest first; ``project_id`` narrows to one of its projects.
 
-    ``page`` (1-based, never with ``cursor``) reads one numbered page of ``limit``;
-    ``cursor`` (or neither) pages by keyset as before. Every response carries
-    ``total``: the whole filtered list's count, the same on every page."""
+    ``page`` (1-based, 1 when absent) reads one numbered page of ``limit``, with
+    ``total``: the whole filtered list's count, the same on every page. ``cursor`` is
+    the key routes' and is ignored here, as ``page`` is there."""
 
     _ctx, owned = await _session_caller(request)
     try:
-        query = normalize_list_query(request)
+        query = normalize_list_query(request, keyset=False)
         query.filters.search = normalize_optional_text(request.query_params.get("q"))
-        query.page = _parse_int_param(request.query_params.get("page"), field_name="page")
-        if query.page is not None and query.page < 1:
+        number = _parse_int_param(request.query_params.get("page"), field_name="page")
+        if number is not None and number < 1:
             raise FeedbackValidationError("page must be 1 or more")
-        if query.page is not None and query.cursor is not None:
-            raise FeedbackValidationError("page and cursor must not be combined")
+        query.page = 1 if number is None else number
         query.with_total = True
     except FeedbackValidationError as exc:
         return _detail(str(exc), 400)
@@ -1502,8 +1502,6 @@ async def list_app_feedback(request: Request) -> Response:
         "records": [_with_project_id(record) for record in page.records],
         "total": page.total,
     }
-    if page.next_cursor is not None:
-        payload["next_cursor"] = encode_cursor(page.next_cursor)
     return JSONResponse(payload)
 
 

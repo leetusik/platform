@@ -1117,14 +1117,15 @@ def test_the_session_list_pages_by_number_with_a_total(fb):
     assert read(f"{october}&limit=1")["total"] == 75
     assert read(f"{november}&limit=1")["total"] == 45
 
-    # The cursor still pages here (until the old list retires), now with the total.
+    # Without ``page`` the list is page 1. A ``cursor`` is not this route's: it is ignored, as
+    # ``page`` is on the key routes, so an unknown key never changes the read.
     first = read("limit=50")
+    assert first == read("page=1") == read("cursor=anything&limit=50")
     assert first["total"] == 120 and [r["id"] for r in first["records"]] == newest_first[:50]
-    following = read(f"cursor={first['next_cursor']}")
-    assert [r["id"] for r in following["records"]] == newest_first[50:100]
-    assert following["total"] == 120
+    assert "next_cursor" not in first
+    assert read("page=2&cursor=") == second
 
-    for bad in ("page=0", "page=-1", "page=x", "page=", f"page=1&cursor={first['next_cursor']}"):
+    for bad in ("page=0", "page=-1", "page=x", "page="):
         assert fb.get(f"/app/feedback?{bad}", headers=a["session"]).status_code == 400, bad
 
 

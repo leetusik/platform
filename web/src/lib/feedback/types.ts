@@ -73,18 +73,9 @@ export interface FeedbackDetail extends Feedback {
 }
 
 /**
- * One page of `GET /app/feedback`. `total` counts the whole list as read (every
- * filter and the search applied, the same on every page). `next_cursor` comes
- * only on a keyset read (no `page`), and is an OMITTED key when the list is
- * exhausted, never `null`: "more pages" is `next_cursor !== undefined`.
+ * One numbered page of `GET /app/feedback?page=N` (page 1 without `page`). `total` counts the
+ * whole list as read (every filter and the search applied, the same on every page).
  */
-export interface FeedbackPage {
-  records: Feedback[];
-  total: number;
-  next_cursor?: string;
-}
-
-/** One numbered page of `GET /app/feedback?page=N`: never a cursor. */
 export interface FeedbackNumberedPage {
   records: Feedback[];
   total: number;
@@ -92,7 +83,6 @@ export interface FeedbackNumberedPage {
 
 /**
  * The `GET /app/feedback` query, in the API's own names. Every param is optional.
- * The cursor carries no filters, so a next-page call resends them all.
  */
 export interface FeedbackQuery {
   /** Case-insensitive substring over message, comment, target text and trigger message. */
@@ -112,19 +102,11 @@ export interface FeedbackQuery {
   recorded_by?: "agent" | "human";
   target_type?: "message" | "conversation" | "surface";
   trigger_type?:
-    | "like"
-    | "dislike"
-    | "comment"
-    | "rating"
-    | "survey"
-    | "manual"
-    | "other";
+    "like" | "dislike" | "comment" | "rating" | "survey" | "manual" | "other";
   /** A blank tag is a 400, so blanks are never sent. */
   tag?: string;
   /** 1..100, default 50. */
   limit?: number;
-  /** The opaque cursor from a previous page's `next_cursor`; never with `page`. */
-  cursor?: string;
-  /** A numbered page, 1-based, `limit` a page; never with `cursor` (a 400). */
+  /** A numbered page, 1-based, `limit` a page; page 1 when absent. */
   page?: number;
 }

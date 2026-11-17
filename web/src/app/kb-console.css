@@ -14,10 +14,6 @@
    ========================================================================== */
 
 /* -------- Type helpers (console UI scale) --------------------------------- */
-.kb-app-eyebrow { font-family: var(--kb-font-mono); font-size: 0.7rem; font-weight: 700; letter-spacing: var(--kb-tracking-label); text-transform: uppercase; color: var(--kb-hint); }
-.kb-app-title { font-family: var(--kb-font-display); font-weight: var(--kb-weight-semibold); font-size: 1.65rem; line-height: 1.15; letter-spacing: var(--kb-tracking-display); color: var(--kb-ink); margin: 0; }
-.kb-app-h2 { font-family: var(--kb-font-display); font-weight: var(--kb-weight-semibold); font-size: 1.15rem; line-height: var(--kb-leading-heading); color: var(--kb-ink); margin: 0; }
-.kb-app-sub { font-size: 0.92rem; line-height: var(--kb-leading-snug); color: var(--kb-secondary); margin: 0.3rem 0 0; }
 .kb-app-row { display: flex; align-items: center; gap: 0.6rem; }
 .kb-app-stack { display: flex; flex-direction: column; }
 .kb-tabnum { font-variant-numeric: tabular-nums; }
@@ -41,7 +37,6 @@
 /* -------- Panels (static console sections; chrome, not links) ------------- */
 .kb-panel { background: var(--kb-surface); border: 1px solid var(--kb-border); border-radius: var(--kb-radius); padding: 1.2rem 1.3rem; }
 .kb-panel__head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
-.kb-panel__head .kb-app-h2 { font-size: 1.05rem; }
 
 /* -------- Flat console buttons -------------------------------------------- */
 /* Distinct from the marketing pill button — flat, rounded-md, no translate, no
@@ -90,7 +85,6 @@
 .kb-dtable tbody tr:last-child td { border-bottom: 0; }
 .kb-dtable tbody tr { transition: background var(--kb-ease); }
 .kb-dtable tbody tr:hover { background: var(--kb-accent-soft); }
-.kb-dtable__name { font-weight: var(--kb-weight-semibold); color: var(--kb-ink); }
 .kb-dtable__sub { color: var(--kb-hint); font-size: var(--kb-text-caption); }
 .kb-dtable .num, .kb-dtable .mono { font-family: var(--kb-font-mono); font-variant-numeric: tabular-nums; }
 .kb-dtable .num { text-align: right; }
@@ -130,14 +124,6 @@
 .kb-check { display: inline-flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--kb-secondary); }
 .kb-check input { width: 1.1rem; height: 1.1rem; margin-top: 0.1rem; accent-color: var(--kb-accent); flex: none; }
 
-/* Console search field — flat, teal focus (→ header + documents search) */
-.kb-appsearch { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 0.75rem; background: var(--kb-surface); border: 1px solid var(--kb-border-strong); border-radius: var(--kb-radius-sm); color: var(--kb-hint); transition: border-color var(--kb-ease), box-shadow var(--kb-ease); }
-.kb-appsearch:focus-within { border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }
-.kb-appsearch svg { font-size: 1.05rem; color: var(--kb-hint); }
-.kb-appsearch__input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; font-family: var(--kb-font-body); font-size: 0.9rem; color: var(--kb-ink); }
-.kb-appsearch__input::placeholder { color: var(--kb-hint); }
-.kb-appsearch__key { font-family: var(--kb-font-mono); font-size: 0.6rem; color: var(--kb-hint); border: 1px solid var(--kb-border-strong); border-radius: var(--kb-radius-sm); padding: 0.05em 0.35em; }
-
 /* -------- Show-once secret reveal (→ ui/reveal.tsx show-once, S4) --------- */
 .kb-reveal-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 1.2rem; background: color-mix(in srgb, var(--kb-ink) 42%, transparent); }
 .kb-reveal { width: min(30rem, 100%); background: var(--kb-surface); border: 1px solid var(--kb-border-strong); border-radius: var(--kb-radius); padding: 1.4rem 1.4rem 1.2rem; box-shadow: 0 1.4rem 3rem rgba(38, 33, 28, 0.22); }
@@ -169,4 +155,3 @@
 .kb-appbtn.is-hover.kb-appbtn--ghost { border-color: var(--kb-border-strong); color: var(--kb-ink); }
 .kb-dtable tbody tr.is-hover { background: var(--kb-accent-soft); }
 .kb-field__input.is-focus { outline: none; border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }
-.kb-appsearch.is-focus { border-color: var(--kb-accent); box-shadow: 0 0 0 3px var(--kb-accent-soft); }

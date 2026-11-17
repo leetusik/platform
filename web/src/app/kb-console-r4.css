@@ -18,25 +18,15 @@
    kb-console-responsive.css → THIS.
    ========================================================================== */
 
-/* -------- Page flow ------------------------------------------------------- */
-/* Every console page is one vertical stack. Today each panel carries its own
-   `margin-top: var(--kb-space-md)`; one `gap` says it once, and it is what makes
-   the stack's order reviewable in one place. */
-.kb-page-flow { display: flex; flex-direction: column; gap: var(--kb-space-md); }
-.kb-page-flow > .kb-pageframe { margin-bottom: 0; }
-
 /* -------- Panel head ------------------------------------------------------ */
 /* The head carries a heading, optionally a lead or a mono caption, and at most
    one trigger. Below 40rem it stacks and the trigger goes full width — a 44px
    target beside a heading leaves the heading nowhere to go. */
 .kb-panel__headmain { min-width: 0; }
-.kb-panel__lead { margin: 0.3rem 0 0; font-size: 0.85rem; line-height: var(--kb-leading-snug); color: var(--kb-secondary); max-width: 44rem; text-wrap: pretty; }
-.kb-panel__caption { font-family: var(--kb-font-mono); font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--kb-hint); white-space: nowrap; flex: none; }
 .kb-panel__head--start { align-items: flex-start; }
 @container kbmain (width < 40rem) {
   .kb-panel__head { flex-direction: column; align-items: stretch; gap: 0.55rem; }
   .kb-panel__head > .kb-appbtn, .kb-panel__head > form > .kb-appbtn { width: 100%; }
-  .kb-panel__caption { white-space: normal; }
 }
 
 /* -------- Disclosure forms (DECISION · Q6) -------------------------------- */
@@ -65,31 +55,11 @@
   .kb-fieldrow > .kb-appbtn { width: 100%; margin-top: 0.2rem; }
 }
 
-/* -------- Mono hint line under a form ------------------------------------- */
-/* The documents search hint and the slug rule are SENTENCES, so they lose the
-   uppercase transform the mono eyebrow style carries; mono and hint-grey keep
-   them subordinate without shouting two lines of caps at a phone. */
-.kb-hintline { font-family: var(--kb-font-mono); font-size: 0.7rem; line-height: 1.55; color: var(--kb-hint); margin: 0.6rem 0 0; }
-
-/* -------- Search bar: submit + reset (DECISION · Q4) ---------------------- */
-/* A third cell in the bar at 40rem and up; its own row under the bar below it,
-   where Search takes the space and Reset stays the width of its label. */
-.kb-searchbar__actions { display: flex; align-items: center; gap: 0.5rem; flex: none; }
-@container kbmain (width < 40rem) {
-  .kb-searchbar__actions > .kb-appbtn:first-child { flex: 1 1 auto; }
-}
-
 /* -------- Result rows: snippet · tags · pager ----------------------------- */
 .kb-snippet { display: block; margin-top: 0.25rem; font-size: var(--kb-text-caption); line-height: var(--kb-leading-snug); color: var(--kb-hint); }
 .kb-snippet mark { background: var(--kb-accent-soft); color: var(--kb-accent-strong); border-radius: 2px; padding: 0 0.15em; }
-.kb-taglist { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
 /* Overflow marker for a row carrying more tags than the cell can show. */
 .kb-chip--more { color: var(--kb-hint); background: transparent; border-color: var(--kb-border); }
-.kb-pager { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: var(--kb-space-md); }
-@container kbmain (width < 40rem) {
-  .kb-pager { justify-content: space-between; }
-  .kb-pager > * { flex: 1 1 0; justify-content: center; min-height: var(--kb-tap); }
-}
 
 /* -------- Two-step confirm inside a row ----------------------------------- */
 /* Revoke and Delete arm in place: the prompt replaces the label and the two

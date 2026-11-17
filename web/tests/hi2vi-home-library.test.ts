@@ -19,7 +19,8 @@ const reads = vi.hoisted(() => ({
   listOrgCredentials: vi.fn(),
   getOrgLibrary: vi.fn(),
   getProjectUsage: vi.fn(),
-  listFeedback: vi.fn(),
+  listFeedbackPage: vi.fn(),
+  countFeedback: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -49,13 +50,19 @@ vi.mock("@/lib/knowledge/app", () => ({
   getOrgLibrary: reads.getOrgLibrary,
   getProjectUsage: reads.getProjectUsage,
 }));
-vi.mock("@/lib/feedback/app", () => ({ listFeedback: reads.listFeedback }));
+vi.mock("@/lib/feedback/app", () => ({
+  listFeedbackPage: reads.listFeedbackPage,
+  countFeedback: reads.countFeedback,
+}));
 
 const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
 const { ProjectsPanel } = await import("@/app/(app)/dashboard/projects-panel");
 const { default: ProjectHomePage } =
   await import("@/app/(app)/projects/[projectId]/page");
-const { LibraryPanel } = await import("@/app/(app)/projects/[projectId]/parts");
+const { FeedbackPanel, LibraryPanel } =
+  await import("@/app/(app)/projects/[projectId]/parts");
+const { FeedbackFailed } =
+  await import("@/app/(app)/projects/[projectId]/feedback-retry");
 const { ProjectHead } =
   await import("@/app/(app)/projects/[projectId]/project-head");
 
@@ -232,7 +239,18 @@ function projectHomeReads() {
   });
   reads.getDocuments.mockResolvedValue({ items: [], total: 2 });
   reads.getOrgLibrary.mockResolvedValue(listing);
-  reads.listFeedback.mockResolvedValue({ records: [] });
+  reads.listFeedbackPage.mockResolvedValue({
+    records: [
+      {
+        id: "f1",
+        message: "결제가 두 번 됐어요",
+        feedback_value: 2,
+        ingested_at: LATE,
+      },
+    ],
+    total: 1,
+  });
+  reads.countFeedback.mockResolvedValue(3);
 }
 
 async function projectHome() {
@@ -275,5 +293,21 @@ describe("project home", () => {
     const sub = (title: string) => rows.find((r) => r.title === title)?.sub;
     expect(sub("The platform handbook")).toBe("플랫폼 안내서");
     expect(sub("A guide")).toBeNull();
+  });
+
+  it("shows its Feedback rows and the month's count, not the failed form", async () => {
+    projectHomeReads();
+    const tree = await ProjectHomePage({
+      params: Promise.resolve({ projectId: "p1" }),
+    });
+    expect(find(tree, FeedbackFailed)).toHaveLength(0);
+    const [panel] = find(tree, FeedbackPanel);
+    const props = panel.props as {
+      count: string | null;
+      state: { kind: string; rows: { id: string; href: string }[] };
+    };
+    expect(props.count).toBe("3 this month");
+    expect(props.state.kind).toBe("rows");
+    expect(props.state.rows.map((r) => r.id)).toEqual(["f1"]);
   });
 });

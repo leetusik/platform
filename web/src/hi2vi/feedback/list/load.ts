@@ -48,7 +48,7 @@ async function readProjects(token: string): Promise<KbProject[] | null> {
 }
 
 function query(scope: FeedbackScope, place: FeedbackPlace) {
-  const q: Omit<FeedbackQuery, "cursor" | "page"> = { limit: PAGE_SIZE };
+  const q: Omit<FeedbackQuery, "page"> = { limit: PAGE_SIZE };
   if (place.q) q.q = place.q;
   const project = scope ?? place.project;
   if (project) q.project_id = project;

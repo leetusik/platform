@@ -9,10 +9,13 @@ class names are the signed ones; the only changes are the isolation below, liste
 | `tokens.css` | The colour roles (light, and dark under `data-scheme="dark"`), spacing, radii, type steps, line heights, the two font stacks, the `.type-*` classes. |
 | `bundle.css` | Layout tokens, base, primitives, app layout, shell, components, `.status-done`; then `@keyframes skel`. |
 | `boundary.css` | The old-page boundary: the copies on `:root` and the restore at `[data-ui-legacy]`. |
-| `index.css` | The three, in that order, then the Library's sheets. The root layout imports it after `globals.css`. |
+| `index.css` | The three, in that order, then the Library's sheets, then Feedback's. The root layout imports it after `globals.css`. |
 | `library/frame.css` | The Library's frame (job 03, round 02): its tokens (`--read-*`, `--sheet-w`, `--side-w`, `--line-h`, `--row-h`), Choice, the bar outside the Shell, the reader's layout, a text's body, head, end and foot, chapters, the sheet, Sign in to save, shelves, a mark's row, Display and Version history, the pager. Its changes from the signed sheet are listed at its top. |
 | `library/<part>.css` | One sheet a Library part, each owned by one slice and named in its header: `lists`, `project-library`, `public-library`, `book`, `reader`, `blocks`, `annotations`, `document`, `book-notes`. |
 | `library/boundary.css` | The Library's own custom properties restored at the old-page boundary, as `boundary.css` does the system's. |
+| `feedback/frame.css` | The Feedback frame (job 04, round 02): its tokens (`--measure`, `--fact-min`, `--rating-mark`, `--json-lines`, `--seg-rule`), Rating, Tag, Absent, Raw JSON, Facts (`.facts.is-grid`), the search and filter bar with its `.seg` toggles, the table that stacks (`.stack-*`), Waiting. No pager: the list uses the Library's. Its changes from the signed sheet are listed at its top. |
+| `feedback/<part>.css` | One sheet a Feedback part, each owned by one slice and named in its header: `list`, `item`, `agenda`. |
+| `feedback/boundary.css` | The Feedback frame's five custom properties restored at the old-page boundary, as `library/boundary.css` does the Library's. |
 
 ## How it stays out of the old pages
 
