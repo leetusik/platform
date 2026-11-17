@@ -310,7 +310,7 @@ def test_the_fill_without_a_store_uses_the_archive_file_times(tmp_path):
 def test_the_fill_command_commits_only_what_git_tracks(tmp_path, monkeypatch):
     docs, _tenant, files = _corpus(tmp_path)
     kb = tmp_path / "kb"
-    _git(kb, "init")
+    _git(kb, "init", "-q", "-b", "main")  # the fill commits only on main (F8)
     _git(kb, "config", "user.name", "kb-test")
     _git(kb, "config", "user.email", "kb-test@example.com")
     _git(kb, "add", "docs")  # the public root is tracked; tenants/ never is
@@ -487,13 +487,440 @@ def test_the_fill_waits_for_the_index_lock(tmp_path, monkeypatch, capsys):
     kb, _files = _box(tmp_path, monkeypatch)
     lock = kb / ".git" / "index.lock"
     lock.write_text("")
-    monkeypatch.setattr(published_fill, "INDEX_LOCK_WAIT_S", 0.5)
+    monkeypatch.setattr(published_fill, "INDEX_LOCK_WAIT_S", 0.3)
+    start = time.monotonic()
     rc, out = _fill(capsys, "--commit")
     assert rc == 4 and "index.lock" in out and _dirty(kb) == set(), out  # wrote nothing
-    threading.Timer(0.2, lock.unlink).start()  # a write's git that finishes in time
+    assert time.monotonic() - start < 5, "the wait is the module's, read at run time"
+    threading.Timer(0.5, lock.unlink).start()  # a write's git that finishes in time
     monkeypatch.setattr(published_fill, "INDEX_LOCK_WAIT_S", 5.0)
     rc, out = _fill(capsys, "--commit")
-    assert rc == 0 and _in_head(kb) == _PUBLIC, out
+    assert rc == 0 and _in_head(kb) == _PUBLIC, out  # it waited, then committed
+
+
+# --- the checkout's state: git only in the one state the box's helper is written for ---
+
+def _git_raw(root, *args) -> bytes:
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True,
+                          check=True).stdout
+
+
+def _try(root, *args):
+    """A git command expected to stop part-way (a conflict): its exit is not checked."""
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+
+
+def _notes(kb, text, msg, rel="docs/notes.md"):
+    (kb / rel).write_text(text)
+    _git(kb, "add", rel)
+    _git(kb, "commit", "-q", "-m", msg)
+
+
+def _origin_commit(tmp_path, rel, change, msg):
+    """Someone else pushes a commit to origin's main (``change(path)`` edits ``rel``)."""
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", str(tmp_path / "origin.git"), str(other)],
+                   check=True)
+    _git(other, "config", "user.name", "other")
+    _git(other, "config", "user.email", "other@example.com")
+    path = other / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    change(path)
+    _git(other, "add", rel)
+    _git(other, "commit", "-q", "-m", msg)
+    _git(other, "push", "-q", "origin", "main")
+
+
+def _side_conflict(kb):
+    """Branch ``side`` and ``main`` each change docs/notes.md their own way."""
+    _notes(kb, "base\n", "notes")
+    _git(kb, "checkout", "-q", "-b", "side")
+    _notes(kb, "side\n", "side notes")
+    _notes(kb, "more\n", "side more", rel="docs/more.md")
+    _git(kb, "checkout", "-q", "main")
+    _notes(kb, "main\n", "main notes")
+
+
+def _mid_rebase(kb, tmp_path):  # C08: stopped, HEAD detached and ahead of origin/main
+    _notes(kb, "a\n", "c1 notes")
+    _notes(kb, "a\nb\n", "c2 notes")
+    _try(kb, "rebase", "-q", "-x", "false", "HEAD~2")
+
+
+def _mid_rebase_apply(kb, tmp_path):
+    _origin_commit(tmp_path, "docs/notes.md", lambda p: p.write_text("theirs\n"), "theirs")
+    _notes(kb, "ours\n", "ours")
+    _git(kb, "fetch", "-q", "origin")
+    _try(kb, "rebase", "--apply", "origin/main")
+
+
+def _mid_merge(kb, tmp_path):
+    _side_conflict(kb)
+    _try(kb, "merge", "side")
+
+
+def _mid_cherry_pick(kb, tmp_path):
+    _side_conflict(kb)
+    _try(kb, "cherry-pick", "side~1")
+
+
+def _mid_sequence(kb, tmp_path):  # the conflict settled by hand; the sequence goes on
+    _side_conflict(kb)
+    _try(kb, "cherry-pick", "main..side")
+    (kb / "docs" / "notes.md").write_text("settled\n")
+    _git(kb, "add", "docs/notes.md")
+    _git(kb, "commit", "-q", "--no-edit")
+
+
+def _mid_revert(kb, tmp_path):
+    _notes(kb, "a\n", "n1")
+    _notes(kb, "b\n", "n2")
+    _try(kb, "revert", "--no-edit", "HEAD~1")
+
+
+def _mid_bisect(kb, tmp_path):  # HEAD stays on main
+    _git(kb, "bisect", "start")
+
+
+def _on_a_branch(kb, tmp_path):  # C09
+    _git(kb, "checkout", "-q", "-b", "wip")
+    _notes(kb, "experiment\n", "wip: operator experiment")
+
+
+def _detached(kb, tmp_path):
+    _git(kb, "checkout", "-q", "--detach")
+    _notes(kb, "detached\n", "detached work")
+
+
+def _unborn(kb, tmp_path):  # HEAD names main, which has no commit
+    _git(kb, "update-ref", "-d", "refs/heads/main")
+
+
+def _a_subdirectory(kb, tmp_path):  # KB_ROOT is a folder of a larger checkout
+    shutil.move(str(kb / ".git"), str(tmp_path / ".git"))
+
+
+_STATES = {
+    "rebase": (_mid_rebase, "a rebase is in progress"),
+    "rebase-apply": (_mid_rebase_apply, "a rebase or am is in progress"),
+    "merge": (_mid_merge, "a merge is in progress"),
+    "cherry-pick": (_mid_cherry_pick, "a cherry-pick is in progress"),
+    "sequence": (_mid_sequence, "a cherry-pick or revert sequence is in progress"),
+    "revert": (_mid_revert, "a revert is in progress"),
+    "bisect": (_mid_bisect, "a bisect is in progress"),
+    "branch": (_on_a_branch, "HEAD is on branch wip, not main"),
+    "detached": (_detached, "HEAD is detached"),
+    "unborn": (_unborn, "the checkout has no commit yet"),
+    "subdirectory": (_a_subdirectory, "inside a larger git checkout"),
+}
+_MODES = {
+    "write": [],
+    "commit": ["--commit"],
+    "push": ["--commit", "--push"],
+    "dry": ["--dry-run", "--commit", "--push"],
+}
+
+
+def _everything(kb, tmp_path) -> dict:
+    """Every byte of the work tree and the checkout's git dir, and origin's refs."""
+    gitdir = Path(_git(kb, "rev-parse", "--absolute-git-dir").stdout.strip())
+    out: dict = {}
+    for base in (kb, gitdir):
+        for path in sorted(base.rglob("*")):
+            if path.is_file():
+                out[str(path)] = (path.read_bytes(), path.stat().st_mode)
+    out["origin"] = _git(tmp_path / "origin.git", "for-each-ref").stdout
+    return out
+
+
+@pytest.mark.parametrize("mode", sorted(_MODES))
+@pytest.mark.parametrize("state", sorted(_STATES))
+def test_the_fill_touches_nothing_outside_the_normal_state(tmp_path, monkeypatch, capsys,
+                                                           state, mode):
+    kb, _files = _box(tmp_path, monkeypatch)
+    setup, why = _STATES[state]
+    setup(kb, tmp_path)
+    before = _everything(kb, tmp_path)
+    rc, out = _fill(capsys, *_MODES[mode])
+    assert rc == 3 and why in out and "refused" in out, out
+    assert _everything(kb, tmp_path) == before  # not a byte written, staged or pushed
+
+
+def test_a_root_outside_git_is_filled_but_never_committed(tmp_path, monkeypatch, capsys):
+    _docs, _tenant, files = _corpus(tmp_path)
+    monkeypatch.setenv("KB_ROOT", str(tmp_path / "kb"))
+    monkeypatch.setenv("KB_DB_PATH", str(tmp_path / "absent.sqlite3"))
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 3 and "not inside a git checkout" in out, out
+    assert "best_effort" not in files["one"].read_text()
+    rc, out = _fill(capsys)  # the stamps alone: nothing in git to finish
+    assert rc == 0 and "best_effort" in files["one"].read_text(), out
+
+
+def test_a_checkout_without_origin_commits_but_never_pushes(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _git(kb, "remote", "remove", "origin")
+    before = _everything(kb, tmp_path)
+    for args in (["--dry-run", "--commit", "--push"], ["--commit", "--push"]):
+        rc, out = _fill(capsys, *args)
+        assert rc == 3 and "no origin remote" in out, out
+        assert _everything(kb, tmp_path) == before
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 0 and _in_head(kb) == _PUBLIC and "unpushed" not in out, out
+    assert "--push" not in out, out  # no step that this checkout cannot take
+    rc, out = _fill(capsys)
+    assert rc == 0 and "nothing to do" in out and "unpushed" not in out, out
+
+
+def test_an_origin_without_main_is_refused_before_anything_is_written(tmp_path, monkeypatch,
+                                                                      capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    origin = tmp_path / "origin.git"
+    _git(kb, "push", "-q", "origin", "main:master")
+    _git(origin, "symbolic-ref", "HEAD", "refs/heads/master")
+    _git(origin, "branch", "-q", "-D", "main")
+    _git(kb, "fetch", "-q", "--prune", "origin")
+    before = _everything(kb, tmp_path)
+    for args in (["--dry-run", "--commit", "--push"], ["--commit", "--push"]):
+        rc, out = _fill(capsys, *args)
+        assert rc == 3 and "origin has no branch main" in out, out
+        assert _everything(kb, tmp_path) == before
+    rc, out = _fill(capsys, "--commit")  # a local commit: never called pushed
+    assert rc == 0 and _in_head(kb) == _PUBLIC and "unpushed" not in out, out
+    rc, out = _fill(capsys)
+    assert rc == 0 and "nothing to do" in out and "unpushed" not in out, out
+    assert "origin/main is not known here" in out, out
+
+
+def test_a_push_that_cannot_replay_names_the_conflict_and_keeps_the_commit(tmp_path,
+                                                                           monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    seed = _git(kb, "rev-parse", "HEAD").stdout
+
+    def by_hand(path):
+        path.write_text(path.read_text().replace(
+            "date: 2026-10-01\n", 'date: 2026-10-01\npublished: "2026-10-01T09:00:00Z"\n'))
+
+    _origin_commit(tmp_path, "docs/alpha/2026-10-01-one.md", by_hand, "stamp one by hand")
+    for _ in range(2):  # following the step without settling it gives the same line
+        rc, out = _fill(capsys, "--commit", "--push")
+        assert rc == 1 and "do not replay cleanly" in out and "git pull --rebase" in out, out
+        assert "reachable" not in out, out
+        # the checkout as it was, plus the fill's own commit on main; nothing pushed
+        assert _git(kb, "rev-parse", "HEAD~1").stdout == seed
+        assert _git(kb, "log", "-1", "--pretty=%s").stdout.strip() == published_fill.COMMIT_MESSAGE
+        assert _git(kb, "symbolic-ref", "HEAD").stdout.strip() == "refs/heads/main"
+        assert not (kb / ".git" / "rebase-merge").exists()
+        assert not (kb / ".git" / "rebase-apply").exists()
+        assert _git(kb, "status", "--porcelain", "--untracked-files=no").stdout == ""
+        assert _git(tmp_path / "origin.git", "log", "-1", "--pretty=%s", "main").stdout.strip() \
+            == "stamp one by hand"
+
+
+def test_a_push_says_what_it_carries_and_replays_onto_a_moved_origin(tmp_path, monkeypatch,
+                                                                     capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _origin_commit(tmp_path, "docs/elsewhere.md", lambda p: p.write_text("theirs\n"),
+                   "their page")
+    _notes(kb, "mine\n", "operator: my notes")
+    rc, out = _fill(capsys, "--dry-run", "--commit", "--push")
+    assert rc == 0 and "operator: my notes (not the fill's)" in out, out
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and "pushed" in out, out
+    assert "2 commit(s)" in out and "operator: my notes (not the fill's)" in out, out
+    log = _git(tmp_path / "origin.git", "log", "--pretty=%s", "main").stdout.splitlines()
+    assert log[:3] == [published_fill.COMMIT_MESSAGE, "operator: my notes", "their page"]
+    assert _ahead(kb) == 0 and _dirty(kb) == set()
+
+
+def test_a_refused_push_says_origin_refused_it(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    hook = tmp_path / "origin.git" / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho 'main is protected' >&2\nexit 1\n")
+    hook.chmod(0o755)
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 1 and "origin refused the push" in out and "main is protected" in out, out
+    assert "reachable" not in out, out
+    assert _in_head(kb) == _PUBLIC and _ahead(kb) == 1
+
+
+def test_a_mode_change_on_a_stamped_file_is_left_and_named(tmp_path, monkeypatch, capsys):
+    kb, files = _box(tmp_path, monkeypatch)
+    _fill(capsys)
+    files["one"].chmod(0o755)
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 1, out
+    assert "left docs/alpha/2026-10-01-one.md: the fill's line and a change of the file's " \
+           "mode" in out, out
+    assert _in_head(kb) == _PUBLIC - {"docs/alpha/2026-10-01-one.md"}
+    assert "mode change" not in _git(kb, "show", "--summary", "--format=", "HEAD").stdout
+
+
+def test_a_stamped_file_moved_or_deleted_since_is_left_and_named(tmp_path, monkeypatch,
+                                                                 capsys):
+    kb, files = _box(tmp_path, monkeypatch)
+    _fill(capsys)
+    _git(kb, "mv", "docs/alpha/2026-10-01-one.md", "docs/alpha/2026-10-01-uno.md")
+    files["two1"].unlink()
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 1, out  # the fill's line in uno.md stays uncommitted: said, and not 0
+    assert "left docs/alpha/2026-10-01-uno.md: the fill's line in a file HEAD does not " \
+           "have" in out, out
+    for gone in ("docs/alpha/2026-10-01-one.md", "docs/.versions/alpha/2026-10-02-two/v0001.md"):
+        assert f"left {gone}: not the fill's change" in out, out
+    assert _in_head(kb) == {"docs/alpha/2026-10-02-two.md",
+                            "docs/.versions/alpha/2026-10-02-two/v0002.md"}
+
+
+def test_a_tracked_private_projects_stamps_are_never_committed(tmp_path, monkeypatch, capsys):
+    from server import gitops
+
+    kb, _files = _box(tmp_path, monkeypatch)
+    head = _git(kb, "rev-parse", "HEAD").stdout
+    gitops.mark_private("alpha", root=kb)  # marked private, not yet reconciled
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 1 and "in a private project's footprint" in out, out
+    assert _git(kb, "rev-parse", "HEAD").stdout == head
+    assert _git(kb, "diff", "--cached", "--name-only").stdout == ""
+    assert _ahead(kb) == 0
+
+
+def test_a_commit_git_refuses_leaves_nothing_of_the_fills_staged(tmp_path, monkeypatch,
+                                                                  capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _fill(capsys)  # the stamps on disk, nothing staged
+    hook = kb / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 1 and "git failed" in out, out
+    assert _git(kb, "diff", "--cached", "--name-only").stdout == ""  # cannot ride along later
+    assert _dirty(kb) == _PUBLIC and _ahead(kb) == 0
+
+
+_CRLF_DOC = "docs/alpha/2026-10-07-crlf.md"
+_CRLF_RAW = b'---\r\ntitle: "C"\r\ndate: 2026-10-07\r\ntags: []\r\n---\r\n\r\nBody.\r\n'
+
+
+def _converting(kb, how):
+    """A CRLF document committed under one of git's line-ending conversions."""
+    if how == "autocrlf-input":
+        _git(kb, "config", "core.autocrlf", "input")
+    elif how == "autocrlf-true":
+        _git(kb, "config", "core.autocrlf", "true")
+    elif how == "text-eol-crlf":
+        (kb / ".gitattributes").write_text("*.md text eol=crlf\n")
+        _git(kb, "add", ".gitattributes")
+    (kb / _CRLF_DOC).write_bytes(_CRLF_RAW)
+    _git(kb, "add", _CRLF_DOC)
+    _git(kb, "commit", "-q", "-m", "a crlf doc")
+    if how == "safer-autocrlf":  # the blob keeps its CRs; git leaves such a file alone
+        _git(kb, "config", "core.autocrlf", "input")
+    if how == "text-renormalize":  # a text rule over a CRLF blob: a commit converts it all
+        (kb / ".gitattributes").write_text("*.md text\n")
+        _git(kb, "add", ".gitattributes")
+        _git(kb, "commit", "-q", "-m", "text rule")
+    _git(kb, "push", "-q", "origin", "main")
+    clean = _git(kb, "status", "--porcelain", "--untracked-files=no").stdout == ""
+    assert clean == (how != "text-renormalize")  # git sees that one as changed already
+
+
+@pytest.mark.parametrize("how", ["autocrlf-input", "autocrlf-true", "text-eol-crlf",
+                                 "safer-autocrlf"])
+def test_the_fills_own_line_is_recognised_through_gits_conversions(tmp_path, monkeypatch,
+                                                                    capsys, how):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _converting(kb, how)
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and "pushed" in out and "left " not in out, out  # C11
+    assert _dirty(kb) == set() and _ahead(kb) == 0
+    old = _git_raw(kb, "cat-file", "blob", f"HEAD~1:{_CRLF_DOC}")
+    new = _git_raw(kb, "cat-file", "blob", f"HEAD:{_CRLF_DOC}")
+    # the stored file took the one line and nothing else
+    assert new == published_fill.stamp_bytes(old, "2026-10-07", is_html=False)
+    assert (kb / _CRLF_DOC).read_bytes() == published_fill.stamp_bytes(
+        _CRLF_RAW, "2026-10-07", is_html=False)
+
+
+def test_a_stamp_git_would_store_with_other_bytes_changed_is_left(tmp_path, monkeypatch,
+                                                                   capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    _converting(kb, "text-renormalize")
+    blob = _git_raw(kb, "rev-parse", f"HEAD:{_CRLF_DOC}")
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 1, out
+    assert f"left {_CRLF_DOC}: the fill's line, but git's line-ending conversion" in out, out
+    assert _git_raw(kb, "rev-parse", f"HEAD:{_CRLF_DOC}") == blob  # never committed
+    assert _in_head(kb) == _PUBLIC
+
+
+@pytest.mark.parametrize("old, new", [
+    (b"a\nb\n", b"a\nx\nb\n"),  # one line in
+    (b"a\r\nb\r\n", b"a\r\nx\r\nb\r\n"),
+    (b"a\rb\r", b"a\rx\rb\r"),  # no \n at all: git sees one line, changed
+    (b"a\nb", b"a\nb\nc"),  # no newline at the end, before and after
+    (b"a\nb\nc\nd\n", b"A\nb\nc\nd\ne\n"),  # two hunks, one of them a change
+])
+def test_the_stored_bytes_are_read_off_gits_own_patch(tmp_path, old, new):
+    _git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "f.md").write_bytes(old)
+    _git(tmp_path, "add", "f.md")
+    _git(tmp_path, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q",
+         "-m", "f")
+    (tmp_path / "f.md").write_bytes(new)
+    patch = _git_raw(tmp_path, "diff", "HEAD", "--unified=0", "--binary", "--", "f.md")
+    assert published_fill._stored_after(old, patch) == new
+    context = _git_raw(tmp_path, "diff", "HEAD", "--unified=1", "--", "f.md")
+    if context != patch:  # a line this does not read: not taken as the fill's
+        assert published_fill._stored_after(old, context) is None
+
+
+def test_a_stamped_file_staged_with_another_change_is_left(tmp_path, monkeypatch, capsys):
+    kb, files = _box(tmp_path, monkeypatch)
+    _fill(capsys)
+    one = files["one"]
+    stamped = one.read_bytes()
+    one.write_bytes(stamped.replace(b"Body one.", b"Body staged."))
+    _git(kb, "add", "docs/alpha/2026-10-01-one.md")  # an operator's other change, staged
+    one.write_bytes(stamped)  # ... and the work tree back to the fill's line alone
+    _git(kb, "update-index", "--chmod=+x", "docs/alpha/2026-10-02-two.md")  # a staged mode
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 1, out
+    for rel in ("docs/alpha/2026-10-01-one.md", "docs/alpha/2026-10-02-two.md"):
+        assert f"left {rel}: the fill's line, staged differently" in out, out
+    assert _in_head(kb) == _PUBLIC - {"docs/alpha/2026-10-01-one.md",
+                                      "docs/alpha/2026-10-02-two.md"}
+    assert b"Body staged." in _git_raw(kb, "show", ":docs/alpha/2026-10-01-one.md")
+
+
+def test_a_push_counts_only_what_origin_lacks_now(tmp_path, monkeypatch, capsys):
+    kb, _files = _box(tmp_path, monkeypatch)
+    rc, out = _fill(capsys, "--commit")
+    assert rc == 0 and _ahead(kb) == 1, out
+    # someone else already brought the commit to origin; this checkout has not fetched
+    subprocess.run(["git", "clone", "-q", str(tmp_path / "origin.git"), str(tmp_path / "o")],
+                   check=True)
+    _git(tmp_path / "o", "pull", "-q", "--ff-only", str(kb), "main")
+    _git(tmp_path / "o", "push", "-q", "origin", "main")
+    rc, out = _fill(capsys, "--commit", "--push")
+    assert rc == 0 and "nothing to push" in out and "pushed:" not in out, out
+    assert _ahead(kb) == 0
+
+
+def test_a_second_fill_run_at_the_same_time_is_refused(tmp_path, monkeypatch, capsys):
+    import fcntl
+
+    kb, _files = _box(tmp_path, monkeypatch)
+    gitdir = Path(_git(kb, "rev-parse", "--absolute-git-dir").stdout.strip())
+    with open(gitdir / published_fill.FILL_LOCK, "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)  # a first run, still going
+        before = _everything(kb, tmp_path)
+        for args in ([], ["--commit", "--push"]):
+            rc, out = _fill(capsys, *args)
+            assert rc == 4 and "another fill run" in out, out
+            assert _everything(kb, tmp_path) == before
+    rc, out = _fill(capsys, "--commit", "--push")  # once it is done, a run finishes
+    assert rc == 0 and _ahead(kb) == 0 and _in_head(kb) == _PUBLIC, out
 
 
 # --- the fill works on bytes (any line ending, the body and the tail kept) ----
