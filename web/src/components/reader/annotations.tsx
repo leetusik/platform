@@ -3432,12 +3432,13 @@ export function AnnotationLayer({
           word: boxTitle("highlight", { note: x.note }),
         }));
       const title = boxTitle("choose", { n: picks.length });
+      // The section is the first pick's, as the board names it (AnnotationsBoxStates, Two overlap).
+      const first = byId(p.ids[0]);
       return {
         kind: "choose",
         title,
         aria: boxAria("choose", title),
-        where: "",
-        whereLang: lang,
+        ...at(first ? (first.sec ?? first.block) : null),
         editing: false,
         picks,
       };

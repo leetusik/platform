@@ -17,7 +17,8 @@
    - section 5: the box's height is also capped at 80% of the window, as the product capped it (the record's own words).
    - section 6: `.pill > .link-row[aria-pressed="true"]` is written on the place bar, the one pill that has one.
    - section 7: the Notes sheet's count sits in the frame's sheet head (`Sheet` takes a title only), after the title on
-     its baseline, Close kept at the end; the signed `.an-sheet-title` wrapper is not built.
+     its baseline, Close kept at the end; the signed `.an-sheet-title` wrapper is not built. The title's top margin
+     puts the baseline pair on Close's centre line, where the centred wrapper sits (P63-fk.S22).
    - paper: nothing of the marks prints, and the highlights print unpainted (moved here from blocks.css's bridge). */
 @scope (.ui) to ([data-ui-legacy]) {
   /* 1 ── the paint: a highlight is the accent's tint with a line under it, so it is never colour alone ── */
@@ -350,6 +351,11 @@
   .sheet-head:has(> .marks-sheet-count) > h2,
   .marks-sheet-count {
     align-self: baseline;
+  }
+  /* A baseline pair sits at the head's top, so the title takes the half of the head its line leaves: on Close's
+     centre line, as the signed title row (centred) puts it; the count follows on the title's baseline. */
+  .sheet-head:has(> .marks-sheet-count) > h2 {
+    margin-block-start: calc((var(--top-h) - 1lh) / 2);
   }
   .marks-sheet-count {
     min-width: 0;
