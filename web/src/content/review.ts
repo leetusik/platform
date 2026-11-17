@@ -8,7 +8,15 @@ export const plural = (n: number, one: string, many: string): string =>
 
 export const REVIEW = {
   metaTitle: "Review",
-  top: { library: "Library", settings: "Settings", display: "Display" },
+  top: {
+    library: "Library",
+    settings: "Settings",
+    display: "Display",
+    /** The 3 px line's name and reading (job 07 `Focus.dc.html`, F201). */
+    progressLabel: "Today’s reviews",
+    progressText: (pct: number): string => `${pct}% of today’s cards done`,
+    progressLoading: "Loading",
+  },
   head: {
     title: "Review",
     due: "due",

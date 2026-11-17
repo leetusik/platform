@@ -8,4 +8,61 @@
    read `:scope`; no colour is written here. A custom property it declares is restored at the old-page boundary.
    Imported once, by ../index.css. */
 @scope (.ui) to ([data-ui-legacy]) {
+/* ── S7: the frame (frame.css 10), the head (frame.css 11), the bar's filled controls (frame.css 13's last rule),
+   the card's skeleton and the page's states (Review.css 5, 6, less the canvas-only stand-in), and Schedule's own
+   rules (Schedule.dc.html's <style>) ─────────────────────────────────────────────────────────────────── */
+
+/* the focused frame sets its own scheme (Display: light, dark, sepia) but is not the `.ui` root, so it takes the
+   base rule's colour itself, as the board's root (`.ui.app.bare.focus`) does and the reader's does (library/reader.css) */
+.app.focus { color: var(--ink); }
+
+/* 10 ── Review's frame (F201; Focus.dc.html draws its bar) ───────────────────────────── */
+/* .ui.app.bare.focus > Focus + main.app-main.focus-main > .focus-col */
+.focus-main { padding-top: var(--space-6); }
+.focus-col { container: focus / inline-size; display: flex; flex-direction: column; gap: var(--space-6); width: 100%; max-width: var(--focus-w); margin-inline: auto; }
+
+/* 11 ── Review's head (F215; DueHead.dc.html draws it) ─────────────────────────────────── */
+.due-head { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.due-counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.due-counts strong { color: var(--ink); font-weight: 600; }
+.by-book { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.by-book > [role="region"] { align-self: stretch; }
+/* "By book" is a link-row that opens in place; its chevron turns when it is open (as Version history's does on a book) */
+.by-book-btn { gap: var(--space-2); padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; }
+.by-book-btn::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: calc(var(--space-1) / 2); border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-25%) rotate(45deg); }
+.by-book-btn[aria-expanded="true"]::after { transform: translateY(25%) rotate(-135deg); }
+.by-book-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.by-book-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-4); padding-block: var(--space-3); border-bottom: 1px solid var(--line); }
+.by-book-name { display: flex; flex-direction: column; min-width: 0; }
+.by-book-figs { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.by-book-note { padding-block: var(--space-3); color: var(--ink-2); }
+/* the saved line keeps its line while empty, so nothing under it moves */
+.saved-line { min-height: calc(var(--fs-text) * var(--lh-text)); }
+.saved-line.is-empty { visibility: hidden; }
+
+/* Review's bar: Settings and Display are filled while their sheet is open, as Ask is while its panel is (03-library F93) */
+.bar .btn[aria-expanded="true"], .bar .btn[aria-expanded="true"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+
+/* Review.css 5 ── the card's skeleton: the card's own shape (F221) ─────────────────────────────────────── */
+.rv-sk-line { display: block; height: 0.9em; }
+.rv-sk-opt { display: block; width: 100%; height: var(--control-h); border-radius: var(--radius-m); }
+
+/* Review.css 6 ── the page's states ─────────────────────────────────────────────────────────────────── */
+/* failed to load: the editorial state, on the column's edge */
+.rv-failed { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+.rv-failed > .rv-failed-text { max-width: 60ch; color: var(--ink-2); }
+/* the toast region at the column's foot (F223): the system's region, as wide as the column */
+.focus-main > .focus-col { flex: 1 0 auto; }
+.focus-main > .toast-region { width: 100%; max-width: var(--focus-w); margin-inline: auto; }
+/* (Review.css's `.toast > .btn`, `.toast-region .btn` and `.toast-region > .notice`, read under `.focus-main`: the job
+   sheet names only its own parts, and the toast region on /review is the focused frame's) */
+.focus-main .toast > .btn { margin-block: calc(-1 * var(--space-2)); }
+/* Undo and the failed suspend's Try again sit in one place: one width, so the place never changes size */
+.focus-main > .toast-region .btn { min-width: 7em; }
+.focus-main > .toast-region > .notice { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); max-width: min(28em, 100%); box-shadow: var(--shadow); }
+
+/* Schedule (F219; Schedule.dc.html's own rules) */
+.schedule { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.schedule .input { max-width: 100%; }
+.schedule-num { width: 8em; }
 }
