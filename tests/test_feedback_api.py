@@ -12,6 +12,7 @@ skips otherwise; ``smtplib`` is never reached (the send is monkeypatched).
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -1041,3 +1042,104 @@ def test_a_capture_stamps_its_keys_last_used(fb):
 
     # A session capture has no key and stamps nothing (and still answers 202).
     _capture(fb, owner["session"])
+
+
+# --- the session list's numbered pages and total ------------------------------------
+
+
+def _seed(client: TestClient, project_id: str, stamps: list, *, message="seeded") -> list[str]:
+    """One event per stamp in ``project_id`` (user ``u-1``, product ``app-x``), its
+    ``ingested_at`` set to the stamp; the ids in stamp order. ``message`` may be a
+    callable of the index."""
+
+    from server.feedback import CreateFeedbackEvent
+    from server.feedback.service import get_feedback_service
+
+    ids = []
+    for index in range(len(stamps)):
+        event = CreateFeedbackEvent(
+            message=message(index) if callable(message) else message,
+            source_product="app-x", user_id="u-1", project_id=UUID(project_id),
+        )
+        ids.append(str(client.portal.call(get_feedback_service().create_feedback_event, event).id))
+    engine = create_engine(make_url(_RAW_DSN).set(drivername="postgresql+psycopg"))
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE feedback_events SET ingested_at = :at WHERE id = :id"),
+                [{"at": stamp, "id": eid} for eid, stamp in zip(ids, stamps, strict=True)],
+            )
+    finally:
+        engine.dispose()
+    return ids
+
+
+def test_the_session_list_pages_by_number_with_a_total(fb):
+    a = _signup(fb)
+    b = _signup(fb)
+    start = datetime(2026, 10, 7, tzinfo=UTC)
+    stamps = [start + timedelta(hours=8 * i) for i in range(120)]  # i < 75: October
+    ids = _seed(fb, a["project"]["id"], stamps,
+                message=lambda i: f"needle {i}" if i % 7 == 0 else f"hay {i}")
+    other = _seed(fb, b["project"]["id"], stamps[:3], message="needle elsewhere")
+    newest_first = list(reversed(ids))
+
+    def read(query: str, who: dict = a) -> dict:
+        res = fb.get(f"/app/feedback?{query}", headers=who["session"])
+        assert res.status_code == 200, res.text
+        return res.json()
+
+    # Page 2 of 120 is records 51-100, newest first, with the total; no cursor.
+    second = read("page=2")
+    assert [r["id"] for r in second["records"]] == newest_first[50:100]
+    assert second["total"] == 120 and "next_cursor" not in second
+    assert all(r["project_id"] == a["project"]["id"] for r in second["records"])
+    assert [len(read(f"page={n}")["records"]) for n in (1, 3)] == [50, 20]
+    assert read("page=4") == {"records": [], "total": 120}  # past the last page
+    narrowed = read(f"page=3&project_id={a['project']['id']}")
+    assert narrowed["total"] == 120 and len(narrowed["records"]) == 20
+
+    # A search's total is its number of matches, the same on every page of it.
+    matches = [eid for i, eid in enumerate(ids) if i % 7 == 0]
+    pages = [read(f"q=needle&limit=5&page={n}") for n in (1, 2, 3, 4)]
+    assert {p["total"] for p in pages} == {len(matches)} == {18}
+    assert [r["id"] for p in pages for r in p["records"]] == list(reversed(matches))
+
+    # Another org's records are never listed or counted (and the other way round).
+    everything = {r["id"] for n in (1, 2, 3) for r in read(f"page={n}")["records"]}
+    assert everything == set(ids) and not everything & set(other)
+    theirs = read("q=needle", who=b)
+    assert theirs["total"] == 3 and {r["id"] for r in theirs["records"]} == set(other)
+
+    # A month's window gives the month's count.
+    october = "start_ingested_at=2026-10-01T00:00:00Z&end_ingested_at=2026-11-01T00:00:00Z"
+    november = "start_ingested_at=2026-11-01T00:00:00Z&end_ingested_at=2026-12-01T00:00:00Z"
+    assert read(f"{october}&limit=1")["total"] == 75
+    assert read(f"{november}&limit=1")["total"] == 45
+
+    # The cursor still pages here (until the old list retires), now with the total.
+    first = read("limit=50")
+    assert first["total"] == 120 and [r["id"] for r in first["records"]] == newest_first[:50]
+    following = read(f"cursor={first['next_cursor']}")
+    assert [r["id"] for r in following["records"]] == newest_first[50:100]
+    assert following["total"] == 120
+
+    for bad in ("page=0", "page=-1", "page=x", "page=", f"page=1&cursor={first['next_cursor']}"):
+        assert fb.get(f"/app/feedback?{bad}", headers=a["session"]).status_code == 400, bad
+
+
+def test_the_key_routes_keep_their_cursor_contract(fb):
+    owner = _signup(fb)
+    key = _key(fb, owner)
+    start = datetime(2026, 10, 7, tzinfo=UTC)
+    ids = _seed(fb, owner["project"]["id"], [start + timedelta(hours=i) for i in range(3)])
+    newest_first = list(reversed(ids))
+
+    for base in ("/api/project/feedback?", "/api/feedback?user_id=u-1&source_product=app-x&"):
+        first = fb.get(f"{base}limit=2", headers=_h(key)).json()
+        assert set(first) == {"records", "next_cursor"}, base
+        assert [r["id"] for r in first["records"]] == newest_first[:2]
+        rest = fb.get(f"{base}limit=2&cursor={first['next_cursor']}", headers=_h(key)).json()
+        assert set(rest) == {"records"} and [r["id"] for r in rest["records"]] == newest_first[2:]
+        # ``page`` is not theirs: it is ignored, never a numbered read.
+        assert fb.get(f"{base}limit=2&page=2", headers=_h(key)).json() == first

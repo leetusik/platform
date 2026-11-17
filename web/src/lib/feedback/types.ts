@@ -73,12 +73,21 @@ export interface FeedbackDetail extends Feedback {
 }
 
 /**
- * One page of `GET /app/feedback`. `next_cursor` is an OMITTED key when the list
- * is exhausted, never `null`: "more pages" is `next_cursor !== undefined`.
+ * One page of `GET /app/feedback`. `total` counts the whole list as read (every
+ * filter and the search applied, the same on every page). `next_cursor` comes
+ * only on a keyset read (no `page`), and is an OMITTED key when the list is
+ * exhausted, never `null`: "more pages" is `next_cursor !== undefined`.
  */
 export interface FeedbackPage {
   records: Feedback[];
+  total: number;
   next_cursor?: string;
+}
+
+/** One numbered page of `GET /app/feedback?page=N`: never a cursor. */
+export interface FeedbackNumberedPage {
+  records: Feedback[];
+  total: number;
 }
 
 /**
@@ -114,6 +123,8 @@ export interface FeedbackQuery {
   tag?: string;
   /** 1..100, default 50. */
   limit?: number;
-  /** The opaque cursor from a previous page's `next_cursor`. */
+  /** The opaque cursor from a previous page's `next_cursor`; never with `page`. */
   cursor?: string;
+  /** A numbered page, 1-based, `limit` a page; never with `cursor` (a 400). */
+  page?: number;
 }

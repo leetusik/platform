@@ -1,6 +1,11 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getFeedbackDetail, listFeedback } from "@/lib/feedback/app";
+import {
+  countFeedback,
+  getFeedbackDetail,
+  listFeedback,
+  listFeedbackPage,
+} from "@/lib/feedback/app";
 import {
   feedbackQueryString,
   nextPageHref,
@@ -94,6 +99,43 @@ describe("listFeedback / getFeedbackDetail", () => {
     const last = await listFeedback("tok");
     expect(last).toEqual({ records: [] });
     expect("next_cursor" in last).toBe(false);
+  });
+
+  it("reads one numbered page and its total, never with a cursor", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ records: [{ id: "a" }], total: 230 }),
+    );
+    const page = await listFeedbackPage(
+      "tok",
+      { project_id: PROJECT, q: "slow", ...({ cursor: "stale" } as object) },
+      3,
+    );
+    expect(page).toEqual({ records: [{ id: "a" }], total: 230 });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]));
+    expect(url.pathname).toBe("/app/feedback");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      project_id: PROJECT,
+      q: "slow",
+      page: "3",
+    });
+  });
+
+  it("counts a window with `limit: 1` and reads only the total", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ records: [{ id: "a" }], total: 42, next_cursor: "c" }),
+    );
+    const start = "2026-11-01T00:00:00.000Z";
+    const end = "2026-12-01T00:00:00.000Z";
+    await expect(
+      countFeedback("tok", { project_id: PROJECT, start, end }),
+    ).resolves.toBe(42);
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]));
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      project_id: PROJECT,
+      start_ingested_at: start,
+      end_ingested_at: end,
+      limit: "1",
+    });
   });
 
   it("unwraps `{record}`", async () => {
