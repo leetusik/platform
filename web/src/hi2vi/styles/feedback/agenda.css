@@ -1,0 +1,8 @@
+/* hi2vi — Feedback: Add to agenda and the Agenda part (`FeedbackItemSend*`, `FeedbackItemAgenda*`).
+   Owner: P65-nh.S6; no other slice edits this file.
+   Pre-created by P65-nh.S2 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here (the waiting mark is the frame's
+   `Waiting`, `.badge.is-waiting.is-ink`). */
+@scope (.ui) to ([data-ui-legacy]) {
+}

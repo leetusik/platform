@@ -1,0 +1,7 @@
+/* hi2vi — Feedback: one piece of feedback (`FeedbackItem.dc.html`, `FeedbackItemComments*`, `FeedbackItemFiles*`).
+   Owner: P65-nh.S5; no other slice edits this file.
+   Pre-created by P65-nh.S2 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here. */
+@scope (.ui) to ([data-ui-legacy]) {
+}

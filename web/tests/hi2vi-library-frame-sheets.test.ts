@@ -231,7 +231,11 @@ describe("the Library's sheets", () => {
       "./boundary.css",
       "./library/frame.css",
     ]);
-    expect(imports.at(-1)).toBe("./library/boundary.css");
+    // the Library's sheets are one run, its boundary last; a later job's sheets follow it
+    const own = imports.filter((i) => i.startsWith("./library/"));
+    const at = imports.indexOf("./library/frame.css");
+    expect(imports.slice(at, at + own.length)).toEqual(own);
+    expect(own.at(-1)).toBe("./library/boundary.css");
     expect(new Set(imports).size).toBe(imports.length);
     expect(
       imports

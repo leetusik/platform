@@ -124,6 +124,22 @@ describe("the hi2vi sheets", () => {
       /@import "\.\/tokens\.css";\s*@import "\.\/bundle\.css";\s*@import "\.\/boundary\.css";/,
     );
   });
+
+  it("load the system, then each job's sheets as one run: the Library's, then Feedback's", () => {
+    const imports = [
+      ...read(join(styles, "index.css")).matchAll(/@import "([^"]+)";/g),
+    ].map((m) => m[1]);
+    const group = (i: string) =>
+      i.startsWith("./library/")
+        ? "library"
+        : i.startsWith("./feedback/")
+          ? "feedback"
+          : "system";
+    const runs = imports
+      .map(group)
+      .filter((g, i, all) => i === 0 || all[i - 1] !== g);
+    expect(runs).toEqual(["system", "library", "feedback"]);
+  });
 });
 
 describe("src/hi2vi", () => {

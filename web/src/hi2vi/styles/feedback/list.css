@@ -1,0 +1,8 @@
+/* hi2vi — Feedback: the list (`Feedback.dc.html`, `FeedbackList.dc.html`, `FeedbackListStates.dc.html`).
+   Owner: P65-nh.S4; no other slice edits this file.
+   Pre-created by P65-nh.S2 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here (the list's set columns and its
+   message's 56ch are the frame's `.stack-*`, the board's `.fl-table`, `.fl-rating` and the rest). */
+@scope (.ui) to ([data-ui-legacy]) {
+}
