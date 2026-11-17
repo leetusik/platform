@@ -19,6 +19,8 @@
   }
   /* a link inside a sentence is 44 px tall to the finger, and its line keeps its height */
   .fl-inline {
+    /* the board's control is a button (inline-block): a link drawn as it keeps that box, so its 44 px are real */
+    display: inline-block;
     padding-block: var(--space-3);
     margin-block: calc(-1 * var(--space-3));
   }

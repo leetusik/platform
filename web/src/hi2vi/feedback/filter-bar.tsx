@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent, MouseEvent } from "react";
+import { useEffect, useRef } from "react";
 
 import { FILTER } from "@/content/feedback-frame";
 import { langAttr } from "@/lib/feedback/lang";
@@ -125,6 +126,20 @@ export function FilterBar({
 }: FilterBarProps) {
   const typed = (form: HTMLFormElement | null) =>
     form ? String(new FormData(form).get(names.q) ?? "") : q;
+  // The field and the select are uncontrolled (what is typed or picked is the person's until it is
+  // sent); a new address puts its values in place without redrawing them, so a search that lands keeps
+  // focus in the field it was sent from, and a picked project keeps focus on the select (P65-nh.S9: a
+  // `key` per value redrew them and dropped focus to the page).
+  const field = useRef<HTMLInputElement>(null);
+  const select = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (field.current && field.current.value !== q) field.current.value = q;
+  }, [q]);
+  useEffect(() => {
+    const value = project ?? "";
+    if (select.current && select.current.value !== value)
+      select.current.value = value;
+  }, [project]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     const form = event.currentTarget;
@@ -158,7 +173,7 @@ export function FilterBar({
       ))}
       <div className="filterbar-search">
         <input
-          key={q}
+          ref={field}
           className="input"
           type="search"
           aria-label={FILTER.search}
@@ -174,7 +189,7 @@ export function FilterBar({
       {projects ? (
         <div className="select">
           <select
-            key={project ?? ""}
+            ref={select}
             className="input"
             aria-label={FILTER.project}
             name={names.project}
