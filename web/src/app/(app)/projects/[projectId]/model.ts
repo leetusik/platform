@@ -197,18 +197,28 @@ export interface FeedbackWindow {
   end: string;
 }
 
+const DAY_MS = 86_400_000;
+
+/** One wall-clock formatter per zone: building one costs far more than formatting with it. */
+const CLOCKS = new Map<string, Intl.DateTimeFormat>();
+
 /** The zone's offset from UTC at `at`, in ms: its wall clock then, read as if UTC, minus `at`. */
 function zoneOffset(at: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
+  let clock = CLOCKS.get(timeZone);
+  if (!clock) {
+    clock = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    CLOCKS.set(timeZone, clock);
+  }
+  const parts = clock.formatToParts(at);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((p) => p.type === type)?.value ?? 0);
   const wall = Date.UTC(
@@ -222,12 +232,43 @@ function zoneOffset(at: number, timeZone: string): number {
   return wall - Math.floor(at / 1000) * 1000;
 }
 
-/** The instant the first of `month` (1-based; 13 is next January) starts in `timeZone`. */
+/** The wall clock in `timeZone` at `at`, read as if UTC. */
+function wallAt(at: number, timeZone: string): number {
+  return at + zoneOffset(at, timeZone);
+}
+
+/**
+ * The instant the first of `month` (1-based; 13 is next January) starts in `timeZone`: the first
+ * instant whose local date there is the 1st.
+ *
+ * Local midnight is `wall - offset` for whichever offset holds at that instant. A clock change
+ * on the night can make it happen twice (fall back past midnight: the earlier one) or not at all
+ * (spring forward over it: the day starts at the change, found by bisection).
+ */
 function monthStart(year: number, month: number, timeZone: string): number {
   const wall = Date.UTC(year, month - 1, 1);
-  const guess = wall - zoneOffset(wall, timeZone);
-  // Again at the guess, so an offset that changed in between (a DST change) is the one that holds.
-  return wall - zoneOffset(guess, timeZone);
+  // Every offset the zone keeps within a day either side: local midnight is under one of them.
+  const offsets = [
+    ...new Set(
+      [-DAY_MS, -DAY_MS / 2, 0, DAY_MS / 2, DAY_MS].map((d) =>
+        zoneOffset(wall + d, timeZone),
+      ),
+    ),
+  ];
+  const midnights = offsets
+    .map((offset) => wall - offset)
+    .filter((at) => wallAt(at, timeZone) === wall);
+  if (midnights.length > 0) return Math.min(...midnights);
+  // Midnight is skipped. Under the larger offset the instant is still the day before; under the
+  // smaller, already the 1st: the change lies between, and the 1st starts there.
+  let before = wall - Math.max(...offsets);
+  let on = wall - Math.min(...offsets);
+  while (on - before > 1) {
+    const mid = Math.floor((before + on) / 2);
+    if (wallAt(mid, timeZone) >= wall) on = mid;
+    else before = mid;
+  }
+  return on;
 }
 
 /**

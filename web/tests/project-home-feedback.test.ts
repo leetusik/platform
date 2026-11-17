@@ -137,6 +137,143 @@ describe("the month's window", () => {
     });
   });
 
+  /** The window of the month `month` (1-based) of `year` in `timeZone`, read mid-month. */
+  const windowOf = (timeZone: string, year: number, month: number) =>
+    monthWindow({ now: Date.UTC(year, month - 1, 15, 12), timeZone });
+
+  it.each([
+    // Local midnight on the 1st is skipped: the clock jumps from 23:59:59 to 01:00.
+    ["America/Havana", 2001, 4, "2001-04-01T05:00:00.000Z"],
+    ["America/Havana", 2012, 4, "2012-04-01T05:00:00.000Z"],
+    ["America/Asuncion", 2000, 10, "2000-10-01T04:00:00.000Z"],
+    ["America/Asuncion", 2002, 9, "2002-09-01T04:00:00.000Z"],
+    ["America/Asuncion", 2017, 10, "2017-10-01T04:00:00.000Z"],
+    ["America/Asuncion", 2023, 10, "2023-10-01T04:00:00.000Z"],
+    // Local midnight on the 1st happens twice (01:00 falls back to 00:00): the first one.
+    ["Asia/Gaza", 2004, 10, "2004-09-30T21:00:00.000Z"],
+    // 00:00 NDT on the 1st, one minute before the clock falls back to Oct 31, 23:01 NST.
+    ["America/St_Johns", 2009, 11, "2009-11-01T02:30:00.000Z"],
+    ["UTC", 2026, 11, "2026-11-01T00:00:00.000Z"],
+    ["Asia/Seoul", 2026, 11, "2026-10-31T15:00:00.000Z"],
+    ["America/New_York", 2026, 3, "2026-03-01T05:00:00.000Z"],
+    ["America/New_York", 2026, 11, "2026-11-01T04:00:00.000Z"],
+    ["Europe/London", 2026, 4, "2026-03-31T23:00:00.000Z"],
+    ["Australia/Lord_Howe", 2026, 4, "2026-03-31T13:00:00.000Z"],
+    ["Australia/Lord_Howe", 2026, 10, "2026-09-30T13:30:00.000Z"],
+    ["Pacific/Kiritimati", 2026, 11, "2026-10-31T10:00:00.000Z"],
+  ])(
+    "starts %s %i-%i at the first instant of the 1st there",
+    (zone, year, month, start) => {
+      expect(windowOf(zone, year, month).start).toBe(start);
+    },
+  );
+
+  it("starts every month of 2000 to 2030 at the first instant of the 1st, and ends where the next starts", () => {
+    const HOUR = 3_600_000;
+    const days = new Map<string, Intl.DateTimeFormat>();
+    // The zone's local date at `at`, YYYY-MM-DD.
+    const dateAt = (at: number, timeZone: string) => {
+      let f = days.get(timeZone);
+      if (!f) {
+        f = new Intl.DateTimeFormat("en-CA", {
+          timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        days.set(timeZone, f);
+      }
+      return f.format(at);
+    };
+    // The local clock minus the instant, read from the date and time Intl gives.
+    const clocks = new Map<string, Intl.DateTimeFormat>();
+    const offsetAt = (at: number, timeZone: string) => {
+      let f = clocks.get(timeZone);
+      if (!f) {
+        f = new Intl.DateTimeFormat("en-CA", {
+          timeZone,
+          hourCycle: "h23",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        clocks.set(timeZone, f);
+      }
+      const p = Object.fromEntries(
+        f.formatToParts(at).map((x) => [x.type, x.value]),
+      );
+      return (
+        Date.parse(
+          `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`,
+        ) - at
+      );
+    };
+    // Is there an instant in [from, to) whose local date is `first`? Where the offset holds still
+    // the clock only moves forward, so `to` - 1 s is the latest; otherwise minute by minute.
+    const reachedBefore = (
+      from: number,
+      to: number,
+      first: string,
+      zone: string,
+    ) => {
+      const offsets = new Set<number>();
+      for (let t = from; t < to; t += 3 * HOUR) offsets.add(offsetAt(t, zone));
+      offsets.add(offsetAt(to - 1000, zone));
+      if (offsets.size === 1) return dateAt(to - 1000, zone) >= first;
+      for (let t = from; t < to; t += 60_000)
+        if (dateAt(t, zone) === first) return true;
+      return dateAt(to - 1000, zone) === first;
+    };
+    const ZONES = [
+      "UTC",
+      "Asia/Seoul",
+      "America/New_York",
+      "Europe/London",
+      "Australia/Lord_Howe",
+      "Pacific/Kiritimati",
+      "America/Havana",
+      "America/Asuncion",
+      "Asia/Gaza",
+      "Asia/Hebron",
+      "America/St_Johns",
+      "America/Santiago",
+      "Pacific/Chatham",
+      "Pacific/Apia",
+      "Asia/Tehran",
+      "Asia/Kathmandu",
+      "America/Sao_Paulo",
+      "Africa/Cairo",
+      "Asia/Beirut",
+      "Asia/Amman",
+      "Atlantic/Azores",
+      "America/Nuuk",
+      "Africa/Casablanca",
+      "Etc/GMT+12",
+    ];
+    const wrong: string[] = [];
+    for (const zone of ZONES) {
+      for (let year = 2000; year <= 2030; year += 1) {
+        for (let month = 1; month <= 12; month += 1) {
+          const { start, end } = windowOf(zone, year, month);
+          const at = Date.parse(start);
+          const first = new Date(Date.UTC(year, month - 1, 1))
+            .toISOString()
+            .slice(0, 10);
+          const ok =
+            dateAt(at, zone) === first &&
+            dateAt(at - 1, zone) < first &&
+            !reachedBefore(at - 15 * HOUR, at, first, zone) &&
+            end === windowOf(zone, year, month + 1).start;
+          if (!ok) wrong.push(`${zone} ${year}-${month}: ${start}`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
   it("is the window the page asks the count for, in the viewer's zone, and the head shows the API's total", async () => {
     zone.value = "Asia/Seoul";
     const html = feedbackPanel(await render());
