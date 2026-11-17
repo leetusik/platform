@@ -2,7 +2,8 @@
 
 The sole ORM boundary for the workspace domain. It never commits: the service owns
 the transaction, and every write here runs inside the service's batch transaction,
-after it took the project's ``workspaces`` row with :meth:`lock_workspace`. Every
+after it took the project's ``workspaces`` row with :meth:`lock_workspace`; the one
+exception is :meth:`touch_last_sync`, a single guarded ``UPDATE`` of that row. Every
 query is scoped by ``project_id``; the caller (the workspace API, behind
 ``resolve_api_workspace``) has already proved the project is the key's own.
 """
@@ -10,7 +11,7 @@ query is scoped by ``project_id``; the caller (the workspace API, behind
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -76,6 +77,62 @@ class WorkspaceRepository:
         )
         head = result.scalar_one_or_none()
         return int(head) if head is not None else 0
+
+    async def get_workspace(self, project_id: UUID) -> WorkspaceModel | None:
+        """The project's ``workspaces`` row, or ``None`` when the project is not linked."""
+
+        result = await self._session.execute(
+            select(WorkspaceModel).where(WorkspaceModel.project_id == project_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def touch_last_sync(
+        self, project_id: UUID, *, base: int, at: datetime, every: timedelta
+    ) -> bool:
+        """Move ``last_sync_at`` to ``at`` for a head probe that is up to date.
+
+        Only when the probe's ``base`` is the head, the project has synced at least
+        once (head above 0), and the last move is older than ``every`` (the throttle).
+        Returns whether the row moved.
+        """
+
+        result = await self._session.execute(
+            update(WorkspaceModel)
+            .where(
+                WorkspaceModel.project_id == project_id,
+                WorkspaceModel.head == base,
+                WorkspaceModel.head > 0,
+                or_(
+                    WorkspaceModel.last_sync_at.is_(None),
+                    WorkspaceModel.last_sync_at <= at - every,
+                ),
+            )
+            .values(last_sync_at=at)
+        )
+        return bool(result.rowcount)
+
+    async def live_records(self, project_id: UUID) -> dict[str, WorkingRecord]:
+        """Every live (not deleted) record of the project's head, keyed by path."""
+
+        result = await self._session.execute(
+            select(WorkspaceFileModel).where(
+                WorkspaceFileModel.project_id == project_id,
+                WorkspaceFileModel.deleted.is_(False),
+            )
+        )
+        return {
+            row.path: WorkingRecord(
+                path=row.path,
+                rev=int(row.rev),
+                sha256=row.sha256,
+                size=int(row.size),
+                kind=row.kind,
+                deleted=False,
+                blob_sha256=row.blob_sha256,
+                base_seq=int(row.base_seq) if row.base_seq is not None else None,
+            )
+            for row in result.scalars()
+        }
 
     async def set_landed(
         self,

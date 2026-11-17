@@ -42,6 +42,7 @@ from server import reader_api
 from server import reader_state
 from server import usage_api
 from server import workspace_api
+from server import workspace_web_api
 from server import documents as documents_mod
 from server import embeddings as embeddings_mod
 from server import gitops
@@ -196,6 +197,11 @@ app.include_router(feedback_api.router)
 # nothing under the project's row lock. Postgres-only: with no DATABASE_URL every
 # route answers 404. Unmetered.
 app.include_router(workspace_api.router)
+
+# The web's workspace reads: GET /app/projects/{id}/workspace and its phase, slice,
+# deferred, doc and agenda routes, built from the store's head (server/workspace_read.py,
+# memoized per head). Session-only; another tenant's project answers 404. Read-only.
+app.include_router(workspace_web_api.router)
 
 # One process-wide lock serializes the whole write critical section (file → index
 # → DB → git). Load-bearing invariant: the API runs a SINGLE uvicorn worker, so an
