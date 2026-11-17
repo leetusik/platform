@@ -25,10 +25,12 @@ import type { FeedbackSettings } from "./config";
 // guard has.
 //
 // What a send costs: each limit's slot is taken before the post (so concurrent sends
-// can never pass a limit) and given back unless the API delivers (answers 2xx). An
-// undelivered send (any other status, the API's own 429 included, a transport error
-// or the time bound) costs no slot, and a visitor the ceiling refuses keeps their
-// address slot. The post is bounded by `CAPTURE_TIMEOUT_MS`, so every send ends.
+// can never pass a limit) and given back only when the web knows the API stored
+// nothing: a non-2xx answer (the API's own 429 included) or a connection never made.
+// The API commits a capture before it answers, so a send whose outcome is unknown
+// (the time bound, or any other transport error) keeps its slots: the limits bound
+// what is stored, even while the API is slow. A visitor the ceiling refuses keeps
+// their address slot. The post is bounded by `CAPTURE_TIMEOUT_MS`, so every send ends.
 //
 // The limits live in `rate-limit.ts`'s in-memory, per-process map: a restart or a
 // redeploy resets every window, the daily ceiling included.
@@ -112,6 +114,25 @@ export const SITE_BUCKET = "send-feedback:site";
 export const ACCOUNT_BUCKET = "send-feedback:account:";
 
 const FAILED: SendFeedbackResult = { status: "failed" };
+
+/**
+ * The codes Node's `fetch` puts on its error's `cause` when no connection was ever
+ * made (refused, no route, DNS), so no byte reached the API. Any other code may come
+ * after the request was written, and counts as unknown.
+ */
+const NEVER_CONNECTED = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+]);
+
+/** A post's outcome: delivered (2xx), surely not stored, or unknown. */
+type Delivery = {
+  result: SendFeedbackResult;
+  outcome: "delivered" | "not-stored" | "unknown";
+};
 
 /**
  * The same-origin rule of the sign-in routes (`assertSameOrigin`), applied to the
@@ -215,16 +236,24 @@ export const postCapture: Poster = (body, captureKey, signal) =>
     signal,
   });
 
+/** True for `fetch`'s error when the connection was never made. */
+function neverConnected(error: unknown): boolean {
+  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === "string" && NEVER_CONNECTED.has(code);
+}
+
 /**
- * Post within the time bound, and map the answer: 2xx sent; the API's limiter (429)
- * refused; else failed. The bound aborts the request and ends the send even if the
- * post ignores its signal.
+ * Post within the time bound, and classify it: a 2xx is delivered (sent); a non-2xx
+ * answer is not stored (the API's limiter, 429, refused; else failed); a connection
+ * never made is not stored (failed); the bound or any other error is unknown
+ * (failed). The bound aborts the request and ends the send even if the post ignores
+ * its signal.
  */
 async function deliver(
   body: CaptureBody,
   deps: SendDeps,
   captureKey: string,
-): Promise<SendFeedbackResult> {
+): Promise<Delivery> {
   const log = deps.log ?? ((line: string) => console.warn(line));
   const signal = AbortSignal.timeout(deps.timeoutMs ?? CAPTURE_TIMEOUT_MS);
   const bound = new Promise<never>((_, reject) =>
@@ -234,29 +263,37 @@ async function deliver(
   );
   try {
     await Promise.race([deps.post(body, captureKey, signal), bound]);
-    return { status: "sent" };
+    return { result: { status: "sent" }, outcome: "delivered" };
   } catch (error) {
     if (error instanceof ApiError) {
       // The status only: never the message, the email, the key or the API's detail.
       log(`send-feedback: capture answered ${error.status}`);
-      return error.status === 429 ? { status: "refused" } : FAILED;
+      const result: SendFeedbackResult =
+        error.status === 429 ? { status: "refused" } : FAILED;
+      return { result, outcome: "not-stored" };
+    }
+    if (neverConnected(error)) {
+      log("send-feedback: capture unreachable");
+      return { result: FAILED, outcome: "not-stored" };
     }
     log(
       signal.aborted
         ? "send-feedback: capture timed out"
-        : "send-feedback: capture unreachable",
+        : "send-feedback: capture outcome unknown",
     );
-    return FAILED;
+    return { result: FAILED, outcome: "unknown" };
   }
 }
 
-/** Gives back every slot a send took when the API did not deliver it. */
+/** Gives back every slot a send took when the API surely stored nothing. */
 function settle(
-  result: SendFeedbackResult,
+  delivery: Delivery,
   slots: { release?: () => void }[],
 ): SendFeedbackResult {
-  if (result.status !== "sent") for (const slot of slots) slot.release?.();
-  return result;
+  if (delivery.outcome === "not-stored") {
+    for (const slot of slots) slot.release?.();
+  }
+  return delivery.result;
 }
 
 /** A visitor's send from the landing. */
@@ -294,7 +331,7 @@ export async function sendVisitorFeedback(
 
   const message = (input?.message as string).trim();
   const email = typeof input?.email === "string" ? input.email.trim() : "";
-  const result = await deliver(
+  const delivery = await deliver(
     {
       message,
       source: { product: "hi2vi", integration: "landing" },
@@ -304,7 +341,7 @@ export async function sendVisitorFeedback(
     deps,
     captureKey,
   );
-  return settle(result, [address, site]);
+  return settle(delivery, [address, site]);
 }
 
 /**
@@ -341,7 +378,7 @@ export async function sendAccountFeedback(
   if (!slot.ok) return { status: "refused" };
 
   const email = account.email?.trim() ?? "";
-  const result = await deliver(
+  const delivery = await deliver(
     {
       message: (input?.message as string).trim(),
       source: { product: "hi2vi", integration: "org-home" },
@@ -352,5 +389,5 @@ export async function sendAccountFeedback(
     deps,
     captureKey,
   );
-  return settle(result, [slot]);
+  return settle(delivery, [slot]);
 }

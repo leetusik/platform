@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
@@ -448,8 +448,45 @@ const later = (ms: number) =>
       ),
   );
 const WIDE: FeedbackSettings = { ...SETTINGS, ipLimit: 5, dailyCeiling: 200 };
+/** Node fetch's transport failure: a `TypeError` whose `cause` carries the code. */
+const transport = (code?: string) =>
+  new TypeError("fetch failed", {
+    cause: code ? Object.assign(new Error(code), { code }) : undefined,
+  });
+/** A local API stand-in; `respond` decides what each fully read post gets. */
+async function localApi(respond: (res: ServerResponse) => void) {
+  let stored = 0;
+  let closed = 0;
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      stored++;
+      respond(res);
+    });
+  });
+  server.on("connection", (socket) => socket.on("close", () => closed++));
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  vi.stubEnv("KB_API_BASE_URL", `http://127.0.0.1:${port}`);
+  return {
+    stored: () => stored,
+    closed: () => closed,
+    stop: async () => {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    },
+  };
+}
+/** A port nothing listens on: taken from the system, then let go. */
+async function closedPort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  await new Promise((r) => server.close(r));
+  return port;
+}
 
-describe("an undelivered send costs no slot", () => {
+describe("what a send costs: only a send surely never stored is free", () => {
   it("5 sends against a 503 leave the visitor's budget whole", async () => {
     for (let i = 0; i < 5; i++) {
       expect(
@@ -506,14 +543,14 @@ describe("an undelivered send costs no slot", () => {
     }
   });
 
-  it("every undelivered answer is free on both paths", async () => {
-    const cases: [string, () => Core.Poster, string][] = [
-      ["401", () => failing(new ApiError(401, null)), "failed"],
-      ["403", () => failing(new ApiError(403, null)), "failed"],
-      ["413", () => failing(new ApiError(413, null)), "failed"],
-      ["429", () => failing(new ApiError(429, null)), "refused"],
-      ["unreachable", () => failing(new TypeError("fetch failed")), "failed"],
-      ["stalled", stalled, "failed"],
+  it("every non-2xx answer is free on both paths", async () => {
+    const cases: [number, string][] = [
+      [401, "failed"],
+      [403, "failed"],
+      [413, "failed"],
+      [429, "refused"],
+      [500, "failed"],
+      [503, "failed"],
     ];
     const tight = {
       ...SETTINGS,
@@ -521,10 +558,11 @@ describe("an undelivered send costs no slot", () => {
       accountLimit: 1,
       dailyCeiling: cases.length,
     };
-    for (const [index, [name, post, answer]] of cases.entries()) {
+    for (const [index, [status, answer]] of cases.entries()) {
+      const name = String(status);
+      const post = () => failing(new ApiError(status, null));
       const ip = `203.0.113.${index}`;
-      const bound = { timeoutMs: 50 };
-      expect([name, await visit(ip, post(), tight, bound)]).toEqual([
+      expect([name, await visit(ip, post(), tight)]).toEqual([
         name,
         { status: answer },
       ]);
@@ -533,13 +571,68 @@ describe("an undelivered send costs no slot", () => {
         { status: "sent" },
       ]);
       const user = `user-${name}`;
-      expect([name, await asAccount(user, post(), tight, bound)]).toEqual([
+      expect([name, await asAccount(user, post(), tight)]).toEqual([
         name,
         { status: answer },
       ]);
       expect([name, await asAccount(user, delivered(), tight)]).toEqual([
         name,
         { status: "sent" },
+      ]);
+    }
+  });
+
+  it("a transport error frees the slots only when the connection was never made", async () => {
+    // [case, post, the next send's answer under a limit of 1]
+    const cases: [string, () => Core.Poster, string][] = [
+      // Never connected: nothing reached the API, so the slots come back.
+      ...[
+        "ECONNREFUSED",
+        "ENOTFOUND",
+        "EAI_AGAIN",
+        "EHOSTUNREACH",
+        "ENETUNREACH",
+      ].map((code): [string, () => Core.Poster, string] => [
+        code,
+        () => failing(transport(code)),
+        "sent",
+      ]),
+      // Anything else may have been written and stored: the slots stay spent.
+      ...["UND_ERR_SOCKET", "ECONNRESET", "EPIPE", "ETIMEDOUT", undefined].map(
+        (code): [string, () => Core.Poster, string] => [
+          code ?? "no cause",
+          () => failing(transport(code)),
+          "refused",
+        ],
+      ),
+      ["a bare error", () => failing(new Error("boom")), "refused"],
+      ["stalled", stalled, "refused"],
+    ];
+    const tight = {
+      ...SETTINGS,
+      ipLimit: 1,
+      accountLimit: 1,
+      dailyCeiling: 99,
+    };
+    const bound = { timeoutMs: 50 };
+    for (const [index, [name, post, next]] of cases.entries()) {
+      const ip = `203.0.113.${index}`;
+      expect([name, await visit(ip, post(), tight, bound)]).toEqual([
+        name,
+        { status: "failed" },
+      ]);
+      expect([name, await visit(ip, delivered(), tight)]).toEqual([
+        name,
+        { status: next },
+      ]);
+      const user = `user-${name}`;
+      expect([name, await asAccount(user, post(), tight, bound)]).toEqual([
+        name,
+        { status: "failed" },
+      ]);
+      expect([name, await asAccount(user, delivered(), tight)]).toEqual([
+        name,
+        { status: next },
       ]);
     }
   });
@@ -553,16 +646,68 @@ describe("an undelivered send costs no slot", () => {
     }
   });
 
-  it("an API that accepts and never answers fails within the bound, aborting the post; a refused connection fails fast", async () => {
-    let closed = 0;
-    const server = createServer(() => {
+  /** The API stores the post, then answers 202 after the bound has passed. */
+  const lateApi = () =>
+    localApi((res) =>
+      setTimeout(() => {
+        if (!res.destroyed) res.writeHead(202).end("{}");
+      }, 300),
+    );
+  const BOUND = { timeoutMs: 100 };
+
+  it("an answer after the bound is failed and keeps the address slot", async () => {
+    const api = await lateApi();
+    const tight = { ...WIDE, ipLimit: 1 };
+    try {
+      expect(
+        await visit("198.51.100.7", core.postCapture, tight, BOUND),
+      ).toEqual({ status: "failed" });
+      expect(await visit("198.51.100.7", delivered(), tight)).toEqual({
+        status: "refused",
+      });
+      expect(api.stored()).toBe(1);
+    } finally {
+      await api.stop();
+    }
+  });
+
+  it("an answer after the bound keeps its ceiling slot spent", async () => {
+    const api = await lateApi();
+    const full = { ...WIDE, dailyCeiling: 1 };
+    try {
+      expect(await visit("192.0.2.1", core.postCapture, full, BOUND)).toEqual({
+        status: "failed",
+      });
+      expect(await visit("192.0.2.2", delivered(), full)).toEqual({
+        status: "refused-site",
+      });
+      expect(api.stored()).toBe(1);
+    } finally {
+      await api.stop();
+    }
+  });
+
+  it("an answer after the bound keeps the account slot", async () => {
+    const api = await lateApi();
+    const tight = { ...SETTINGS, accountLimit: 1 };
+    try {
+      expect(await asAccount("user-1", core.postCapture, tight, BOUND)).toEqual(
+        { status: "failed" },
+      );
+      expect(await asAccount("user-1", delivered(), tight)).toEqual({
+        status: "refused",
+      });
+      expect(api.stored()).toBe(1);
+    } finally {
+      await api.stop();
+    }
+  });
+
+  it("an API that accepts and never answers fails within the bound, aborting the post, and keeps the slots", async () => {
+    const api = await localApi(() => {
       /* never answer */
     });
-    server.on("connection", (socket) => socket.on("close", () => closed++));
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-    const { port } = server.address() as AddressInfo;
-    vi.stubEnv("KB_API_BASE_URL", `http://127.0.0.1:${port}`);
-    const tight = { ...SETTINGS, ipLimit: 1 };
+    const tight = { ...SETTINGS, ipLimit: 1, accountLimit: 1 };
     try {
       const started = Date.now();
       expect(
@@ -571,22 +716,67 @@ describe("an undelivered send costs no slot", () => {
         }),
       ).toEqual({ status: "failed" });
       expect(Date.now() - started).toBeLessThan(2000);
-      await vi.waitFor(() => expect(closed).toBe(1));
+      await vi.waitFor(() => expect(api.closed()).toBe(1));
       expect(await visit("198.51.100.7", delivered(), tight)).toEqual({
-        status: "sent",
+        status: "refused",
+      });
+      expect(
+        await asAccount("user-1", core.postCapture, tight, { timeoutMs: 300 }),
+      ).toEqual({ status: "failed" });
+      expect(await asAccount("user-1", delivered(), tight)).toEqual({
+        status: "refused",
       });
     } finally {
-      server.closeAllConnections();
-      await new Promise((r) => server.close(r));
+      await api.stop();
     }
-    // The same port, now closed: refused at once, long before the bound.
-    const started = Date.now();
-    expect(
-      await visit("198.51.100.8", core.postCapture, tight, {
-        timeoutMs: 4000,
-      }),
-    ).toEqual({ status: "failed" });
-    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("a connection dropped after the post was written keeps the slots", async () => {
+    const api = await localApi((res) => res.socket?.destroy());
+    const tight = { ...SETTINGS, ipLimit: 1, accountLimit: 1 };
+    try {
+      expect(await visit("198.51.100.7", core.postCapture, tight)).toEqual({
+        status: "failed",
+      });
+      expect(await visit("198.51.100.7", delivered(), tight)).toEqual({
+        status: "refused",
+      });
+      expect(await asAccount("user-1", core.postCapture, tight)).toEqual({
+        status: "failed",
+      });
+      expect(await asAccount("user-1", delivered(), tight)).toEqual({
+        status: "refused",
+      });
+      expect(api.stored()).toBe(2);
+    } finally {
+      await api.stop();
+    }
+  });
+
+  it("a connection never made fails fast and spends no slot, on both paths", async () => {
+    const port = await closedPort();
+    const tight = { ...SETTINGS, ipLimit: 1, accountLimit: 1 };
+    const bound = { timeoutMs: 4000 };
+    // 127.0.0.1 refuses with one error; localhost may try ::1 too (an AggregateError).
+    for (const host of ["127.0.0.1", "localhost"]) {
+      vi.stubEnv("KB_API_BASE_URL", `http://${host}:${port}`);
+      const started = Date.now();
+      expect([
+        host,
+        await visit("198.51.100.8", core.postCapture, tight, bound),
+      ]).toEqual([host, { status: "failed" }]);
+      expect([
+        host,
+        await asAccount("user-1", core.postCapture, tight, bound),
+      ]).toEqual([host, { status: "failed" }]);
+      expect(Date.now() - started).toBeLessThan(2000);
+    }
+    expect(await visit("198.51.100.8", delivered(), tight)).toEqual({
+      status: "sent",
+    });
+    expect(await asAccount("user-1", delivered(), tight)).toEqual({
+      status: "sent",
+    });
   });
 
   it("concurrent sends at the address limit's edge never exceed it", async () => {
