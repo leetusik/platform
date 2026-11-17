@@ -201,12 +201,15 @@ export interface KbCredential {
   last_used_at: string | null;
   /** `null` ⇔ not revoked. */
   revoked_at: string | null;
-  /** What the key may do: `full` (everything) or `capture` (send feedback only). */
+  /**
+   * What the key may do: `full` (everything), `capture` (send feedback only) or `workspace`
+   * (link one checkout of the project's workspace; project keys only).
+   */
   scope: KbCredentialScope;
 }
 
 /** A key's scope, chosen at mint (`POST …/credentials` `{scope}`). */
-export type KbCredentialScope = "full" | "capture";
+export type KbCredentialScope = "full" | "capture" | "workspace";
 
 /**
  * `POST /app/projects/{id}/credentials` → 201 `{credential, key}` — the one

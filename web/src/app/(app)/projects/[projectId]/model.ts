@@ -304,7 +304,7 @@ export function keyRowOf(c: KbCredential): KeyRow {
     id: c.id,
     name: c.name,
     prefix: c.token_prefix,
-    access: c.scope === "capture" ? "capture" : "full",
+    access: c.scope === "capture" || c.scope === "workspace" ? c.scope : "full",
     status: credentialStatus(c),
     created: c.created_at,
     lastUsed: c.last_used_at,

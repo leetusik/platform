@@ -17,6 +17,8 @@ import {
 import { Copy } from "./copy";
 import { Dialog, DialogActions } from "./dialog";
 import {
+  accessOptions,
+  accessWord,
   checkKeyName,
   initialKeysState,
   keyLabel,
@@ -24,6 +26,7 @@ import {
   KEY_NAME_MAX,
   sendMint,
   shownRows,
+  type KeyAccess,
   type KeyRow,
   type MintInput,
   type MintResult,
@@ -45,6 +48,8 @@ import {
  */
 export interface KeysProps {
   scope: KeysScope;
+  /** Offer the third Access option, Workspace sync (the project page only). */
+  workspace?: boolean;
   /** The org's or the project's name, for the form's reach line. */
   subject: string;
   rows: readonly KeyRow[];
@@ -57,6 +62,13 @@ export interface KeysProps {
   headId?: string;
 }
 
+/** The form's radio labels, by scope. */
+const ACCESS_LABEL: Record<KeyAccess, string> = {
+  full: KEYS.accessFull,
+  capture: KEYS.accessCapture,
+  workspace: KEYS.accessWorkspace,
+};
+
 const STATUS_STATE = {
   active: "active",
   idle: "idle",
@@ -65,6 +77,7 @@ const STATUS_STATE = {
 
 export function Keys({
   scope,
+  workspace = false,
   subject,
   rows,
   mint,
@@ -192,33 +205,23 @@ export function Keys({
             <fieldset className="field" aria-describedby={ids.accessHint}>
               <legend className="label">{KEYS.accessLegend}</legend>
               <div className="cluster gap-4">
-                <label className="check">
-                  <input
-                    type="radio"
-                    name={ids.radio}
-                    checked={state.access === "full"}
-                    disabled={busy}
-                    onChange={() =>
-                      dispatch({ type: "set-access", access: "full" })
-                    }
-                  />
-                  {KEYS.accessFull}
-                </label>
-                <label className="check">
-                  <input
-                    type="radio"
-                    name={ids.radio}
-                    checked={state.access === "capture"}
-                    disabled={busy}
-                    onChange={() =>
-                      dispatch({ type: "set-access", access: "capture" })
-                    }
-                  />
-                  {KEYS.accessCapture}
-                </label>
+                {accessOptions(workspace).map((access) => (
+                  <label className="check" key={access}>
+                    <input
+                      type="radio"
+                      name={ids.radio}
+                      checked={state.access === access}
+                      disabled={busy}
+                      onChange={() => dispatch({ type: "set-access", access })}
+                    />
+                    {ACCESS_LABEL[access]}
+                  </label>
+                ))}
               </div>
               <span className="hint" id={ids.accessHint}>
-                {KEYS.accessHint}
+                {workspace
+                  ? `${KEYS.accessHint} ${KEYS.accessWorkspaceHint}`
+                  : KEYS.accessHint}
               </span>
             </fieldset>
           </div>
@@ -251,11 +254,7 @@ export function Keys({
                       {r.name || KEYS.unnamed}
                     </td>
                     <td className="mono nowrap">{r.prefix}…</td>
-                    <td className="nowrap">
-                      {r.access === "capture"
-                        ? KEYS.accessCapture
-                        : KEYS.accessFull}
-                    </td>
+                    <td className="nowrap">{accessWord(r.access)}</td>
                     <td>
                       <Status state={STATUS_STATE[r.status]}>
                         {KEYS.status[r.status]}

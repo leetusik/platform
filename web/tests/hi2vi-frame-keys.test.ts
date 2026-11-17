@@ -1,6 +1,13 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { KEYS } from "@/content/hi2vi-frame";
+import { keyRowOf } from "@/app/(app)/projects/[projectId]/model";
+import { Keys } from "@/hi2vi/frame/keys";
 import {
+  accessOptions,
+  accessWord,
   initialKeysState,
   keysReducer,
   sendMint,
@@ -145,5 +152,67 @@ describe("Keys' revoke failure", () => {
       expect(s[4].target).toBe(id);
       expect(s[4].revokeFailed).toBe(false);
     }
+  });
+});
+
+describe("Keys' Access options", () => {
+  it("draws two options on the org page and three on the project page", () => {
+    expect(accessOptions(false)).toEqual(["full", "capture"]);
+    expect(accessOptions(true)).toEqual(["full", "capture", "workspace"]);
+  });
+
+  it("names the third option and its hint in the signed words", () => {
+    expect(KEYS.accessWorkspace).toBe("Workspace sync");
+    expect(KEYS.accessWorkspaceHint).toBe(
+      "A workspace key links one checkout of this project's workspace and reaches nothing else.",
+    );
+  });
+
+  it("sends the workspace scope when the third option is chosen", async () => {
+    const mint = vi.fn(async (): Promise<MintResult> => ({
+      ok: true,
+      key: SECRET,
+    }));
+    const s = run([
+      { type: "toggle-form" },
+      { type: "set-access", access: "workspace" },
+    ]).at(-1)!;
+    await sendMint("sync", s.access, mint);
+    expect(mint).toHaveBeenCalledWith({ name: "sync", access: "workspace" });
+  });
+});
+
+describe("Keys' table", () => {
+  const credential = (scope: "full" | "capture" | "workspace") =>
+    keyRowOf({
+      id: `k-${scope}`,
+      name: scope,
+      token_prefix: "vk_91c4e7",
+      created_at: "2026-11-01T00:00:00Z",
+      last_used_at: null,
+      revoked_at: null,
+      scope,
+    } as Parameters<typeof keyRowOf>[0]);
+
+  it("reads Workspace for a workspace key, never Full access", () => {
+    const row = credential("workspace");
+    expect(row.access).toBe("workspace");
+    expect(accessWord(row.access)).toBe("Workspace");
+    const html = renderToStaticMarkup(
+      createElement(Keys, {
+        scope: "project",
+        workspace: true,
+        subject: "Docs",
+        rows: [row, credential("full"), credential("capture")],
+        mint: async (): Promise<MintResult> => ({
+          ok: false,
+          reason: "failed",
+        }),
+        revoke: async () => ({ ok: false }) as const,
+      }),
+    );
+    expect(html).toContain(">Workspace</td>");
+    expect(html.match(/>Full access<\/td>/g)).toHaveLength(1);
+    expect(html).toContain(">Capture only</td>");
   });
 });

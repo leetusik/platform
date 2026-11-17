@@ -38,6 +38,7 @@ export function ProjectKeys({
   return (
     <Keys
       scope="project"
+      workspace
       subject={subject}
       rows={rows}
       mint={mint}
