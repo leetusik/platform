@@ -1,0 +1,14 @@
+/* hi2vi — Listen's sheet (job 07-listen-review, round 01: the Listen classes of its frame.css sections 6 to 9, and
+   Listen.dc.html's own rules). Values are the signed ones; names are the system's (P58-yw class-names: the job's
+   `.track` is `.meter`, `.status-wait` is `.status-busy`). Owned by the Listen chain: the head and follow along
+   (P64-3y.S2), the dock and the pill (S3), the player (S4), the book page (S5), a document (S6); each adds its own
+   rules here. Listen's shared parts (the marks, the state word, the thin line, `.hold`) are the system's
+   (../bundle.css), never redefined here.
+   Scoped like the system (../README.md): it applies inside a `.ui` root and stops at `[data-ui-legacy]`; root rules
+   read `:scope`; no colour is written here. A custom property it declares is restored at the old-page boundary.
+   Imported once, by ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+/* F238 (the join, listen C02): Listen and Starting… share one cell; the cell starts at the mark, so the mark stands
+   one gap from either label (as 03-library's .shelf-more .swap) */
+.listen-ctl .swap { justify-items: start; }
+}

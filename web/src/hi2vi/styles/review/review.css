@@ -1,0 +1,11 @@
+/* hi2vi — Review's sheet (job 07-listen-review, round 01: the Review classes of its frame.css sections 10 to 13 and
+   Review.css, prefix `.rv-`). Values are the signed ones; names are the system's (P58-yw class-names: F239's
+   `.card-kind > .badge` is not built; the card's kind line writes `badge is-wrap`). Owned by the Review chain: the
+   frame, the head and the sheets (P64-3y.S7), the card and the rating pair (S8), the end of a session (S9); each adds
+   its own rules here. Review's shared parts (the state word, `.hold`, the wrapping badge) are the system's
+   (../bundle.css), never redefined here.
+   Scoped like the system (../README.md): it applies inside a `.ui` root and stops at `[data-ui-legacy]`; root rules
+   read `:scope`; no colour is written here. A custom property it declares is restored at the old-page boundary.
+   Imported once, by ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+}
