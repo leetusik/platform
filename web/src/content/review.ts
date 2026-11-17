@@ -1,9 +1,9 @@
 // P30.S24 — the review surface's own words, from `08-review` round 01's *Every string written
 // for review* (English only; D36 (4)). The quiz's and the annotations' own strings are used
-// unchanged, from `lib/reader/quiz.ts` and `READER`. Pure functions for the plural forms, so the
-// page, the skeleton and the tests read one source.
+// unchanged, from `lib/reader/quiz.ts` and `READER`. Pure functions for the plural forms. The two words only the old
+// views used (the settings form's Close, the old sheet's Close panel) left with them (P64-3y.S10).
 
-export const plural = (n: number, one: string, many: string): string =>
+const plural = (n: number, one: string, many: string): string =>
   `${n} ${n === 1 ? one : many}`;
 
 export const REVIEW = {
@@ -176,7 +176,6 @@ export const REVIEW = {
   },
   settings: {
     title: "Review settings",
-    close: "Close",
     lead: "These apply to all your cards, on every device.",
     timeZone: "Time zone",
     timeZoneHint:
@@ -196,7 +195,6 @@ export const REVIEW = {
     cancel: "Cancel",
     notSaved: "Not saved · check your connection",
   },
-  closePanel: "Close panel",
   intervals: {
     minute: ["minute", "minutes"],
     hour: ["hour", "hours"],

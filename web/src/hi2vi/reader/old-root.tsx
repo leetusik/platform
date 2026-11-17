@@ -19,16 +19,16 @@ import "@/app/reader.css";
 
 /**
  * THE BRIDGE (P63-fk.S8, until the reader chain rebuilds the body): the old body of a text inside the
- * new reader's frame. The text (`ChapterView`), its blocks, terms, quiz, highlights and notes, and the
- * Listen slot and player are still the old components (S9, S10 and S11 rebuild them; Listen keeps its old
- * look, operator decision 3). They read the old reader's root around them, so here they get one:
+ * new reader's frame. The text (`ChapterView`), its blocks, terms, quiz, highlights and notes were the old
+ * components (S9, S10 and S11 rebuilt most of them); what still sits in it (the print masthead and colophon, the
+ * body's islands) reads `app/reader.css`, so the import stays. The old Listen slot and player left in P64-3y.
+ * What it holds reads the old reader's root around it, so here it gets one:
  *
  *   Legacy ([data-ui-legacy]: no rule of the system reaches in)
  *     > div.rd-root.rd-size-N[data-md-color-scheme] (the old tokens, the text sizes and the schemes
  *       of `app/reader.css`, from the same `kb_reader` settings as the frame; `math-layer` and
  *       `scroll-box` watch its class; the annotation layer left it in P63-fk.S11)
- *       > the old body, then `after` (the Listen slot and the player: `position: fixed`, placed against
- *         the window, since no ancestor of this root has a transform or layout containment).
+ *       > the old body, then `after` (once the old Listen slot and player; unused since P64-3y)
  *
  * Two inline declarations undo what the old root does to a whole page and must not do inside the
  * frame's column: `min-height: 100dvh` and its background (the frame paints the reader's ground).
@@ -36,9 +36,12 @@ import "@/app/reader.css";
  */
 export interface OldBodyValue {
   settings: ReaderSettings;
-  /** A Listen is docked (the store's), so the old slot lifts what it holds above the dock. */
-  docked: boolean;
-  /** Rendered after the body, inside the old root: the Listen slot and the player. */
+  /**
+   * A Listen is docked (the store's). No longer read (P64-3y.S10): the old slot's lift above the dock (`lx-docked`)
+   * left `app/reader.css` with the old Listen; job 07's dock is in the flow. Optional so its two callers still type.
+   */
+  docked?: boolean;
+  /** Rendered after the body, inside the old root, where `slot` asks for it (no caller does since P64-3y). */
   after?: ReactNode;
 }
 
@@ -67,13 +70,7 @@ export function OldRoot({
 }) {
   const value = useContext(OldBodyContext);
   const settings = value?.settings ?? DEFAULT_READER_SETTINGS;
-  const className = [
-    "rd-root",
-    `rd-size-${settings.size}`,
-    value?.docked ? "lx-docked" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const className = `rd-root rd-size-${settings.size}`;
   return (
     <Legacy style={still ? NO_BOX : undefined}>
       <div
