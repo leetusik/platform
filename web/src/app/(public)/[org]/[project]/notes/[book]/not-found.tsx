@@ -25,6 +25,7 @@ export default async function BookNotesNotFound() {
       }
     >
       <StateBlock
+        narrow
         state={{
           title: t.title,
           text: t.text,

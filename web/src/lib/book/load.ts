@@ -177,8 +177,10 @@ export async function loadBook(
   const first = shown[0];
   const hasData = signedIn && (touched > 0 || marks > 0);
 
+  // Every language of a chapter that has Version history: its rows carry each version's date,
+  // a translation still at v1 included (the board's `한국어 v1 · Published Oct 15`).
   const multi = shown.flatMap((s) =>
-    s.chapter.variants.filter((v) => v.version > 1),
+    s.chapter.variants.some((v) => v.version > 1) ? s.chapter.variants : [],
   );
   const ptrVariant =
     plan.kind === "continue" && ptr
