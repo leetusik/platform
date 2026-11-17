@@ -16,9 +16,8 @@
    - section 8: a gap with the characters that touch its end (a comma, a Korean particle) sits in `.blocks-gap-w`,
      which takes the field's rules as `.blocks-gap > .input` does.
    Section B is the build's own: what the boards leave to the build (the article, a box's sentence beside it, a
-   kept run, a formula's aligned steps), the bridge that keeps an old layer visible on the new text until its slice
-   (Listen's line: the Listen phase removes it), and paper. The highlight's paint bridge left with P63-fk.S11: the
-   signed paint is ./annotations.css's. */
+   kept run, a formula's aligned steps), where an address lands, and paper. The highlight's paint bridge left with
+   P63-fk.S11 (the signed paint is ./annotations.css's) and Listen's line with the Listen phase. */
 @scope (.ui) to ([data-ui-legacy]) {
   /* 1 ── tokens and the math face ── */
   :scope {
@@ -314,7 +313,6 @@
     gap: calc(var(--space-1) * var(--read-k));
     padding-block: calc(var(--space-3) * var(--read-k));
     border-top: 1px solid var(--line);
-    scroll-margin-top: calc(var(--top-h) + var(--space-5));
   }
   .blocks-gl-entry:first-child {
     border-top: 0;
@@ -384,7 +382,6 @@
     column-gap: var(--space-3);
     padding-block: calc(var(--space-5) * var(--read-k));
     border-bottom: 1px solid var(--line);
-    scroll-margin-top: calc(var(--top-h) + var(--space-5));
   }
   .blocks-q-n {
     color: var(--ink-2);
@@ -615,11 +612,15 @@
   }
 
   /* B ── the build's own (P63-fk.S9) ── */
-  /* the article (`ChapterBody`): the box the layers' floating parts are placed against, as the old article was;
-     Listen's line beside the block being read takes its width here (its other tokens are global) */
+  /* the article (`ChapterBody`): the box the layers' floating parts are placed against, as the old article was */
   .blocks-host {
     position: relative;
-    --lx-line: 3px;
+  }
+  /* where an address lands (job 07's frame F242: never under the bar): every place of the body an address names
+     carries an id (a heading, the quiz block and its items, a glossary entry, a paragraph, a figure, a table, a
+     code box, a term's use), and each takes the headings' margin (frame.css's `.read :where(h2)`) by this one rule */
+  .blocks-host [id] {
+    scroll-margin-top: calc(var(--top-h) + var(--space-5));
   }
   /* a code block or a table: its box and the box's sentence, one block of the text, the sentence pulled up to the
      box as in a run of the text (`.read`'s gap, frame.css's `.scroll-hint`) */
