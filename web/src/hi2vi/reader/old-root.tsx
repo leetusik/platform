@@ -43,6 +43,12 @@ export interface OldBodyValue {
   docked?: boolean;
   /** Rendered after the body, inside the old root, where `slot` asks for it (no caller does since P64-3y). */
   after?: ReactNode;
+  /**
+   * P64-3y.F4 — the reader's top bar's real height in px (`./frame-measure` `useReaderTopBar`; null until measured).
+   * The old sheet lands an island's `[id]` under its own bar's height (`--rd-top-h`, one row: 3.5rem); the frame's
+   * `--reader-top-h` stops at the old-page boundary, so the root is given the measured height as that name.
+   */
+  topH?: number | null;
 }
 
 export const OldBodyContext = createContext<OldBodyValue | null>(null);
@@ -71,13 +77,17 @@ export function OldRoot({
   const value = useContext(OldBodyContext);
   const settings = value?.settings ?? DEFAULT_READER_SETTINGS;
   const className = `rd-root rd-size-${settings.size}`;
+  const base = still ? STILL : UNDO_PAGE;
+  const style: CSSProperties = value?.topH
+    ? ({ ...base, "--rd-top-h": `${value.topH}px` } as CSSProperties)
+    : base;
   return (
     <Legacy style={still ? NO_BOX : undefined}>
       <div
         className={className}
         data-md-color-scheme={schemeFor(settings.theme)}
         data-theme-choice={settings.theme}
-        style={still ? STILL : UNDO_PAGE}
+        style={style}
       >
         {children}
         {slot ? value?.after : null}

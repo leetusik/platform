@@ -620,7 +620,7 @@
      carries an id (a heading, the quiz block and its items, a glossary entry, a paragraph, a figure, a table, a
      code box, a term's use), and each takes the headings' margin (frame.css's `.read :where(h2)`) by this one rule */
   .blocks-host [id] {
-    scroll-margin-top: calc(var(--top-h) + var(--space-5));
+    scroll-margin-top: calc(var(--reader-top-h) + var(--space-5));
   }
   /* a code block or a table: its box and the box's sentence, one block of the text, the sentence pulled up to the
      box as in a run of the text (`.read`'s gap, frame.css's `.scroll-hint`) */

@@ -61,10 +61,12 @@ import {
   showBars,
   versionItems,
 } from "../model";
+import { useLayerHolder, useReaderTopBar, useSlotLift } from "../frame-measure";
 import { OldBodyContext, type OldBodyValue } from "../old-root";
 import { ReaderEnd } from "../reader-end";
 import { ReaderFoot } from "../reader-foot";
 import { ReaderHead } from "../reader-head";
+import { slotOf, slotWants } from "../slot";
 import { DocumentBookmarks } from "./document-notes";
 import {
   documentBack,
@@ -164,6 +166,8 @@ export function DocumentReader({
     bars.current = quietBars(bars.current, Date.now(), QUIET_MS);
   }, []);
 
+  // P64-3y.F4: the top bar's real height (`--reader-top-h`), written before the page's landings run.
+  const topH = useReaderTopBar(rootRef);
   useLayoutEffect(() => {
     topRef.current =
       rootRef.current?.querySelector<HTMLElement>(".bar-wrap > .bar") ?? null;
@@ -358,8 +362,8 @@ export function DocumentReader({
   );
   const docked = useListen() !== null;
   const oldBody = useMemo<OldBodyValue>(
-    () => ({ settings, docked, after: null }),
-    [settings, docked],
+    () => ({ settings, docked, after: null, topH }),
+    [settings, docked, topH],
   );
   useFollow(rootRef, listen ? unitOfKey(listen.key) : null, null);
   // F206: no Listen for a visitor or an older version of the text.
@@ -369,9 +373,19 @@ export function DocumentReader({
     newest: view.newest,
     seed: listen,
   });
-  // Listen's pill (F207, listen:FG3): the head's control under the top bar, no sheet open, and last in the
-  // slot's order (the reader's own pill first).
-  const listenPill = audioOn && past && sheet === null && !pill;
+  // The one slot above the foot (F93, F207; P64-3y.F4, `../slot`): one holder at a time, in its order (the layer's
+  // undo line and Sign in to save, the reader's resume pill or the layer's place bar, then Listen's pill, which
+  // wants the head's control under the top bar and no sheet open). The holder stands on the dock while a Listen
+  // is under way (F208).
+  const layerHolder = useLayerHolder(slotHost);
+  const holder = slotOf(
+    slotWants({
+      layer: layerHolder,
+      resume: pill,
+      listen: audioOn && past && sheet === null,
+    }),
+  );
+  useSlotLift(rootRef);
 
   // ---- the parts ------------------------------------------------------------------------------------------
   const chrome = chromeOf({ hidden, pct, pill });
@@ -494,7 +508,7 @@ export function DocumentReader({
           <ListenTrack
             seed={audioOn ? listen : null}
             shown={audioOn}
-            pill={listenPill}
+            pill={holder === "listen"}
             chapter={false}
             hidden={chrome.foot.hidden}
             signInHref={signIn}
@@ -502,7 +516,7 @@ export function DocumentReader({
           <ReaderFoot
             bar={false}
             hidden={chrome.foot.hidden}
-            pill={chrome.foot.pill}
+            pill={chrome.foot.pill && holder === "resume"}
             onTop={fromTop}
           />
           <Sheet

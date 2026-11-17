@@ -8,6 +8,13 @@
      the end of the head's facts row, where the board's stand-in sat (frame.css leaves out the canvas's
      `.read-facts > [data-proto="standin"] { margin-left: auto }`);
    - the sections' fold's one rule (P63-fk.S12, by the operator's answer: the fold is the head's own line);
+   - P64-3y.F4: the reader's top bar's real height in one place of its own, `--reader-top-h` (the bar wraps to two
+     rows, or three, on a narrow window: 03-library F89), which every "below the reader's top bar" reads (the
+     landing margins in frame.css and blocks.css, the side panel's sticky top); `--top-h` stays the system's one-row
+     bar (the foot bar, the sheets' heads and the landing page read it too). The frame measures the bar and writes
+     its height here (`hi2vi/reader/frame-measure.ts`); until then, and in print, the one-row bar's;
+   - P64-3y.F4: the one slot above the foot bar stands on the dock while a Listen is under way (07-listen-review
+     F208: the dock is "under F207's slot"); the frame measures how far (`--reader-slot-lift`, none without a dock);
    - print: ⌘P of a chapter keeps printing as today (the old body's own print rules in app/kb-print.css, its
      masthead and colophon), so the new frame's chrome (the bar, the head, the end, the foot) prints nothing and
      the column gives the page its whole width, as the old reader's page did. */
@@ -16,7 +23,14 @@
      base rule's colour itself, as the board's root (`.ui.app.bare.reader`) does: an inherited text colour then
      follows the reader's scheme, not the device's (P63-fk.S21) */
   .app.reader {
+    --reader-top-h: var(--top-h);
     color: var(--ink);
+  }
+
+  /* the slot's holder on the dock: the marks layer's part and the resume pill (P64-3y.F4) */
+  .app.reader > .marks-slot,
+  .app.reader > .reader-foot > .pill {
+    translate: 0 calc(-1 * var(--reader-slot-lift, 0px));
   }
 
   /* the place of Listen: at the end of the facts row */

@@ -72,10 +72,12 @@ import {
   showBars,
   versionItems,
 } from "./model";
+import { useLayerHolder, useReaderTopBar, useSlotLift } from "./frame-measure";
 import { OldBodyContext, type OldBodyValue } from "./old-root";
 import { ReaderEnd } from "./reader-end";
 import { ReaderFoot } from "./reader-foot";
 import { ReaderHead } from "./reader-head";
+import { slotOf, slotWants } from "./slot";
 
 /**
  * The reader's frame on a chapter (job 03, Library round 02: `## Build` § The frame, § Page: chapter;
@@ -152,6 +154,8 @@ export function ChapterReader({
     bars.current = quietBars(bars.current, Date.now(), QUIET_MS);
   }, []);
 
+  // P64-3y.F4: the top bar's real height (`--reader-top-h`), written before the page's landings run.
+  const topH = useReaderTopBar(rootRef);
   // The top bar, for the reader's memory: its bottom edge is the line a place is sampled at. Set before
   // `useReading`'s own effects run (a layout effect runs first).
   useLayoutEffect(() => {
@@ -422,12 +426,22 @@ export function ChapterReader({
     newest: view.newest,
     seed: listen,
   });
-  // Listen's pill (F207, listen:FG3): the head's control under the top bar, no sheet open, and last in the
-  // slot's order (the reader's own pill first).
-  const listenPill = audioOn && past && sheet === null && !pill;
+  // The one slot above the foot bar (F93, F207; P64-3y.F4, `./slot`): one holder at a time, in its order (the
+  // layer's undo line and Sign in to save, the reader's resume pill or the layer's place bar, then Listen's pill,
+  // which wants the head's control under the top bar and no sheet open). The holder stands on the dock while
+  // a Listen is under way (F208).
+  const layerHolder = useLayerHolder(slotHost);
+  const holder = slotOf(
+    slotWants({
+      layer: layerHolder,
+      resume: pill,
+      listen: audioOn && past && sheet === null,
+    }),
+  );
+  useSlotLift(rootRef);
   const oldBody = useMemo<OldBodyValue>(
-    () => ({ settings, docked }),
-    [settings, docked],
+    () => ({ settings, docked, topH }),
+    [settings, docked, topH],
   );
 
   // ---- the parts -----------------------------------------------------------------------------------
@@ -599,7 +613,7 @@ export function ChapterReader({
           <ListenTrack
             seed={audioOn ? listen : null}
             shown={audioOn}
-            pill={listenPill}
+            pill={holder === "listen"}
             chapter={!!book}
             hidden={chrome.foot.hidden}
             signInHref={signIn}
@@ -612,7 +626,7 @@ export function ChapterReader({
               prev={prev?.title ?? null}
               next={next?.title ?? null}
               hidden={chrome.foot.hidden}
-              pill={chrome.foot.pill}
+              pill={chrome.foot.pill && holder === "resume"}
               onPrev={() => prev && go(carry(prev.href))}
               onNext={() => next && go(carry(next.href))}
               onContents={() => openSheet("contents")}

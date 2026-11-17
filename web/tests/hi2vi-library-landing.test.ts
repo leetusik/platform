@@ -20,6 +20,8 @@ interface Rule {
   sheet: string;
   selectors: string[];
   margin: string | null;
+  /** Every declaration of the rule, in order: [property, value]. */
+  decls: [string, string][];
 }
 
 /** Every style rule of a stretch of CSS, descending into at-rules, with its `scroll-margin-top` (or null). */
@@ -48,6 +50,12 @@ function rules(css: string, sheet: string): Rule[] {
             selectors: split(prelude),
             // the shorthands' first value is the top
             margin: decl ? first(decl[1].trim()) : null,
+            decls: split(body, ";").flatMap((d): [string, string][] => {
+              const at = d.indexOf(":");
+              return at > 0
+                ? [[d.slice(0, at).trim(), d.slice(at + 1).trim()]]
+                : [];
+            }),
           });
         }
         start = i + 1;
@@ -57,7 +65,7 @@ function rules(css: string, sheet: string): Rule[] {
   return out;
 }
 
-/** A list's items, split at top-level commas (or spaces, for a value). */
+/** A list's items, split at top-level commas (or spaces, for a value; or `;`, for a rule's body). */
 function split(list: string, at = ","): string[] {
   const out: string[] = [];
   let depth = 0;
@@ -153,7 +161,7 @@ const HEADING = ALL.find(
 
 describe("an address in the reader's body", () => {
   it("has the headings' margin to land below the bar", () => {
-    expect(HEADING).toBe("calc(var(--top-h) + var(--space-5))");
+    expect(HEADING).toBe("calc(var(--reader-top-h) + var(--space-5))");
   });
 
   it("lands every place it can name below the bar, by one rule for the class", () => {
@@ -185,5 +193,83 @@ describe("an address in the reader's body", () => {
     const quiz = read(join(web, "src/hi2vi/reader/aids/quiz.tsx"));
     expect(quiz).toMatch(/className="read blocks-quiz"\s+id=\{id\}/);
     expect(quiz).toMatch(/<li className="blocks-q" id=\{domId\}>/);
+  });
+});
+
+// P64-3y.F4 — the bar wraps to two rows (99 px) below about 820 px and to three for a visitor's chapter in two
+// languages (03-library F89), so "below the bar" is the reader's bar's real height, in one place of its own:
+// `--reader-top-h` on `.app.reader`, the one-row `--top-h` by default and the measured height once the frame has
+// measured the bar (`hi2vi/reader/frame-measure.ts`). `--top-h` stays the system's one-row height: the foot bar's,
+// the sheets' heads', the landing page's.
+describe("the reader's top bar's height", () => {
+  const WITH = [
+    ...ALL,
+    ...rules(read(join(library, "boundary.css")), "boundary.css"),
+  ];
+  const declaring = (name: string) =>
+    WITH.flatMap((r) =>
+      r.decls
+        .filter(([p]) => p === name)
+        .map(([, v]) => `${r.sheet}: ${r.selectors.join(", ")} = ${v}`),
+    );
+
+  it("is declared once, on the reader's root, as the one-row bar until measured", () => {
+    expect(declaring("--reader-top-h")).toEqual([
+      "reader.css: .app.reader = var(--top-h)",
+      "boundary.css: .ui [data-ui-legacy] = var(--hi2vi-legacy-reader-top-h)",
+    ]);
+    expect(declaring("--top-h")).toEqual([]);
+  });
+
+  it("is what every rule meaning 'below the reader's top bar' reads, never the one-row --top-h", () => {
+    const below = ALL.flatMap((r) =>
+      r.decls
+        .filter(([p]) =>
+          /^(top|max-height|scroll-margin(-top|-block)?)$/.test(p),
+        )
+        .filter(([, v]) => /--(reader-)?top-h\b/.test(v))
+        .map(
+          ([p, v]) => `${r.sheet}: ${r.selectors.join(", ")} { ${p}: ${v} }`,
+        ),
+    );
+    expect(below.filter((d) => /var\(--top-h\)/.test(d))).toEqual([]);
+    // the landing margins (every one is the headings', above) and the side panel's sticky top
+    expect(below).toEqual(
+      expect.arrayContaining([
+        "frame.css: .read :where(h2) { scroll-margin-top: calc(var(--reader-top-h) + var(--space-5)) }",
+        "blocks.css: .blocks-host [id] { scroll-margin-top: calc(var(--reader-top-h) + var(--space-5)) }",
+        "frame.css: .reader-frame.has-side > .reader-side { top: calc(var(--reader-top-h) + var(--line-h)) }",
+      ]),
+    );
+  });
+
+  it("is measured from the bar and written on the reader's root by both reading pages", () => {
+    const measure = read(join(web, "src/hi2vi/reader/frame-measure.ts"));
+    expect(measure).toMatch(/READER_TOP_H = "--reader-top-h"/);
+    expect(measure).toMatch(/readerTopH\(bar\.clientHeight\)/);
+    expect(measure).toMatch(/new ResizeObserver\(write\)/);
+    for (const page of [
+      "src/hi2vi/reader/chapter-reader.tsx",
+      "src/hi2vi/reader/document/document-reader.tsx",
+    ]) {
+      const src = read(join(web, page));
+      expect(src, page).toMatch(/const topH = useReaderTopBar\(rootRef\)/);
+      // before the reader's memory and the landings (their effects run after this layout effect)
+      expect(src.indexOf("useReaderTopBar(rootRef)"), page).toBeLessThan(
+        src.indexOf("useReading("),
+      );
+      expect(src, page).toMatch(/topH \}/);
+    }
+  });
+
+  it("lifts the slot's holders by the frame's measure while the dock is up", () => {
+    const lift = ALL.filter((r) =>
+      r.decls.some(
+        ([p, v]) => p === "translate" && /--reader-slot-lift/.test(v),
+      ),
+    ).map((r) => `${r.sheet}: ${r.selectors.join(", ")}`);
+    expect(lift).toEqual([
+      "reader.css: .app.reader > .marks-slot, .app.reader > .reader-foot > .pill",
+    ]);
   });
 });
