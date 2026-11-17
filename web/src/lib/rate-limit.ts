@@ -88,3 +88,38 @@ export function checkRateLimit(
 
   return { ok: true, remaining: limit - recent.length, retryAfterMs: 0 };
 }
+
+/** A slot taken by `takeRateLimit`: `release()` gives it back (once; a no-op if refused). */
+export interface RateLimitSlot extends RateLimitResult {
+  release: () => void;
+}
+
+/**
+ * `checkRateLimit`, plus a way to give the hit back: for a caller that reserves a
+ * slot before work that may not happen (hi2vi's feedback send gives it back when
+ * the API does not deliver). The hit is taken synchronously, so concurrent callers
+ * can never exceed `limit`. `release()` removes exactly the hit this call recorded,
+ * at most once; after the bucket was pruned it does nothing.
+ */
+export function takeRateLimit(
+  key: string | null | undefined,
+  limit: number,
+  windowMs: number,
+): RateLimitSlot {
+  const result = checkRateLimit(key, limit, windowMs);
+  if (!result.ok) return { ...result, release: () => {} };
+  const bucketKey = key && key.trim() !== "" ? key : MISSING_KEY;
+  // `checkRateLimit` has just appended this call's hit as the newest timestamp.
+  const takenAt = buckets.get(bucketKey)!.times.at(-1)!;
+  let released = false;
+  return {
+    ...result,
+    release: () => {
+      if (released) return;
+      released = true;
+      const times = buckets.get(bucketKey)?.times;
+      const at = times ? times.lastIndexOf(takenAt) : -1;
+      if (times && at !== -1) times.splice(at, 1);
+    },
+  };
+}

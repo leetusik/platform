@@ -7,6 +7,8 @@
 //   variable names of its `~/.zshenv` snippet); the token is the record's visible fake `vk_…`.
 // - The record's GitHub placeholder is operator decision D5: the repository for guides and repositories and the
 //   footer's GitHub, its `plugin/` folder for the plugin.
+// - `how` (the diagram's section) is job 08, round 01-landing-diagram-feedback, signed: its `## Build`
+//   3a and 3b, verbatim; its Coming mark is `workspace.coming`.
 // - Not said here (F262): a price, tiers, the retrieval API, figures, logos, quotes.
 
 const REPO = "https://github.com/leetusik/platform";
@@ -117,6 +119,23 @@ export const LANDING = {
         },
       ],
     },
+  },
+  /** The diagram's section, second on the page (job 08): how the parts fit together. */
+  how: {
+    title: "How the parts fit together",
+    text: "Feedback becomes work in the Workspace; finished work becomes documents in the Library.",
+    label:
+      "How the parts of hi2vi fit together. Feedback is what your users said; a piece of it becomes an agenda item in the Workspace, which is coming. Your coding agent, Claude Code, Codex or any agent that speaks REST, works the agenda, and the Workspace syncs from the agent’s workspace. The agent writes what it made to the Library, as books and documents for you to read.",
+    feedback: { name: "Feedback", line: "What your users said" },
+    toWorkspace: "A piece becomes an agenda item",
+    workspace: { name: "Workspace", line: "The agenda and its phases" },
+    toAgent: "Works the agenda",
+    agent: {
+      name: "Your coding agent",
+      line: "Claude Code, Codex, any agent that speaks REST",
+    },
+    toLibrary: "Writes what it made",
+    library: { name: "Library", line: "Books and documents" },
   },
   workspace: {
     title: "Workspace",

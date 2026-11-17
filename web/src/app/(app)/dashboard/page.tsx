@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 
 import { DASHBOARD } from "@/content/dashboard";
 import { Keys, Trend, Usage } from "@/hi2vi/frame";
+import { SendFeedback } from "@/hi2vi/send-feedback";
 import { Grid, Stack } from "@/hi2vi/ui";
 import { requireIdentity } from "@/lib/auth-guards";
+import { feedbackControl } from "@/lib/send-feedback/config";
 import type { FormatOptions } from "@/lib/format";
 import {
   getDashboard,
@@ -40,6 +42,10 @@ import { UrlPanel } from "./url-panel";
  * holds now), and the Projects panel's own: `/app/dashboard` (the rows and the project feed) with one
  * `/app/documents?project=<id>` a project for its Documents column. A failure of the Projects reads
  * is that panel's own state (Projects did not load.); any other failure is the route's error page.
+ *
+ * At the end of the page head, hi2vi's own feedback control (job 08, round
+ * 01-landing-diagram-feedback, `## Build` §5) as the signed-in user, `Sends as` the Shell's account,
+ * only where the server holds the control's key; without it the head is the title alone.
  */
 export const metadata: Metadata = { title: DASHBOARD.title };
 
@@ -89,6 +95,7 @@ export default async function DashboardPage() {
   const orgName = identity.tenant?.name ?? "";
   const slug = identity.tenant?.slug ?? null;
   const format = pageFormat();
+  const feedback = feedbackControl();
 
   const [usage, orgKeys, held, projects] = await Promise.all([
     getUsage(token),
@@ -107,6 +114,14 @@ export default async function DashboardPage() {
           <div className="page-title">
             <h1>{orgName}</h1>
           </div>
+          {feedback.configured ? (
+            <SendFeedback
+              context="account"
+              limit={feedback.limit}
+              account={identity.user.email}
+              triggerClassName="btn"
+            />
+          ) : null}
         </div>
       </header>
       <Usage

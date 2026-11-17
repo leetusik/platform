@@ -1,13 +1,17 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LANDING, LANDING_LINKS } from "@/content/marketing";
+import { Landing } from "@/hi2vi/landing/landing";
 
 // The landing at `/` (job 06, round 01-landing, signed): what its words and links must and must
 // not say, and how its sheet stays scoped. The suite has no DOM, so it reads the content module
-// the page renders from and the page's own source files.
+// the page renders from and the page's own source files; the diagram's section (job 08) is read
+// from the page rendered to static markup.
 
 const WEB = join(__dirname, "..");
 const SOURCES = [
@@ -145,5 +149,33 @@ describe("the landing's sheet", () => {
 
   it("names no hex colour", () => {
     expect(css.match(/#[0-9a-f]{3,8}\b/gi)).toBeNull();
+  });
+});
+
+describe("the diagram's section (job 08, round 01, `## Build` 3a-3b)", () => {
+  // The page rendered to static markup: where the section sits and what its figure holds.
+  const html = renderToStaticMarkup(createElement(Landing));
+  const main = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
+  const sections = [...main.matchAll(/<section\b[^>]*>/g)].map((m) => m[0]);
+  const at = main.indexOf('aria-labelledby="lp-how"');
+  const how = at < 0 ? "" : main.slice(at, main.indexOf("</section>", at));
+  const figure = how.slice(how.indexOf("<figure"), how.indexOf("</figure>"));
+  const words = LANDING.how;
+
+  it("is the second section, after the hero, with its h2", () => {
+    expect(sections[0]).toContain('aria-labelledby="lp-h1"');
+    expect(sections[1]).toContain('aria-labelledby="lp-how"');
+    expect(sections[2]).toContain('aria-labelledby="lp-ws"');
+    expect(how).toContain(`<h2 class="lp-h2" id="lp-how">${words.title}</h2>`);
+  });
+
+  it("draws a figure with role img, labelled from the content module", () => {
+    expect(figure).toMatch(/^<figure class="lp-map" role="img"/);
+    expect(figure).toContain(`aria-label="${words.label}"`);
+  });
+
+  it("holds nothing to click or focus", () => {
+    expect(figure).toContain("lp-map-chain");
+    expect(figure).not.toMatch(/<a\b|<button\b|tabindex/i);
   });
 });

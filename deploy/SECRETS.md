@@ -311,6 +311,38 @@ Not a secret, but it lives in the box's `.env` next to the mail settings
   hand. Turning the switch on or off later needs only the `.env` line and an api
   recreate (as in §4b).
 
+### 4d. Optional `HI2VI_FEEDBACK_CAPTURE_KEY` — hi2vi's own Send feedback control
+
+**What it is.** The key the web container posts hi2vi's own feedback with: the "Send
+feedback" link in the landing's footer and the button on org home. It is a Feedback
+key (`vk_…`) **bound to one project**, the `hi2vi` project in the operator's org, with
+the **`capture` scope only**: it can add a feedback item to that project and nothing
+else (no reads, no other project, no documents). Each message it captures mails the
+org's owner through §4b's sender.
+
+- **Who mints it:** the operator, signed in to hi2vi.com in their own org, after the
+  phase that ships the control is accepted (`README.md` §7 has the steps). Never minted
+  on a laptop's local stack and copied up: a local key does not exist in production.
+- **Optional.** Unset or blank: the control is not shown on either page, which is also
+  how a self-hosted install runs. Nothing else depends on it.
+- **Server-only.** Not `NEXT_PUBLIC_`: only the Next.js server reads it, the browser
+  never sees it. `compose.prod.yml` passes it to `knowledge-web` from the box's `.env`
+  (`${HI2VI_FEEDBACK_CAPTURE_KEY:-}`). The api's `env_file: .env` loads the same file,
+  so the value also sits in `knowledge-api`'s environment, as `SESSION_SECRET` does;
+  the api never reads it (it stores only the key's hash).
+- **Placement:** one line, `HI2VI_FEEDBACK_CAPTURE_KEY=<key>`, in `/opt/knowledge/.env`,
+  set the way §4b sets its password: never shown on a screen, pasted into a chat or
+  committed. The key is shown once, when it is minted. Verify by name only
+  (`grep -c '^HI2VI_FEEDBACK_CAPTURE_KEY=' /opt/knowledge/.env` prints `1`).
+- **Rotate or revoke:** mint a new key for the project, replace the line, recreate the
+  web container, then revoke the old key on the project's keys page. Revoking without a
+  replacement makes every send fail (the control then says it could not send).
+- **The six numbers** (not secrets, optional, the same `.env`): `HI2VI_FEEDBACK_MAX_CHARS`
+  (2000), `HI2VI_FEEDBACK_IP_LIMIT` (5) per `HI2VI_FEEDBACK_IP_WINDOW_S` (600),
+  `HI2VI_FEEDBACK_ACCOUNT_LIMIT` (10) per `HI2VI_FEEDBACK_ACCOUNT_WINDOW_S` (600) and
+  `HI2VI_FEEDBACK_DAILY_CEILING` (200). Unset, blank or not a positive integer: the
+  default in brackets.
+
 ---
 
 ## 5. Handoff checklist — all boxes ticked = ready for bring-up
@@ -336,6 +368,10 @@ Not a secret, but it lives in the box's `.env` next to the mail settings
       deliberate launch with no outgoing mail (no Feedback alert, no waitlist mails).
 - [ ] **`KB_SIGNUP_WAITLIST=on`** (§4c) in `/opt/knowledge/.env` for hi2vi.com — or a
       deliberate open sign-up.
+- [ ] **`HI2VI_FEEDBACK_CAPTURE_KEY`** (§4d, optional) — minted by the operator on
+      hi2vi.com for the `hi2vi` project (Capture only) and set in `/opt/knowledge/.env`
+      after the control ships (`README.md` §7), value never printed — or left unset, and
+      the control stays hidden.
 - [ ] **Api recreated** after any `.env` change (`up -d --force-recreate --no-deps api`,
       or the next Production Deploy), and both names checked by name only
       (`grep -c '^KB_SIGNUP_WAITLIST=on$' /opt/knowledge/.env` prints `1`).

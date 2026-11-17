@@ -526,3 +526,51 @@ COMPOSE_BAKE=false docker compose -f compose.prod.yml up -d --build
 After this first bootstrap, every subsequent deploy is just the `Production Deploy`
 Action (§6). (P9.S5 did exactly this: `383577e → c018571`, clean ff-merge, then the
 first real dispatch.)
+
+---
+
+## 7. hi2vi's own feedback control — switch it on in production
+
+The landing's footer ("Send feedback") and org home's page head carry a control that
+sends a message about hi2vi itself into a `hi2vi` project in the operator's org. The web
+container shows it only when `HI2VI_FEEDBACK_CAPTURE_KEY` is set
+([`SECRETS.md`](SECRETS.md) §4d), so the code can deploy before the key exists: until
+step 3, the control is simply absent.
+
+**When:** once the change that ships the control is accepted, before or together with
+the deploy that carries it. **Nothing in this section has been run against
+production;** a local dev stack is set up with `scripts/dev_feedback_key.py`, which
+refuses any API that is not on a loopback address.
+
+1. **Create the project.** Signed in to `https://hi2vi.com` in the operator's own org
+   (the `KB_OPERATOR_EMAIL` org), create the project `hi2vi` from org home (New
+   project). Leave it private.
+2. **Mint its key.** On the `hi2vi` project's page, under Keys: **New key**, name it
+   (for example `hi2vi feedback`), Access **Capture only**, **Create key**. The key is
+   shown once: copy it straight into step 3, never into a chat, a file in a repo or a
+   transcript. Its row must read Access "Capture only" and belong to the `hi2vi`
+   project, not the org's keys.
+3. **Set it on the box,** one line in `/opt/knowledge/.env`, placed the way
+   [`SECRETS.md`](SECRETS.md) §4b places a secret (no value on a screen):
+   `HI2VI_FEEDBACK_CAPTURE_KEY=<key>`. Optional, the same file: the six numbers of
+   §4d, only to change a default. Check by name only:
+   `grep -c '^HI2VI_FEEDBACK_CAPTURE_KEY=' /opt/knowledge/.env` prints `1`.
+4. **Redeploy the web service:** dispatch the `Production Deploy` Action (§6), which
+   recreates `knowledge-web`; or, with the right code already on the box,
+   `docker compose -f compose.prod.yml up -d --force-recreate --no-deps knowledge-web`.
+   The value is read at request time from the container's environment, so a recreate
+   (not a rebuild) is enough.
+5. **Check it:**
+   - `https://hi2vi.com/` shows **Send feedback** in the footer, and org home shows the
+     button at the end of its page head when signed in.
+   - Send one test message from the landing (say "deploy check"). The dialog answers
+     that it was sent; the message appears on the Feedback page under the `hi2vi`
+     project, with source `hi2vi` / `landing`; and the org's owner gets the alert mail
+     (needs §4b's `KB_SMTP_*`). The Feedback page has no delete, so the test item stays
+     as the record of the check (the API can delete it: `DELETE
+     /api/project/feedback/{id}` with a full-access key of the project, never the
+     capture key).
+
+**Turn it off:** remove the line (or blank it) and recreate `knowledge-web`; the control
+disappears from both pages. Revoke the key on the project's Keys panel if it may have
+leaked, then mint a new one (§4d, rotate).
