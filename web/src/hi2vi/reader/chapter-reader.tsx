@@ -13,11 +13,9 @@ import {
 } from "react";
 
 import {
-  ListenHead,
   ListenPageContext,
   ListenSlot,
   unitOfSeed,
-  useFollowAlong,
   type ListenPageValue,
 } from "@/components/listen/listen-page";
 import { ListenPlayer } from "@/components/listen/player";
@@ -38,6 +36,7 @@ import {
   Versions,
   type BarTool,
 } from "@/hi2vi/library";
+import { ListenHeadSlot, listenShown, useFollow } from "@/hi2vi/listen";
 import { UiRoot } from "@/hi2vi/ui";
 import { date } from "@/lib/format";
 import { withFrom, type ListOrigin } from "@/lib/library/from";
@@ -73,7 +72,7 @@ import {
   showBars,
   versionItems,
 } from "./model";
-import { OldBodyContext, OldRoot, type OldBodyValue } from "./old-root";
+import { OldBodyContext, type OldBodyValue } from "./old-root";
 import { ReaderEnd } from "./reader-end";
 import { ReaderFoot } from "./reader-foot";
 import { ReaderHead } from "./reader-head";
@@ -422,8 +421,15 @@ export function ChapterReader({
         : null,
     [listen, listenUnit, setListenHead],
   );
-  useFollowAlong(rootRef, listenUnit, listen?.chapter ?? null);
-  const listenPill = !!listen && past && !hidden && sheet === null && !pill;
+  useFollow(rootRef, listenUnit, listen?.chapter ?? null);
+  // F206: no Listen for a visitor or an older version of the text.
+  const audioOn = listenShown({
+    member,
+    version: view.version,
+    newest: view.newest,
+    seed: listen,
+  });
+  const listenPill = audioOn && past && !hidden && sheet === null && !pill;
   const oldBody = useMemo<OldBodyValue>(
     () => ({
       settings,
@@ -527,11 +533,13 @@ export function ChapterReader({
                               : null
                           }
                           sections={sections}
-                          listen={
-                            listen ? (
-                              <OldRoot slot={false}>
-                                <ListenHead />
-                              </OldRoot>
+                          audio={
+                            audioOn && listen ? (
+                              <ListenHeadSlot
+                                seed={listen}
+                                signInHref={signIn}
+                                onHead={setListenHead}
+                              />
                             ) : null
                           }
                           onVersions={() => openSheet("versions")}

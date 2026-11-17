@@ -144,10 +144,17 @@ export function dockView(l: Listen): DockView {
 }
 
 export type Trio = "active" | "idle" | "revoked";
+/**
+ * P64-3y.S2 — F204's shapes (job 07, `LR.note`'s `trio`): live (accent, filled), on (ink, filled), wait (the
+ * ring, turning), done (the check), fail (the error mark). Never colour alone: a shape and a word.
+ */
+export type NoteShape = "live" | "on" | "wait" | "done" | "fail";
 export type NoteAction = "play" | "retry" | "again" | "signin" | "update" | "";
 
 export interface NoteView {
   trio: Trio;
+  /** F204's shape of the word (job 07). */
+  shape: NoteShape;
   word: string;
   text: string;
   busy: boolean;
@@ -159,6 +166,29 @@ export interface NoteView {
   action: NoteAction;
 }
 
+/** F204's shape per note key (job 07 `LR.note`). */
+const SHAPES: Record<NoteKey, NoteShape> = {
+  waiting: "wait",
+  making: "wait",
+  ready: "on",
+  tap: "on",
+  loading: "wait",
+  buffering: "wait",
+  playing: "live",
+  paused: "on",
+  "next-waiting": "live",
+  finished: "done",
+  "fail-voice": "fail",
+  "fail-limit": "fail",
+  "fail-play": "fail",
+  "fail-session": "fail",
+  "fail-unreadable": "fail",
+  "offline-start": "fail",
+  "offline-play": "live",
+  "offline-stopped": "fail",
+  outdated: "on",
+};
+
 /** Overrides for the head's held copies (a state that is not the Listen's own). */
 export interface NoteOptions {
   /** The daily limit's ready part ("14 min"); null for none. */
@@ -167,7 +197,13 @@ export interface NoteOptions {
   reset?: string;
 }
 
-/** The note's word, sentence, line and action per state (the `ListenNote` board's table, F9, F10). */
+/**
+ * The note's word, sentence, line and action per state (the `ListenNote` board's table, F9, F10). P64-3y.S2:
+ * the words, shapes and lines are job 07's `LR.note` (frame.md F204, F227: the record's word where the two
+ * differed): the live states carry no sentence (the dock says the place), the next chapter waiting reads
+ * Playing with how much of the book is prepared, what is loaded offline is time left (F233), and a line
+ * shows its own figure (0% before the first part).
+ */
 export function noteView(
   l: Listen,
   key: NoteKey,
@@ -192,6 +228,11 @@ export function noteView(
       ? N.makingFirst(parts)
       : N.makingPart(part, parts, left);
   const nl = nextLeft(l);
+  // The book's chapters prepared (the next chapter waiting): made entries of the book's chapters.
+  const madeShare =
+    B.total > 0
+      ? l.entries.filter((e) => e.state === "made").length / B.total
+      : 0;
   const limitReady = opts.ready === undefined ? made : opts.ready;
   const rows: Record<
     NoteKey,
@@ -218,18 +259,18 @@ export function noteView(
     ],
     tap: ["active", N.ready, N.tapText, "play", null, false, ""],
     loading: ["idle", N.loading, "", "", null, true, ""],
-    buffering: ["idle", N.buffering, where(l), "", null, true, ""],
-    playing: ["active", N.playing, where(l), "", null, false, ""],
-    paused: ["idle", N.paused, where(l), "", null, false, ""],
+    buffering: ["idle", N.buffering, "", "", null, true, ""],
+    playing: ["active", N.playing, "", "", null, false, ""],
+    paused: ["idle", N.paused, "", "", null, false, ""],
     "next-waiting": [
-      "idle",
-      N.preparing,
+      "active",
+      N.playing,
       N.nextWaitingText(
         B.next,
         nl !== null ? aboutLeft(nl) : LISTEN.time.under5,
       ),
       "",
-      null,
+      madeShare,
       false,
       "",
     ],
@@ -299,7 +340,7 @@ export function noteView(
     "offline-play": [
       "idle",
       N.offline,
-      N.offlinePlayText(clockPos(l.loaded)),
+      N.offlinePlayText(aboutLeft(l.loaded)),
       "",
       null,
       false,
@@ -319,10 +360,11 @@ export function noteView(
   const [trio, word, text, action, frac, busy, ref] = rows[key];
   return {
     trio,
+    shape: SHAPES[key],
     word,
     text,
     busy,
-    line: frac === null ? null : Math.round(Math.max(0.02, frac) * 100),
+    line: frac === null ? null : Math.round(Math.max(0, frac) * 100),
     lineLabel: book ? N.lineBook : N.lineDoc,
     ref,
     action,

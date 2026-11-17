@@ -13,6 +13,10 @@ import { READER_FRAME } from "@/content/reader-frame";
  * `listen` is the place of Listen: the existing control, mounted in its old look (operator decision 3
  * of P63-fk); the reader's sheet puts it at the end of the facts row.
  *
+ * `audio` (P64-3y, job 07 frame.md F206 and frame D1): the new Listen slot (`AudioHead`), its own row directly
+ * under the facts row at the column's left edge. A page passes one or the other; `listen` leaves once every
+ * reading page mounts `audio`.
+ *
  * `tag` closes the head with `<p><span class="badge">…</span></p>` (`head.original`: an html document's
  * **Original layout**). Without it the head renders exactly as it always has.
  */
@@ -37,6 +41,8 @@ export interface ReaderHeadProps {
    */
   fold?: { total: number; open: boolean; onToggle: () => void } | null;
   listen?: ReactNode;
+  /** Listen's slot under the facts row (AudioHead, F206); none: no row. */
+  audio?: ReactNode;
   /** The head's last line, a badge (`Original layout`); none: no line. */
   tag?: string | null;
   onVersions?: () => void;
@@ -58,6 +64,7 @@ export function ReaderHead({
   sections,
   fold,
   listen,
+  audio,
   tag,
   onVersions,
   onNewest,
@@ -85,6 +92,7 @@ export function ReaderHead({
         </button>
         {listen ? <div className="read-listen">{listen}</div> : null}
       </div>
+      {audio ?? null}
       {older ? (
         <div className="notice read-notice" role="status">
           <p>
