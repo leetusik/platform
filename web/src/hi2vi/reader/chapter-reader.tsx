@@ -12,12 +12,6 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  ListenPageContext,
-  ListenSlot,
-  unitOfSeed,
-  type ListenPageValue,
-} from "@/components/listen/listen-page";
 import { ListenPlayer } from "@/components/listen/player";
 import { NotesBridgeContext } from "@/components/reader/reader-notes";
 import {
@@ -36,10 +30,16 @@ import {
   Versions,
   type BarTool,
 } from "@/hi2vi/library";
-import { ListenHeadSlot, listenShown, useFollow } from "@/hi2vi/listen";
+import {
+  ListenHeadSlot,
+  listenShown,
+  ListenTrack,
+  useFollow,
+} from "@/hi2vi/listen";
 import { UiRoot } from "@/hi2vi/ui";
 import { date } from "@/lib/format";
 import { withFrom, type ListOrigin } from "@/lib/library/from";
+import { unitOfKey } from "@/lib/listen/book";
 import { useListen } from "@/lib/listen/store";
 import type { ListenSeed } from "@/lib/listen/types";
 import {
@@ -72,7 +72,7 @@ import {
   showBars,
   versionItems,
 } from "./model";
-import { OldBodyContext, type OldBodyValue } from "./old-root";
+import { OldBodyContext, OldRoot, type OldBodyValue } from "./old-root";
 import { ReaderEnd } from "./reader-end";
 import { ReaderFoot } from "./reader-foot";
 import { ReaderHead } from "./reader-head";
@@ -413,14 +413,7 @@ export function ChapterReader({
     [sheet, notesHost, closeSheet, pill, notesBookHref, slotHost, hidden],
   );
   const docked = useListen() !== null;
-  const listenUnit = listen ? unitOfSeed(listen) : null;
-  const listenPage = useMemo<ListenPageValue | null>(
-    () =>
-      listen && listenUnit
-        ? { seed: listen, unit: listenUnit, setHead: setListenHead }
-        : null,
-    [listen, listenUnit, setListenHead],
-  );
+  const listenUnit = listen ? unitOfKey(listen.key) : null;
   useFollow(rootRef, listenUnit, listen?.chapter ?? null);
   // F206: no Listen for a visitor or an older version of the text.
   const audioOn = listenShown({
@@ -429,19 +422,12 @@ export function ChapterReader({
     newest: view.newest,
     seed: listen,
   });
-  const listenPill = audioOn && past && !hidden && sheet === null && !pill;
+  // Listen's pill (F207, listen:FG3): the head's control under the top bar, no sheet open, and last in the
+  // slot's order (the reader's own pill first).
+  const listenPill = audioOn && past && sheet === null && !pill;
   const oldBody = useMemo<OldBodyValue>(
-    () => ({
-      settings,
-      docked,
-      after: (
-        <>
-          <ListenSlot chapter pill={listenPill} signInHref={signIn} />
-          <ListenPlayer signInHref={signIn} />
-        </>
-      ),
-    }),
-    [settings, docked, listenPill, signIn],
+    () => ({ settings, docked }),
+    [settings, docked],
   );
 
   // ---- the parts -----------------------------------------------------------------------------------
@@ -501,118 +487,126 @@ export function ChapterReader({
           />
           <ReaderProgressContext.Provider value={progressValue}>
             <NotesBridgeContext.Provider value={notesBridge}>
-              <ListenPageContext.Provider value={listenPage}>
-                <OldBodyContext.Provider value={oldBody}>
-                  <div className="reader-frame">
-                    <main
-                      className="reader-main"
-                      id="main-content"
-                      onClick={onTap}
-                    >
-                      <article className="reader-col">
-                        <ReaderHead
-                          noun="chapter"
-                          title={view.title}
-                          lede={view.summary}
-                          lang={view.lang}
-                          where={
-                            book
-                              ? READER_FRAME.head.chapterOf(book.n, book.total)
-                              : ""
-                          }
-                          version={view.version}
-                          newest={view.newest}
-                          published={date(view.published || view.date, fmt)}
-                          translation={
-                            src
-                              ? {
-                                  source: src.label,
-                                  from: src.from,
-                                  newest: src.newest,
-                                }
-                              : null
-                          }
-                          sections={sections}
-                          audio={
-                            audioOn && listen ? (
-                              <ListenHeadSlot
-                                seed={listen}
-                                signInHref={signIn}
-                                onHead={setListenHead}
-                              />
-                            ) : null
-                          }
-                          onVersions={() => openSheet("versions")}
-                          onNewest={() =>
-                            go(
-                              carry(
-                                readerHref(target, {
-                                  lang: hasLangs ? view.lang : null,
-                                }),
-                              ),
-                            )
-                          }
-                          onSource={() =>
-                            src &&
-                            go(carry(readerHref(target, { lang: src.lang })))
-                          }
-                          onSection={toSection}
-                        />
-                        <div className="read-flow">{children}</div>
-                        <ReaderEnd
-                          kind="chapter"
-                          state={state}
-                          asking={asking}
-                          next={
-                            next
-                              ? {
-                                  n: next.n ?? (book?.n ?? 0) + 1,
-                                  total,
-                                  title: next.title,
-                                  lede: next.summary,
-                                  lang: next.lang,
-                                }
-                              : null
-                          }
-                          last={last}
-                          rows={
-                            endRowsShown({
-                              total,
-                              finished: rd.reading.finished,
-                              last,
-                            })
-                              ? items
-                              : undefined
-                          }
-                          current={currentKey}
-                          progress={
-                            member && finishedCount !== null
-                              ? READER_FRAME.end.finished(finishedCount, total)
-                              : READER_FRAME.end.chapters(total)
-                          }
-                          signInHref={signIn}
-                          onFinish={() => void rd.mark(true)}
-                          onUnread={() => void rd.mark(false)}
-                          onNext={() => next && go(carry(next.href))}
-                          onBook={() => go(bookHrefNow)}
-                          onOpen={openChapter}
-                          onAsk={() => setAsking(true)}
-                          onDismiss={() => setAsking(false)}
-                        />
-                      </article>
-                    </main>
-                  </div>
-                  {notes ? (
-                    <div
-                      className="marks-slot"
-                      data-an-ui=""
-                      ref={setSlotHost}
-                    />
-                  ) : null}
-                </OldBodyContext.Provider>
-              </ListenPageContext.Provider>
+              <OldBodyContext.Provider value={oldBody}>
+                <div className="reader-frame">
+                  <main
+                    className="reader-main"
+                    id="main-content"
+                    onClick={onTap}
+                  >
+                    <article className="reader-col">
+                      <ReaderHead
+                        noun="chapter"
+                        title={view.title}
+                        lede={view.summary}
+                        lang={view.lang}
+                        where={
+                          book
+                            ? READER_FRAME.head.chapterOf(book.n, book.total)
+                            : ""
+                        }
+                        version={view.version}
+                        newest={view.newest}
+                        published={date(view.published || view.date, fmt)}
+                        translation={
+                          src
+                            ? {
+                                source: src.label,
+                                from: src.from,
+                                newest: src.newest,
+                              }
+                            : null
+                        }
+                        sections={sections}
+                        audio={
+                          audioOn && listen ? (
+                            <ListenHeadSlot
+                              seed={listen}
+                              signInHref={signIn}
+                              onHead={setListenHead}
+                            />
+                          ) : null
+                        }
+                        onVersions={() => openSheet("versions")}
+                        onNewest={() =>
+                          go(
+                            carry(
+                              readerHref(target, {
+                                lang: hasLangs ? view.lang : null,
+                              }),
+                            ),
+                          )
+                        }
+                        onSource={() =>
+                          src &&
+                          go(carry(readerHref(target, { lang: src.lang })))
+                        }
+                        onSection={toSection}
+                      />
+                      <div className="read-flow">{children}</div>
+                      <ReaderEnd
+                        kind="chapter"
+                        state={state}
+                        asking={asking}
+                        next={
+                          next
+                            ? {
+                                n: next.n ?? (book?.n ?? 0) + 1,
+                                total,
+                                title: next.title,
+                                lede: next.summary,
+                                lang: next.lang,
+                              }
+                            : null
+                        }
+                        last={last}
+                        rows={
+                          endRowsShown({
+                            total,
+                            finished: rd.reading.finished,
+                            last,
+                          })
+                            ? items
+                            : undefined
+                        }
+                        current={currentKey}
+                        progress={
+                          member && finishedCount !== null
+                            ? READER_FRAME.end.finished(finishedCount, total)
+                            : READER_FRAME.end.chapters(total)
+                        }
+                        signInHref={signIn}
+                        onFinish={() => void rd.mark(true)}
+                        onUnread={() => void rd.mark(false)}
+                        onNext={() => next && go(carry(next.href))}
+                        onBook={() => go(bookHrefNow)}
+                        onOpen={openChapter}
+                        onAsk={() => setAsking(true)}
+                        onDismiss={() => setAsking(false)}
+                      />
+                    </article>
+                  </main>
+                </div>
+                {notes ? (
+                  <div className="marks-slot" data-an-ui="" ref={setSlotHost} />
+                ) : null}
+                {/* The opened player keeps its old look until S4 (decision 3): a dialog, placed against the
+                    window, in an old root that adds no box. */}
+                <OldRoot slot={false} still>
+                  <ListenPlayer signInHref={signIn} />
+                </OldRoot>
+              </OldBodyContext.Provider>
             </NotesBridgeContext.Provider>
           </ReaderProgressContext.Provider>
+          {/* The dock's track (F208, listen:FG1): in the flow before ReaderFoot, sticky to the window's foot. */}
+          <ListenTrack
+            seed={audioOn ? listen : null}
+            shown={audioOn}
+            pill={listenPill}
+            chapter={!!book}
+            hidden={chrome.foot.hidden}
+            signInHref={signIn}
+          />
           {book ? (
             <ReaderFoot
               n={book.n}

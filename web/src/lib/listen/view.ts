@@ -11,8 +11,22 @@ import type { Listen } from "./types";
 
 export type Lead = "play" | "pause" | "again" | "retry" | "off";
 
+/**
+ * P64-3y.S3 — the lead of job 07's dock (frame.md F208, F234; `ListenDockStates.dc.html`'s `LEAD`): Pause,
+ * Play, a disabled Play, Start over, Try again and Sign in (the last two in words). `lead` above stays the
+ * old dock's (`components/listen/dock.tsx`, the book page's until S5).
+ */
+export type DockLead =
+  "pause" | "play" | "play-off" | "startover" | "retry" | "signin";
+
 export interface DockView {
   lead: Lead;
+  /** Job 07's lead (F208). */
+  act: DockLead;
+  /** The word's shape (job 07 `LR.dock`'s trio). */
+  shape: NoteShape;
+  /** The line of where the audio is, 0 to 100: always drawn, 0 while nothing is made (F208). */
+  pct: number;
   word: string;
   rest: string;
   busy: boolean;
@@ -63,7 +77,32 @@ function seenAt(l: Listen): string | null {
   return clockAt(l.seen);
 }
 
-/** The dock's lead, word and rest per state (the `Dock` board's table, F7, F10). */
+/** The states with nothing made to play: the dock's line stays at 0% (`ListenDockStates.dc.html`'s `NOLEN`). */
+const NOTHING_MADE: readonly ListenKey[] = [
+  "waiting",
+  "making",
+  "fail-voice",
+  "fail-limit",
+  "fail-unreadable",
+];
+
+/** Where the audio is, 0 to 100: the chapter's place on a book, the document's on a document (F208). */
+function dockPct(l: Listen): number {
+  if (NOTHING_MADE.includes(l.state)) return 0;
+  const book = l.kind === "book";
+  const len = book ? l.chLen : l.len;
+  const pos = book ? l.chPos : l.pos;
+  if (len === null || !(len > 0) || !Number.isFinite(pos)) return 0;
+  return Math.round(Math.min(100, Math.max(0, (100 * pos) / len)));
+}
+
+/**
+ * The dock's lead, word and rest per state (the `Dock` board's table, F7, F10). P64-3y.S3: the words,
+ * shapes and leads are job 07's (`LR.dock`, `ListenDockStates.dc.html`'s `LEAD`; frame.md F208, F232,
+ * F233, F234): Loading… names a book's chapter, a finished document and an unreadable text have no rest,
+ * the daily limit resumes `09:00 tomorrow`, what is loaded offline is time left, offline stopped plays,
+ * signed out leads with Sign in, and the live region names the chapter while a book is paused too.
+ */
 export function dockView(l: Listen): DockView {
   const D = LISTEN.dock;
   const part = l.part?.n ?? 1;
@@ -71,59 +110,151 @@ export function dockView(l: Listen): DockView {
   const seen = seenAt(l);
   const book = l.kind === "book";
   const B = bookNums(l);
-  const rows: Record<ListenKey, [Lead, string, string, boolean, boolean]> = {
+  const reset = LISTEN.time.tomorrow("09:00");
+  const rows: Record<
+    ListenKey,
+    [Lead, DockLead, NoteShape, string, string, boolean, boolean]
+  > = {
     waiting: [
       "off",
+      "play-off",
+      "wait",
       D.waiting(LISTEN.runner),
       seen ? D.lastSeen(seen) : "",
       false,
       false,
     ],
-    making: ["off", D.preparing, D.part(part, parts), true, false],
-    ready: ["play", D.readyToPlay, D.restPreparing, false, false],
-    tap: ["play", D.readyToPlay, "", false, false],
-    loading: ["pause", D.loading, "", true, false],
-    playing: ["pause", l.old ? D.earlier : D.playing, where(l), false, false],
-    paused: ["play", l.old ? D.earlier : D.paused, where(l), false, false],
-    buffering: ["pause", D.buffering, where(l), true, false],
-    "next-waiting": ["pause", D.preparing, D.chapter(B.next), true, false],
-    finished: [
-      "again",
-      D.finished,
-      book ? D.allChapters(B.own) : clockPos(l.len ?? l.pos),
+    making: [
+      "off",
+      "play-off",
+      "wait",
+      D.preparing,
+      D.part(part, parts),
+      true,
+      false,
+    ],
+    ready: ["play", "play", "on", D.readyToPlay, D.restPreparing, false, false],
+    tap: ["play", "play", "on", D.readyToPlay, "", false, false],
+    loading: [
+      "pause",
+      "pause",
+      "wait",
+      D.loading,
+      book ? D.chapter(B.n) : "",
+      true,
+      false,
+    ],
+    playing: [
+      "pause",
+      "pause",
+      l.old ? "on" : "live",
+      l.old ? D.earlier : D.playing,
+      where(l),
       false,
       false,
     ],
-    "fail-voice": ["retry", D.preparingStopped, D.tryAgainLower, false, true],
-    "fail-limit": ["off", D.dailyLimit, D.resumes("09:00"), false, false],
-    "fail-play": ["retry", D.playbackStopped, D.connectionLost, false, true],
-    "fail-session": ["off", D.signedOut, "", false, true],
-    "fail-unreadable": ["retry", D.unreadable, D.tryAgainLower, false, true],
-    "offline-start": ["off", D.offline, D.offlineStart, false, false],
+    paused: [
+      "play",
+      "play",
+      "on",
+      l.old ? D.earlier : D.paused,
+      where(l),
+      false,
+      false,
+    ],
+    buffering: ["pause", "pause", "wait", D.buffering, where(l), true, false],
+    "next-waiting": [
+      "pause",
+      "pause",
+      "wait",
+      D.preparing,
+      D.chapter(B.next),
+      true,
+      false,
+    ],
+    finished: [
+      "again",
+      "startover",
+      "done",
+      D.finished,
+      book ? D.allChapters(B.own) : "",
+      false,
+      false,
+    ],
+    "fail-voice": [
+      "retry",
+      "retry",
+      "fail",
+      D.preparingStopped,
+      D.tryAgainLower,
+      false,
+      true,
+    ],
+    "fail-limit": [
+      "off",
+      "play-off",
+      "fail",
+      D.dailyLimit,
+      D.resumes(reset),
+      false,
+      false,
+    ],
+    "fail-play": [
+      "retry",
+      "retry",
+      "fail",
+      D.playbackStopped,
+      D.connectionLost,
+      false,
+      true,
+    ],
+    "fail-session": ["off", "signin", "fail", D.signedOut, "", false, true],
+    "fail-unreadable": [
+      "retry",
+      "retry",
+      "fail",
+      D.unreadable,
+      "",
+      false,
+      true,
+    ],
+    "offline-start": [
+      "off",
+      "play-off",
+      "fail",
+      D.offline,
+      D.offlineStart,
+      false,
+      false,
+    ],
     "offline-play": [
       "pause",
+      "pause",
+      "live",
       D.offline,
-      D.loaded(clockPos(l.loaded)),
+      D.loaded(aboutLeft(l.loaded)),
       false,
       false,
     ],
     "offline-stopped": [
       "off",
+      "play",
+      "fail",
       D.offline,
       D.stoppedAt(clockPos(l.stoppedAt ?? l.pos)),
       false,
       false,
     ],
   };
-  const [lead, word, rest, busy, revoked] = rows[l.state];
+  const [lead, act, shape, word, rest, busy, revoked] = rows[l.state];
   const say =
     l.state === "fail-session"
       ? D.say.signedOut
       : l.state === "fail-limit"
-        ? D.say.dailyLimit("09:00")
+        ? D.say.dailyLimit(reset)
         : l.state === "next-waiting" && book
           ? D.say.nextWaiting(B.next)
-          : l.state === "playing" && book
+          : (l.state === "playing" || l.state === "paused") && book
             ? D.say.playingChapter(
                 word,
                 B.n,
@@ -133,6 +264,9 @@ export function dockView(l: Listen): DockView {
             : word;
   return {
     lead,
+    act,
+    shape,
+    pct: dockPct(l),
     word,
     rest,
     busy,

@@ -265,3 +265,26 @@ export function headOf(p: {
   }
   return { show: "control", control, note: null, act: false, hold, updating };
 }
+
+/** What the dock's track holds (F207, F208, listen:FG1, FG3): the dock, Listen's pill, or nothing. */
+export interface TrackView {
+  show: "dock" | "pill" | null;
+  /** On a chapter while the bars show, the track stands one foot bar up (listen:FG1). */
+  overFoot: boolean;
+}
+
+/**
+ * The track of a reading page: any Listen under way is the dock (it stays between reading pages); else, for a
+ * text that has Listen, the pill once the page lets it show (the head's control under the top bar, nothing
+ * ahead of it in the slot's order); else nothing. On a chapter it stands over the foot bar while the bars show.
+ */
+export function trackOf(p: {
+  listen: Listen | null;
+  shown: boolean;
+  pill: boolean;
+  chapter: boolean;
+  hidden: boolean;
+}): TrackView {
+  const show = p.listen ? "dock" : p.shown && p.pill ? "pill" : null;
+  return { show, overFoot: p.chapter && !p.hidden };
+}

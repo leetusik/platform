@@ -22,6 +22,45 @@
 .note-text { max-width: 60ch; color: var(--ink-2); }
 .note-ref { color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
 
+/* 7 ── the dock (F208): one floating capsule, in the reading column's track (frame.css section 7; P64-3y.S3) */
+/* the track: in the flow at the page's foot and sticky to the window's foot, so it floats over the text while
+   reading and stands under the last line at the page's end: it never covers it */
+.dock-track { position: sticky; bottom: var(--space-4); z-index: 2; display: flex; justify-content: center; padding-inline: var(--gutter-narrow); pointer-events: none; }
+.dock-track > * { pointer-events: auto; }
+.dock { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2) var(--space-3); width: 100%; max-width: var(--dock-w); padding: var(--space-2); border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+/* the lead: a 44 px square that plays, pauses, starts over or tries again */
+.dock-lead { min-width: var(--control-h); padding: 0; }
+.dock-lead:not(:has(.ico)) { padding: 0 var(--space-3); }   /* Sign in: the lead in words */
+/* the rest of the capsule opens the player: the title on one line, the state word and its rest under it, the up mark at its end */
+.dock-open { display: grid; grid-template-columns: minmax(0, 1fr) var(--ico); align-items: center; gap: 0 var(--space-3); min-width: 0; min-height: var(--control-h); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-s); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.dock-open:hover { background: var(--hover); }
+.dock-text { display: flex; flex-direction: column; min-width: 0; }
+.dock-title { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.dock-open .say { font-size: var(--fs-meta); line-height: var(--lh-meta); }
+/* the position, under both */
+.dock > .meter { grid-column: 1 / -1; }
+/* C03 (ListenDock.dc.html): the lead holds one width in every state, the widest lead word's (Try again), so the
+   title and the state line never move when the lead changes; a mark sits centred in it */
+.dock .dock-lead { padding: 0 var(--space-3); }
+.lead-hold { display: inline-grid; place-items: center; }
+.lead-hold > * { grid-area: 1 / 1; }
+.lead-hold > .lead-size { visibility: hidden; }
+/* C04 (ListenDock.dc.html): the middle dot sits centred in the gap between the word and its rest; when the rest
+   wraps under the word, the dot falls outside the line's start and is clipped, so no line opens with a dot */
+.dock .say { column-gap: var(--space-4); overflow: hidden; }
+.dock .say-rest { position: relative; }
+.dock .say-rest::before { content: "\00B7"; position: absolute; right: 100%; width: var(--space-4); text-align: center; }
+/* listen:FG1 (Listen.dc.html): on a chapter the track floats above the foot bar (one bar's height and its rule),
+   and comes down when the bars hide */
+.reader .dock-track.over-foot { bottom: calc(var(--top-h) + 1px + var(--space-2)); }
+/* listen:FG3 (Listen.dc.html): Listen's pill, the reader's pill (F93's slot), as one button */
+.listen-pill { flex-wrap: nowrap; gap: var(--space-2); font: inherit; color: var(--ink); cursor: pointer; }
+/* C04: the middle dot centred between the label and its figure (8 px of gap and 8 px of margin), the same
+   spacing as the dock's line */
+.listen-pill .listen-q { position: relative; margin-left: var(--space-2); white-space: nowrap; }
+.listen-pill .listen-q::before { content: "\00B7"; position: absolute; right: 100%; width: var(--space-4); text-align: center; }
+.listen-pill:hover { background: var(--hover); }
+
 /* 9 ── follow along (F210): a 2 px accent rule beside the block being read, outside the text's column (P64-3y.S2) */
 .read [data-follow="true"] { position: relative; }
 .read [data-follow="true"]::before { content: ""; position: absolute; top: 0.2em; bottom: 0.2em; left: calc(-1 * var(--space-4)); width: 2px; border-radius: 1px; background: var(--accent); }

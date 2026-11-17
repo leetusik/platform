@@ -23,7 +23,6 @@ import { PaperLight } from "./paper";
  *     OldRoot (still) > PrintColophon             paper's colophon, as today (print only)
  *     MathLayer                                   the math's measures (renders nothing)
  *     AnnotationLayer look="library"              highlights, notes and bookmarks (P63-fk.S11), out of the old root
- *     OldRoot (still) > Listen's slot and player  their old look (decision 3)
  *     LibraryTermLayer                            the terms' windows and the glossary's way back (S10)
  *     PaperLight                                  the light scheme for a print
  *
@@ -88,8 +87,6 @@ export function ChapterBody({ reader }: { reader: LoadedReader }) {
           look="library"
         />
       ) : null}
-      {/* Listen's slot and player keep their old look (decision 3), in the old root that adds no box. */}
-      <OldRoot still>{null}</OldRoot>
       <LibraryTermLayer chapter={chapter} />
       <PaperLight />
     </div>
