@@ -3,6 +3,7 @@
 // (`@/hi2vi/reader/body/body`); the client parts below are what `lib/native/render.tsx` draws the body with.
 // Words: `@/content/reader-blocks`; the sheet is `styles/library/blocks.css` (with frame.css's classes).
 export { OldIsland } from "./island";
-export { Media, MissingMedia, ratioOf } from "./media";
+export { Media, MissingMedia } from "./media";
+export { ratioOf } from "./ratio";
 export { PaperLight } from "./paper";
 export { ScrollBox } from "./scroll-box";

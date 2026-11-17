@@ -5,11 +5,12 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 
 import { READER_BLOCKS } from "@/content/reader-blocks";
+
+import { ratioOf } from "./ratio";
 
 /**
  * A figure's image in the Library's body (job 03 round 02, `BlocksFigure.dc.html`; `## Build` § Page: blocks):
@@ -20,17 +21,6 @@ import { READER_BLOCKS } from "@/content/reader-blocks";
  * Both carry `data-an-skip`: an image's description is not the text, so anchoring counts nothing for it (as the old
  * image box did).
  */
-
-/** The ratio a place keeps when the version's asset map gives no size (the old box's 16:9; `md` has none). */
-const FALLBACK = { w: 1600, h: 900 };
-
-/** The custom properties of an image's ratio. */
-export function ratioOf(w: number | null, h: number | null): CSSProperties {
-  return {
-    "--fig-w": w ?? FALLBACK.w,
-    "--fig-h": h ?? FALLBACK.h,
-  } as CSSProperties;
-}
 
 /** The missing image's place: its ratio and its words. */
 export function MissingMedia({
