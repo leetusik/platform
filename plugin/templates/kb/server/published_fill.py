@@ -34,34 +34,58 @@ another process and cannot hold the server's write lock)::
     python -m server.published_fill --dry-run        # print the plan; write nothing
     python -m server.published_fill --commit --push  # fill, commit docs/, push
 
+**The checkout's state (F8).** The fill uses git only in the one state the box's own
+git helper (``server/gitops.py``) is written for, and checks it before it writes,
+stages, commits or pushes anything: ``KB_ROOT`` is the root of a git checkout that has
+a commit; ``HEAD`` is on ``main`` (not detached, not another branch); no rebase, am,
+merge, cherry-pick, revert (or their sequence) or bisect is in progress; and, for
+``--push``, an ``origin`` remote that has a ``main`` branch. Anywhere else a run that
+writes refuses with one line saying what is wrong and what to do, exit 3, having
+written nothing: a run with no flag too (a later ``--commit`` could not finish it
+there), except where ``KB_ROOT`` is no git checkout at all (then the stamps alone are
+the whole job and only ``--commit`` is refused). One fill run at a time (a lock in the
+git dir; a second run exits 4), and a ``--commit`` run waits for ``index.lock``.
+
 Any run can be followed by another that finishes it; every next step it prints is a
 command that works:
 
 * ``--commit`` commits **the fill's own stamps, wherever they came from**: every
-  tracked version file whose only change from ``HEAD`` is the fill's one line (proved
-  on the bytes: the file is exactly what the fill makes of its ``HEAD`` content), the
-  ones this run wrote and the ones an earlier run without ``--commit`` (or an
-  interrupted one) left. Nothing else, ever: no ``add -A``, never an untracked or
-  ignored file (a private project's files are never tracked and stay out), never a
-  private project's footprint, never a tracked file with any other change, never
-  another staged change (the commit takes only its own paths). Each such change is
-  listed as ``left <path>: <why>``; a file carrying the fill's line **and** another
-  change is left too, and the run asked to commit exits 1.
-* ``--push`` pushes whenever the checkout is ahead of ``origin/main`` at the end of
-  the run, whether or not this run made the commit (fetch, rebase, non-force push,
-  like the write path's). It needs ``--commit`` (``--push`` alone is refused, exit 2,
-  as before). A failed push exits 1 and the local commit stays; a tracked change
-  left in the tree is reported and the push is not attempted (git cannot rebase over
-  it), exit 1.
+  tracked version file whose only change from ``HEAD`` is the fill's one line. The
+  proof is on what git itself would store: git's own patch of the file against
+  ``HEAD`` (after git's line-ending conversions, ``core.autocrlf`` and ``.gitattributes``
+  included) applied to the stored ``HEAD`` bytes must give exactly what the fill makes
+  of those bytes, with no mode change, and a staged copy, if any, must be ``HEAD``'s or
+  that one. It commits them with ``git commit -- <paths>`` (git's partial commit: it
+  touches the real index only once the commit is made), so a commit git refuses (a
+  hook) leaves nothing of the fill's staged, and another staged change stays staged
+  and out of it. Nothing else, ever: never an untracked or ignored file, never a
+  private project's footprint, never a tracked file with any other change. Each such
+  change is listed as ``left <path>: <why>``; a file carrying the fill's line **and**
+  something else (content, mode, a conversion that would change other stored bytes,
+  a move) is left too, and the run asked to commit exits 1.
+* ``--push`` pushes whenever ``main`` is ahead of ``origin/main``, whether or not this
+  run made the commit. It fetches first, then says how many commits go and names each
+  one that is not the fill's (an operator's commit on ``main`` goes too, as the box's
+  next write would push it), then runs the helper's fetch, rebase and non-force push.
+  Each failure has its own line and next step: origin unreachable (re-run later), the
+  commits here not replaying onto a moved ``origin/main`` (settle by hand, then
+  re-run), origin refusing the push. After any failure the checkout is as it was,
+  plus at most the fill's own commit on ``main``. A tracked change left in the tree
+  stops the push before it starts (git cannot rebase over it), exit 1. ``--push``
+  needs ``--commit`` (exit 2).
 * A run without ``--commit`` that leaves the fill's stamps uncommitted says so and
   names the command that finishes it (exit 0: it did what it was asked). A
-  ``--dry-run`` writes and commits nothing and says what a ``--commit`` would take.
-  A run on a clean, pushed tree prints ``nothing to do`` and exits 0.
+  ``--dry-run`` writes, commits and pushes nothing; it says what a ``--commit`` would
+  take and what a ``--push`` would carry, or why a run with its flags would be
+  refused (then it exits 3, as that run would). A run on a clean, pushed tree prints
+  ``nothing to do`` and exits 0; where ``origin/main`` is not known it says so and
+  claims nothing about pushes.
 
 Exit codes: 0 done; 1 an error, or a commit or push asked for that did not happen;
-2 ``--push`` without ``--commit``; 4 the checkout's ``index.lock`` stayed held (or
-``KB_ROOT`` is not a git checkout). Then ``python -m server.reindex`` (or the next
-boot reindex) reads the times into the store.
+2 ``--push`` without ``--commit``; 3 refused, nothing written: the checkout is not in
+the state above (or ``--commit`` where ``KB_ROOT`` is no git checkout); 4 busy, nothing
+written: ``index.lock`` stayed held, or another fill run is going. Then
+``python -m server.reindex`` (or the next boot reindex) reads the times into the store.
 """
 from __future__ import annotations
 
@@ -76,6 +100,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+try:
+    import fcntl
+except ImportError:  # not POSIX: fill runs are not serialised there
+    fcntl = None  # type: ignore[assignment]
 
 from server import config, documents, gitops
 from server.reindex import RESERVED_DIRS
@@ -116,6 +145,8 @@ class Report:
     left: list[tuple[str, str]] = field(default_factory=list)  # (path, why) never staged
     would_commit: int = 0  # (dry run) what a --commit run would commit
     ahead: Optional[int] = None  # commits not on origin/main (None: no origin/main)
+    origin: bool = False  # the checkout has an origin remote
+    others: list[tuple[str, str]] = field(default_factory=list)  # (dry run) commits a push carries that are not the fill's
 
     def count(self, skip: Optional[str]) -> int:
         return sum(1 for p in self.planned if p.skip == skip)
@@ -425,21 +456,48 @@ def fill(*, dry_run: bool, store: Optional[sqlite3.Connection] = None,
     return report
 
 
-# --- the checkout: which uncommitted changes are the fill's own ----------------
+# --- the checkout: the one state the fill's git steps run in (F8) ---------------
 
+BRANCH = "main"  # the branch the box's helper pushes to (gitops.push)
+REMOTE = "origin"
+FILL_LOCK = "published-fill.lock"  # in the git dir: one fill run at a time
 FINISH = "python -m server.published_fill --commit --push"
-FINISH_LOCAL = "python -m server.published_fill --commit"  # a checkout with no origin/main
-LEFT_OTHER = "not the fill's change; never staged"
-LEFT_BOTH = "the fill's line and another change; never staged"
-LEFT_PRIVATE = "the fill's line in a private project's footprint; never staged"
-LEFT_STAGED = "the fill's line, staged differently from the work tree; never staged"
+FINISH_LOCAL = "python -m server.published_fill --commit"  # a checkout with no origin
+EXIT_FAILED, EXIT_USAGE, EXIT_REFUSED, EXIT_BUSY = 1, 2, 3, 4
+
+# (marker under the git dir, the operation it means, how the operator settles it)
+_OPERATIONS = (
+    ("rebase-merge", "rebase", "git rebase --continue, or git rebase --abort"),
+    ("rebase-apply", "rebase or am",
+     "git rebase --continue or git am --continue, or its --abort"),
+    ("MERGE_HEAD", "merge", "commit the merge, or git merge --abort"),
+    ("CHERRY_PICK_HEAD", "cherry-pick",
+     "git cherry-pick --continue, or git cherry-pick --abort"),
+    ("REVERT_HEAD", "revert", "git revert --continue, or git revert --abort"),
+    ("sequencer", "cherry-pick or revert sequence",
+     "git cherry-pick --continue (or git revert --continue), or its --quit"),
+    ("BISECT_START", "bisect", "git bisect reset"),
+)
 
 
-def _git_bytes(args: list[str], *, root: Path) -> Optional[bytes]:
+@dataclass
+class Checkout:
+    """What the fill knows of ``KB_ROOT``'s checkout before it writes anything."""
+
+    git: bool = False  # KB_ROOT is inside a git work tree
+    top: str = ""  # that work tree's root
+    head: bool = False  # HEAD names a commit (False: an unborn branch)
+    branch: Optional[str] = None  # the branch HEAD is on (None: detached)
+    operation: Optional[tuple[str, str]] = None  # (what, how to settle it)
+    origin: bool = False  # an origin remote is configured
+
+
+def _git_bytes(args: list[str], *, root: Path, data: Optional[bytes] = None) -> Optional[bytes]:
     """A git command's stdout as bytes, or ``None`` when it exits non-zero."""
     cmd = ["git", "-C", str(root), *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=config.git_timeout_s())
+        proc = subprocess.run(cmd, capture_output=True, input=data,
+                              timeout=config.git_timeout_s())
     except subprocess.TimeoutExpired as exc:
         raise gitops.GitError(cmd, "timed out") from exc
     return proc.stdout if proc.returncode == 0 else None
@@ -447,6 +505,106 @@ def _git_bytes(args: list[str], *, root: Path) -> Optional[bytes]:
 
 def _has_head(root: Path) -> bool:
     return _git_bytes(["rev-parse", "--verify", "--quiet", "HEAD"], root=root) is not None
+
+
+def read_checkout(kb_root: Path) -> Checkout:
+    """``KB_ROOT``'s checkout as the fill's git steps need it. Reads only."""
+    found = Checkout()
+    top = _git_bytes(["rev-parse", "--show-toplevel"], root=kb_root)
+    if top is None:
+        return found
+    found.git, found.top = True, os.fsdecode(top).rstrip("\n")
+    found.head = _has_head(kb_root)
+    ref = _git_bytes(["symbolic-ref", "-q", "HEAD"], root=kb_root)
+    if ref is not None:
+        found.branch = os.fsdecode(ref).rstrip("\n").removeprefix("refs/heads/")
+    paths = gitops._run(
+        ["rev-parse", *[a for marker, _w, _h in _OPERATIONS for a in ("--git-path", marker)]],
+        root=kb_root,
+    ).stdout.splitlines()
+    for (_marker, what, how), line in zip(_OPERATIONS, paths):
+        path = Path(line)
+        if (path if path.is_absolute() else kb_root / path).exists():
+            found.operation = (what, how)
+            break
+    found.origin = _git_bytes(["config", "--get", f"remote.{REMOTE}.url"],
+                              root=kb_root) is not None
+    return found
+
+
+def local_refusal(found: Checkout, kb_root: Path, *, commit: bool) -> Optional[str]:
+    """Why a run that writes (and with ``commit``, commits) must stop before writing
+    anything here, else ``None``."""
+    if not found.git:
+        if commit:
+            return ("KB_ROOT is not inside a git checkout, so there is nothing to commit; "
+                    "run without --commit (the stamps stay on disk)")
+        return None  # the stamps alone are the whole job
+    if os.path.realpath(found.top) != os.path.realpath(kb_root):
+        return (f"KB_ROOT ({kb_root}) is a folder inside a larger git checkout "
+                f"({found.top}); the fill's git steps run only with KB_ROOT at the "
+                "checkout's root")
+    if not found.head:
+        return (f"the checkout has no commit yet (its branch {found.branch} is unborn); "
+                "commit its content first, then re-run")
+    if found.operation:
+        what, how = found.operation
+        return f"a {what} is in progress in the checkout; settle it first ({how}), then re-run"
+    if found.branch is None:
+        return (f"HEAD is detached; the fill writes, commits and pushes only on {BRANCH} "
+                f"(git switch {BRANCH}), then re-run")
+    if found.branch != BRANCH:
+        return (f"HEAD is on branch {found.branch}, not {BRANCH}; the fill writes, "
+                f"commits and pushes only on {BRANCH} (git switch {BRANCH}), then re-run")
+    return None
+
+
+def remote_refusal(found: Checkout, kb_root: Path) -> Optional[str]:
+    """Why a ``--push`` run must stop before writing anything, else ``None``. An origin
+    that cannot be reached now is not refused: the fill commits, and the push says so."""
+    if not found.origin:
+        return (f"this checkout has no {REMOTE} remote, and --push pushes only to "
+                f"{REMOTE}'s {BRANCH}; run {FINISH_LOCAL} (no --push), or add {REMOTE}, "
+                "then re-run")
+    cmd = ["git", "-C", str(kb_root), "ls-remote", "--exit-code", REMOTE,
+           f"refs/heads/{BRANCH}"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=config.git_timeout_s())
+    except subprocess.TimeoutExpired:
+        return None
+    if proc.returncode == 2:  # reached, and it has no such branch
+        return (f"{REMOTE} has no branch {BRANCH}, the only branch the fill pushes to; "
+                f"run {FINISH_LOCAL} (no --push), then re-run")
+    return None
+
+
+def _hold_fill_lock(kb_root: Path):
+    """The fill's own lock, held for the run (an open file), or ``None`` when another
+    run holds it. Where ``fcntl`` is missing (not POSIX), runs are not serialised."""
+    out = gitops._run(["rev-parse", "--git-path", FILL_LOCK], root=kb_root).stdout.strip()
+    path = Path(out) if Path(out).is_absolute() else kb_root / out
+    handle = open(path, "a")
+    if fcntl is None:
+        return handle
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+# --- the checkout: which uncommitted changes are the fill's own ----------------
+
+LEFT_OTHER = "not the fill's change; never staged"
+LEFT_BOTH = "the fill's line and another change; never staged"
+LEFT_MODE = "the fill's line and a change of the file's mode; never staged"
+LEFT_CONVERT = ("the fill's line, but git's line-ending conversion would also change "
+                "other bytes of the stored file; never staged")
+LEFT_NEW = ("the fill's line in a file HEAD does not have (new, moved or renamed); "
+            "never staged")
+LEFT_PRIVATE = "the fill's line in a private project's footprint; never staged"
+LEFT_STAGED = "the fill's line, staged differently from the work tree; never staged"
 
 
 def _names(args: list[str], *, root: Path) -> set[str]:
@@ -458,10 +616,25 @@ def _names(args: list[str], *, root: Path) -> set[str]:
 def _ahead(root: Path) -> Optional[int]:
     """Commits on ``HEAD`` that ``origin/main`` lacks (``None``: no ``origin/main``)."""
     try:
-        out = gitops._run(["rev-list", "--count", "origin/main..HEAD"], root=root).stdout
+        out = gitops._run(["rev-list", "--count", f"refs/remotes/{REMOTE}/{BRANCH}..HEAD"],
+                          root=root).stdout
     except gitops.GitError:
         return None
     return int(out.strip()) if out.strip().isdigit() else None
+
+
+def _carried(root: Path) -> Optional[list[tuple[str, str]]]:
+    """``[(sha, subject)]`` of the commits a push would carry (``origin/main..HEAD``,
+    oldest first), as of the last fetch; ``None``: no ``origin/main``."""
+    out = _git_bytes(["log", "--reverse", "--format=%H%x09%s",
+                      f"refs/remotes/{REMOTE}/{BRANCH}..HEAD"], root=root)
+    if out is None:
+        return None
+    rows = []
+    for line in out.decode("utf-8", "replace").splitlines():
+        sha, _tab, subject = line.partition("\t")
+        rows.append((sha, subject))
+    return rows
 
 
 def _is_version_file(rel: str) -> bool:
@@ -483,14 +656,68 @@ def _fill_time(raw: bytes, is_html: bool) -> Optional[str]:
     return parsed[0] if parsed and parsed[1] else None
 
 
+_HUNK_RE = re.compile(rb"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
+_MODE_RE = re.compile(rb"(?m)^(?:old|new) mode ")
+
+
+def _lines(raw: bytes) -> list[bytes]:
+    """``raw`` cut after each ``\\n`` (as git's diff cuts it); a last line without one
+    stays as it is."""
+    parts = raw.split(b"\n")
+    return [p + b"\n" for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+
+
+def _stored_after(head: bytes, patch: bytes) -> Optional[bytes]:
+    """The bytes git would store for a file whose stored ``HEAD`` bytes are ``head``,
+    read off git's own zero-context patch of it (``git diff HEAD -U0``, which compares
+    the work-tree file *as git would store it*, conversions included); ``None`` when
+    a hunk holds a line this does not read (a binary patch has no hunk, so it reads
+    as no change, which is never the fill's line)."""
+    hunks: list[tuple[int, int, list[bytes], list[bytes]]] = []
+    last: Optional[list[bytes]] = None
+    rows = patch.split(b"\n")
+    if rows and rows[-1] == b"":
+        rows.pop()
+    for row in rows:
+        match = _HUNK_RE.match(row)
+        if match:
+            start = int(match.group(1))
+            count = 1 if match.group(2) is None else int(match.group(2))
+            hunks.append((start, count, [], []))
+            last = None
+        elif not hunks:
+            continue  # the header (diff, index, ---, +++; a mode is read before this)
+        elif row.startswith(b"-"):
+            last = hunks[-1][2]
+            last.append(row[1:] + b"\n")
+        elif row.startswith(b"+"):
+            last = hunks[-1][3]
+            last.append(row[1:] + b"\n")
+        elif row.startswith(b"\\") and last:  # "\ No newline at end of file"
+            last[-1] = last[-1][:-1]
+        else:
+            return None
+    lines = _lines(head)
+    out: list[bytes] = []
+    cursor = 0
+    for start, count, _removed, added in hunks:
+        at = start - 1 if count else start  # git's own patch of these very bytes
+        out.extend(lines[cursor:at])
+        out.extend(added)
+        cursor = at + count
+    out.extend(lines[cursor:])
+    return b"".join(out)
+
+
 def _why_left(rel: str, *, kb_root: Path, prefixes: list[str], staged: bool,
               private: set[str]) -> Optional[str]:
     """``None`` when the change to ``rel`` (relative to ``kb_root``) is the fill's one
     line and nothing else, else why the fill leaves it.
 
-    The proof is on the bytes: the work-tree file is exactly what ``stamp_bytes``
-    makes of its ``HEAD`` content (as git would check it out) with the time the file
-    now carries, and a staged copy, if any, is the ``HEAD`` one or that one.
+    The proof is on what git would store: git's patch of the work-tree file against
+    ``HEAD`` (its conversions applied), applied to the stored ``HEAD`` bytes, is exactly
+    ``stamp_bytes`` of those bytes with the time the file now carries, with no mode
+    change; a staged copy, if any, is the ``HEAD`` one or that one.
     """
     in_root = next((rel[len(p):] for p in prefixes if rel.startswith(p)), None)
     if in_root is None or not _is_version_file(in_root):
@@ -501,24 +728,47 @@ def _why_left(rel: str, *, kb_root: Path, prefixes: list[str], staged: bool,
         work = path.read_bytes() if path.is_file() else None
     except OSError:
         work = None
-    head = _git_bytes(["cat-file", "--filters", f"HEAD:./{rel}"], root=kb_root)
     at = _fill_time(work, is_html) if work is not None else None
-    if work is None or head is None or at is None:
+    if work is None or at is None:
         return LEFT_OTHER
+    head = _git_bytes(["cat-file", "blob", f"HEAD:./{rel}"], root=kb_root)  # as stored
+    if head is None:
+        return LEFT_NEW
     try:
         if documents.has_published_line(_as_read(head)):
             return LEFT_OTHER  # HEAD already had a time: the fill never adds a second
     except UnicodeDecodeError:
         return LEFT_OTHER
     try:
-        if stamp_bytes(head, at, is_html=is_html) != work:
-            return LEFT_BOTH
+        want = stamp_bytes(head, at, is_html=is_html)
     except Refused:
         return LEFT_BOTH
+    patch = _git_bytes(["--literal-pathspecs", "diff", "HEAD", "--no-ext-diff",
+                        "--no-textconv", "--no-color", "--no-renames", "--binary",
+                        "--unified=0", "--", rel], root=kb_root)
+    if patch is None:
+        return LEFT_OTHER
+    if _MODE_RE.search(patch.split(b"\n@@", 1)[0]):
+        return LEFT_MODE
+    if _stored_after(head, patch) != want:
+        # The work tree took the fill's line alone, but git would store more?
+        checked_out = _git_bytes(["cat-file", "--filters", f"HEAD:./{rel}"], root=kb_root)
+        try:
+            ours = checked_out is not None and stamp_bytes(
+                checked_out, at, is_html=is_html) == work
+        except Refused:
+            ours = False
+        return LEFT_CONVERT if ours else LEFT_BOTH
     if staged:
-        index = _git_bytes(["cat-file", "--filters", f":./{rel}"], root=kb_root)
-        if index not in (head, work):
-            return LEFT_STAGED
+        raw = _git_bytes(["--literal-pathspecs", "diff", "--cached", "--raw", "--no-abbrev",
+                          "--no-renames", "-z", "--", rel], root=kb_root) or b""
+        if raw:
+            fields = raw.split(b"\0", 1)[0].split(b" ")
+            want_id = _git_bytes(["hash-object", "--stdin", "--no-filters"], root=kb_root,
+                                 data=want)
+            if (len(fields) < 4 or fields[0][1:] != fields[1] or want_id is None
+                    or fields[3] != want_id.strip()):
+                return LEFT_STAGED
     if private and gitops._in_private_footprint(rel, private):
         return LEFT_PRIVATE
     return None
@@ -580,16 +830,17 @@ def would_commit(report: Report, *, kb_root: Path) -> int:
 
 def commit_stamps(report: Report, *, kb_root: Path) -> None:
     """Commit ``report.pending`` (the fill's own stamps) and nothing else: one local
-    commit of exactly those paths (``git commit -- <paths>`` leaves any other staged
-    change staged and out of it)."""
+    commit of exactly those paths. ``git commit -- <paths>`` (a partial commit) builds
+    its own index from ``HEAD`` plus those paths and changes the real index only once
+    the commit is made, so a commit git refuses leaves nothing of the fill's staged,
+    and any other staged change stays staged and out of it."""
     rels = _repo_rels(report.written, kb_root)
     tracked = gitops.tracked_paths(rels, root=kb_root) if rels else []
     report.untracked_changed = len(report.written) - len(tracked)
     if not report.pending:
         return
-    gitops.add(report.pending, root=kb_root)  # its private-projects guard, too
-    gitops._run(["--literal-pathspecs", "commit", "-q", "-m", COMMIT_MESSAGE, "--",
-                 *report.pending], root=kb_root)
+    gitops._run(["--literal-pathspecs", "commit", "-q", "--only", "-m", COMMIT_MESSAGE,
+                 "--", *report.pending], root=kb_root)
     report.commit_sha = gitops._run(["rev-parse", "HEAD"], root=kb_root).stdout.strip()
     report.staged, report.pending = list(report.pending), []
 
@@ -621,7 +872,10 @@ def format_report(report: Report, *, dry_run: bool, verbose: bool) -> str:
         lines.append(f"--commit would commit {n} file(s){earlier}" if n
                      else "--commit would commit nothing")
         if report.ahead:
-            lines.append(f"--push would push {report.ahead} commit(s) not on origin/main")
+            lines.append(f"--push would push {report.ahead} commit(s) not on origin/main "
+                         "(as of the last fetch), and the fill's own commit")
+        for sha, subject in report.others:
+            lines.append(f"--push would also carry {sha[:12]} {subject} (not the fill's)")
     return "\n".join(lines)
 
 
@@ -635,22 +889,30 @@ def _parser() -> argparse.ArgumentParser:
             "byte (a file it cannot stamp so is skipped as refused), keeps file "
             "times, skips a file that already has a time. A later run finishes what "
             "an earlier one left: it commits the fill's uncommitted stamps and pushes "
-            "an unpushed commit. Run it ONLY while KB writes are paused."
+            "an unpushed commit. It touches git only when KB_ROOT is the root of a "
+            "checkout on main with a commit and no rebase, am, merge, cherry-pick, "
+            "revert or bisect in progress (and, for --push, an origin with a main "
+            "branch); anywhere else it refuses before writing anything. Run it ONLY "
+            "while KB writes are paused."
         ),
         epilog=(
             "exit: 0 done; 1 an error, or a commit or push asked for that did not "
-            "happen; 2 --push without --commit; 4 index.lock held or no git checkout"
+            "happen; 2 --push without --commit; 3 refused, nothing written (the "
+            "checkout is not in that state, or --commit outside a git checkout); "
+            "4 busy, nothing written (index.lock held, or another fill run going)"
         ),
     )
     parser.add_argument("--dry-run", action="store_true",
-                        help="print what would be stamped, committed and pushed; "
-                             "write nothing")
+                        help="print what would be stamped, committed and pushed (and "
+                             "whether a run with these flags would be refused); write "
+                             "nothing")
     parser.add_argument("--commit", action="store_true",
                         help="commit the fill's own stamps (this run's and any an "
                              "earlier run left) that git tracks, and nothing else")
     parser.add_argument("--push", action="store_true",
-                        help="push when the checkout is ahead of origin/main, after "
-                             "the commit (fetch, rebase, non-force push; needs --commit)")
+                        help="push main to origin when it is ahead, after the commit; "
+                             "names every commit that is not the fill's first (fetch, "
+                             "rebase, non-force push; needs --commit)")
     parser.add_argument("--verbose", action="store_true",
                         help="also list every file skipped, and why")
     return parser
@@ -666,21 +928,105 @@ def _wait_for_index_lock(root: Path, timeout: float = INDEX_LOCK_WAIT_S) -> bool
     return True
 
 
+def _said(exc: gitops.GitError) -> str:
+    """What git said, on one line, without its hints."""
+    said = [line for line in (exc.stderr or str(exc)).splitlines()
+            if not line.lstrip().lower().startswith("hint:")]
+    return " ".join(" ".join(said).split())[:400]
+
+
+def _push(report: Report, *, kb_root: Path) -> tuple[int, bool]:
+    """Push ``main`` on the normal state: fetch, say what goes, then the box's helper.
+    Returns ``(exit code, pushed)``; every failure prints its own next step."""
+    stays = ("the local commit stays" if report.commit_sha or report.ahead
+             else "the checkout is unchanged")
+    try:
+        gitops._run(["fetch", "-q", REMOTE, BRANCH], root=kb_root)
+    except gitops.GitError as exc:
+        print(f"push FAILED: could not fetch {REMOTE} {BRANCH} ({_said(exc)}); nothing "
+              f"was pushed; {stays}; re-run once {REMOTE} is reachable: {FINISH}",
+              file=sys.stderr)
+        return EXIT_FAILED, False
+    carried = _carried(kb_root) or []
+    report.ahead = len(carried)
+    if not carried:
+        print(f"nothing to push: {REMOTE}/{BRANCH} already has every commit here")
+        return 0, False
+    others = [(sha, subject) for sha, subject in carried if subject != COMMIT_MESSAGE]
+    print(f"push: {len(carried)} commit(s) go to {REMOTE}/{BRANCH}, "
+          f"{len(carried) - len(others)} of them the fill's")
+    for sha, subject in others:
+        print(f"push carries {sha[:12]} {subject} (not the fill's)")
+    try:
+        sha = gitops.push(root=kb_root, remote=REMOTE, branch=BRANCH)
+    except gitops.GitError as exc:
+        stage = exc.command[3] if len(exc.command) > 3 else ""
+        if stage == "rebase":
+            print(f"push FAILED: the commits here do not replay cleanly onto "
+                  f"{REMOTE}/{BRANCH}, which has changed since ({_said(exc)}); nothing "
+                  "was pushed, and the checkout is as it was, the local commit "
+                  f"included; settle it by hand (git pull --rebase {REMOTE} {BRANCH}, "
+                  f"resolve, git rebase --continue), then re-run: {FINISH}",
+                  file=sys.stderr)
+        elif stage == "push":
+            print(f"push FAILED: {REMOTE} refused the push ({_said(exc)}); nothing was "
+                  f"pushed; the local commit stays (replayed onto {REMOTE}/{BRANCH}); "
+                  f"once {REMOTE} takes pushes to {BRANCH}, re-run: {FINISH}",
+                  file=sys.stderr)
+        else:
+            print(f"push FAILED: could not reach {REMOTE} ({_said(exc)}); nothing was "
+                  f"pushed; {stays}; re-run once {REMOTE} is reachable: {FINISH}",
+                  file=sys.stderr)
+        return EXIT_FAILED, False
+    print(f"pushed: {REMOTE}/{BRANCH} is now {sha}")
+    report.ahead = 0
+    return 0, True
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
     if args.push and not args.commit:
         print(f"refused: --push needs --commit (run: {FINISH})", file=sys.stderr)
-        return 2
+        return EXIT_USAGE
     kb_root = config.kb_root()
-    if args.commit and not args.dry_run:
+    # Every refusal comes before anything is written, staged, committed or pushed.
+    try:
+        found = read_checkout(kb_root)
+        refusal = local_refusal(found, kb_root, commit=args.commit)
+        if refusal is None and args.push:
+            refusal = remote_refusal(found, kb_root)
+    except gitops.GitError as exc:
+        print(f"error: reading the checkout failed ({_said(exc)}); nothing was written",
+              file=sys.stderr)
+        return EXIT_FAILED
+    if refusal and not args.dry_run:
+        print(f"refused: {refusal}; nothing was written", file=sys.stderr)
+        return EXIT_REFUSED
+    lock = None
+    if found.git and not args.dry_run:
         try:
-            if not _wait_for_index_lock(kb_root, INDEX_LOCK_WAIT_S):
-                print("refused: index.lock is still held; is a write or another git "
-                      "running?", file=sys.stderr)
-                return 4
-        except gitops.GitError:
-            print("refused: KB_ROOT is not a git checkout", file=sys.stderr)
-            return 4
+            lock = _hold_fill_lock(kb_root)
+        except (gitops.GitError, OSError) as exc:
+            print(f"error: the fill's lock: {exc}; nothing was written", file=sys.stderr)
+            return EXIT_FAILED
+        if lock is None:
+            print("refused: another fill run holds the fill's lock; let it finish, then "
+                  "re-run; nothing was written", file=sys.stderr)
+            return EXIT_BUSY
+    try:
+        return _run_fill(args, kb_root, found, refusal)
+    finally:
+        if lock is not None:
+            lock.close()
+
+
+def _run_fill(args: argparse.Namespace, kb_root: Path, found: Checkout,
+              refusal: Optional[str]) -> int:
+    if args.commit and not args.dry_run:
+        if not _wait_for_index_lock(kb_root, INDEX_LOCK_WAIT_S):
+            print("refused: index.lock is still held; is a write or another git "
+                  "running? nothing was written", file=sys.stderr)
+            return EXIT_BUSY
     roots = _roots()
     store = _open_store()
     try:
@@ -688,29 +1034,36 @@ def main(argv: Optional[list[str]] = None) -> int:
     finally:
         if store is not None:
             store.close()
+    report.origin = found.origin
+    if refusal:  # a dry run outside the normal state: the plan, and where a run stops
+        print(format_report(report, dry_run=True, verbose=args.verbose))
+        print(f"refused: a run with these flags would stop before writing anything: "
+              f"{refusal}")
+        return EXIT_REFUSED
     try:
-        scan_checkout(report, kb_root=kb_root, roots=roots)
-        if args.dry_run and report.git:
-            report.would_commit = would_commit(report, kb_root=kb_root)
-        if args.commit and not args.dry_run:
-            if not report.git:
-                report.errors.append("KB_ROOT's checkout has no commit yet; nothing committed")
-            else:
+        if found.git:
+            scan_checkout(report, kb_root=kb_root, roots=roots)
+            if args.dry_run:
+                report.would_commit = would_commit(report, kb_root=kb_root)
+                if args.push:
+                    report.others = [c for c in _carried(kb_root) or []
+                                     if c[1] != COMMIT_MESSAGE]
+            elif args.commit:
                 commit_stamps(report, kb_root=kb_root)
                 report.ahead = _ahead(kb_root)
     except gitops.GitError as exc:
         report.errors.append(f"git failed: {exc.stderr or exc}")
     print(format_report(report, dry_run=args.dry_run, verbose=args.verbose))
 
-    finish = FINISH if report.ahead is not None else FINISH_LOCAL
-    rc = 1 if report.errors else 0
+    finish = FINISH if report.origin else FINISH_LOCAL
+    rc = EXIT_FAILED if report.errors else 0
     if args.dry_run:
         return rc
     if report.pending:
         print(f"not committed: {len(report.pending)} file(s) carry the fill's line, "
               f"uncommitted (the deploy refuses a dirty tracked tree); finish with: {finish}")
         if args.commit:
-            rc = 1
+            rc = EXIT_FAILED
     both = [rel for rel, why in report.left if why != LEFT_OTHER]
     if both:
         print(f"not committed: {len(both)} file(s) carry the fill's line but are left "
@@ -720,9 +1073,9 @@ def main(argv: Optional[list[str]] = None) -> int:
               "git restore --staged --worktree -- <path> drops it and the line), "
               f"then re-run: {finish}")
         if args.commit:
-            rc = 1
+            rc = EXIT_FAILED
     pushed = False
-    if args.push and (report.ahead is None or report.ahead > 0):
+    if args.push and (report.commit_sha or report.ahead is None or report.ahead > 0):
         if report.errors:
             print(f"not pushed: fix the error(s) above, then re-run: {FINISH}",
                   file=sys.stderr)
@@ -730,26 +1083,24 @@ def main(argv: Optional[list[str]] = None) -> int:
             print("push not attempted: git cannot rebase over the tracked changes "
                   f"listed as left above; settle them, then re-run: {FINISH}",
                   file=sys.stderr)
-            rc = 1
+            rc = EXIT_FAILED
         else:
-            try:
-                sha = gitops.push(root=kb_root)
-            except gitops.GitError as exc:
-                print(f"push FAILED: {exc.stderr or exc}; the local commit stays; "
-                      f"re-run once origin is reachable: {FINISH}", file=sys.stderr)
-                rc = 1
-            else:
-                print(f"pushed: origin/main is now {sha}")
-                report.ahead, pushed = 0, True
+            code, pushed = _push(report, kb_root=kb_root)
+            rc = max(rc, code)
     elif report.ahead and not report.errors and not args.push:
         print(f"push owed: {report.ahead} commit(s) here are not on origin/main; "
-              f"finish with: {finish}")
+              f"finish with: {FINISH}")
     if report.written or report.commit_sha or pushed:
         print("next: python -m server.reindex reads the times into the store")
     elif rc == 0 and not report.pending and not both and not report.ahead:
-        print("nothing to do: no version needs a time"
-              + (", and nothing of the fill's is uncommitted or unpushed" if report.git
-                 else ""))
+        tail = ""
+        if report.git and report.ahead is None:
+            tail = ", and nothing of the fill's is uncommitted" + (
+                f"; {REMOTE}/{BRANCH} is not known here, so pushes are not checked"
+                if report.origin else "")
+        elif report.git:
+            tail = ", and nothing of the fill's is uncommitted or unpushed"
+        print("nothing to do: no version needs a time" + tail)
     return rc
 
 
