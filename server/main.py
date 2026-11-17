@@ -41,6 +41,7 @@ from server import listen_play
 from server import reader_api
 from server import reader_state
 from server import usage_api
+from server import workspace_api
 from server import documents as documents_mod
 from server import embeddings as embeddings_mod
 from server import gitops
@@ -188,6 +189,13 @@ app.include_router(listen_play.router)
 # /app/feedback*). Capture persists in the request; the owner alert runs after the
 # response. Postgres-only: with no DATABASE_URL every Feedback route answers 404.
 app.include_router(feedback_api.router)
+
+# Workspace sync: the engine-facing /api/workspace/{project_id}/… routes (head,
+# manifest, fetch, commit) over the workspace store (server/workspace/). Only that
+# project's workspace key gets through (resolve_api_workspace); a batch lands all or
+# nothing under the project's row lock. Postgres-only: with no DATABASE_URL every
+# route answers 404. Unmetered.
+app.include_router(workspace_api.router)
 
 # One process-wide lock serializes the whole write critical section (file → index
 # → DB → git). Load-bearing invariant: the API runs a SINGLE uvicorn worker, so an
