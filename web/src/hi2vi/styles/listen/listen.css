@@ -55,6 +55,9 @@
 .reader .dock-track.over-foot { bottom: calc(var(--top-h) + 1px + var(--space-2)); }
 /* listen:FG3 (Listen.dc.html): Listen's pill, the reader's pill (F93's slot), as one button */
 .listen-pill { flex-wrap: nowrap; gap: var(--space-2); font: inherit; color: var(--ink); cursor: pointer; }
+/* the pill's mark is the system's 16 px square, as the board's `i` is: the Library's `.pill > span` (a 44 px flex
+   row) would stretch the mark's `span` to the pill's height and lift the triangle out of it (P64-3y.S11) */
+.listen-pill > .ico { display: inline-block; min-height: 0; }
 /* C04: the middle dot centred between the label and its figure (8 px of gap and 8 px of margin), the same
    spacing as the dock's line */
 .listen-pill .listen-q { position: relative; margin-left: var(--space-2); white-space: nowrap; }
