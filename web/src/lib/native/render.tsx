@@ -1052,7 +1052,9 @@ class Renderer {
           {
             id: block.id ?? undefined,
             className: this.lib ? undefined : "kb-ch-h",
-            "data-block": block.id ?? undefined,
+            // A Markdown heading's id is for its section list only: no place hook (P63-fk.S27).
+            "data-block":
+              this.links.format === "md" ? undefined : (block.id ?? undefined),
           },
           this.inline(block.content),
         );

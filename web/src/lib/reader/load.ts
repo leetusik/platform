@@ -58,6 +58,8 @@ import {
 } from "@/lib/native";
 import { lookOf } from "@/lib/legacy/messages";
 import { displayText } from "@/lib/native/display-text";
+import { headingSlug, IdRegistry } from "@/lib/native/ids";
+import { plainText } from "@/lib/native/parse";
 import { planTerms } from "@/lib/native/terms";
 import { parseReaderCookie, type ReaderSettings } from "@/lib/reader-cookie";
 import { bookHref, readerHref, type ReaderTarget } from "@/lib/reader-href";
@@ -267,6 +269,28 @@ export function headingsOf(
     }
   }
   return out;
+}
+
+/**
+ * A loose Markdown document's sections (P63-fk.S27): the md parse gives no heading an id, so
+ * `headingsOf` listed none and the head had no "In this document" and no fold. Each top-level
+ * h2, h3 and h4 (the levels a native chapter ids) gets the id the native parse would assign it
+ * (`parse.ts` `assign`: `headingSlug` of its plain text, de-duplicated by `IdRegistry.assignSlug`,
+ * a heading with no ASCII slug numbered `s-N`), in source order. A heading whose text is blank
+ * gets none, so it is never a list entry. Only the loose reader asks for this; every other caller
+ * of the md parse keeps its id-less tree. Mutates `checked` (its blocks are the tree's objects).
+ */
+export function idMarkdownHeadings(checked: CheckedChapter): void {
+  if (checked.format !== "md") return;
+  const ids = new IdRegistry();
+  for (const block of checked.tree.blocks) {
+    if (block.type !== "heading" || block.level < 2 || block.level > 4)
+      continue;
+    const text = plainText(block.content);
+    if (!text.trim()) continue;
+    const slug = headingSlug(text);
+    block.id = slug ? ids.assignSlug(slug) : ids.assignNumbered("s");
+  }
 }
 
 /** The pieces of one document the reader renders. */
@@ -997,6 +1021,7 @@ export async function loadLooseReader(args: {
   }
 
   const checked = validateChapter(body.text, body.format);
+  idMarkdownHeadings(checked);
   const lang = guessLang(`${body.title}\n${body.text.slice(0, 4000)}`);
   // The member's saved progress and the history, beside the link resolution. A
   // tenant with no org slug has nowhere to address a save (`org` is the slug or the
