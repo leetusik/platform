@@ -89,7 +89,11 @@ export function DocumentLoading() {
                     {skel()}
                   </div>
                 </div>
-                <div className="read" aria-hidden="true">
+                <div
+                  className="read"
+                  style={{ gap: "var(--space-5)" }}
+                  aria-hidden="true"
+                >
                   <p className="stack gap-3">
                     {skel("100%")}
                     {skel("100%")}
