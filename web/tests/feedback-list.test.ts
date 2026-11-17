@@ -310,3 +310,196 @@ describe("the org's list", () => {
     );
   });
 });
+
+/**
+ * What the list's filter bar sends with no script (before the island hydrates, or none at all): the
+ * form data set a browser builds for a GET submit of the rendered markup. Named controls that are not
+ * disabled, the select's selected option (else its first), and of the submit buttons only the
+ * submitter; Enter submits through the form's first submit button. `typed` is what is in the field.
+ */
+function sent(html: string, by: string, typed?: string) {
+  const form = /<form [^>]*class="filterbar"[\s\S]*?<\/form>/.exec(html)![0];
+  const decode = (s: string) =>
+    s
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+  const attr = (tag: string, name: string) => {
+    const m = new RegExp(` ${name}="([^"]*)"`).exec(tag);
+    return m ? decode(m[1]) : null;
+  };
+  const open = (control: string) => /^<[^>]*>/.exec(control)![0];
+  const controls = [
+    ...form.matchAll(
+      /<input\b[^>]*>|<button\b[^>]*>[^<]*|<select\b[^>]*>[\s\S]*?<\/select>/g,
+    ),
+  ].map((m) => m[0]);
+  const buttons = controls.filter(
+    (c) => c.startsWith("<button") && attr(open(c), "type") === "submit",
+  );
+  const submitter =
+    by === "Enter"
+      ? buttons[0]
+      : buttons.find((b) => b.slice(open(b).length) === by);
+  if (!submitter) throw new Error(`no submit button ${by}`);
+  if (attr(open(submitter), "disabled") !== null)
+    throw new Error(`${by} is disabled`);
+  const params = new URLSearchParams();
+  for (const control of controls) {
+    const tag = open(control);
+    const name = attr(tag, "name");
+    if (name === null || name === "" || attr(tag, "disabled") !== null)
+      continue;
+    if (control.startsWith("<button")) {
+      if (control === submitter) params.append(name, attr(tag, "value") ?? "");
+    } else if (control.startsWith("<select")) {
+      const options = [...control.matchAll(/<option\b[^>]*>/g)].map(
+        (m) => m[0],
+      );
+      const picked =
+        options.find((o) => attr(o, "selected") !== null) ?? options[0];
+      params.append(name, attr(picked, "value") ?? "");
+    } else if (attr(tag, "type") === "search" && typed !== undefined) {
+      params.append(name, typed);
+    } else {
+      params.append(name, attr(tag, "value") ?? "");
+    }
+  }
+  return { action: decode(attr(open(form), "action")!), params };
+}
+
+/** The place the list reads from what the bar sent; no key is sent twice. */
+async function landed(
+  out: ReturnType<typeof sent>,
+  scope: string | null = null,
+) {
+  const { readFeedbackPlace } = await import("@/lib/feedback/place");
+  for (const key of out.params.keys())
+    expect(out.params.getAll(key)).toHaveLength(1);
+  const params = Object.fromEntries(out.params);
+  return {
+    action: out.action,
+    params,
+    place: readFeedbackPlace(params, scope),
+  };
+}
+
+describe("the bar without script", () => {
+  it("Search carries the pressed rating; the toggles are the only other controls named rating", async () => {
+    const set = await orgBody({ q: "x", rating: "disliked" });
+    const form = /<form [^>]*class="filterbar"[\s\S]*?<\/form>/.exec(set)![0];
+    expect(
+      [...form.matchAll(/<button\b[^>]*name="rating"[^>]*>([^<]*)/g)].map(
+        (m) => [m[1], /value="(\w*)"/.exec(m[0])![1]],
+      ),
+    ).toEqual([
+      ["Search", "disliked"],
+      ["Any rating", ""],
+      ["Liked", "liked"],
+      ["Disliked", "disliked"],
+    ]);
+    expect(form).not.toMatch(/<input\b[^>]*name="rating"/);
+    expect(await orgBody({ q: "x" })).toContain(
+      '<button type="submit" class="btn">Search</button>',
+    );
+  });
+
+  it("(a) the org's list, Disliked, the Search button: the rating and the search kept, page 1", async () => {
+    const out = await landed(
+      sent(await orgBody({ rating: "disliked" }), "Search", "latency"),
+    );
+    expect(out.action).toBe("/feedback");
+    expect(out.params).toEqual({
+      q: "latency",
+      project: "",
+      rating: "disliked",
+    });
+    expect(out.place).toEqual({
+      page: 1,
+      q: "latency",
+      project: null,
+      rating: "disliked",
+    });
+  });
+
+  it("(b) the same with Enter in the field", async () => {
+    const out = await landed(
+      sent(await orgBody({ rating: "disliked" }), "Enter", "latency"),
+    );
+    expect(out.params).toEqual({
+      q: "latency",
+      project: "",
+      rating: "disliked",
+    });
+  });
+
+  it("(c) a project's list, a rating set, Search or Enter: the rating kept, the scope the path's", async () => {
+    for (const by of ["Search", "Enter"]) {
+      const out = await landed(
+        sent(await projectPage("p1", { rating: "liked" }), by, "latency"),
+        "p1",
+      );
+      expect(out.action).toBe("/projects/p1/feedback");
+      expect(out.params).toEqual({ q: "latency", rating: "liked" });
+      expect(out.place).toEqual({
+        page: 1,
+        q: "latency",
+        project: null,
+        rating: "liked",
+      });
+    }
+  });
+
+  it("(d) the org's list, a project and a rating set, Search: both kept", async () => {
+    const out = await landed(
+      sent(
+        await orgBody({ project: "p1", rating: "disliked" }),
+        "Search",
+        "latency",
+      ),
+    );
+    expect(out.params).toEqual({
+      q: "latency",
+      project: "p1",
+      rating: "disliked",
+    });
+  });
+
+  it("(e) a toggle sends its own rating once, the search and the project kept", async () => {
+    const html = await orgBody({ q: "x", project: "p1", rating: "disliked" });
+    for (const [by, rating] of [
+      ["Liked", "liked"],
+      ["Disliked", "disliked"],
+    ] as const) {
+      const out = await landed(sent(html, by));
+      expect(out.params).toEqual({ q: "x", project: "p1", rating });
+    }
+    const project = await landed(
+      sent(await projectPage("p1", { q: "x", rating: "liked" }), "Disliked"),
+      "p1",
+    );
+    expect(project.params).toEqual({ q: "x", rating: "disliked" });
+  });
+
+  it("(f) Any rating sends no rating; a search with none set sends no rating key", async () => {
+    const any = await landed(
+      sent(await orgBody({ q: "x", rating: "liked" }), "Any rating"),
+    );
+    expect(any.params.rating ?? "").toBe("");
+    expect(any.place).toEqual({ page: 1, q: "x", project: null, rating: null });
+    const none = await landed(sent(await orgBody({ q: "x" }), "Search", "y"));
+    expect(none.params).toEqual({ q: "y", project: "" });
+  });
+
+  it("(g) a search or a toggle starts at page 1", async () => {
+    api.page = { records: [record(1)], total: 230 };
+    const html = await orgBody({ q: "a", rating: "liked", page: "2" });
+    for (const by of ["Search", "Enter", "Disliked"]) {
+      const out = await landed(sent(html, by, "b"));
+      expect(out.params.page).toBeUndefined();
+      expect(out.place).toMatchObject({ page: 1 });
+    }
+  });
+});

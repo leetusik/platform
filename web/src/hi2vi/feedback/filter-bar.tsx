@@ -96,6 +96,22 @@ export interface FilterBarProps {
   onRating?: (rating: RatingFilter | null, q: string) => void;
 }
 
+/**
+ * Whether a rating toggle sent the form: a submitter named as the rating, other than Search (which
+ * carries the pressed rating under that name too, see `FilterBar`). None (`requestSubmit()`) is not.
+ */
+export function isToggle(
+  submitter: Pick<Element, "getAttribute"> | null | undefined,
+  search: unknown,
+  rating: string,
+): boolean {
+  return (
+    !!submitter &&
+    submitter !== search &&
+    submitter.getAttribute("name") === rating
+  );
+}
+
 const RATINGS: readonly SegOption<"" | RatingFilter>[] = [
   { value: "", label: FILTER.anyRating },
   { value: "liked", label: FILTER.liked },
@@ -107,7 +123,11 @@ const RATINGS: readonly SegOption<"" | RatingFilter>[] = [
  * row of its panel, a GET `form.filterbar[role=search]`: the search field and **Search**, the project
  * select (left out with a project picked in the Shell), the rating toggles (no filter for unrated).
  * Search runs on Enter or the button; the select and the toggles apply at once and take what is typed
- * with them. Without script the form submits to `action`. With the handlers the page navigates itself:
+ * with them. Without script the form submits to `action`, carrying the whole place the bar shows, each
+ * key once: a toggle sends its own rating; Search (also Enter's, the form's first submit button) is
+ * named as the rating with the pressed value while one is set, since a submit button's name and value
+ * go only when it is the submitter, where a hidden field would repeat the toggles' key. With the
+ * handlers the page navigates itself:
  * the bar reads no address and fetches nothing. A new search or filter starting at page 1 is the
  * address's rule (the page's), as is dropping blank fields.
  */
@@ -132,6 +152,7 @@ export function FilterBar({
   // `key` per value redrew them and dropped focus to the page).
   const field = useRef<HTMLInputElement>(null);
   const select = useRef<HTMLSelectElement>(null);
+  const search = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (field.current && field.current.value !== q) field.current.value = q;
   }, [q]);
@@ -144,10 +165,10 @@ export function FilterBar({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     const form = event.currentTarget;
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    if (submitter?.getAttribute("name") === names.rating) {
+    if (isToggle(submitter, search.current, names.rating)) {
       if (!onRating) return;
       event.preventDefault();
-      const value = submitter.getAttribute("value");
+      const value = submitter!.getAttribute("value");
       onRating(
         value === "liked" || value === "disliked" ? value : null,
         typed(form),
@@ -182,7 +203,14 @@ export function FilterBar({
           defaultValue={q}
           disabled={disabled || undefined}
         />
-        <button type="submit" className="btn" disabled={disabled || undefined}>
+        <button
+          ref={search}
+          type="submit"
+          className="btn"
+          name={rating ? names.rating : undefined}
+          value={rating ?? undefined}
+          disabled={disabled || undefined}
+        >
           {FILTER.submit}
         </button>
       </div>
@@ -199,7 +227,7 @@ export function FilterBar({
               const form = event.currentTarget.form;
               if (onProject)
                 onProject(event.currentTarget.value || null, typed(form));
-              else form?.requestSubmit();
+              else form?.requestSubmit(search.current);
             }}
           >
             <option value="">{FILTER.allProjects}</option>

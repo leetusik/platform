@@ -16,6 +16,7 @@ import {
   Tags,
   Waiting,
 } from "@/hi2vi/feedback";
+import { isToggle } from "@/hi2vi/feedback/filter-bar";
 
 // The Feedback frame's shared parts (job 04 round 02, `result.md` § The shared pieces; the Components
 // boards Rating, Tag, Facts, Json, FilterBar, Stack, Waiting). Each emits its board's markup.
@@ -137,7 +138,7 @@ describe("FilterBar and Seg (F128, F141, F144)", () => {
       expect(form).toContain(attr);
     expect(out).toContain('<input type="hidden" name="scope" value="p9"/>');
     expect(out).toContain(
-      '<div class="filterbar-search"><input class="input" type="search" aria-label="Search feedback" placeholder="e.g. 결제 or checkout" name="q" value="search"/><button type="submit" class="btn">Search</button></div>',
+      '<div class="filterbar-search"><input class="input" type="search" aria-label="Search feedback" placeholder="e.g. 결제 or checkout" name="q" value="search"/><button type="submit" class="btn" value="disliked" name="rating">Search</button></div>',
     );
     expect(out).toContain(
       '<div class="select"><select class="input" aria-label="Project" name="project">',
@@ -175,6 +176,16 @@ describe("FilterBar and Seg (F128, F141, F144)", () => {
     expect(off.match(/ disabled=""/g)).toHaveLength(6);
     const on = html(FilterBar, { action: "/feedback", projects });
     expect(on).not.toContain("disabled");
+  });
+
+  it("tells a rating toggle from Search, which carries the rating's name too", () => {
+    const button = (name: string | null) => ({ getAttribute: () => name });
+    const search = button("rating");
+    expect(isToggle(button("rating"), search, "rating")).toBe(true);
+    expect(isToggle(search, search, "rating")).toBe(false);
+    expect(isToggle(button(null), search, "rating")).toBe(false);
+    expect(isToggle(null, search, "rating")).toBe(false);
+    expect(isToggle(button("r"), null, "r")).toBe(true);
   });
 
   it("Seg draws a group of toggle buttons, the pressed one marked", () => {
