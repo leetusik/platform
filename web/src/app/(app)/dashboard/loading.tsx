@@ -1,7 +1,9 @@
 import { Keys, Trend, Usage } from "@/hi2vi/frame";
+import { SendFeedback } from "@/hi2vi/send-feedback";
 import { Grid, Stack } from "@/hi2vi/ui";
 import { ORG_HOME } from "@/content/dashboard";
 import { requireIdentity } from "@/lib/auth-guards";
+import { feedbackControl } from "@/lib/send-feedback/config";
 
 import { mintOrgKey, revokeOrgKey } from "./actions";
 import "./org-home.css";
@@ -22,11 +24,14 @@ function loadingNow(): number {
  * (the session knows the org; `requireIdentity` is the layout's cached read); the four figures are bars
  * under both headings; Projects, Trend, Public URL and Recent activity draw their own skeletons; the
  * keys panel is `Keys`' own (F21). The same structure and sizes as the page, so nothing moves when the
- * data lands but the rows a table gains or loses after its third.
+ * data lands but the rows a table gains or loses after its third. The head's feedback control shows
+ * while the page loads too (job 08's `## Build` §5), from the same cached identity, where the server
+ * holds the control's key.
  */
 export default async function DashboardLoading() {
   const { identity } = await requireIdentity();
   const orgName = identity.tenant?.name ?? "";
+  const feedback = feedbackControl();
   const now = loadingNow();
   const lastDay = new Date(now).toISOString().slice(0, 10);
 
@@ -37,6 +42,14 @@ export default async function DashboardLoading() {
           <div className="page-title">
             <h1>{orgName}</h1>
           </div>
+          {feedback.configured ? (
+            <SendFeedback
+              context="account"
+              limit={feedback.limit}
+              account={identity.user.email}
+              triggerClassName="btn"
+            />
+          ) : null}
         </div>
       </header>
       <Usage loading busyLabel={ORG_HOME.loading} />
