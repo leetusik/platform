@@ -38,7 +38,11 @@ from server.accounts.auth import AuthContext, require_user
 from server.accounts.security import generate_opaque_token, sha256_hex
 from server.accounts.service import DuplicateOrgSlugError, get_accounts_service
 from server.accounts.slugs import InvalidOrgSlugError, normalize_org_slug
-from server.accounts.types import CreateProject, CreateProjectCredential
+from server.accounts.types import (
+    CREDENTIAL_SCOPE_WORKSPACE,
+    CreateProject,
+    CreateProjectCredential,
+)
 from server.api_auth import get_tenant_one_id
 from server.auth_api import serialize_tenant
 
@@ -64,13 +68,15 @@ class CreateProjectInput(BaseModel):
 class CreateCredentialInput(BaseModel):
     """Credential-creation request body. ``name`` is an optional display label.
 
-    ``scope`` picks what the key reaches: ``"full"`` (the default, every key surface)
-    or ``"capture"`` (only the Feedback capture surfaces); any other value is a 422
-    from the ``Literal`` (the same set as ``accounts.types.CREDENTIAL_SCOPES``).
+    ``scope`` picks what the key reaches: ``"full"`` (the default, every Library and
+    capture surface), ``"capture"`` (only the Feedback capture surfaces) or
+    ``"workspace"`` (only its project's workspace routes; the project key route alone
+    mints it); any other value is a 422 from the ``Literal`` (the same set as
+    ``accounts.types.CREDENTIAL_SCOPES``).
     """
 
     name: str | None = Field(default=None, max_length=200)
-    scope: Literal["full", "capture"] = "full"
+    scope: Literal["full", "capture", "workspace"] = "full"
 
     @field_validator("name")
     @classmethod
@@ -361,7 +367,8 @@ async def create_credential(
     """Mint a per-project ingest credential; the plaintext ``vk_`` key is returned once.
 
     The raw key is emitted only in this response; only its sha256 hash (and a
-    short display prefix) is persisted, so it can never be recovered afterward.
+    short display prefix) is persisted, so it can never be recovered afterward. This
+    is the only route that mints a ``workspace`` key, bound to this project.
     """
 
     project = await _load_scoped_project(project_id, ctx)
@@ -430,9 +437,18 @@ async def create_org_credential(
 
     One org key authorizes writes across every project in the caller's org. Only its
     sha256 hash (and a short display prefix) is persisted — the raw key is never
-    recoverable afterward.
+    recoverable afterward. A ``workspace`` key is refused with a 422 before anything
+    is minted: it is bound to one project, so only the project key route makes one.
     """
 
+    if body.scope == CREDENTIAL_SCOPE_WORKSPACE:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "a workspace key must name a project: make it on the project's key "
+                "route, POST /app/projects/{project_id}/credentials"
+            ),
+        )
     key = f"vk_{generate_opaque_token()}"
     record = await get_accounts_service().create_project_credential(
         CreateProjectCredential(

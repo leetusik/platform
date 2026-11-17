@@ -63,6 +63,7 @@
       "tests/test_html_documents.py",
       "tests/test_org_credentials.py",
       "tests/test_org_switch.py",
+      "tests/test_workspace_key.py",
       "tests/test_public_read.py",
       "tests/test_private_publish.py",
       "tests/test_reconcile.py",
