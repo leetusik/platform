@@ -516,6 +516,7 @@ function recorder() {
     setSpeed: rec("setSpeed"),
     setFollow: rec("setFollow"),
     stop: rec("stop"),
+    end: rec("end"),
   };
   setEngine(engine);
   return calls;

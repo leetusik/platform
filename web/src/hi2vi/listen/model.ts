@@ -103,6 +103,8 @@ function resumeOf(
 ): { pos: number; len: number | null } | null {
   const lang = seed.state?.listen.lang || seed.lang;
   const k = placeIn(kept, lang);
+  // P64-3y.F1 (F231): a Listen of this unit that ended keeping nothing leaves no place, read or kept.
+  if (k && k.unit === unitOfKey(seed.key) && k.none) return null;
   if (k && k.unit === unitOfKey(seed.key) && k.ch === seed.chapter) {
     return { pos: k.pos, len: k.len ?? chapterLen(seed) };
   }
@@ -277,6 +279,10 @@ export interface TrackView {
  * The track of a reading page: any Listen under way is the dock (it stays between reading pages); else, for a
  * text that has Listen, the pill once the page lets it show (the head's control under the top bar, nothing
  * ahead of it in the slot's order); else nothing. On a chapter it stands over the foot bar while the bars show.
+ *
+ * P64-3y.F1 — `starting`: the page's head reads Starting… (`startingOf`). `Listen.dc.html`'s "Starting…" draws no
+ * dock and no pill until the Listen answers (its `begin` sets the Listen only once start answers; `pillOn` needs
+ * the head's control): the track holds nothing meanwhile, so the dock never reads Loading… beside Starting….
  */
 export function trackOf(p: {
   listen: Listen | null;
@@ -284,7 +290,54 @@ export function trackOf(p: {
   pill: boolean;
   chapter: boolean;
   hidden: boolean;
+  starting?: boolean;
 }): TrackView {
-  const show = p.listen ? "dock" : p.shown && p.pill ? "pill" : null;
+  const show = p.starting
+    ? null
+    : p.listen
+      ? "dock"
+      : p.shown && p.pill
+        ? "pill"
+        : null;
   return { show, overFoot: p.chapter && !p.hidden };
+}
+
+/**
+ * P64-3y.F1 — whether the track holds back for a Starting… head: the page's own flag (the book page's head, busy from
+ * its press: `BookBody`'s `starting`), or a text page's press read from `./starting` (`startingOf`).
+ */
+export function trackStartingOf(p: {
+  starting: boolean;
+  pressed: string | null;
+  seed: Pick<ListenSeed, "key" | "chapter"> | null;
+  listen: Listen | null;
+}): boolean {
+  if (p.starting) return true;
+  return (
+    !!p.seed &&
+    startingOf({ pressed: p.pressed, seed: p.seed, listen: p.listen })
+  );
+}
+
+/** P64-3y.F1 — a text page's own name for its head's press: the Listen's unit and the chapter on screen. */
+export function textOf(seed: Pick<ListenSeed, "key" | "chapter">): string {
+  return `${unitOfKey(seed.key)}#${seed.chapter ?? ""}`;
+}
+
+/**
+ * P64-3y.F1 — whether a text page's head reads Starting… (F206: "This text's Listen starting: the control, busy,
+ * Starting…"): this text's own press (the head's control or its pill: `pressed`, `textOf`) is out, and the
+ * Listen has not answered it, that is no Listen of this unit yet, or this unit's still `loading`. The head
+ * (`headOf`) and the track (`trackOf`) read the one answer.
+ */
+export function startingOf(p: {
+  pressed: string | null;
+  seed: Pick<ListenSeed, "key" | "chapter">;
+  listen: Listen | null;
+}): boolean {
+  if (p.pressed === null || p.pressed !== textOf(p.seed)) return false;
+  const unit = unitOfKey(p.seed.key);
+  const answered =
+    !!p.listen && p.listen.unit === unit && p.listen.state !== "loading";
+  return !answered;
 }

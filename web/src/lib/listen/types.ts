@@ -179,4 +179,10 @@ export interface ListenKept {
   len: number | null;
   /** The Listen's language: the place is offered only where that language plays (P41-sr.F3). */
   lang: string;
+  /**
+   * P64-3y.F1 — the Listen ended keeping nothing (F231: left while still preparing, finished or at 0:00): the unit
+   * offers no place, whatever the page read before the Listen started (`Main.dc.html` deletes the unit's `kept` at
+   * the start and `leave` adds none back). The next Listen clears it, as it clears a kept place.
+   */
+  none?: boolean;
 }

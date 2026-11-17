@@ -220,6 +220,7 @@ export function BookBody({
           hidden={false}
           signInHref={signInHref}
           held
+          starting={starting && !answered}
           pillOf={
             control
               ? {

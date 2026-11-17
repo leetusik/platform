@@ -1070,6 +1070,23 @@ export function createEngine(
       mediaState();
     },
 
+    end() {
+      // P64-3y.F1 (F231): leaving the Listen pages with no place to keep. The place is saved once, as a page
+      // load's leave saves it (the position, never `kept`), and the Listen ends: nothing is kept.
+      const l = getListen();
+      if (!l) return;
+      sid += 1;
+      if (attached) save(true);
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = null;
+      detach();
+      pending = null;
+      timeline = null;
+      broken = true;
+      setListen(null);
+      mediaState();
+    },
+
     destroy() {
       for (const off of offs.splice(0)) off();
       if (pollTimer) clearTimeout(pollTimer);

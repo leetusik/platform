@@ -57,20 +57,70 @@ function where(l: Listen): string {
  * A book's chapter count, and the chapters it names (P41-sr.W2). `total` is the book's
  * (a chapter's place, "Chapter 2 of 5"); `own` is this Listen's own listenable chapters,
  * in its language, for every "n chapters" count (P41-sr.F3: "all 2 chapters").
+ *
+ * P64-3y.F1 — the sets, one per figure (numerator and denominator always the same set):
+ *  - a place, `Chapter n of N` (the note's `making-book`, the player's meta and `where`): the book's chapters;
+ *  - a count or a share of chapters, `all N chapters`, `Chapters prepared x%`: this Listen's own chapters
+ *    (`ownMade` of `own`): the record draws the whole book because its Listen is the whole book; a Listen from
+ *    a later chapter, or in a language some chapters lack, is its own chapters only (P41-sr.F3), and the
+ *    state the client reads names no other chapter;
+ *  - a part, `Part n of N`, `part n of N`, `Audio prepared x%`: the parts of the one unit being made (a
+ *    document, or the book's chapter being made).
  */
 function bookNums(l: Listen): {
   total: number;
   own: number;
+  ownMade: number;
   n: number;
   next: number;
   making: number;
 } {
   const total = l.book?.chapters.length ?? 1;
-  const own = ownChapters(l.entries).length || total;
+  const owned = ownChapters(l.entries);
+  const own = owned.length || total;
+  const ownMade = l.entries.filter(
+    (e) =>
+      e.state === "made" && e.chapter !== null && owned.includes(e.chapter),
+  ).length;
   const n = chapterN(l, l.ch) ?? 1;
   const next = nextChapter(l, l.ch)?.n ?? n + 1;
-  const making = chapterN(l, l.making) ?? n;
-  return { total, own, n, next, making };
+  const making = chapterN(l, makingOf(l)) ?? n;
+  return { total, own, ownMade, n, next, making };
+}
+
+/**
+ * P64-3y.F1 — the book's chapter being made: the making's own chapter (B1's `part.chapter`), else the first of
+ * the Listen's own chapters not made yet (a chapter queued before its first part is claimed); null when every
+ * one is made, and for a document.
+ */
+export function makingOf(
+  l: Pick<Listen, "kind" | "making" | "entries">,
+): string | null {
+  if (l.kind !== "book") return null;
+  if (l.making) return l.making;
+  return (
+    l.entries.find((e) => e.state !== "made" && e.state !== "unavailable")
+      ?.chapter ?? null
+  );
+}
+
+/**
+ * P64-3y.F1 — whether the Listen stands on the unit being made (`Listen.dc.html`'s `keyFor`): a document always;
+ * a book when its chapter is the one being made (the board's "Chapter 7 preparing": `Part 2 of 9 … Audio
+ * prepared 11%`), not when it waits on a later chapter for an earlier one (the board's "Chapter 8 waits for 7":
+ * `Chapter 7 of 14 … Chapters prepared 43%`).
+ */
+export function onMaking(
+  l: Pick<Listen, "kind" | "making" | "entries" | "ch">,
+): boolean {
+  if (l.kind !== "book") return true;
+  const m = makingOf(l);
+  return m === null || m === l.ch;
+}
+
+/** P64-3y.F1 — a book Listen of one chapter reads as a text with no chapters (`finishedDoc`, the dock's bare word). */
+function oneChapter(l: Listen): boolean {
+  return l.kind === "book" && bookNums(l).own <= 1;
 }
 
 /** The next chapter's own time left preparing, else the Listen's (F10 next-waiting). */
@@ -184,7 +234,7 @@ export function dockView(l: Listen): DockView {
       "startover",
       "done",
       D.finished,
-      book ? D.allChapters(B.own) : "",
+      book && !oneChapter(l) ? D.allChapters(B.own) : "",
       false,
       false,
     ],
@@ -353,27 +403,38 @@ export function noteView(
   const N = LISTEN.note;
   const part = l.part?.n ?? 1;
   const parts = l.part?.of ?? l.parts;
-  const left = l.left !== null ? aboutLeft(l.left) : null;
   const made = l.len !== null && l.len > 0 ? lengthWords(l.len) : null;
   const book = l.kind === "book";
   const B = bookNums(l);
-  // F9: a book's step names the chapter being made (fill: chapters done / chapters, F31).
-  const done = book
-    ? (B.making - 1) / B.total
+  // P64-3y.F1 — the unit being made (F9; `Listen.dc.html`'s `keyFor` and `noteFigs`): on it (a document, or the
+  // book's chapter being made) the note reads its parts, `Part 2 of 9 · under 5 min left.`, `Audio prepared` the
+  // parts made before the one being made; waiting on a later chapter for an earlier one it reads the book's
+  // step, `Chapter 7 of 14 · under 5 min left.`, `Chapters prepared` the Listen's own chapters made.
+  const here = onMaking(l);
+  const mk = book
+    ? l.entries.find((e) => e.chapter === makingOf(l))
+    : undefined;
+  const mPart = book ? (mk?.part ?? l.part) : l.part;
+  const mLeftS = book ? (mk?.left ?? l.left) : l.left;
+  const mLeft = mLeftS !== null ? aboutLeft(mLeftS) : null;
+  const mN = mPart?.n ?? 1;
+  const mOf = mPart?.of ?? parts;
+  const partShare = book
+    ? mOf > 0
+      ? (mN - 1) / mOf
+      : 0
     : parts > 0
       ? l.partsMade / parts
       : 0;
-  const making = book
-    ? N.makingBook(B.making, B.total, left ?? LISTEN.time.under5)
-    : part <= 1 || left === null
-      ? N.makingFirst(parts)
-      : N.makingPart(part, parts, left);
+  const chapterShare = B.own > 0 ? B.ownMade / B.own : 0;
+  const done = here ? partShare : chapterShare;
+  const doneLabel = here ? N.lineDoc : N.lineBook;
+  const making = !here
+    ? N.makingBook(B.making, B.total, mLeft ?? LISTEN.time.under5)
+    : mN <= 1 || mLeft === null
+      ? N.makingFirst(mOf)
+      : N.makingPart(mN, mOf, mLeft);
   const nl = nextLeft(l);
-  // The book's chapters prepared (the next chapter waiting): made entries of the book's chapters.
-  const madeShare =
-    B.total > 0
-      ? l.entries.filter((e) => e.state === "made").length / B.total
-      : 0;
   const limitReady = opts.ready === undefined ? made : opts.ready;
   const rows: Record<
     NoteKey,
@@ -411,14 +472,14 @@ export function noteView(
         nl !== null ? aboutLeft(nl) : LISTEN.time.under5,
       ),
       "",
-      madeShare,
+      chapterShare,
       false,
       "",
     ],
     finished: [
       "active",
       N.finished,
-      book ? N.finishedBook(B.own) : N.finishedDoc,
+      book && !oneChapter(l) ? N.finishedBook(B.own) : N.finishedDoc,
       "again",
       null,
       false,
@@ -506,7 +567,14 @@ export function noteView(
     text,
     busy,
     line: frac === null ? null : Math.round(Math.max(0, frac) * 100),
-    lineLabel: book ? N.lineBook : N.lineDoc,
+    // P64-3y.F1: the line's words name its figure (`LR.note`: `Chapters prepared` only with the book's step
+    // or the next chapter waiting); a note with no line keeps the text's own.
+    lineLabel:
+      key === "making" || key === "ready"
+        ? doneLabel
+        : key === "next-waiting" || book
+          ? N.lineBook
+          : N.lineDoc,
     ref,
     action,
   };
