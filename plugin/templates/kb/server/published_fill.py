@@ -34,12 +34,34 @@ another process and cannot hold the server's write lock)::
     python -m server.published_fill --dry-run        # print the plan; write nothing
     python -m server.published_fill --commit --push  # fill, commit docs/, push
 
-``--commit`` stages the changed files that git already tracks (a public project's
-documents and archives; a private project's files are never tracked and stay out)
-and makes one local commit, so the box's checkout is clean again (the deploy refuses
-a dirty tracked tree). ``--push`` pushes that commit once (fetch, rebase, non-force
-push, like the write path's). Then ``python -m server.reindex`` (or the next boot
-reindex) reads the times into the store.
+Any run can be followed by another that finishes it; every next step it prints is a
+command that works:
+
+* ``--commit`` commits **the fill's own stamps, wherever they came from**: every
+  tracked version file whose only change from ``HEAD`` is the fill's one line (proved
+  on the bytes: the file is exactly what the fill makes of its ``HEAD`` content), the
+  ones this run wrote and the ones an earlier run without ``--commit`` (or an
+  interrupted one) left. Nothing else, ever: no ``add -A``, never an untracked or
+  ignored file (a private project's files are never tracked and stay out), never a
+  private project's footprint, never a tracked file with any other change, never
+  another staged change (the commit takes only its own paths). Each such change is
+  listed as ``left <path>: <why>``; a file carrying the fill's line **and** another
+  change is left too, and the run asked to commit exits 1.
+* ``--push`` pushes whenever the checkout is ahead of ``origin/main`` at the end of
+  the run, whether or not this run made the commit (fetch, rebase, non-force push,
+  like the write path's). It needs ``--commit`` (``--push`` alone is refused, exit 2,
+  as before). A failed push exits 1 and the local commit stays; a tracked change
+  left in the tree is reported and the push is not attempted (git cannot rebase over
+  it), exit 1.
+* A run without ``--commit`` that leaves the fill's stamps uncommitted says so and
+  names the command that finishes it (exit 0: it did what it was asked). A
+  ``--dry-run`` writes and commits nothing and says what a ``--commit`` would take.
+  A run on a clean, pushed tree prints ``nothing to do`` and exits 0.
+
+Exit codes: 0 done; 1 an error, or a commit or push asked for that did not happen;
+2 ``--push`` without ``--commit``; 4 the checkout's ``index.lock`` stayed held (or
+``KB_ROOT`` is not a git checkout). Then ``python -m server.reindex`` (or the next
+boot reindex) reads the times into the store.
 """
 from __future__ import annotations
 
@@ -48,6 +70,7 @@ import datetime
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -87,6 +110,12 @@ class Report:
     commit_sha: Optional[str] = None
     staged: list[str] = field(default_factory=list)
     untracked_changed: int = 0
+    git: bool = False  # KB_ROOT is a git checkout with a HEAD
+    pending: list[str] = field(default_factory=list)  # the fill's own stamps, uncommitted
+    earlier: int = 0  # of those, stamped by an earlier run
+    left: list[tuple[str, str]] = field(default_factory=list)  # (path, why) never staged
+    would_commit: int = 0  # (dry run) what a --commit run would commit
+    ahead: Optional[int] = None  # commits not on origin/main (None: no origin/main)
 
     def count(self, skip: Optional[str]) -> int:
         return sum(1 for p in self.planned if p.skip == skip)
@@ -396,22 +425,173 @@ def fill(*, dry_run: bool, store: Optional[sqlite3.Connection] = None,
     return report
 
 
-def commit_written(report: Report, *, kb_root: Path) -> None:
-    """Stage the written files git already tracks and make one local commit."""
+# --- the checkout: which uncommitted changes are the fill's own ----------------
+
+FINISH = "python -m server.published_fill --commit --push"
+FINISH_LOCAL = "python -m server.published_fill --commit"  # a checkout with no origin/main
+LEFT_OTHER = "not the fill's change; never staged"
+LEFT_BOTH = "the fill's line and another change; never staged"
+LEFT_PRIVATE = "the fill's line in a private project's footprint; never staged"
+LEFT_STAGED = "the fill's line, staged differently from the work tree; never staged"
+
+
+def _git_bytes(args: list[str], *, root: Path) -> Optional[bytes]:
+    """A git command's stdout as bytes, or ``None`` when it exits non-zero."""
+    cmd = ["git", "-C", str(root), *args]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=config.git_timeout_s())
+    except subprocess.TimeoutExpired as exc:
+        raise gitops.GitError(cmd, "timed out") from exc
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _has_head(root: Path) -> bool:
+    return _git_bytes(["rev-parse", "--verify", "--quiet", "HEAD"], root=root) is not None
+
+
+def _names(args: list[str], *, root: Path) -> set[str]:
+    out = gitops._run([*args, "--name-only", "--no-renames", "--relative", "-z"],
+                      root=root).stdout
+    return {p for p in out.split("\0") if p}
+
+
+def _ahead(root: Path) -> Optional[int]:
+    """Commits on ``HEAD`` that ``origin/main`` lacks (``None``: no ``origin/main``)."""
+    try:
+        out = gitops._run(["rev-list", "--count", "origin/main..HEAD"], root=root).stdout
+    except gitops.GitError:
+        return None
+    return int(out.strip()) if out.strip().isdigit() else None
+
+
+def _is_version_file(rel: str) -> bool:
+    """Whether ``rel`` (relative to its content root) is a file the fill stamps."""
+    if documents.parse_archive_rel_path(rel) is not None:
+        return True
+    parts = rel.split("/")
+    return len(parts) >= 2 and parts[0] not in RESERVED_DIRS and bool(
+        _FILENAME_RE.match(parts[-1]))
+
+
+def _fill_time(raw: bytes, is_html: bool) -> Optional[str]:
+    """The time of the fill's (best-effort) line in ``raw``'s header, else ``None``."""
+    try:
+        meta = _header(_as_read(raw), is_html)
+    except UnicodeDecodeError:
+        return None
+    parsed = documents.parse_published((meta or {}).get(documents.PUBLISHED_FIELD))
+    return parsed[0] if parsed and parsed[1] else None
+
+
+def _why_left(rel: str, *, kb_root: Path, prefixes: list[str], staged: bool,
+              private: set[str]) -> Optional[str]:
+    """``None`` when the change to ``rel`` (relative to ``kb_root``) is the fill's one
+    line and nothing else, else why the fill leaves it.
+
+    The proof is on the bytes: the work-tree file is exactly what ``stamp_bytes``
+    makes of its ``HEAD`` content (as git would check it out) with the time the file
+    now carries, and a staged copy, if any, is the ``HEAD`` one or that one.
+    """
+    in_root = next((rel[len(p):] for p in prefixes if rel.startswith(p)), None)
+    if in_root is None or not _is_version_file(in_root):
+        return LEFT_OTHER
+    path = kb_root / rel
+    is_html = rel.endswith(".html")
+    try:
+        work = path.read_bytes() if path.is_file() else None
+    except OSError:
+        work = None
+    head = _git_bytes(["cat-file", "--filters", f"HEAD:./{rel}"], root=kb_root)
+    at = _fill_time(work, is_html) if work is not None else None
+    if work is None or head is None or at is None:
+        return LEFT_OTHER
+    try:
+        if documents.has_published_line(_as_read(head)):
+            return LEFT_OTHER  # HEAD already had a time: the fill never adds a second
+    except UnicodeDecodeError:
+        return LEFT_OTHER
+    try:
+        if stamp_bytes(head, at, is_html=is_html) != work:
+            return LEFT_BOTH
+    except Refused:
+        return LEFT_BOTH
+    if staged:
+        index = _git_bytes(["cat-file", "--filters", f":./{rel}"], root=kb_root)
+        if index not in (head, work):
+            return LEFT_STAGED
+    if private and gitops._in_private_footprint(rel, private):
+        return LEFT_PRIVATE
+    return None
+
+
+def scan_checkout(report: Report, *, kb_root: Path,
+                  roots: list[tuple[Path, Optional[set[str]]]]) -> None:
+    """Sort every uncommitted tracked change into ``report.pending`` (the fill's own
+    stamps) and ``report.left`` (anything else, with why), and read how far the
+    checkout is ahead of ``origin/main``. Reads only."""
+    report.pending, report.left = [], []
+    report.git = _has_head(kb_root)
+    if not report.git:
+        return
+    prefixes = []
+    for root, _tids in roots:
+        try:
+            rel = root.resolve().relative_to(kb_root.resolve()).as_posix()
+        except ValueError:
+            continue  # outside the checkout (a tenants/ root elsewhere): never in git
+        prefixes.append("" if rel == "." else rel + "/")
+    staged = _names(["diff", "--cached"], root=kb_root)
+    changed = _names(["diff", "HEAD"], root=kb_root) | staged
+    private = set(gitops.private_projects(kb_root)) if changed else set()
+    for rel in sorted(changed):
+        why = _why_left(rel, kb_root=kb_root, prefixes=prefixes, staged=rel in staged,
+                        private=private)
+        if why is None:
+            report.pending.append(rel)
+        else:
+            report.left.append((rel, why))
+    written = set(_repo_rels(report.written, kb_root))
+    report.earlier = sum(1 for rel in report.pending if rel not in written)
+    report.ahead = _ahead(kb_root)
+
+
+def _repo_rels(paths: list[Path], kb_root: Path) -> list[str]:
     rels = []
-    for path in report.written:
+    for path in paths:
         try:
             rels.append(path.resolve().relative_to(kb_root.resolve()).as_posix())
         except ValueError:
-            continue  # outside the checkout (a tenants/ root elsewhere): never in git
+            continue  # outside the checkout: never in git
+    return rels
+
+
+def would_commit(report: Report, *, kb_root: Path) -> int:
+    """(Dry run) how many files a ``--commit`` run would commit: the fill's stamps
+    already on disk plus the planned files git tracks that are unchanged now."""
+    planned = [p.path for p in report.planned if p.skip is None]
+    rels = _repo_rels(planned, kb_root)
+    tracked = set(gitops.tracked_paths(rels, root=kb_root)) if rels else set()
+    changed = set(report.pending) | {rel for rel, _why in report.left}
+    private = set(gitops.private_projects(kb_root)) if tracked else set()
+    fresh = [rel for rel in rels if rel in tracked and rel not in changed
+             and not (private and gitops._in_private_footprint(rel, private))]
+    return len(report.pending) + len(fresh)
+
+
+def commit_stamps(report: Report, *, kb_root: Path) -> None:
+    """Commit ``report.pending`` (the fill's own stamps) and nothing else: one local
+    commit of exactly those paths (``git commit -- <paths>`` leaves any other staged
+    change staged and out of it)."""
+    rels = _repo_rels(report.written, kb_root)
     tracked = gitops.tracked_paths(rels, root=kb_root) if rels else []
     report.untracked_changed = len(report.written) - len(tracked)
-    if not tracked:
+    if not report.pending:
         return
-    gitops.add(tracked, root=kb_root)
-    report.staged = gitops.staged_paths(tracked, root=kb_root)
-    if gitops.has_staged_changes(root=kb_root):
-        report.commit_sha = gitops.commit(COMMIT_MESSAGE, root=kb_root)
+    gitops.add(report.pending, root=kb_root)  # its private-projects guard, too
+    gitops._run(["--literal-pathspecs", "commit", "-q", "-m", COMMIT_MESSAGE, "--",
+                 *report.pending], root=kb_root)
+    report.commit_sha = gitops._run(["rev-parse", "HEAD"], root=kb_root).stdout.strip()
+    report.staged, report.pending = list(report.pending), []
 
 
 def format_report(report: Report, *, dry_run: bool, verbose: bool) -> str:
@@ -431,8 +611,17 @@ def format_report(report: Report, *, dry_run: bool, verbose: bool) -> str:
     )
     for err in report.errors:
         lines.append(f"error: {err}")
+    for rel, why in report.left:
+        lines.append(f"left {rel}: {why}")
+    earlier = f", {report.earlier} of them stamped by an earlier run" if report.earlier else ""
     if report.commit_sha:
-        lines.append(f"committed {len(report.staged)} file(s): {report.commit_sha}")
+        lines.append(f"committed {len(report.staged)} file(s){earlier}: {report.commit_sha}")
+    if dry_run and report.git:
+        n = report.would_commit
+        lines.append(f"--commit would commit {n} file(s){earlier}" if n
+                     else "--commit would commit nothing")
+        if report.ahead:
+            lines.append(f"--push would push {report.ahead} commit(s) not on origin/main")
     return "\n".join(lines)
 
 
@@ -444,16 +633,24 @@ def _parser() -> argparse.ArgumentParser:
             "from the store's archive times (v1: the document's date). Inserts one "
             "header line per file, in the file's own line ending, changes no other "
             "byte (a file it cannot stamp so is skipped as refused), keeps file "
-            "times, skips a file that already has a time. Run it ONLY while KB "
-            "writes are paused."
+            "times, skips a file that already has a time. A later run finishes what "
+            "an earlier one left: it commits the fill's uncommitted stamps and pushes "
+            "an unpushed commit. Run it ONLY while KB writes are paused."
+        ),
+        epilog=(
+            "exit: 0 done; 1 an error, or a commit or push asked for that did not "
+            "happen; 2 --push without --commit; 4 index.lock held or no git checkout"
         ),
     )
     parser.add_argument("--dry-run", action="store_true",
-                        help="print what would be stamped; write nothing")
+                        help="print what would be stamped, committed and pushed; "
+                             "write nothing")
     parser.add_argument("--commit", action="store_true",
-                        help="stage the changed files git tracks and make one local commit")
+                        help="commit the fill's own stamps (this run's and any an "
+                             "earlier run left) that git tracks, and nothing else")
     parser.add_argument("--push", action="store_true",
-                        help="push once after the commit (needs --commit)")
+                        help="push when the checkout is ahead of origin/main, after "
+                             "the commit (fetch, rebase, non-force push; needs --commit)")
     parser.add_argument("--verbose", action="store_true",
                         help="also list every file skipped, and why")
     return parser
@@ -472,48 +669,88 @@ def _wait_for_index_lock(root: Path, timeout: float = INDEX_LOCK_WAIT_S) -> bool
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parser().parse_args(argv)
     if args.push and not args.commit:
-        print("refused: --push needs --commit", file=sys.stderr)
+        print(f"refused: --push needs --commit (run: {FINISH})", file=sys.stderr)
         return 2
     kb_root = config.kb_root()
     if args.commit and not args.dry_run:
         try:
-            if not _wait_for_index_lock(kb_root):
+            if not _wait_for_index_lock(kb_root, INDEX_LOCK_WAIT_S):
                 print("refused: index.lock is still held; is a write or another git "
                       "running?", file=sys.stderr)
                 return 4
         except gitops.GitError:
             print("refused: KB_ROOT is not a git checkout", file=sys.stderr)
             return 4
+    roots = _roots()
     store = _open_store()
     try:
-        report = fill(dry_run=args.dry_run, store=store)
+        report = fill(dry_run=args.dry_run, store=store, roots=roots)
     finally:
         if store is not None:
             store.close()
-    if args.commit and not args.dry_run and report.written:
-        try:
-            commit_written(report, kb_root=kb_root)
-        except gitops.GitError as exc:
-            report.errors.append(f"commit failed: {exc.stderr or exc}")
+    try:
+        scan_checkout(report, kb_root=kb_root, roots=roots)
+        if args.dry_run and report.git:
+            report.would_commit = would_commit(report, kb_root=kb_root)
+        if args.commit and not args.dry_run:
+            if not report.git:
+                report.errors.append("KB_ROOT's checkout has no commit yet; nothing committed")
+            else:
+                commit_stamps(report, kb_root=kb_root)
+                report.ahead = _ahead(kb_root)
+    except gitops.GitError as exc:
+        report.errors.append(f"git failed: {exc.stderr or exc}")
     print(format_report(report, dry_run=args.dry_run, verbose=args.verbose))
-    if report.errors:
-        return 1
+
+    finish = FINISH if report.ahead is not None else FINISH_LOCAL
+    rc = 1 if report.errors else 0
     if args.dry_run:
-        return 0
-    if args.push and report.commit_sha:
-        try:
-            sha = gitops.push(root=kb_root)
-        except gitops.GitError as exc:
-            print(f"push FAILED: {exc.stderr or exc}; the local commit stays", file=sys.stderr)
-            return 1
-        print(f"pushed: origin/main is now {sha}")
-    elif report.commit_sha:
-        print("push still owed: nothing was pushed (re-run with --push)")
-    elif report.written and not args.commit:
-        print("not committed: if git tracks any of these files, re-run with --commit "
-              "(the deploy refuses a dirty tracked tree)")
-    print("next: python -m server.reindex reads the times into the store")
-    return 0
+        return rc
+    if report.pending:
+        print(f"not committed: {len(report.pending)} file(s) carry the fill's line, "
+              f"uncommitted (the deploy refuses a dirty tracked tree); finish with: {finish}")
+        if args.commit:
+            rc = 1
+    both = [rel for rel, why in report.left if why != LEFT_OTHER]
+    if both:
+        print(f"not committed: {len(both)} file(s) carry the fill's line but are left "
+              "(each 'left' line above says why); the fill never commits those. A "
+              "private project's tracked files are the reconcile's (python -m "
+              "server.reconcile). For another change: settle it (if it is unwanted, "
+              "git restore --staged --worktree -- <path> drops it and the line), "
+              f"then re-run: {finish}")
+        if args.commit:
+            rc = 1
+    pushed = False
+    if args.push and (report.ahead is None or report.ahead > 0):
+        if report.errors:
+            print(f"not pushed: fix the error(s) above, then re-run: {FINISH}",
+                  file=sys.stderr)
+        elif report.left or report.pending:
+            print("push not attempted: git cannot rebase over the tracked changes "
+                  f"listed as left above; settle them, then re-run: {FINISH}",
+                  file=sys.stderr)
+            rc = 1
+        else:
+            try:
+                sha = gitops.push(root=kb_root)
+            except gitops.GitError as exc:
+                print(f"push FAILED: {exc.stderr or exc}; the local commit stays; "
+                      f"re-run once origin is reachable: {FINISH}", file=sys.stderr)
+                rc = 1
+            else:
+                print(f"pushed: origin/main is now {sha}")
+                report.ahead, pushed = 0, True
+    elif report.ahead and not report.errors and not args.push:
+        print(f"push owed: {report.ahead} commit(s) here are not on origin/main; "
+              f"finish with: {finish}")
+    if report.written or report.commit_sha or pushed:
+        print("next: python -m server.reindex reads the times into the store")
+    elif rc == 0 and not report.pending and not both and not report.ahead:
+        print("nothing to do: no version needs a time"
+              + (", and nothing of the fill's is uncommitted or unpushed" if report.git
+                 else ""))
+    return rc
 
 
 if __name__ == "__main__":
