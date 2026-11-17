@@ -75,10 +75,6 @@ interface LoadArgs {
   opening: NotesOpening;
 }
 
-export async function loadBookNotes(args: LoadArgs): Promise<BookNotesView> {
-  return (await readBookNotes(args, false)).view;
-}
-
 /**
  * The book and every mark in it. `soft`: a notes read that fails (not a miss) leaves the marks empty and says
  * so (`failed`), so the page can stand with the book's title and offer Try again.

@@ -1,7 +1,8 @@
 /**
  * hi2vi Library (`03-library` round 02, `ProjectLibrary.dc.html`) — what a project's library page
  * reads, composed in the BFF from reads that already exist; no server route is added.
- * (P63, OQ7: a member of the org at the public address is told the project's id, for the redirect.)
+ * (P63, OQ7: a member of the org at the public address is told the project's id, for the redirect;
+ * OQ27: the address is read once here, `projectAt` and `exactProjectSearch`, for the page and its layout.)
  *
  * - A member (`/projects/{id}/library`): the active org's projects (`GET /app/projects`: the id is
  *   one of them, else Project not found, as the Shell's own list says), the org's listing
@@ -138,3 +139,51 @@ async function loadPublicProject(
 
 /** A public project's page reads (one set a request). */
 export const loadPublicProjectOnce = cache(loadPublicProject);
+
+// ---- the address (P63, OQ27): one reading for the page and the layout ---------------------------------------
+
+/** A public project's address params, as the route hands them. */
+export type ProjectParams = { org: string; project: string };
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * The address's org (without its `@`) and project, or null for anything else: our public namespace is
+ * `@`-prefixed, so an address without it is no public address and is rejected before any read. The page and
+ * its layout both read it here, so they ask `loadPublicProjectOnce` with the same arguments (one set of reads).
+ */
+export function projectAt(
+  params: ProjectParams,
+): { org: string; project: string } | null {
+  const org = safeDecode(params.org);
+  const project = safeDecode(params.project);
+  if (!org.startsWith("@") || org.length < 2 || project === "") return null;
+  return { org: org.slice(1), project };
+}
+
+/**
+ * The request's path and query (`REQUEST_PATH_HEADER`) when it is a project's own library, exactly
+ * `/@{org}/{project}` (two segments; a trailing slash allowed): its query, for the place a member's
+ * redirect keeps. Null for every page beneath it (a book, a chapter, notes, a document) and without a path.
+ */
+export function exactProjectSearch(
+  path: string | null | undefined,
+): Record<string, string> | null {
+  if (!path || !path.startsWith("/")) return null;
+  let url: URL;
+  try {
+    url = new URL(path, "http://address.invalid");
+  } catch {
+    return null;
+  }
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments.length !== 2 || !safeDecode(segments[0]).startsWith("@"))
+    return null;
+  return Object.fromEntries(url.searchParams);
+}

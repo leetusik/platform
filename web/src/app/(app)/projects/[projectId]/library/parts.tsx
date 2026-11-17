@@ -108,7 +108,10 @@ export function ProjectBooks({
                   {b.title}
                 </Link>
                 {b.sub ? (
-                  <span className="meta shelf-sub" lang={subLang(b.sub)}>
+                  <span
+                    className="meta shelf-sub"
+                    lang={b.subLang ?? subLang(b.sub)}
+                  >
                     {b.sub}
                   </span>
                 ) : null}

@@ -12,6 +12,9 @@ import { READER_FRAME } from "@/content/reader-frame";
  *
  * `listen` is the place of Listen: the existing control, mounted in its old look (operator decision 3
  * of P63-fk); the reader's sheet puts it at the end of the facts row.
+ *
+ * `tag` closes the head with `<p><span class="badge">…</span></p>` (`head.original`: an html document's
+ * **Original layout**). Without it the head renders exactly as it always has.
  */
 export interface ReaderHeadProps {
   noun: "chapter" | "document";
@@ -34,6 +37,8 @@ export interface ReaderHeadProps {
    */
   fold?: { total: number; open: boolean; onToggle: () => void } | null;
   listen?: ReactNode;
+  /** The head's last line, a badge (`Original layout`); none: no line. */
+  tag?: string | null;
   onVersions?: () => void;
   onNewest?: (n: number) => void;
   onSource?: () => void;
@@ -53,6 +58,7 @@ export function ReaderHead({
   sections,
   fold,
   listen,
+  tag,
   onVersions,
   onNewest,
   onSource,
@@ -142,6 +148,11 @@ export function ReaderHead({
             </div>
           ) : null}
         </nav>
+      ) : null}
+      {tag ? (
+        <p>
+          <span className="badge">{tag}</span>
+        </p>
       ) : null}
     </header>
   );

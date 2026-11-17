@@ -9,7 +9,11 @@ import { optionalIdentity } from "@/lib/auth-guards";
 import type { FormatOptions } from "@/lib/format";
 import { readProjectPlace } from "@/lib/library/list-place";
 import { loginHref } from "@/lib/next-path";
-import { loadPublicProjectOnce } from "@/lib/project-library/load";
+import {
+  loadPublicProjectOnce,
+  projectAt,
+  type ProjectParams,
+} from "@/lib/project-library/load";
 import { projectLibraryView, visitorSource } from "@/lib/project-library/model";
 import {
   projectLibraryHref,
@@ -38,24 +42,15 @@ import {
  * the guard rejects it before any read. The static `(public)/[org]/graph` segment wins over a project
  * named `graph` (its own route, a redirect to the org's library).
  */
-type Params = { org: string; project: string };
+type Params = ProjectParams;
 type Search = Record<string, string | string[] | undefined>;
-
-function safeDecode(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
 
 /** The address's org (without its `@`) and project; `notFound()` for anything else. */
 function addressOf(params: Params): { org: string; project: string } {
-  const org = safeDecode(params.org);
-  const project = safeDecode(params.project);
   // THE GUARD: our public namespace is `@`-prefixed. Reject before reading the session or upstream.
-  if (!org.startsWith("@") || org.length < 2 || project === "") notFound();
-  return { org: org.slice(1), project };
+  const at = projectAt(params);
+  if (!at) notFound();
+  return at;
 }
 
 async function readOnce(params: Params) {
@@ -100,7 +95,8 @@ export default async function PublicProjectPage({
 }) {
   const { at, read, signedIn } = await readOnce(await params);
   const place = readProjectPlace(await searchParams);
-  // A member reads their own project in the Shell: before anything of the visitor's page is drawn.
+  // A member reads their own project in the Shell: before anything of the visitor's page is drawn. A hard
+  // load is answered by the layout's 307 first; this one serves a client navigation that keeps the layout.
   if (read.memberId) {
     redirect(
       projectLibraryHref(read.memberId, { page: place.page, q: place.q }),

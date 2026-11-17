@@ -111,6 +111,12 @@ const PROJECT_LIBRARY = /^\/projects\/[^/?#]+\/library(?:[/?#]|$)/;
 /** The path without its query or hash. */
 const pathOf = (pathname: string) => pathname.split(/[?#]/, 1)[0];
 
+/**
+ * `/@<org>`, one segment: an org's public library, where a member's rail reads Library current
+ * (`PublicLibrary.dc.html`, the member; P63). An address without the `@` is its Not found (none).
+ */
+const PUBLIC_LIBRARY = /^\/(?:@|%40)[^/?#]+\/?$/i;
+
 /** A library page: the Library (`/library`) or a project's library (`/projects/<id>/library`). */
 export function onLibraryPage(pathname: string): boolean {
   const path = pathOf(pathname);
@@ -135,6 +141,7 @@ export function projectSwitchHref(pathname: string, projectId: string): string {
  * The project form's Library is the project's library (`/projects/<id>/library`, job 03 round 02,
  * F321), current there (Overview is then not); its Feedback is `/feedback?project=<id>` (the record
  * names no project-scoped Feedback route, so the nearest page, with its project filter).
+ * The org form's Library is also current on an org's public library, `/@<org>` (P63).
  *
  * `known` says whether the path's project is one of the active org's (the Shell's project list). A
  * `/projects/<id>` that is no project of the org is project home's Not found: the board draws it
@@ -169,7 +176,12 @@ export function railFor(pathname: string, known = true): Rail {
     form: "org",
     items: [
       { key: "overview", href: ORG_HOME, current: under(pathname, ORG_HOME) },
-      { key: "library", href: LIBRARY, current: under(pathname, LIBRARY) },
+      {
+        key: "library",
+        href: LIBRARY,
+        current:
+          under(pathname, LIBRARY) || PUBLIC_LIBRARY.test(pathOf(pathname)),
+      },
       { key: "feedback", href: FEEDBACK, current: under(pathname, FEEDBACK) },
     ],
     review,

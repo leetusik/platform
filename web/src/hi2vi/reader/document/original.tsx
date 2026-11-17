@@ -16,6 +16,7 @@ import { PrintNotice } from "@/components/reader/print-sheet";
 import { useLegacyReading } from "@/components/reader/use-legacy-reading";
 import { READER_DOCUMENT } from "@/content/reader-document";
 import { READER_FRAME } from "@/content/reader-frame";
+import { READER_ORIGINAL } from "@/content/reader-original";
 import {
   Bar,
   Display,
@@ -59,6 +60,7 @@ import type { LegacyFrame, ReaderView, ReaderWrite } from "@/lib/reader/types";
 import { versionItems } from "../model";
 import { failedState } from "../reader-states";
 import { ReaderFoot } from "../reader-foot";
+import { ReaderHead } from "../reader-head";
 import { DocumentNotes, runBookmarkWire } from "./document-notes";
 import { missingDocument } from "./document-states";
 import {
@@ -73,7 +75,6 @@ import {
 import {
   docMarkOf,
   OriginalFrame,
-  OriginalHead,
   originalBookmarkWrite,
   originalScroll,
   originalTag,
@@ -87,6 +88,9 @@ import {
 // matches here: the rest name the legacy reader's own chrome and page, `.lg-page`, which this page has not).
 import "@/app/legacy.css";
 
+/** An html document has no sections the parent can read (the head draws no In this document). */
+const NO_SECTIONS: readonly { id: string; title: string }[] = [];
+
 /**
  * An html document in its **Original layout** (P63-fk.S13; job 03, Library round 02: `## Build` § Page: document,
  * the state Original layout; `Document.dc.html`, `d4`): the document page's frame around the html as it renders
@@ -98,7 +102,7 @@ import "@/app/legacy.css";
  *       a document (`reading` is the text's, and there is none).
  *     + .reader-frame > main.reader-main > article.reader-col
  *         > the paper notice (print only, `PrintNotice`, inside the old root it is styled by)
- *         > the head (`OriginalHead`: ReaderHead's, then the tag)
+ *         > the head (`ReaderHead` with its `tag`)
  *         > .read-flow[data-original]: the sandboxed frame of the raw relay, the whole width of the window and
  *           its height under the bar, the document's only scroller (the record's stand-in)
  *     + ReaderFoot bar={false} (the pill alone, after a resume) + one sheet at a time (Notes, Version history,
@@ -589,13 +593,16 @@ export function DocumentOriginal({
                     <PrintNotice view={view} relay={frame.src} />
                   </div>
                 </Legacy>
-                <OriginalHead
+                <ReaderHead
+                  noun="document"
                   title={view.title}
                   lang={view.lang}
                   where={where}
                   version={view.version}
                   newest={view.newest}
                   published={date(view.published || view.date, { timeZone })}
+                  sections={NO_SECTIONS}
+                  tag={READER_ORIGINAL.tag}
                   onVersions={() => openSheet("versions")}
                   onNewest={() => go(here(null))}
                 />

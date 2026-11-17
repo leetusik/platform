@@ -18,73 +18,13 @@ import type { DocMark } from "./model";
  * relay, the same bridge, the same scripts policy, the frame the only scroller of the document.
  */
 
-// ---- the head: ReaderHead's own markup, then the tag -------------------------------------------------------
+// ---- the tag ---------------------------------------------------------------------------------------------------
 
 /**
- * The signed head on such a document (`ReaderHead.dc.html`, `head.original`): the title, the facts
- * (`Document in platform`, `v1, published Nov 6`, **Version history**), the Older version notice with
- * **Read vN**, then `<p><span class="badge">Original layout</span></p>`. An html document has no lede and no
- * sections (the parent never reads the framed document), so nothing follows the tag. The markup before the
- * tag is `ReaderHead`'s, byte for byte (tests/reader-original.test.ts holds the two equal); the tag is the
- * one line `ReaderHead` does not draw yet.
+ * The head on such a document is `ReaderHead`'s (`ReaderHead.dc.html`, `head.original`) with its `tag`: the title,
+ * the facts, the Older version notice, then `<p><span class="badge">Original layout</span></p>`. An html document
+ * has no lede and no sections (the parent never reads the framed document), so nothing follows the tag.
  */
-export interface OriginalHeadProps {
-  title: string;
-  lang: string;
-  where: string;
-  version: number;
-  newest: number;
-  published: string;
-  onVersions?: () => void;
-  onNewest?: (n: number) => void;
-}
-
-export function OriginalHead({
-  title,
-  lang,
-  where,
-  version,
-  newest,
-  published,
-  onVersions,
-  onNewest,
-}: OriginalHeadProps) {
-  const h = READER_FRAME.head;
-  const older = version < newest;
-  return (
-    <header className="read-head">
-      <h1 className="read-title" lang={lang}>
-        {title}
-      </h1>
-      <div className="read-facts">
-        <span>{where}</span>
-        <span>{h.version(version, published)}</span>
-        <button type="button" className="link-row" onClick={onVersions}>
-          {h.versionHistory}
-        </button>
-      </div>
-      {older ? (
-        <div className="notice read-notice" role="status">
-          <p>
-            <strong>{h.olderVersion}</strong>{" "}
-            {h.olderVersionLine(version, newest, "document")}
-          </p>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => onNewest?.(newest)}
-          >
-            {h.readNewest(newest)}
-          </button>
-        </div>
-      ) : null}
-      <p>
-        <span className="badge">{READER_ORIGINAL.tag}</span>
-      </p>
-    </header>
-  );
-}
-
 /** The bar's tag (`Document.dc.html`): `Older version` while an earlier version is read, else `Original layout`. */
 export function originalTag(version: number, newest: number): string {
   return version < newest ? READER_FRAME.tag.olderVersion : READER_ORIGINAL.tag;

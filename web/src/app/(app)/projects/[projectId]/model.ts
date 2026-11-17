@@ -93,7 +93,7 @@ const CALENDAR = /^\d{4}-\d{2}-\d{2}/;
 /** A document's reading time as the board draws it (`6 min`), or `null` when the read carries none. */
 export function readingTime(minutes: number | null | undefined): string | null {
   return typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 1
-    ? `${Math.round(minutes)} min`
+    ? PROJECT_HOME.library.minutes(Math.round(minutes))
     : null;
 }
 

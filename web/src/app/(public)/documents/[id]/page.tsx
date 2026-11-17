@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
@@ -112,8 +112,8 @@ async function loadDocument(
 }
 
 /**
- * The page's one load (reader or legacy reader), deduped per request so the viewport
- * (`viewport-fit=cover` for the legacy reader) and the page read once. Every argument is
+ * The page's one load (reader or legacy reader), deduped per request so the metadata
+ * and the page read once. Every argument is
  * a primitive; the settings arrive as the raw cookie value.
  */
 const loadOnce = cache(
@@ -140,36 +140,6 @@ function langOf(raw: string | string[] | undefined): string | null {
 function versionOf(raw: string | string[] | undefined): number | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
   return v && /^\d{1,6}$/.test(v) ? Number(v) : null;
-}
-
-export async function generateViewport({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): Promise<Viewport> {
-  try {
-    const id = Number((await params).id);
-    if (Number.isInteger(id) && id >= 1) {
-      const ctx = await optionalIdentity();
-      const doc = await getDocumentOnce(ctx?.token, id);
-      // An anonymous visit to a document with a pretty URL is redirected there, and a
-      // bound chapter to its chapter URL (P30.F4): nothing is rendered here.
-      if (!ctx && doc.canonical_path) return {};
-      if (chapterRedirectHref(doc)) return {};
-      const loaded = await loadOnce(
-        ctx?.token,
-        id,
-        versionOf((await searchParams).v),
-        (await cookies()).get(READER_COOKIE)?.value,
-      );
-      if (loaded.kind === "legacy") return { viewportFit: "cover" };
-    }
-  } catch {
-    // the page renders the miss or the failure itself
-  }
-  return {};
 }
 
 /** The page as it renders: the reader, or the legacy reader (`renderDocument`). */

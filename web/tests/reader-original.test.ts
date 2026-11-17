@@ -45,7 +45,6 @@ import {
   DocumentReader,
   OriginalBookmarks,
   OriginalFrame,
-  OriginalHead,
   ORIGINAL_SCROLL,
   docMarkOf,
   originalBookmarkWrite,
@@ -283,30 +282,38 @@ describe("the Original layout's frame (the old bar is gone)", () => {
   });
 });
 
-// ---- the head: ReaderHead's markup, then the tag --------------------------------------------------------------
+// ---- the head: ReaderHead's own, with the tag ----------------------------------------------------------------
 
-describe("OriginalHead is ReaderHead's head plus the tag (a guard against drift)", () => {
+describe("the Original layout's head is ReaderHead with its tag", () => {
   for (const [what, version, newest] of [
     ["the newest", 1, 1],
     ["an older version", 2, 5],
   ] as const)
     it(`${what}`, () => {
       const props = {
+        noun: "document" as const,
         title: "배포 전에 확인할 것들",
         lang: "ko",
         where: "Document in platform",
         version,
         newest,
         published: "Nov 6",
+        sections: [],
       };
-      const signed = renderToStaticMarkup(
-        createElement(ReaderHead, { ...props, noun: "document", sections: [] }),
+      const signed = renderToStaticMarkup(createElement(ReaderHead, props));
+      const ours = renderToStaticMarkup(
+        createElement(ReaderHead, { ...props, tag: "Original layout" }),
       );
-      const ours = renderToStaticMarkup(createElement(OriginalHead, props));
       const tag = '<p><span class="badge">Original layout</span></p>';
       expect(ours.endsWith(`${tag}</header>`)).toBe(true);
       expect(ours.replace(tag, "")).toBe(signed);
     });
+
+  it("is the head the page mounts (no copy of it of its own)", () => {
+    const src = read("src/hi2vi/reader/document/original.tsx");
+    expect(src).toMatch(/<ReaderHead[\s\S]*?tag=\{READER_ORIGINAL\.tag\}/);
+    expect(src).not.toContain("OriginalHead");
+  });
 });
 
 // ---- the frame element: today's, unchanged ------------------------------------------------------------------

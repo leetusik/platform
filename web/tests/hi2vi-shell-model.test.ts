@@ -115,7 +115,16 @@ describe("the rail", () => {
     expect(current("/review")).toEqual(["review"]);
     expect(current("/projects/p1")).toEqual(["overview"]);
     expect(current("/documents")).toEqual([]);
-    expect(current("/@june")).toEqual([]);
+  });
+
+  it("reads Library current on an org's public library, /@<org>, and on nothing else of it (P63)", () => {
+    expect(current("/@june")).toEqual(["library"]);
+    expect(current("/@june?page=2")).toEqual(["library"]);
+    expect(current("/%40june")).toEqual(["library"]);
+    expect(railFor("/@june").form).toBe("org");
+    // its Not found for an address without the `@`, and the project and reader addresses beneath it
+    for (const path of ["/nope", "/@", "/@june/handbook", "/@june/p/books/b"])
+      expect(current(path)).toEqual([]);
   });
 
   it("never makes Workspace a link", () => {

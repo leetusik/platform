@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
@@ -140,8 +140,8 @@ async function loadDocument(
 }
 
 /**
- * The page's one load (reader or legacy reader), deduped per request so the viewport
- * (`viewport-fit=cover` for the legacy reader) and the page read once.
+ * The page's one load (reader or legacy reader), deduped per request so the metadata
+ * and the page read once.
  */
 const loadOnce = cache(
   async (
@@ -170,41 +170,6 @@ function langOf(raw: string | string[] | undefined): string | null {
 function versionOf(raw: string | string[] | undefined): number | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
   return v && /^\d{1,6}$/.test(v) ? Number(v) : null;
-}
-
-export async function generateViewport({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ org: string; project: string; slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): Promise<Viewport> {
-  try {
-    const p = await params;
-    const org = safeDecode(p.org);
-    if (org.startsWith("@") && org.length >= 2) {
-      const ctx = await optionalIdentity();
-      const doc = await resolveDocumentOnce(
-        ctx?.token,
-        org.slice(1),
-        safeDecode(p.project),
-        safeDecode(p.slug),
-      );
-      if (chapterRedirectHref(doc)) return {};
-      const loaded = await loadOnce(
-        ctx?.token,
-        org.slice(1),
-        safeDecode(p.project),
-        safeDecode(p.slug),
-        versionOf((await searchParams).v),
-        (await cookies()).get(READER_COOKIE)?.value,
-      );
-      if (loaded.kind === "legacy") return { viewportFit: "cover" };
-    }
-  } catch {
-    // the page renders the miss or the failure itself
-  }
-  return {};
 }
 
 export default async function PrettyDocumentPage({

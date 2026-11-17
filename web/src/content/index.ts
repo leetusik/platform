@@ -40,15 +40,9 @@ export {
 } from "./project";
 export type { ProjectCopy } from "./project";
 
-// Public surfaces + share links (P19) — PublicShell chrome + copy-link island copy.
-export { PUBLIC_SHELL, SHARE } from "./share";
-export type { PublicShellCopy, ShareCopy } from "./share";
-
-// Documents surface (P12.S5) — browse / search / read the tenant's documents.
-// P21 adds the member delete action + its status-keyed errors; P23 adds the version
-// history panel + the past-version view copy (`DOCUMENTS.versions`).
+// Documents (P12.S5): the Library's Delete errors (P21) and the full-width exit's label; the
+// old list and past-version page retired into the Library (P63).
 export { DELETE_DOCUMENT_ERRORS, DOCUMENTS } from "./documents";
-export type { DocumentsCopy } from "./documents";
 
 // Feedback — the org's captured feedback: the list, one record's detail and
 // the two not-found pages. Read + search only.
@@ -70,8 +64,7 @@ export { CHAPTER } from "./chapter";
 // chapter bar, the Contents and Display sheets, Sign in to save and the states.
 export { READER } from "./reader";
 
-// The library (P30.S22) — the `06-library` round's strings: the page head, Continue reading,
-// the shelves, the cards and rows, Your reading data and the five states.
+// The library's title (the way back's label) and the chapter count Listen's book row reads.
 export { LIBRARY } from "./library";
 export { BOOK } from "./book";
 

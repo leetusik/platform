@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+import { VERSION_REDIRECT } from "./src/app/(app)/documents/legacy";
 import { APP_CSP } from "./src/lib/csp";
 
 /**
@@ -19,6 +20,12 @@ const nextConfig: NextConfig = {
   // under an AI coding agent. The repo's agent rules live in the root CLAUDE.md;
   // keep the dev server from adding untracked instruction files beside it.
   agentRules: false,
+  // P63 (operator decision 4, D152-kw) — an old past-version page opens the document's Versions
+  // view, `/documents/<id>?v=<v>`, its query kept. A config redirect answers before the proxy and
+  // before any page, so no page script under the reader's nonce CSP does it (`legacy.ts`).
+  async redirects() {
+    return [{ ...VERSION_REDIRECT }];
+  },
   async headers() {
     return [
       {
