@@ -185,7 +185,7 @@ export const PROJECT = {
     ariaLabelPrefix: "Revoke key",
   },
 
-  /** The page frame's link to this project's feedback (`/feedback?project=<id>`). */
+  /** The page frame's link to this project's feedback. */
   feedbackLink: "Feedback",
 
   /** The branded not-found (`not-found.tsx`), on the `.kb-empty` empty-state classes. */
@@ -243,9 +243,14 @@ export const PROJECT_HOME = {
   },
   feedback: {
     heading: "Feedback",
+    /** The head's count over the viewer's month (`23 this month`); the board has one form for every number. */
+    month: (count: string): string => `${count} this month`,
     all: "See all in Feedback",
     empty:
       "No feedback yet. Your users’ messages arrive through a Capture only key.",
+    /** The Library's failed form, in the Feedback job's words (D247-4x). */
+    failed: "Feedback did not load.",
+    retry: "Try again",
   },
   notFound: {
     title: "Project not found",

@@ -4,12 +4,20 @@
 
 import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
+import type { FeedbackValue } from "@/lib/feedback/format";
+import { langAttr } from "@/lib/feedback/lang";
+import { feedbackItemHref } from "@/lib/feedback/place";
+import type { Feedback } from "@/lib/feedback/types";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type { KbCredential, KbOrgLibrary } from "@/lib/knowledge/types";
 import { secondTitleLang } from "@/lib/library/lists";
 import { bookHref, orgSegment, readerHref } from "@/lib/reader-href";
-import { plural, type FormatOptions } from "@/lib/format";
-import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
+import { num, plural, when, type FormatOptions } from "@/lib/format";
+import {
+  DEFAULT_TIME_ZONE,
+  viewerTimeZone,
+  type CookieReader,
+} from "@/lib/time-zone";
 
 import type {
   MintCredentialState,
@@ -176,6 +184,104 @@ export function newestRows(rows: readonly LibraryRow[]): LibraryRow[] {
 /** The head's count, the project's active total; none at 0 (an empty part drops its count). */
 export function libraryCount(total: number): string | null {
   return total > 0 ? plural(total, PROJECT_HOME.library.one) : null;
+}
+
+// ── Feedback (D247-4x; operator D3) ─────────────────────────────────────────
+
+/** The board's five newest messages. */
+export const FEEDBACK_SHOWN = 5;
+
+/** A half-open window of instants, `start <= ingested_at < end`, as ISO strings in UTC. */
+export interface FeedbackWindow {
+  start: string;
+  end: string;
+}
+
+/** The zone's offset from UTC at `at`, in ms: its wall clock then, read as if UTC, minus `at`. */
+function zoneOffset(at: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const wall = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    part("hour"),
+    part("minute"),
+    part("second"),
+  );
+  return wall - Math.floor(at / 1000) * 1000;
+}
+
+/** The instant the first of `month` (1-based; 13 is next January) starts in `timeZone`. */
+function monthStart(year: number, month: number, timeZone: string): number {
+  const wall = Date.UTC(year, month - 1, 1);
+  const guess = wall - zoneOffset(wall, timeZone);
+  // Again at the guess, so an offset that changed in between (a DST change) is the one that holds.
+  return wall - zoneOffset(guess, timeZone);
+}
+
+/**
+ * The current month in the viewer's zone (UTC until it is known: decision 5, D254-wv) as the
+ * half-open window of instants `countFeedback` takes: the first of the month at 00:00 there, to the
+ * first of the next month.
+ */
+export function monthWindow(format: FormatOptions): FeedbackWindow {
+  const timeZone = format.timeZone ?? DEFAULT_TIME_ZONE;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(format.now ?? Date.now());
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  return {
+    start: new Date(monthStart(year, month, timeZone)).toISOString(),
+    end: new Date(monthStart(year, month + 1, timeZone)).toISOString(),
+  };
+}
+
+/** The head's count, `23 this month`; the board draws it with the rows, `0 this month` included. */
+export function feedbackCount(total: number): string {
+  return PROJECT_HOME.feedback.month(num(total));
+}
+
+export interface FeedbackRow {
+  id: string;
+  text: string;
+  /** The message's `lang` when it is not the page's (`ko`); unset for the page's own. */
+  lang: string | undefined;
+  /** The API's `feedback_value`: 1 liked, 2 disliked, null unrated. */
+  rating: FeedbackValue;
+  /** `when()` of the time it arrived. */
+  when: string;
+  /** The message in the project's Shell: `/projects/<id>/feedback/<feedbackId>`. */
+  href: string;
+}
+
+/** The panel's rows: the five newest messages, each with its rating, `lang`, time and address. */
+export function feedbackRows(
+  records: readonly Feedback[],
+  projectId: string,
+  format: FormatOptions,
+): FeedbackRow[] {
+  return records.slice(0, FEEDBACK_SHOWN).map((r) => ({
+    id: r.id,
+    text: r.message,
+    lang: langAttr(r.message),
+    rating: r.feedback_value ?? null,
+    when: when(r.ingested_at, format),
+    href: feedbackItemHref(projectId, r.id),
+  }));
 }
 
 // ── Head: visibility ────────────────────────────────────────────────────────

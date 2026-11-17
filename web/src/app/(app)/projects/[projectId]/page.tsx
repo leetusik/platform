@@ -6,8 +6,9 @@ import { PROJECT } from "@/content";
 import { Trend, Usage } from "@/hi2vi/frame";
 import { Grid } from "@/hi2vi/ui";
 import { requireIdentity } from "@/lib/auth-guards";
-import { listFeedback } from "@/lib/feedback/app";
-import { date, when, type FormatOptions } from "@/lib/format";
+import { countFeedback, listFeedbackPage } from "@/lib/feedback/app";
+import { feedbackHref } from "@/lib/feedback/place";
+import { date, type FormatOptions } from "@/lib/format";
 import {
   getDocuments,
   getOrgLibrary,
@@ -17,22 +18,23 @@ import { ApiError } from "@/lib/knowledge/client";
 import type { KbIdentity, KbProjectUsage } from "@/lib/knowledge/types";
 import { orgSegment, projectLibraryHref } from "@/lib/reader-href";
 
+import { FeedbackFailed } from "./feedback-retry";
 import { LibraryFailed } from "./library-retry";
 import {
+  FEEDBACK_SHOWN,
+  feedbackCount,
+  feedbackRows,
   isMissingProjectStatus,
   keyRowOf,
   libraryCount,
   libraryRows,
+  monthWindow,
   projectHomeFormat,
   todayIn,
+  type FeedbackRow,
   type LibraryRow,
 } from "./model";
-import {
-  FeedbackPanel,
-  LibraryPanel,
-  WorkspacePanel,
-  type FeedbackRow,
-} from "./parts";
+import { FeedbackPanel, LibraryPanel, WorkspacePanel } from "./parts";
 import { ProjectHead } from "./project-head";
 import { ProjectKeys } from "./project-keys";
 
@@ -46,7 +48,8 @@ import "./project-home.css";
 // - the head, Usage and Trend, and the keys: `getProjectUsage` (one read; 30-day window);
 // - Active total (Usage) and the Library's count: `getDocuments({project, limit: 1}).total`;
 // - the Library's rows: the org library listing (`getOrgLibrary`), this project's books and documents;
-// - Feedback: `listFeedback({project_id, limit: 5})`.
+// - Feedback: page 1 of `listFeedbackPage({project_id, limit: 5})`, and `countFeedback` over the
+//   viewer's month for `N this month` (D247-4x); either failing is the panel's failed form.
 // Every date is in the viewer's zone (the `kb_tz` cookie), UTC until it is known (decision 5).
 //
 // The <title> stays the static `PROJECT.title`: a `generateMetadata` title would cost a second uncached read.
@@ -87,18 +90,43 @@ async function loadLibraryRows(
   }
 }
 
-/** The project's five newest feedback messages. The board draws no failed form: a failure is the page's. */
+/**
+ * The Feedback panel's two reads: the five newest messages and the count over the viewer's month.
+ * `rows` is `null` when either failed (the panel's own failed form, never the page's, D247-4x);
+ * `count` is `null` when the count read failed. A 401 is the session's and is rethrown.
+ */
 async function loadFeedback(
   token: string,
   projectId: string,
   format: FormatOptions,
-): Promise<FeedbackRow[]> {
-  const page = await listFeedback(token, { project_id: projectId, limit: 5 });
-  return page.records.slice(0, 5).map((r) => ({
-    id: r.id,
-    text: r.message,
-    when: when(r.ingested_at, format),
-  }));
+): Promise<{ rows: FeedbackRow[] | null; count: string | null }> {
+  // Each read inside its own async function, so a throw before its first await is a rejection too.
+  const [list, month] = await Promise.allSettled([
+    (async () =>
+      listFeedbackPage(
+        token,
+        { project_id: projectId, limit: FEEDBACK_SHOWN },
+        1,
+      ))(),
+    (async () =>
+      countFeedback(token, {
+        project_id: projectId,
+        ...monthWindow(format),
+      }))(),
+  ]);
+  for (const read of [list, month]) {
+    if (
+      read.status === "rejected" &&
+      read.reason instanceof ApiError &&
+      read.reason.status === 401
+    )
+      throw read.reason;
+  }
+  const count =
+    month.status === "fulfilled" ? feedbackCount(month.value) : null;
+  if (list.status === "rejected" || month.status === "rejected")
+    return { rows: null, count };
+  return { rows: feedbackRows(list.value.records, projectId, format), count };
 }
 
 export default async function ProjectHomePage({
@@ -146,7 +174,18 @@ export default async function ProjectHomePage({
             format={format}
           />
         )}
-        <FeedbackPanel projectId={project.id} rows={feedback} />
+        {feedback.rows === null ? (
+          <FeedbackFailed count={feedback.count} />
+        ) : (
+          <FeedbackPanel
+            count={feedback.count}
+            state={{
+              kind: "rows",
+              rows: feedback.rows,
+              all: feedbackHref(project.id),
+            }}
+          />
+        )}
       </Grid>
       <div className="section">
         <Usage
