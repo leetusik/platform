@@ -30,11 +30,28 @@ export interface ReadState {
   cls: string;
 }
 
+/** Hangul: S15's guess at a second title's language when the manifest names none. */
+const HANGUL = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;
+
+/**
+ * A book's second title's `lang` (P63, D248-j7): the manifest's `sub_lang` when it names one, else the
+ * guess (`ko` for a title holding Hangul), else none.
+ */
+export function secondTitleLang(
+  sub: string | null | undefined,
+  lang?: string | null,
+): string | undefined {
+  if (lang) return lang;
+  return sub && HANGUL.test(sub) ? "ko" : undefined;
+}
+
 export interface ShelfBook {
   key: string;
   title: string;
   /** The book's second title, when it has one. */
   sub: string | null;
+  /** The second title's `lang` (`secondTitleLang`); unset when unknown. */
+  subLang?: string;
   href: string;
   /** `14 chapters`. */
   chapters: string;
@@ -234,6 +251,7 @@ export function shelvesOf(
           key: `${b.project}/${b.slug}`,
           title: b.title,
           sub: b.sub?.trim() || null,
+          subLang: secondTitleLang(b.sub?.trim(), b.sub_lang),
           href: bookHref({ org, project: b.project, book: b.slug }),
           chapters: SHELF.chapters(b.chapters.length),
           langs: languagesLine(

@@ -19,6 +19,8 @@ export interface HeadView {
   title: string;
   /** The second title, or "" when the read carries none (drawn only when present). */
   sub: string;
+  /** Its `lang`: the manifest's, else `ko` for a Korean one, else unset (P63, D248-j7). */
+  subLang?: string;
   description: string;
   /** `Codebase book in platform`; for anyone outside the org `… in @org / project`. */
   place: string;
@@ -53,6 +55,8 @@ export interface VersionRowView {
   current: boolean;
   /** `Published Oct 28`, or "" when the read carries no date. */
   published: string;
+  /** True when that date is a one-time best-effort fill (P63): data only, drawn as a plain date. */
+  bestEffort?: boolean;
   /** `Translated from English v2`, on the newest row of a translation; else "". */
   from: string;
   aria: string;

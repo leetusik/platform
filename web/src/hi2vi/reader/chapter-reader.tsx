@@ -516,7 +516,7 @@ export function ChapterReader({
                           }
                           version={view.version}
                           newest={view.newest}
-                          published={date(view.date, fmt)}
+                          published={date(view.published || view.date, fmt)}
                           translation={
                             src
                               ? {

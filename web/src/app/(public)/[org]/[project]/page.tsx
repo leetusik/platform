@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { PROJECT_LIBRARY } from "@/content/project-library";
 import { HI2VI_STATES } from "@/content/hi2vi-states";
@@ -10,11 +10,12 @@ import type { FormatOptions } from "@/lib/format";
 import { readProjectPlace } from "@/lib/library/list-place";
 import { loginHref } from "@/lib/next-path";
 import { loadPublicProjectOnce } from "@/lib/project-library/load";
+import { projectLibraryView, visitorSource } from "@/lib/project-library/model";
 import {
-  projectLibraryView,
-  VISITOR_SOURCE,
-} from "@/lib/project-library/model";
-import { publicLibraryHref, publicProjectHref } from "@/lib/reader-href";
+  projectLibraryHref,
+  publicLibraryHref,
+  publicProjectHref,
+} from "@/lib/reader-href";
 import { viewerTimeZone } from "@/lib/time-zone";
 
 import {
@@ -29,9 +30,11 @@ import {
  * public library), Books, Documents (no search, no Delete, no reading state), or Nothing to read. The
  * page is the address's (`?page=…`); every book and document opened here carries this list on (F324).
  *
- * The record draws this address for a visitor only: anyone, signed in or not, reads the visitor's page
- * here (a signed-in reader without Sign in). A private project, an unknown project and an unknown org
- * are one miss, Project not found (`notFound()`). An address without the `@` is no public address:
+ * The record draws this address for a visitor. A signed-in member of the org (the reader's active org)
+ * is sent to the project's library in the Shell, `/projects/{id}/library`, with the address's place
+ * (`?page`, `?q`) kept (P63, OQ7); any other reader, signed in or not, reads the visitor's page here
+ * (a signed-in one without Sign in). A private project, an unknown project and an unknown org are one
+ * miss to a non-member, Project not found (`notFound()`). An address without the `@` is no public address:
  * the guard rejects it before any read. The static `(public)/[org]/graph` segment wins over a project
  * named `graph` (its own route, a redirect to the org's library).
  */
@@ -97,6 +100,12 @@ export default async function PublicProjectPage({
 }) {
   const { at, read, signedIn } = await readOnce(await params);
   const place = readProjectPlace(await searchParams);
+  // A member reads their own project in the Shell: before anything of the visitor's page is drawn.
+  if (read.memberId) {
+    redirect(
+      projectLibraryHref(read.memberId, { page: place.page, q: place.q }),
+    );
+  }
   const [jar, nonce] = await Promise.all([cookies(), requestNonce()]);
   const format: FormatOptions = { timeZone: viewerTimeZone(jar) };
   const view = projectLibraryView(
@@ -105,7 +114,7 @@ export default async function PublicProjectPage({
     read.project,
     { viewer: "visitor", org: at.org },
     place,
-    VISITOR_SOURCE,
+    visitorSource(read.listing),
     format,
   );
   const here = publicProjectHref(

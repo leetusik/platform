@@ -30,6 +30,9 @@ def _git(root, *args):
     )
 
 
+_PUBLISHED = "2026-07-02T09:30:00Z"
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     (tmp_path / "docs").mkdir()
@@ -41,6 +44,9 @@ def client(tmp_path, monkeypatch):
     _git(tmp_path, "commit", "-m", "seed")
     monkeypatch.setenv("KB_ROOT", str(tmp_path))
     monkeypatch.setenv("KB_DB_PATH", str(tmp_path / "data" / "kb.sqlite3"))
+    # P63 (D171-qk): a publish stamps its own time into the header; pin it so the
+    # byte-exact file pin below stays exact.
+    monkeypatch.setattr("server.documents.now_stamp", lambda: _PUBLISHED)
     from server.main import app
 
     return TestClient(app), tmp_path
@@ -235,6 +241,7 @@ def test_loose_publish_without_new_fields_is_unchanged(client):
         "---\n"
         'title: "P8: The reader"\n'
         "date: 2026-10-01\n"
+        'published: "2026-07-02T09:30:00Z"\n'
         "tags:\n  - reader\n  - books\n"
         "source:\n  project: knowledge\n  repo: knowledge\n"
         "---\n\n"

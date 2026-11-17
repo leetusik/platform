@@ -257,6 +257,9 @@ interface NativeBody {
   version: number;
   /** `YYYY-MM-DD`, the version's publication date. */
   date: string;
+  /** The version's own publish time (P63): `published`, else `date`. */
+  published: string;
+  bestEffort: boolean;
 }
 
 /** An html version: the legacy reader frames it through the raw relay (P30.S25). */
@@ -265,6 +268,28 @@ interface HtmlBody {
   title: string;
   version: number;
   date: string;
+  published: string;
+  bestEffort: boolean;
+}
+
+/** What a read carries of one version's dates: its document's date and its own publish time. */
+interface Dated {
+  date: string;
+  published?: string | null;
+  published_best_effort?: boolean;
+}
+
+/**
+ * A version's own publish time (P63, D171-qk): the `published` its header carries (the server's
+ * stamp, or a one-time best-effort fill), else the document's date, as before the stamp existed.
+ */
+export function versionDate(read: Dated): {
+  date: string;
+  bestEffort: boolean;
+} {
+  return read.published
+    ? { date: read.published, bestEffort: !!read.published_best_effort }
+    : { date: read.date ?? "", bestEffort: false };
 }
 
 type Body = NativeBody | HtmlBody;
@@ -289,8 +314,16 @@ async function readBody(
     const old = await orMiss(() => getDocumentVersion(token, doc.id, v));
     if (!old && strict) notFound();
     if (old) {
+      const own = versionDate(old);
       if (old.format === "html") {
-        return { format: "html", title: old.title, version: v, date: old.date };
+        return {
+          format: "html",
+          title: old.title,
+          version: v,
+          date: old.date,
+          published: own.date,
+          bestEffort: own.bestEffort,
+        };
       }
       return toBody(
         old.format,
@@ -300,15 +333,19 @@ async function readBody(
         old.title,
         v,
         old.date,
+        own,
       );
     }
   }
+  const own = versionDate(doc);
   if (doc.format === "html") {
     return {
       format: "html",
       title: doc.title,
       version: doc.version,
       date: doc.date,
+      published: own.date,
+      bestEffort: own.bestEffort,
     };
   }
   return toBody(
@@ -319,6 +356,7 @@ async function readBody(
     doc.title,
     doc.version,
     doc.date,
+    own,
   );
 }
 
@@ -330,6 +368,7 @@ function toBody(
   title: string,
   version: number,
   date: string,
+  own: { date: string; bestEffort: boolean },
 ): NativeBody {
   // A native document is rendered from its stored file; if the read carried none
   // (an older backend), its plain-text projection is shown as md rather than nothing.
@@ -341,6 +380,8 @@ function toBody(
       title,
       version,
       date,
+      published: own.date,
+      bestEffort: own.bestEffort,
     };
   }
   return {
@@ -350,6 +391,8 @@ function toBody(
     title,
     version,
     date,
+    published: own.date,
+    bestEffort: own.bestEffort,
   };
 }
 
@@ -402,7 +445,7 @@ async function loadVersions(
   const label = languageName(lang);
   const current: VersionRow = {
     n: doc.version,
-    date: doc.date,
+    ...versionDate(doc),
     from: from
       ? { label: languageName(from.lang), version: from.version }
       : null,
@@ -412,7 +455,7 @@ async function loadVersions(
     const page = await getDocumentVersions(token, doc.id);
     const older: VersionRow[] = [...page.versions]
       .sort((a, b) => b.version - a.version)
-      .map((v) => ({ n: v.version, date: v.date, from: null }));
+      .map((v) => ({ n: v.version, ...versionDate(v), from: null }));
     return { ok: true, label, rows: [current, ...older] };
   } catch {
     return { ok: false, label, rows: [] };
@@ -751,6 +794,8 @@ export async function loadChapterReader(args: {
     newest: doc.version,
     summary: checked?.tree.summary ?? null,
     date: body.date,
+    published: body.published,
+    publishedBestEffort: body.bestEffort,
     project,
     staleSource: staleSourceOf(chapter, variant, body.version === doc.version),
     target,
@@ -893,6 +938,8 @@ export async function loadLooseReader(args: {
       newest: doc.version,
       summary: null,
       date: body.date,
+      published: body.published,
+      publishedBestEffort: body.bestEffort,
       project: doc.project,
       staleSource: null,
       target: {
@@ -971,6 +1018,8 @@ export async function loadLooseReader(args: {
     newest: doc.version,
     summary: checked.tree.summary,
     date: body.date,
+    published: body.published,
+    publishedBestEffort: body.bestEffort,
     project: doc.project,
     staleSource: null,
     target: {

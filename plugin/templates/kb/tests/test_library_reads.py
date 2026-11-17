@@ -216,3 +216,34 @@ def test_a_books_second_title_rides_every_read_that_lists_or_opens_it(documents_
         assert (mine["sub"], mine["sub_lang"]) == pair
     listed = client.get("/app/books", headers=headers).json()["items"]
     assert pairs(listed) == want
+
+
+def test_a_visitors_listing_carries_tags_only_of_documents_they_may_read(documents_client):
+    """OQ8: the org library's loose documents carry their tags, so a visitor's
+    documents table draws them; a private project's documents, and so their tags,
+    never reach a stranger or the org's public view."""
+
+    client, _ = documents_client
+    headers, tenant = _signup(client, f"tags-{uuid4()}@example.com")
+    pid = _project(client, headers, "open")
+    _project(client, headers, "closed")
+    assert client.patch(
+        f"/app/projects/{pid}", json={"visibility": "public"}, headers=headers
+    ).status_code == 200
+    _seed_doc(tenant, "open", slug="a", title="A", markdown="x", tags=["capture", "alert"])
+    _seed_doc(tenant, "open", slug="b", title="B", markdown="x")
+    _seed_doc(tenant, "closed", slug="c", title="C", markdown="x", tags=["secret-plan"])
+
+    org = tenant
+
+    def tags(who, scope):
+        res = client.get(f"/app/orgs/{org}/library", params={"scope": scope}, headers=who)
+        assert res.status_code == 200, res.text
+        assert "secret-plan" not in res.text or (who is headers and scope == "all")
+        return {d["slug"]: d["tags"] for d in res.json()["documents"]}
+
+    public = {"a": ["capture", "alert"], "b": []}
+    assert tags(None, "public") == public
+    assert tags(None, "all") == public  # a stranger reads the public ones only
+    assert tags(headers, "public") == public
+    assert tags(headers, "all") == {**public, "c": ["secret-plan"]}

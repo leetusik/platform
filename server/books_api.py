@@ -175,7 +175,8 @@ async def org_library(
     ``server/reading_time.py``), stored with the document, so no body is read here.
     Each book carries its second title and that title's language, ``sub`` and
     ``sub_lang`` (P63, D248-j7; null when the manifest names none), as both book
-    reads above do.
+    reads above do. Each loose document carries its ``tags`` (P63, OQ8), only ever
+    of the projects the response is over.
     """
 
     if config.database_url() is None:
@@ -246,6 +247,10 @@ async def org_library(
             "version": int(d["version"] or 1),
             "subject": d["subject"],
             "reading_minutes": d["reading_minutes"],
+            # P63 (OQ8): a visitor's documents table draws a document's tags. Only the
+            # documents of the projects this caller may read are here, so a tag
+            # never names anything a private project holds.
+            "tags": d["tags"],
             "canonical_path": (
                 f"/@{tenant.slug}/{d['project']}/{d['slug']}" if tenant.slug else None
             ),

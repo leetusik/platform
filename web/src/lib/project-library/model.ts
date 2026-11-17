@@ -11,6 +11,7 @@ import type { ListOrigin } from "@/lib/library/from";
 import {
   docsTable,
   nameBreaks,
+  secondTitleLang,
   shelvesOf,
   type DocsSource,
   type DocsTable,
@@ -64,8 +65,17 @@ export function projectOrigin(
       };
 }
 
-/** A visitor's table reads no tags and searches nothing: there is no public read of either. */
-export const VISITOR_SOURCE: DocsSource = { tags: new Map(), text: null };
+/**
+ * A visitor's table (`LibraryDocsStates`, a visitor's rows; P63, OQ8): each document's tags from the
+ * public listing itself (the server returns only the documents this reader may read, so a tag never
+ * names a private one), and no search (a visitor cannot search).
+ */
+export function visitorSource(listing: KbOrgLibrary): DocsSource {
+  return {
+    tags: new Map(listing.documents.map((d) => [d.id, d.tags ?? []])),
+    text: null,
+  };
+}
 
 /**
  * The page's view of `project` in `listing`. `state` is the member's reading state (null for a
@@ -124,9 +134,10 @@ export function continueInProject(
   return items.filter((it) => it.project === project && here.has(it.org));
 }
 
-const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/;
-
-/** A second title's language: `ko` when it holds Hangul (S15's rule), else none. */
-export function subLang(sub: string): string | undefined {
-  return HANGUL.test(sub) ? "ko" : undefined;
+/**
+ * A second title's language: the manifest's `sub_lang` when given (P63, D248-j7), else `ko` when it
+ * holds Hangul (S15's rule), else none.
+ */
+export function subLang(sub: string, lang?: string | null): string | undefined {
+  return secondTitleLang(sub, lang);
 }

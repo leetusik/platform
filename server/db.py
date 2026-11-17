@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS documents (
   assets      TEXT,                          -- the header's `assets:` map as JSON (P30.S4); NULL = no images
   source      TEXT,                          -- the whole stored native file (P30.S5; header + body, ids written in); NULL unless format='native'
   reading_minutes INTEGER,                   -- whole minutes to read the text (P63; server/reading_time.py), written by every upsert
+  published   TEXT,                          -- P63 (D171-qk): the header's `published:` time (UTC `…Z`, or a `YYYY-MM-DD` day for a filled v1); NULL = none
+  published_best_effort INTEGER NOT NULL DEFAULT 0, -- 1 when that time is a one-time fill, not the server's own stamp
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
   UNIQUE (tenant_id, rel_path)
@@ -99,6 +101,8 @@ CREATE TABLE IF NOT EXISTS document_versions (
   raw_html     TEXT,                        -- raw HTML body for format='html'; NULL for md
   assets       TEXT,                        -- that version's own `assets:` map as JSON (P30.S4); NULL = no images
   source       TEXT,                        -- the archived native file (P30.S5); NULL unless format='native'
+  published    TEXT,                        -- P63 (D171-qk): that version's own `published:` header time; NULL = none
+  published_best_effort INTEGER NOT NULL DEFAULT 0, -- 1 when that time is a one-time fill
   created_at   TEXT NOT NULL,               -- when this version was archived
   UNIQUE (tenant_id, rel_path, version)
 );
@@ -250,6 +254,20 @@ def init_db(conn: sqlite3.Connection) -> None:
     # P63 (D248-j7): a book's second title and its language, from the manifest. A
     # store that predates them reads every book back with none until the next write
     # or reindex replaces its row from the manifest.
+    # P63 (D171-qk): each version's own publish time, re-derived from the headers by
+    # every upsert. A store that predates the columns reads every row back with no
+    # time until the next write or reindex re-reads its file.
+    for table, have in (("documents", cols), ("document_versions", vcols)):
+        for col, decl in (
+            ("published", "TEXT"),
+            ("published_best_effort", "INTEGER NOT NULL DEFAULT 0"),
+        ):
+            if col not in have:
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column" not in str(exc):
+                        raise
     bcols = {row["name"] for row in conn.execute("PRAGMA table_info(books)").fetchall()}
     for col in ("subtitle", "subtitle_lang"):
         if col not in bcols:
@@ -320,6 +338,8 @@ def _row_to_dict(row: Optional[sqlite3.Row]) -> Optional[dict[str, Any]]:
             )
         except (TypeError, json.JSONDecodeError):
             d["translated_from"] = None
+    if "published_best_effort" in d:
+        d["published_best_effort"] = bool(d["published_best_effort"])
     return d
 
 
@@ -345,6 +365,8 @@ def upsert_document(
     translated_from: Optional[dict] = None,
     assets: Optional[dict] = None,
     source: Optional[str] = None,
+    published: Optional[str] = None,
+    published_best_effort: bool = False,
 ) -> int:
     """Insert or update by ``(tenant_id, rel_path)``. Preserves created_at, refreshes updated_at.
 
@@ -372,6 +394,9 @@ def upsert_document(
     ``reading_minutes`` (P63) is derived here from ``markdown`` and ``format``
     (``server/reading_time.py``), so a publish and a reindex of the same file store
     the same number.
+
+    ``published`` / ``published_best_effort`` (P63, D171-qk) mirror the header's
+    ``published:`` line (``documents.parse_published``); ``None`` = no time known.
     """
     ts = now or _now()
     minutes = reading_time.minutes(markdown, format)
@@ -389,8 +414,9 @@ def upsert_document(
         INSERT INTO documents
           (tenant_id, project, slug, date, title, tags, tags_text, source_repo, rel_path,
            markdown, related, format, raw_html, version, lang, subject, translated_from,
-           assets, source, reading_minutes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           assets, source, reading_minutes, published, published_best_effort,
+           created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, rel_path) DO UPDATE SET
           project     = excluded.project,
           slug        = excluded.slug,
@@ -410,11 +436,14 @@ def upsert_document(
           assets      = excluded.assets,
           source      = excluded.source,
           reading_minutes = excluded.reading_minutes,
+          published   = excluded.published,
+          published_best_effort = excluded.published_best_effort,
           updated_at  = excluded.updated_at
         """,
         (tenant_id, project, slug, date, title, tags_json, tags_text, source_repo, rel_path,
          markdown, related_json, format, raw_html, int(version), lang, subject,
-         translated_json, _assets_to_column(assets), source, minutes, ts, ts),
+         translated_json, _assets_to_column(assets), source, minutes, published,
+         1 if (published and published_best_effort) else 0, ts, ts),
     )
     conn.commit()
     row = conn.execute(
@@ -737,6 +766,8 @@ def _version_row_to_dict(row: Optional[sqlite3.Row]) -> Optional[dict[str, Any]]
         d["tags"] = []
     if "assets" in d:
         d["assets"] = _assets_from_column(d["assets"])
+    if "published_best_effort" in d:
+        d["published_best_effort"] = bool(d["published_best_effort"])
     return d
 
 
@@ -756,6 +787,8 @@ def upsert_document_version(
     created_at: Optional[str] = None,
     assets: Optional[dict] = None,
     source: Optional[str] = None,
+    published: Optional[str] = None,
+    published_best_effort: bool = False,
 ) -> None:
     """Record one archived version. Idempotent on ``(tenant_id, rel_path, version)``.
 
@@ -764,14 +797,16 @@ def upsert_document_version(
     upsert is what lets a rebuild re-derive the row without first clearing the table.
     ``created_at`` is when the version was archived (the write path stamps *now*;
     reindex re-derives the archive file's mtime, since disk is the only truth after
-    a DB wipe).
+    a DB wipe). ``published`` / ``published_best_effort`` (P63) are that version's own
+    publish time from its archived header; ``None`` = none known.
     """
     conn.execute(
         """
         INSERT INTO document_versions
           (tenant_id, rel_path, version, archive_path, title, date, tags, format,
-           markdown, raw_html, assets, source, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           markdown, raw_html, assets, source, published, published_best_effort,
+           created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, rel_path, version) DO UPDATE SET
           archive_path = excluded.archive_path,
           title        = excluded.title,
@@ -782,12 +817,15 @@ def upsert_document_version(
           raw_html     = excluded.raw_html,
           assets       = excluded.assets,
           source       = excluded.source,
+          published    = excluded.published,
+          published_best_effort = excluded.published_best_effort,
           created_at   = excluded.created_at
         """,
         (
             tenant_id, rel_path, int(version), archive_path, title, date,
             json.dumps(list(tags), ensure_ascii=False), format, markdown, raw_html,
-            _assets_to_column(assets), source, created_at or _now(),
+            _assets_to_column(assets), source, published,
+            1 if (published and published_best_effort) else 0, created_at or _now(),
         ),
     )
     conn.commit()
@@ -1163,15 +1201,15 @@ def list_loose_documents(
     """The tenant's loose documents (not a chapter variant), newest first, lean rows.
 
     P30.S22 (the library). Carries no body, source or asset map: the shelves need the
-    title, date, format, language, subject, reading time (P63) and the document's
-    pretty-path parts.
+    title, date, format, language, subject, reading time (P63), tags (P63: a visitor's
+    documents table draws them, OQ8) and the document's pretty-path parts.
     ``projects`` is a project-name allowlist (an empty one matches nothing, fail-closed).
     A superseded duplicate of ``(project, slug)`` (a re-publish that computed another
     date) is left out, as the pretty path belongs to the newest row only.
     """
     sql = (
         "SELECT d.id, d.project, d.slug, d.date, d.title, d.rel_path, d.format, d.version, "
-        "d.lang, d.subject, d.updated_at, d.reading_minutes "
+        "d.lang, d.subject, d.updated_at, d.reading_minutes, d.tags "
         "FROM documents d WHERE d.tenant_id = ? "
         "AND NOT EXISTS (SELECT 1 FROM chapter_variants cv "
         "WHERE cv.tenant_id = d.tenant_id AND cv.rel_path = d.rel_path)"
@@ -1190,7 +1228,13 @@ def list_loose_documents(
         if key in seen:
             continue
         seen.add(key)
-        out.append(dict(row))
+        d = dict(row)
+        try:
+            tags = json.loads(d.get("tags") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            tags = []
+        d["tags"] = [str(t) for t in tags] if isinstance(tags, list) else []
+        out.append(d)
     return out
 
 

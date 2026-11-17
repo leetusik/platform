@@ -163,6 +163,7 @@ def _frontmatter_inner_lines(
     assets: Optional[dict] = None,
     native: bool = False,
     summary: Optional[str] = None,
+    published: Optional[str] = None,
 ) -> list[str]:
     """The YAML field lines shared by the '---' fenced (md) and '<!--kb' comment
     (html) frontmatter serializers — everything BETWEEN the fences. Factored out so
@@ -189,11 +190,17 @@ def _frontmatter_inner_lines(
     (P29 *Header*), and ``summary`` (a JSON string, like the title) after ``subject``;
     neither is ever emitted for an ``md``/``html`` document, which stays
     byte-identical.
+
+    ``published`` (P63, D171-qk) is this version's own publish time, emitted after
+    ``version`` (after ``date`` on a v1) **only when given**, so a caller that passes
+    none writes a header byte-identical to before: see ``published_line``.
     """
     lines = [f"title: {json.dumps(title, ensure_ascii=False)}"]
     lines.append(f"date: {date}")
     if version is not None and version >= 2:
         lines.append(f"version: {int(version)}")
+    if published:
+        lines.append(published_line(published))
     if native:
         lines.append("format: native")
         lines.append("syntax: 1")
@@ -240,6 +247,7 @@ def serialize_frontmatter(
     assets: Optional[dict] = None,
     native: bool = False,
     summary: Optional[str] = None,
+    published: Optional[str] = None,
 ) -> str:
     """Hand-rolled frontmatter block, byte-exact to the docs/ convention.
 
@@ -267,6 +275,7 @@ def serialize_frontmatter(
         assets=assets,
         native=native,
         summary=summary,
+        published=published,
     )
     return "---\n" + "\n".join(inner) + "\n---\n"
 
@@ -284,6 +293,7 @@ def serialize_html_frontmatter(
     subject: Optional[str] = None,
     translated_from: Optional[dict] = None,
     assets: Optional[dict] = None,
+    published: Optional[str] = None,
 ) -> str:
     """The HTML-comment frontmatter block for an explainer ``.html`` doc.
 
@@ -305,6 +315,7 @@ def serialize_html_frontmatter(
         subject=subject,
         translated_from=translated_from,
         assets=assets,
+        published=published,
     )
     return "<!--kb\n" + "\n".join(inner) + "\n-->\n"
 
@@ -502,6 +513,7 @@ def write_document_file(
     subject: Optional[str] = None,
     translated_from: Optional[dict] = None,
     assets: Optional[dict] = None,
+    published: Optional[str] = None,
 ) -> str:
     """Write ``docs/<rel_path>`` as ``<frontmatter> + "\\n" + body``.
 
@@ -516,6 +528,9 @@ def write_document_file(
     ``version`` (P23) stamps a ``version:`` frontmatter field for version >= 2 so the
     current file is self-describing; ``None``/1 writes no field (a pre-P23-identical
     v1 document, which reindex reads back as v1).
+
+    ``published`` (P63) stamps this version's publish time (``now_stamp()``); ``None``
+    writes no field, exactly as before.
     """
     if fmt == "html":
         header = serialize_html_frontmatter(
@@ -530,6 +545,7 @@ def write_document_file(
             subject=subject,
             translated_from=translated_from,
             assets=assets,
+            published=published,
         )
     else:
         header = serialize_frontmatter(
@@ -544,6 +560,7 @@ def write_document_file(
             subject=subject,
             translated_from=translated_from,
             assets=assets,
+            published=published,
         )
     content = header + "\n" + _normalize_body(body)
     target = Path(docs_root) / rel_path
@@ -572,6 +589,7 @@ def native_file_content(
     translated_from: Optional[dict] = None,
     assets: Optional[dict] = None,
     summary: Optional[str] = None,
+    published: Optional[str] = None,
 ) -> tuple[str, int]:
     """Compose a native chapter file (P30.S5): the server's ``---`` header plus the body.
 
@@ -597,6 +615,7 @@ def native_file_content(
         assets=assets,
         native=True,
         summary=summary,
+        published=published,
     )
     stripped = _LEADING_BLANKS_RE.match(body or "")
     leading = stripped.group(0).count("\n") if stripped else 0
@@ -951,3 +970,145 @@ def remove_archive_dir(docs_root: Union[str, Path], rel_path: str) -> bool:
         except OSError:
             break
     return True
+
+
+# --- per-version publish time (P63, D171-qk) ----------------------------------
+#
+# Each version's own publish time lives in its file's header, so it is archived with
+# the body and reindex re-derives it from disk (an archive file's mtime is lost on a
+# git clone, a copy or a restore). Two forms, both one header line of JSON (valid
+# YAML, and a quoted string so no YAML loader turns it into a datetime):
+#
+#   published: "2026-11-17T09:30:12Z"                          the server's own stamp
+#   published: {"at": "2026-11-10T08:01:02Z", "best_effort": true}   a one-time fill
+#
+# A real stamp is UTC to the second. A fill (``server/published_fill.py``) is derived
+# from the times the store held before stamps existed and says so; a first version's
+# fill is the document's ``date`` (a day, ``YYYY-MM-DD``), the only time it ever had.
+# A header without the line reads exactly as before (no publish time known); a
+# server that predates P63 ignores the line (every reader of the header picks the
+# keys it knows), and its archive copy keeps the line verbatim.
+
+PUBLISHED_FIELD = "published"
+
+_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def utc_stamp(now: Optional[datetime.datetime] = None) -> str:
+    """``now`` (default: the current time) as UTC ISO 8601 to the second, ``Z``-suffixed."""
+    moment = now if now is not None else datetime.datetime.now(datetime.timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    return (
+        moment.astimezone(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+
+
+def now_stamp() -> str:
+    """The write path's publish time for the version it is writing: ``utc_stamp()``.
+    One name of its own so a test can pin the clock without touching the parser."""
+    return utc_stamp()
+
+
+def published_line(at: str, best_effort: bool = False) -> str:
+    """The one header line for a publish time (see the section comment)."""
+    if best_effort:
+        return f"{PUBLISHED_FIELD}: " + json.dumps({"at": at, "best_effort": True})
+    return f"{PUBLISHED_FIELD}: {json.dumps(at)}"
+
+
+def _normalize_published_at(value) -> Optional[str]:
+    """A publish time as the reads serve it: UTC ``…Z`` to the second, or a ``YYYY-MM-DD``
+    day; ``None`` for anything else (a malformed value reads as no time, never fatal)."""
+    if isinstance(value, datetime.datetime):
+        return utc_stamp(value)
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if _DAY_RE.match(text):
+        try:
+            datetime.date.fromisoformat(text)
+        except ValueError:
+            return None
+        return text
+    try:
+        moment = datetime.datetime.fromisoformat(
+            text[:-1] + "+00:00" if text.endswith(("Z", "z")) else text
+        )
+    except ValueError:
+        return None
+    return utc_stamp(moment)
+
+
+def parse_published(value) -> Optional[tuple[str, bool]]:
+    """``(at, best_effort)`` from a header's ``published`` value, or ``None``.
+
+    Lenient like the other informational fields: a hand-written unquoted time (which
+    PyYAML reads as a datetime) is accepted, anything unreadable is no time at all.
+    """
+    if isinstance(value, dict):
+        at = _normalize_published_at(value.get("at"))
+        if at is None:
+            return None
+        return at, value.get("best_effort") is True
+    at = _normalize_published_at(value)
+    return (at, False) if at is not None else None
+
+
+def _published_line_index(lines: list[str], end: int) -> Optional[int]:
+    for i in range(1, end):
+        if lines[i].startswith(f"{PUBLISHED_FIELD}:"):
+            return i
+    return None
+
+
+def read_published(text: str) -> Optional[tuple[str, bool]]:
+    """The publish time a document file's header carries, or ``None`` (no line, no
+    header, or a value ``parse_published`` cannot read). Flavor-agnostic."""
+    lines = text.split("\n")
+    end = _frontmatter_block_end(lines)
+    if end is None:
+        return None
+    i = _published_line_index(lines, end)
+    if i is None:
+        return None
+    try:
+        meta = yaml.safe_load(lines[i])
+    except yaml.YAMLError:
+        return None
+    if not isinstance(meta, dict):
+        return None
+    return parse_published(meta.get(PUBLISHED_FIELD))
+
+
+def has_published_line(text: str) -> bool:
+    """Whether the header already holds a ``published:`` line (readable or not)."""
+    lines = text.split("\n")
+    end = _frontmatter_block_end(lines)
+    return end is not None and _published_line_index(lines, end) is not None
+
+
+def set_frontmatter_published(text: str, at: str, best_effort: bool = False) -> str:
+    """``text`` with one ``published:`` line inserted into its leading header.
+
+    Byte-preserving like ``set_frontmatter_version``: the line goes after ``version:``
+    (else after ``date:``, else at the top of the block) and nothing else changes,
+    the body included. Text that already has a ``published:`` line, or has no
+    recognizable header, is returned unchanged: a stamp is never overwritten.
+    """
+    lines = text.split("\n")
+    end = _frontmatter_block_end(lines)
+    if end is None or _published_line_index(lines, end) is not None:
+        return text
+    insert_at = 1
+    for key in ("version:", "date:"):
+        found = next((i for i in range(1, end) if lines[i].startswith(key)), None)
+        if found is not None:
+            insert_at = found + 1
+            break
+    lines.insert(insert_at, published_line(at, best_effort))
+    return "\n".join(lines)

@@ -6,6 +6,7 @@ import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type { KbCredential, KbOrgLibrary } from "@/lib/knowledge/types";
+import { secondTitleLang } from "@/lib/library/lists";
 import { bookHref, orgSegment, readerHref } from "@/lib/reader-href";
 import { plural, type FormatOptions } from "@/lib/format";
 import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
@@ -78,8 +79,8 @@ export interface LibraryRow {
   book: boolean;
   /** A book's second title (`.meta` under the title); `null` when the read carries none. */
   sub: string | null;
-  /** The second title's `lang`: `ko` for a Korean one, else unset. */
-  subLang: "ko" | undefined;
+  /** The second title's `lang`: the manifest's `sub_lang`, else `ko` for a Korean one, else unset. */
+  subLang: string | undefined;
   /** `14 chapters` for a book, `6 min` for a document; `null` when the read carries no length. */
   length: string | null;
   /** `YYYY-MM-DD`, or `null` when unknown. */
@@ -88,7 +89,6 @@ export interface LibraryRow {
 }
 
 const CALENDAR = /^\d{4}-\d{2}-\d{2}/;
-const HANGUL = /[가-힣]/;
 
 /** A document's reading time as the board draws it (`6 min`), or `null` when the read carries none. */
 export function readingTime(minutes: number | null | undefined): string | null {
@@ -134,7 +134,7 @@ export function libraryRows(
       lang: "en",
       book: true,
       sub: secondTitle(b.sub),
-      subLang: HANGUL.test(b.sub ?? "") ? "ko" : undefined,
+      subLang: secondTitleLang(b.sub, b.sub_lang),
       length: plural(b.chapters.length, PROJECT_HOME.library.chapter),
       date: bookDate(b),
       href: bookHref({ org, project: b.project, book: b.slug }),

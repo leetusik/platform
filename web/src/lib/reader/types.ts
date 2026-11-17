@@ -107,8 +107,13 @@ export interface ReaderProgress {
 /** One row of the Version history sheet (§14), newest first. */
 export interface VersionRow {
   n: number;
-  /** `YYYY-MM-DD`; empty when the index does not carry it. */
+  /**
+   * The version's own publish time (P63): its `published` when the read carries one (an instant, or a
+   * `YYYY-MM-DD` day), else the document's `YYYY-MM-DD`; empty when the index carries neither.
+   */
   date: string;
+  /** True when `date` is a one-time best-effort fill (kept as data; drawn as a plain date). */
+  bestEffort?: boolean;
   /** "Translated from English v1": known for the current version only. */
   from: { label: string; version: number } | null;
 }
@@ -135,6 +140,14 @@ export interface ReaderView {
   summary: string | null;
   /** `YYYY-MM-DD`: the displayed version's publication date. Empty when unknown. */
   date: string;
+  /**
+   * The displayed version's own publish time (P63, D171-qk): its header's `published` (an instant, or a
+   * `YYYY-MM-DD` day for a filled first version), else `date`. The head's `v3, published Nov 2` reads
+   * it; print keeps `date`, as before. Absent from a view built without it: read `published || date`.
+   */
+  published?: string;
+  /** True when `published` is a one-time best-effort fill; shown as a plain date (no board draws it). */
+  publishedBestEffort?: boolean;
   /** The project's name: a loose document's book line. */
   project: string;
   /** Set when this variant's source has been updated since it was translated. */

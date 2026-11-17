@@ -81,6 +81,19 @@ def _header_extras(meta: dict) -> dict:
     return out
 
 
+def _published_columns(meta: dict) -> dict:
+    """``published`` / ``published_best_effort`` from the header (P63, D171-qk).
+
+    The version's own publish time is re-derived from its file, never from a file
+    time: a header without the line (every file before P63, a file pushed by hand) is
+    no time at all (``None``), and a malformed value reads the same way.
+    """
+    found = documents.parse_published(meta.get(documents.PUBLISHED_FIELD))
+    if found is None:
+        return {"published": None, "published_best_effort": False}
+    return {"published": found[0], "published_best_effort": found[1]}
+
+
 def _body_columns(
     text: str, body: str, meta: dict, is_html: bool
 ) -> tuple[str, Optional[str], Optional[str], str]:
@@ -177,6 +190,7 @@ def _index_file(
             tenant_id=tenant_id,
             source=source_val,
             **_header_extras(meta),
+            **_published_columns(meta),
         )
     except sqlite3.Error as exc:
         return False, f"db error: {exc}"
@@ -272,6 +286,7 @@ def _index_version_file(
             created_at=archived_at,
             assets=assets_mod.parse_asset_map(meta.get("assets")),
             source=source_val,
+            **_published_columns(meta),
         )
     except sqlite3.Error as exc:
         return False, f"db error: {exc}", None

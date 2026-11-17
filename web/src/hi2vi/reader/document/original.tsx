@@ -595,7 +595,7 @@ export function DocumentOriginal({
                   where={where}
                   version={view.version}
                   newest={view.newest}
-                  published={date(view.date, { timeZone })}
+                  published={date(view.published || view.date, { timeZone })}
                   onVersions={() => openSheet("versions")}
                   onNewest={() => go(here(null))}
                 />

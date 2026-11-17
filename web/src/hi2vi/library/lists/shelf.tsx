@@ -51,7 +51,9 @@ export function Shelf({ shelf, tag = false, moreHref, from }: ShelfProps) {
                     {b.title}
                   </Link>
                   {b.sub ? (
-                    <span className="meta shelf-sub">{b.sub}</span>
+                    <span className="meta shelf-sub" lang={b.subLang}>
+                      {b.sub}
+                    </span>
                   ) : null}
                 </div>
                 <div className="shelf-meta">

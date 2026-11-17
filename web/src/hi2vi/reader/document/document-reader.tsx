@@ -395,7 +395,7 @@ export function DocumentReader({
                         where={where}
                         version={view.version}
                         newest={view.newest}
-                        published={date(view.date, fmt)}
+                        published={date(view.published || view.date, fmt)}
                         sections={folded.shown}
                         fold={
                           folded.fold

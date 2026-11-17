@@ -1,6 +1,7 @@
 /**
  * hi2vi Library (`03-library` round 02, `ProjectLibrary.dc.html`) — what a project's library page
  * reads, composed in the BFF from reads that already exist; no server route is added.
+ * (P63, OQ7: a member of the org at the public address is told the project's id, for the redirect.)
  *
  * - A member (`/projects/{id}/library`): the active org's projects (`GET /app/projects`: the id is
  *   one of them, else Project not found, as the Shell's own list says), the org's listing
@@ -41,6 +42,11 @@ export interface PublicProject {
   /** The org's display name: the Bar's way back. */
   orgName: string;
   listing: KbOrgLibrary;
+  /**
+   * The project's id when the reader is a member of this org (P63, OQ7): the page sends them to
+   * `/projects/{id}/library` instead. Null for anyone else (a visitor, a reader of another org).
+   */
+  memberId: string | null;
 }
 
 const EMPTY: KbOrgLibrary = {
@@ -105,11 +111,29 @@ async function loadPublicProject(
       return null;
     throw error;
   }
+  // A member of the org (the listing says so for the reader's active org) reads the project in the
+  // Shell: its id comes from the member's own projects, which hold the private ones too.
+  if (token && listing.member) {
+    const mine = (await listProjects(token)).find((p) => p.name === project);
+    if (mine) {
+      return {
+        project: mine.name,
+        orgName: listing.org.name,
+        listing,
+        memberId: mine.id,
+      };
+    }
+  }
   const known = listing.projects.find(
     (p) => p.name === project && p.visibility === "public",
   );
   if (!known) return null;
-  return { project: known.name, orgName: listing.org.name, listing };
+  return {
+    project: known.name,
+    orgName: listing.org.name,
+    listing,
+    memberId: null,
+  };
 }
 
 /** A public project's page reads (one set a request). */

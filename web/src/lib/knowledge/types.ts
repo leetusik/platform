@@ -343,6 +343,15 @@ export interface KbDocument extends KbDocumentListItem {
    * not computed it yet. Optional so an older backend still type-checks.
    */
   reading_minutes?: number | null;
+  /**
+   * This version's own publish time (P63, D171-qk), from its file's `published:` header line, on the
+   * two detail reads only: UTC ISO 8601 to the second (`2026-11-17T09:30:12Z`), or a `YYYY-MM-DD` day
+   * when a one-time fill had only the document's date. `null` when the file carries none (a version
+   * published before P63 and not filled): the reader then shows `date`, as before.
+   */
+  published?: string | null;
+  /** True when `published` is a one-time best-effort fill, not the server's own stamp. */
+  published_best_effort?: boolean;
 }
 
 /** `GET /app/documents` → `{total, items}` (offset-paged; `total` is the full count). */
@@ -440,6 +449,10 @@ export interface KbDocumentVersion {
   format: "md" | "html" | "native";
   /** ISO-8601. When this body was superseded and archived. */
   created_at: string;
+  /** That version's own publish time (P63), as `KbDocument.published`; null when its file has none. */
+  published?: string | null;
+  /** True when `published` is a one-time best-effort fill. */
+  published_best_effort?: boolean;
   /**
    * The archived body, present ONLY on a single-version fetch (index rows are
    * body-less). For an `html` version this is the extracted plain text; the
@@ -567,6 +580,11 @@ export interface KbLibraryDocument {
   subject: string | null;
   /** Whole minutes to read the document (P63; at least 1); null when not computed, absent from an older backend. */
   reading_minutes?: number | null;
+  /**
+   * The document's tags (P63, OQ8), as on `GET /app/documents`: a visitor's documents table draws them.
+   * Only ever of the projects the response is over. Absent from an older backend.
+   */
+  tags?: string[];
   /** `/@{org}/{project}/{slug}`, or null for a slug-less org. */
   canonical_path: string | null;
 }

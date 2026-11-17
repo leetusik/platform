@@ -7,6 +7,7 @@
 
 import { BOOK_PAGE } from "@/content/book-page";
 import type { KbBookChapter, KbBookVariant } from "@/lib/knowledge/types";
+import { secondTitleLang } from "@/lib/library/lists";
 
 import type { BookView, ContView, HeadView, StateView } from "./view";
 
@@ -119,6 +120,8 @@ export function rowStateView(
 export interface HeadIn {
   title: string;
   sub: string;
+  /** The manifest's language of `sub` (P63, D248-j7); null or absent: the guess. */
+  subLang?: string | null;
   description: string;
   place: string;
   signedIn: boolean;
@@ -139,6 +142,7 @@ export function headOf(h: HeadIn): HeadView {
   return {
     title: h.title,
     sub: h.sub,
+    subLang: secondTitleLang(h.sub, h.subLang),
     description: h.description,
     place: h.place,
     member: h.signedIn,

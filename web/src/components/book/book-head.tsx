@@ -53,7 +53,7 @@ export function BookHead({
           <div className="page-title">
             <h1>{head.title}</h1>
             {head.sub ? (
-              <span className="book-sub" lang="ko">
+              <span className="book-sub" lang={head.subLang}>
                 {head.sub}
               </span>
             ) : null}

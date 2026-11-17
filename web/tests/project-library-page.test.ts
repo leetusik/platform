@@ -45,8 +45,9 @@ vi.mock("next/navigation", async (real) => ({
 const { ApiError } = await import("@/lib/knowledge/client");
 const { loadMemberProjectOnce, loadPublicProjectOnce } =
   await import("@/lib/project-library/load");
-const { projectLibraryView, VISITOR_SOURCE } =
+const { projectLibraryView, visitorSource } =
   await import("@/lib/project-library/model");
+const { optionalIdentity } = await import("@/lib/auth-guards");
 const { ProjectParts, projectNotFound } =
   await import("@/app/(app)/projects/[projectId]/library/parts");
 const { StateBlock } = await import("@/hi2vi/states");
@@ -165,7 +166,7 @@ describe("a visitor gets no search and no Delete", () => {
       "vocky",
       at,
       { page: 1, q: "" },
-      VISITOR_SOURCE,
+      visitorSource(listing()),
       { timeZone: "UTC" },
     );
     return renderToStaticMarkup(createElement(ProjectParts, { view }));
@@ -192,7 +193,7 @@ describe("a visitor gets no search and no Delete", () => {
       "vocky",
       { viewer: "visitor", org: "june" },
       { page: 1, q: "Document 3" },
-      VISITOR_SOURCE,
+      visitorSource(listing()),
     );
     expect(view.docs.items.map((d) => d.title)).toEqual([
       "Document 3",
@@ -234,5 +235,97 @@ describe("/@nope/x is Project not found (notFound(): 404 where nothing has strea
     const html = renderToStaticMarkup(await visit("@june", "vocky"));
     expect(html).toContain("<h1>vocky</h1>");
     expect(html).toContain("Document 3");
+  });
+});
+
+describe("a visitor's rows draw the tags the public listing carries (OQ8)", () => {
+  const tagged = (): KbOrgLibrary => {
+    const l = listing();
+    l.documents = l.documents.map((d) =>
+      d.project === "vocky"
+        ? {
+            ...d,
+            tags:
+              d.id === 98
+                ? ["capture", "alert"]
+                : ["limits", "capture", "proxy", "abuse"],
+          }
+        : d,
+    );
+    return l;
+  };
+
+  it("each row its own tags, three shown and the rest behind +n, no search", () => {
+    const view = projectLibraryView(
+      tagged(),
+      null,
+      "vocky",
+      { viewer: "visitor", org: "june" },
+      { page: 1, q: "" },
+      visitorSource(tagged()),
+      { timeZone: "UTC" },
+    );
+    expect(view.docs.items.map((d) => [d.title, d.tags])).toEqual([
+      ["Document 3", ["limits", "capture", "proxy", "abuse"]],
+      ["Document 2", ["capture", "alert"]],
+    ]);
+    const html = renderToStaticMarkup(createElement(ProjectParts, { view }));
+    expect(html).toContain("alert");
+    expect(html).toContain("+1");
+    expect(html).not.toContain('role="search"');
+  });
+
+  it("a listing without tags (an older backend) draws none, as before", () => {
+    expect([...visitorSource(listing()).tags.values()]).toEqual([[], [], []]);
+  });
+});
+
+describe("a member at the public address goes to the project's library (OQ7)", () => {
+  const visit = (project: string, search: Record<string, string> = {}) =>
+    PublicProjectPage({
+      params: Promise.resolve({ org: "@june", project }),
+      searchParams: Promise.resolve(search),
+    });
+  const redirectTo = (error: unknown) => {
+    const digest = String((error as { digest?: unknown })?.digest ?? "");
+    return digest.startsWith("NEXT_REDIRECT") ? digest.split(";")[2] : null;
+  };
+  const signedIn = () =>
+    vi.mocked(optionalIdentity).mockResolvedValue({
+      token: "tok",
+    } as Awaited<ReturnType<typeof optionalIdentity>>);
+
+  it("a member: redirected with the page and the search kept, before any part is drawn", async () => {
+    signedIn();
+    app.getOrgLibrary.mockResolvedValue({ ...listing(), member: true });
+    app.listProjects.mockResolvedValue([
+      { id: "p1", name: "platform", visibility: "private" },
+      { id: "p2", name: "vocky", visibility: "public" },
+    ]);
+    const error = await visit("vocky", { page: "2", q: "dedupe" }).catch(
+      (e: unknown) => e,
+    );
+    expect(redirectTo(error)).toBe("/projects/p2/library?page=2&q=dedupe");
+    // their own private project too: a member reads it in the Shell
+    const own = await visit("platform").catch((e: unknown) => e);
+    expect(redirectTo(own)).toBe("/projects/p1/library");
+  });
+
+  it("a signed-in reader of another org keeps the visitor's page; a private project stays Not found", async () => {
+    signedIn();
+    app.getOrgLibrary.mockResolvedValue(listing());
+    const html = renderToStaticMarkup(await visit("vocky"));
+    expect(html).toContain("<h1>vocky</h1>");
+    expect(app.listProjects).not.toHaveBeenCalled();
+    const error = await visit("platform").catch((e: unknown) => e);
+    expect(notFoundThrow(error)).toBe(true);
+  });
+
+  it("a visitor keeps the visitor's page", async () => {
+    vi.mocked(optionalIdentity).mockResolvedValue(null);
+    app.getOrgLibrary.mockResolvedValue({ ...listing(), member: true });
+    const html = renderToStaticMarkup(await visit("vocky", { page: "1" }));
+    expect(html).toContain("<h1>vocky</h1>");
+    expect(app.listProjects).not.toHaveBeenCalled();
   });
 });

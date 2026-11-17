@@ -46,8 +46,14 @@ class SearchQueryError(ValueError):
 # bm25 column weights: title 8x, tags 4x, body 1x. The FTS columns are ordered
 # (title, tags_text, markdown), so these weights map to those fields respectively.
 _RANK = "bm25(documents_fts, 8.0, 4.0, 1.0)"
-# snippet over column 2 (markdown), hits wrapped in <mark>, ellipsis, up to 12 tokens.
-_SNIPPET = "snippet(documents_fts, 2, '<mark>', '</mark>', '…', 12)"
+# snippet over column 2 (markdown), hits wrapped in <mark>, ellipsis, up to 64 tokens.
+# 64 is FTS5's ceiling for snippet()'s token count (https://www.sqlite.org/fts5.html,
+# "The snippet() Function"); it takes no width in characters. FTS5 centres the
+# fragment on the hits, so 64 tokens leave about 32 words each side: room for the
+# Library's excerpt (48 characters before the match and 72 after, cut by the web)
+# on prose, which 12 tokens was not (P63, OQ3).
+_SNIPPET_TOKENS = 64
+_SNIPPET = f"snippet(documents_fts, 2, '<mark>', '</mark>', '…', {_SNIPPET_TOKENS})"
 
 # Recency signal: a document's freshness contribution decays exponentially with age.
 # recency = exp(-age_days * ln2 / HALF_LIFE_DAYS) — 0 days -> 1.0, HALF_LIFE_DAYS -> 0.5.

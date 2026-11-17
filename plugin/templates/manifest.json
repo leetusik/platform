@@ -214,7 +214,10 @@
       "tests/test_email_address.py",
       "server/reading_time.py",
       "tests/test_reading_time.py",
-      "tests/test_library_reads.py"
+      "tests/test_library_reads.py",
+      "server/published_fill.py",
+      "tests/test_publish_time.py",
+      "tests/test_search_excerpt.py"
     ],
     "parameterized": [
       "mkdocs.yml",

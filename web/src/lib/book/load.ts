@@ -29,6 +29,7 @@ import { sectionTitle } from "@/lib/library/continue";
 import { validateChapter } from "@/lib/native";
 import { loginHref } from "@/lib/next-path";
 import { languageName } from "@/lib/reader/language";
+import { versionDate } from "@/lib/reader/load";
 import {
   bookHref,
   bookNotesHref,
@@ -100,8 +101,10 @@ async function soft<T>(run: () => Promise<T>): Promise<T | null> {
 interface DateInfo {
   /** The current version's date, as the read carries it (`YYYY-MM-DD` or an instant), or "". */
   current: string;
+  /** Whether that date is a one-time best-effort fill (P63): kept as data, drawn as a plain date. */
+  currentBestEffort: boolean;
   /** Earlier versions, newest first, each with the date its read carries. */
-  older: { v: number; date: string }[];
+  older: { v: number; date: string; bestEffort: boolean }[];
 }
 
 /**
@@ -245,6 +248,7 @@ export async function loadBook(
             {
               n: v.version,
               date: info?.current ?? "",
+              bestEffort: info?.currentBestEffort ?? false,
               from: v.translated_from
                 ? t.translatedFrom(
                     languageName(v.translated_from.lang),
@@ -254,7 +258,12 @@ export async function loadBook(
             },
             ...(info?.older ?? [])
               .filter((o) => o.v < v.version)
-              .map((o) => ({ n: o.v, date: o.date, from: "" })),
+              .map((o) => ({
+                n: o.v,
+                date: o.date,
+                bestEffort: o.bestEffort,
+                from: "",
+              })),
           ];
           return {
             code: v.lang,
@@ -265,6 +274,7 @@ export async function loadBook(
                 n: r.n,
                 current,
                 published: r.date ? t.published(day(r.date)) : "",
+                bestEffort: r.bestEffort,
                 from: r.from,
                 aria: t.viewAria(r.n, name),
                 href: chapterHref(
@@ -348,6 +358,7 @@ export async function loadBook(
     head: headOf({
       title: book.title,
       sub: book.sub?.trim() ?? "",
+      subLang: book.sub_lang,
       description: book.description ?? "",
       place,
       signedIn,
@@ -386,11 +397,14 @@ async function datesOf(
     getDocument(token, variant.doc_id),
     getDocumentVersions(token, variant.doc_id),
   ]);
+  // P63 (D171-qk): each version's own publish time, else the document's date as before.
+  const own = versionDate(doc);
   return {
-    current: doc.date ?? "",
+    current: own.date,
+    currentBestEffort: own.bestEffort,
     older: [...page.versions]
       .sort((a, b) => b.version - a.version)
-      .map((v) => ({ v: v.version, date: v.date ?? "" })),
+      .map((v) => ({ v: v.version, ...versionDate(v) })),
   };
 }
 
