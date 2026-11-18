@@ -9,6 +9,7 @@ import {
   useTransition,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type RefObject,
 } from "react";
@@ -265,6 +266,29 @@ export function AgendaList({
     setPicks((p) => ({ ...p, deferred: [] }));
   }
 
+  // A page asked for from the pager opens with the Deferred part's head in view, as the Deferred jobs list does:
+  // the page stays where it was while the next page is read, then the part's head comes to the top.
+  const deferredPart = useRef<HTMLElement>(null);
+  const paged = useRef(false);
+  useEffect(() => {
+    if (!paged.current) return;
+    paged.current = false;
+    deferredPart.current?.scrollIntoView({ block: "start" });
+  }, [place.page]);
+  const onPage = (n: number, event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    paged.current = true;
+    router.push(agendaHref(project, { deferred: n }), { scroll: false });
+  };
+
   const open = parts.open;
   const openIds = open.map((r) => r.id);
   const titles = new Map(
@@ -370,7 +394,10 @@ export function AgendaList({
       { kind: "move", items: [id], fields: to },
       () => moveAgendaItem(project, id, to),
     );
-    if (!answer.ok) notTaken("open", answer, AGENDA.actFailed("move", 1));
+    if (answer.ok) return;
+    // Not taken: the row is back where it was, so the status line no longer says it waits; the part's notice says why.
+    setSaid("");
+    notTaken("open", answer, AGENDA.actFailed("move", 1));
   };
 
   const gripKeyDown = (event: KeyboardEvent<HTMLButtonElement>, id: string) => {
@@ -502,7 +529,9 @@ export function AgendaList({
       sendAct(project, kind, items),
     );
     if (answer.ok) return;
-    // Not taken: the rows are back where they were, still picked, and the part says so.
+    // Not taken: the rows are back where they were, still picked, and the part says so; the status line no longer
+    // says they wait.
+    setSaid("");
     pickIn(part, () => items);
     notTaken(part, answer, AGENDA.actFailed(kind, items.length));
   };
@@ -779,7 +808,11 @@ export function AgendaList({
       </section>
 
       {parts.deferred.length > 0 ? (
-        <section className="panel agenda-part" aria-labelledby={ids.deferred}>
+        <section
+          className="panel agenda-part"
+          aria-labelledby={ids.deferred}
+          ref={deferredPart}
+        >
           <PartHead
             headId={ids.deferred}
             head={AGENDA.heads.deferred}
@@ -816,6 +849,7 @@ export function AgendaList({
                 label={AGENDA.pager.label}
                 pageKey="deferred"
                 hrefFor={(n) => agendaHref(project, { deferred: n })}
+                onPage={onPage}
               />
             </div>
           ) : null}
