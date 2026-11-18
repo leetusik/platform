@@ -121,6 +121,9 @@ const LIBRARY_PARTS = [
   // Review's head), and they mount only on the reading pages and Review, never on a page from before the Library.
   "/hi2vi/listen/",
   "/hi2vi/review/",
+  // The Workspace's agenda (job 02): its board draws `button.link link-row` (the ended part's Show all),
+  // and it mounts only under a project's Workspace, never on a page from before the Library.
+  "/hi2vi/workspace/",
 ];
 
 describe("the Library's sheets", () => {
