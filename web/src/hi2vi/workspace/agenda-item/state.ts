@@ -51,6 +51,8 @@ export interface PageState {
   phase: FormPhase;
   /** The route's own line over the form (a refusal, a change no longer open); null for F45's sentence. */
   notice: string | null;
+  /** The form's last send got no taking answer: its notice stays over the fields until the next send answers. */
+  failed: boolean;
   draft: Draft;
   busy: Busy | null;
   /** The Delete confirm is open. */
@@ -68,6 +70,7 @@ export const INITIAL: PageState = {
   form: null,
   phase: "rest",
   notice: null,
+  failed: false,
   draft: { title: "", note: "", line: "" },
   busy: null,
   asking: false,
@@ -141,6 +144,7 @@ export function reduce(state: PageState, event: PageEvent): PageState {
         form: event.form,
         phase: "rest",
         notice: null,
+        failed: false,
         draft:
           event.form === "edit"
             ? { title: event.item.title ?? "", note: event.item.note, line: "" }
@@ -165,6 +169,7 @@ export function reduce(state: PageState, event: PageEvent): PageState {
         form: null,
         phase: "rest",
         notice: null,
+        failed: false,
         focus: focusOn(state, state.form),
       };
     case "submit": {
@@ -211,6 +216,7 @@ function answer(
         ...idle,
         phase: "title-error",
         notice: null,
+        failed: false,
         focus: focusOn(state, "first"),
       };
     const line =
@@ -220,7 +226,7 @@ function answer(
       a.message
         ? a.message
         : null;
-    return { ...idle, phase: "send-failed", notice: line };
+    return { ...idle, phase: "send-failed", notice: line, failed: true };
   }
   const kinds = { ...state.kinds, [a.entry.id]: a.entry.kind };
   let overlay: Overlay;
@@ -242,6 +248,7 @@ function answer(
       form: null,
       phase: "rest",
       notice: null,
+      failed: false,
       focus: form ? focusOn(state, AFTER[form] as FocusKey) : state.focus,
     };
   }

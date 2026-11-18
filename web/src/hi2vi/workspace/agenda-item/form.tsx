@@ -24,6 +24,7 @@ export function AgendaItemForm({
   kind,
   phase,
   notice,
+  failed = phase === "send-failed",
   draft,
   onChange,
   onSubmit,
@@ -32,6 +33,8 @@ export function AgendaItemForm({
   kind: FormKind;
   phase: FormPhase;
   notice: string | null;
+  /** The last send failed: its notice stays over the fields, through the next send, until that one answers. */
+  failed?: boolean;
   draft: Draft;
   onChange: (field: keyof Draft, value: string) => void;
   onSubmit: () => void;
@@ -80,7 +83,7 @@ export function AgendaItemForm({
       }}
     >
       <div className="panel-body stack gap-3">
-        {phase === "send-failed" ? (
+        {failed ? (
           <p className="notice notice-danger" role="alert">
             {notice ?? words.failed}
           </p>

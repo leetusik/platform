@@ -2,7 +2,6 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 
 import { BACKLOG } from "@/content/workspace/backlog";
-import { Pager } from "@/hi2vi/library/pager";
 import { pagerRange } from "@/hi2vi/library/pager-model";
 
 import { Steps } from "../frame/steps";
@@ -11,7 +10,6 @@ import { WsText } from "../frame/text";
 
 import {
   ARCHIVED_PER,
-  archivedHref,
   type BacklogArchived,
   type BacklogCell,
   type BacklogPhase,
@@ -19,6 +17,7 @@ import {
   type BacklogView,
   type BacklogWaitingItem,
 } from "./model";
+import { ArchivedPager } from "./archived-pager";
 
 /**
  * The backlog's parts (`BacklogWaiting.dc.html`, `BacklogNow.dc.html`, `BacklogPhases.dc.html`), as signed: the
@@ -302,13 +301,12 @@ function Archived({
       </div>
       {archived.total > ARCHIVED_PER ? (
         <div className="panel-foot backlog-foot">
-          <Pager
+          <ArchivedPager
+            project={project}
             page={archived.page}
             pages={archived.pages}
             range={pagerRange(archived.page, ARCHIVED_PER, archived.total)}
             label={BACKLOG.phases.pager.label}
-            pageKey="archived"
-            hrefFor={(n) => archivedHref(project, n)}
           />
         </div>
       ) : null}

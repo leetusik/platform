@@ -211,6 +211,7 @@ export function AgendaItemPage({
           kind={state.form}
           phase={state.phase}
           notice={state.notice}
+          failed={state.failed}
           draft={state.draft}
           onChange={(field, value) =>
             dispatch({ type: "change", field, value })
