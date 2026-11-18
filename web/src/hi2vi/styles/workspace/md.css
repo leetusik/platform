@@ -2,13 +2,14 @@
    The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
    never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css.
    Section 8 of the signed frame.css, its declarations as signed; the renderer (src/hi2vi/workspace/md) gives its
-   output these classes. */
+   output these classes. Changed from the signed sheet: `.md` breaks a long word anywhere (was `break-word`), so
+   a word longer than its line never sets the least width of a paragraph, a list item or a cell. */
 @scope (.ui) to ([data-ui-legacy]) {
 
 /* Markdown: .md, always on a surface (frame.md F46) */
 .md-wrap { container: md / inline-size; }
 .md-layout { display: flex; flex-direction: column; gap: var(--space-4); }
-.md { display: flex; flex: 1 1 0; flex-direction: column; align-items: flex-start; gap: var(--space-3); width: 100%; min-width: 0; line-height: var(--lh-head); overflow-wrap: break-word; }
+.md { display: flex; flex: 1 1 0; flex-direction: column; align-items: flex-start; gap: var(--space-3); width: 100%; min-width: 0; line-height: var(--lh-head); overflow-wrap: anywhere; }
 /* text keeps a measure; a table and a code block may use the body's whole width */
 .md > * { max-width: min(100%, var(--measure)); }
 .md > .md-code, .md > .md-table { width: fit-content; min-width: min(100%, var(--measure)); max-width: 100%; }

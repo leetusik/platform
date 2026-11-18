@@ -448,6 +448,12 @@ describe("a long word in a list's cell (frame.md F43, F80)", () => {
     ["project home's phase name", "home.css", ".ph-phase .ph-name-text"],
     ["project home's current slice", "home.css", ".ph-phase .ph-sub"],
     ["the docs table's cells", "docs.css", ".docs-table td"],
+    // stored prose (`WsProse`) sits in a flex or grid item wherever a page draws it (a slice's one sentence, a
+    // stop's words, a job's facts, an item's note, a version's summary, a phase's objective)
+    ["stored prose, inline", "frame.css", ".ws-prose"],
+    ["stored prose, a long value's block", "frame.css", ".ws-prose-block"],
+    // the Markdown body: its paragraphs, list items and table cells inherit it from the text's box
+    ["the Markdown body's text", "md.css", ".md"],
   ];
 
   it.each(CELLS)("breaks inside %s", (_, sheet, selector) => {

@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createElement, type ReactElement } from "react";
+import {
+  createElement,
+  isValidElement,
+  type ReactElement,
+  Suspense,
+} from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +21,7 @@ import {
   docView,
   retiredCount,
 } from "@/hi2vi/workspace/docs";
+import { DocTop } from "@/hi2vi/workspace/docs/top";
 import { wsSyncLine } from "@/hi2vi/workspace/frame";
 import { dates } from "@/lib/workspace/model";
 import type { Doc, DocRow, WithHead } from "@/lib/workspace/types";
@@ -32,6 +38,18 @@ const PROJECT = "3f6c2a9e-8b1d-4e7a-9c05-6d2e1f4b7a10";
 const NOW = Date.parse("2026-11-18T09:00:00Z");
 const D = dates("Asia/Seoul", NOW);
 const html = (el: ReactElement) => renderToStaticMarkup(el);
+
+type Keyed = ReactElement<{ fallback: ReactElement; children: ReactElement }>;
+
+/** A doc page's body: the page draws it inside a boundary keyed on the version it shows, read here as it streams. */
+async function body(page: unknown): Promise<ReactElement> {
+  const el = page as Keyed;
+  expect(el.type).toBe(Suspense);
+  const inner = el.props.children as ReactElement<object>;
+  return await (inner.type as (p: object) => Promise<ReactElement>)(
+    inner.props,
+  );
+}
 const text = (markup: string) =>
   markup
     .replace(/<[^>]+>/g, "")
@@ -511,10 +529,12 @@ describe("the docs pages' reads", () => {
   it("reads a doc once", async () => {
     await signedIn();
     api(() => withHead(ARCH));
-    const page = await WorkspaceDocPage({
-      params: Promise.resolve({ projectId: PROJECT, doc: "architecture" }),
-      searchParams: Promise.resolve({}),
-    });
+    const page = await body(
+      await WorkspaceDocPage({
+        params: Promise.resolve({ projectId: PROJECT, doc: "architecture" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     expect(calls).toEqual([`${base}/docs/architecture`]);
     expect(html(page)).toContain("<h1>Architecture</h1>");
   });
@@ -522,10 +542,12 @@ describe("the docs pages' reads", () => {
   it("reads an earlier version at its stored id and the doc at its latest, at once", async () => {
     await signedIn();
     api((url) => withHead(url.includes("?version=") ? ARCH_V12 : ARCH));
-    const page = await WorkspaceDocPage({
-      params: Promise.resolve({ projectId: PROJECT, doc: "architecture" }),
-      searchParams: Promise.resolve({ version: "v0012" }),
-    });
+    const page = await body(
+      await WorkspaceDocPage({
+        params: Promise.resolve({ projectId: PROJECT, doc: "architecture" }),
+        searchParams: Promise.resolve({ version: "v0012" }),
+      }),
+    );
     expect(calls.sort()).toEqual([
       `${base}/docs/architecture`,
       `${base}/docs/architecture?version=v0012`,
@@ -534,6 +556,37 @@ describe("the docs pages' reads", () => {
     expect(out).toContain("<h1>Architecture v12</h1>");
     expect(text(out)).toContain("Cut what the code already says.");
   });
+  it("draws a version's own loading under a boundary keyed on it, landing at the top", async () => {
+    await signedIn();
+    api(() => withHead(ARCH));
+    const page = async (search: Record<string, string>) =>
+      (await WorkspaceDocPage({
+        params: Promise.resolve({ projectId: PROJECT, doc: "architecture" }),
+        searchParams: Promise.resolve(search),
+      })) as Keyed;
+    const [latest, v12, v11] = await Promise.all([
+      page({}),
+      page({ version: "v0012" }),
+      page({ version: "v0011", from: "docs" }),
+    ]);
+    // nothing is read before the boundary: the old version gives way to the loading form at once
+    expect(calls).toEqual([]);
+    for (const el of [latest, v12, v11]) expect(el.type).toBe(Suspense);
+    const keys = [latest.key, v12.key, v11.key];
+    expect(new Set(keys).size).toBe(3);
+    expect(keys).toContain("v0012");
+    // the fallback is the Doc loading form, its way back reading Docs, and it lands at the top
+    const fallback = v12.props.fallback as ReactElement<{
+      children: ReactElement[];
+    }>;
+    const [top, loading] = fallback.props.children;
+    expect(isValidElement(top) && top.type).toBe(DocTop);
+    const out = html(loading);
+    expect(out).toContain('aria-label="Back to Docs"');
+    expect(out).toContain(`href="/projects/${PROJECT}/workspace/docs"`);
+    expect(out).toContain('aria-busy="true"');
+  });
+
   it("draws Doc not found under the back row, with the sync line and the project's name", async () => {
     await signedIn();
     vi.stubGlobal(
@@ -582,10 +635,12 @@ describe("the docs pages' reads", () => {
         });
       }),
     );
-    const page = (await WorkspaceDocPage({
-      params: Promise.resolve({ projectId: PROJECT, doc: "glossary" }),
-      searchParams: Promise.resolve({}),
-    })) as ReactElement<{
+    const page = (await body(
+      await WorkspaceDocPage({
+        params: Promise.resolve({ projectId: PROJECT, doc: "glossary" }),
+        searchParams: Promise.resolve({}),
+      }),
+    )) as ReactElement<{
       children: ReactElement<{ state?: unknown; children?: ReactElement }>[];
     }>;
     const [header, block] = page.props.children;

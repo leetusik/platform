@@ -25,6 +25,16 @@ export interface MdProps {
 }
 
 /**
+ * A link's address when it is one the reader can open: an absolute web address. Any other (a path to a workspace
+ * file, `../../retrofit-guide.md`, `topics/x.md`, `intent.md`; a path in the app; a fragment; another scheme) has
+ * no address here and would land on the app's Not found, so its link draws as its text alone, as stored prose
+ * draws every link (`WsProse`).
+ */
+function mdLinkHref(href: string | undefined): string | null {
+  return href && /^https?:\/\/[^/]/i.test(href) ? href : null;
+}
+
+/**
  * A code block and a table each scroll sideways in their own focusable box, named Code or Table, so the page
  * never does (F46). A table is the system's `.table`; its head cells name their column.
  */
@@ -50,6 +60,14 @@ const COMPONENTS: Components = {
     </div>
   ),
   th: ({ node: _node, ...rest }) => <th scope="col" {...rest} />,
+  a: ({ node: _node, href, children, ...rest }) =>
+    mdLinkHref(href) ? (
+      <a {...rest} href={href}>
+        {children}
+      </a>
+    ) : (
+      <>{children}</>
+    ),
 };
 
 function SectionList({ sections }: { sections: readonly MdSection[] }) {
@@ -70,7 +88,8 @@ function SectionList({ sections }: { sections: readonly MdSection[] }) {
  * The Workspace's Markdown body (design job 02, frame.md F46; `Md.dc.html`): plans, results, intents, briefs
  * and docs, drawn by a real renderer (`react-markdown` with GitHub's tables, `remark-gfm`) with the `.md`
  * classes. It always sits in a `.panel-body` under a head that names it. Raw HTML in a source is never
- * rendered: it shows as the text it is. A link in the text is an ordinary link to its address.
+ * rendered: it shows as the text it is. A link to an absolute web address is an ordinary link to it; any other
+ * link is its text (`mdLinkHref`).
  *
  * With `outline` and three or more first-step headings, the way to a section: a closed **Sections**
  * disclosure above the text, and a list beside it that stays in view from 60em of the body's box (the sheet

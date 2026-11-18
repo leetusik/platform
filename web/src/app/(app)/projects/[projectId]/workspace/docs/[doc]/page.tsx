@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, unstable_rethrow } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 
 import { WS_PLACES, WS_STATES } from "@/content/workspace/frame";
 import {
   DocBackRow,
+  DocLoading,
   DocPage,
   DocStateBlock,
   docView,
 } from "@/hi2vi/workspace/docs";
+import { DocTop } from "@/hi2vi/workspace/docs/top";
 import { wsFailedTitle } from "@/hi2vi/workspace/frame/failed-model";
 import { WsItemFailed } from "@/hi2vi/workspace/frame/failed";
 import {
@@ -26,6 +28,7 @@ import { ApiError } from "@/lib/knowledge/client";
 import { viewerTimeZone } from "@/lib/time-zone";
 import {
   decodeWorkspaceFrom,
+  docsHref,
   wayBack,
   type WorkspaceList,
 } from "@/lib/workspace/address";
@@ -43,6 +46,11 @@ import type { Doc, WithHead } from "@/lib/workspace/types";
  * F49's error. Both sit under the back row, which keeps the sync line: on those paths alone the page reads the
  * Workspace (its sync facts) and the project (its name, for the sentence). A project that is not the org's is
  * the route's Not found. Each page's reads are `cache`d, so its tab title costs none.
+ *
+ * The doc's body sits in a boundary keyed on the version it shows: opening an earlier version (or going back to
+ * the latest) changes only the search, so without it the old view would stay up for the whole read. Under a new
+ * key the page draws the Doc loading form at once (its way back reads **Docs**: the doc's title is not known
+ * before the read) and lands at the page's top (`DocTop`).
  */
 type Params = { projectId: string; doc: string };
 type Search = Record<string, string | string[] | undefined>;
@@ -168,6 +176,35 @@ export default async function WorkspaceDocPage({
     search.from,
     projectId,
   );
+  return (
+    <Suspense
+      key={version ?? ""}
+      fallback={
+        <div className="column">
+          <DocTop />
+          <DocLoading
+            back={{ href: docsHref(projectId), label: WS_PLACES.docs }}
+          />
+        </div>
+      }
+    >
+      <DocBody projectId={projectId} doc={doc} version={version} from={from} />
+    </Suspense>
+  );
+}
+
+/** The doc at the version the address names, read inside the page's keyed boundary. */
+async function DocBody({
+  projectId,
+  doc,
+  version,
+  from,
+}: {
+  projectId: string;
+  doc: string;
+  version: string | null;
+  from: WorkspaceList | null;
+}) {
   const { token } = await requireIdentity();
   const zone = viewerTimeZone(await cookies());
   const loaded = await load(token, projectId, doc, version);

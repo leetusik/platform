@@ -1,4 +1,4 @@
-import { createElement, type ReactElement } from "react";
+import { createElement, type ReactElement, Suspense } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,6 +76,13 @@ const JobPage = (await import(`${W}/deferred/[job]/page`)).default;
 const DocError = (await import(`${W}/docs/[doc]/error`)).default;
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
+
+/** A page that streams its body inside a keyed boundary (a doc, keyed on its version) is read as that body. */
+async function settled(el: ReactElement): Promise<ReactElement> {
+  if (el.type !== Suspense) return el;
+  const inner = (el.props as { children: ReactElement<object> }).children;
+  return (inner.type as (p: object) => Promise<ReactElement>)(inner.props);
+}
 const BAR =
   '<p class="sync" aria-busy="true"><span class="skel" style="width:9em"></span><span class="sr-only">Loading…</span></p>';
 
@@ -85,10 +92,12 @@ type Page = (props: {
 }) => Promise<ReactElement>;
 const page = async (Component: Page, params: Record<string, string> = {}) =>
   html(
-    await Component({
-      params: Promise.resolve({ projectId: PROJECT, ...params }),
-      searchParams: Promise.resolve({}),
-    }),
+    await settled(
+      await Component({
+        params: Promise.resolve({ projectId: PROJECT, ...params }),
+        searchParams: Promise.resolve({}),
+      }),
+    ),
   );
 type Boundary = (props: {
   error: Error & { digest?: string };

@@ -1,4 +1,4 @@
-import { createElement, type ReactElement } from "react";
+import { createElement, type ReactElement, Suspense } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -92,6 +92,13 @@ const props = () => ({
 });
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 
+/** A page that streams its body inside a keyed boundary (a doc, keyed on its version) is read as that body. */
+async function settled(el: ReactElement): Promise<ReactElement> {
+  if (el.type !== Suspense) return el;
+  const inner = (el.props as { children: ReactElement<object> }).children;
+  return (inner.type as (p: object) => Promise<ReactElement>)(inner.props);
+}
+
 /** The sync line as the back row draws it when the workspace answered (not its bar, not an empty line). */
 const LINE =
   /<p class="sync[^"]*"><span class="status[^"]*">Synced [^<]+<\/span><span><span class="sr-only">[^<]*<\/span>v97<\/span><\/p>/;
@@ -126,7 +133,7 @@ describe("an item page whose read failed", () => {
     "on %s: the back row with the sync line, F5's block, no reference without a digest",
     async (_, dir, __, back) => {
       const route = (await import(`${W}/${dir}/page`)) as Route;
-      const out = html(await route.default(props()));
+      const out = html(await settled(await route.default(props())));
       expect(out).toMatch(LINE);
       expect(out).toContain("This page did not load");
       expect(out).toContain(">Try again</button>");

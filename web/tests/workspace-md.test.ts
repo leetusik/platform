@@ -136,6 +136,54 @@ describe("Md and raw HTML", () => {
   });
 });
 
+describe("Md's links", () => {
+  // A brief or a doc links the workspace's own files by a path relative to it; those have no address in the app
+  // (they would land on its Not found), so a link draws as its text unless it is an absolute web address.
+  const SOURCE = [
+    "The guide lives in [the retrofit guide](../../retrofit-guide.md); the breakdown in",
+    "[topics/breakdown.md](topics/breakdown.md), the ask in [intent.md](intent.md) and the",
+    "[Library](/projects/x/library), the [Goal](#plan-1) and [the owner](mailto:owner@example.com).",
+    "",
+    "- See [the signed record](https://example.com/record) and [the old page](http://example.com/old).",
+    "",
+    "| File | Where |",
+    "| --- | --- |",
+    "| [plan.md](plan.md) | [the PR](https://github.com/o/r/pull/9) |",
+  ].join("\n");
+
+  it("draws a link to a workspace file, a path or a fragment as its text alone", () => {
+    const out = render({ source: SOURCE });
+    for (const text of [
+      "the retrofit guide",
+      "topics/breakdown.md",
+      "intent.md",
+      "Library",
+      "Goal",
+      "the owner",
+      "plan.md",
+    ])
+      expect(out).toContain(text);
+    for (const href of [
+      "../../retrofit-guide.md",
+      "topics/breakdown.md",
+      "intent.md",
+      "/projects/x/library",
+      "#plan-1",
+      "mailto:owner@example.com",
+      "plan.md",
+    ])
+      expect(out, href).not.toContain(`href="${href}"`);
+    expect(count(out, "<a ")).toBe(3);
+  });
+
+  it("keeps an absolute web address a plain link", () => {
+    const out = render({ source: SOURCE });
+    expect(out).toContain('<a href="https://example.com/record">the signed record</a>');
+    expect(out).toContain('<a href="http://example.com/old">the old page</a>');
+    expect(out).toContain('<a href="https://github.com/o/r/pull/9">the PR</a>');
+  });
+});
+
 describe("Md on a real plan", () => {
   it("renders every word, cell and code line, Korean included", () => {
     const html = render({ source: PLAN, dropTitle: true, outline: true, level: 3, anchor: "plan" });

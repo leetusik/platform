@@ -17,6 +17,7 @@ import {
 import { jobTriggers } from "@/hi2vi/workspace/deferred/prose";
 import { DocVersions } from "@/hi2vi/workspace/docs";
 import { wsSyncLine } from "@/hi2vi/workspace/frame";
+import { WsProse } from "@/hi2vi/workspace/frame/prose";
 import { PhaseSlices } from "@/hi2vi/workspace/phase/parts";
 import { SliceHead } from "@/hi2vi/workspace/slice";
 import type { ItemView } from "@/hi2vi/workspace/agenda-item/model";
@@ -252,6 +253,16 @@ describe("stored prose drawn as its Markdown", () => {
       }),
     );
     expectDrawn(out);
+  });
+
+  it("keeps every link as its text: a workspace file's path and a web address alike", () => {
+    // a line sits inside a row's link, which may hold no second link, and a workspace file has no address here
+    const out = html(
+      createElement(WsProse, {
+        text: "Moved to [the retrofit guide](../../retrofit-guide.md); see [the PR](https://github.com/o/r/pull/9).",
+      }),
+    );
+    expect(out).toBe("Moved to the retrofit guide; see the PR.");
   });
 });
 
