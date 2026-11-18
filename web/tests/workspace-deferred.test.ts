@@ -444,8 +444,9 @@ const JOB: Job = {
   promotedTo: "P58-yw",
   dropped: null,
   agenda: "A7-m3",
+  // as the engine writes a brief: its first line repeats the job's id and title, which the page's h1 already says
   brief:
-    "## What\n\nCap sign-in at ten tries in ten minutes.\n\n## Done when\n\nOne test covers it.",
+    "# Deferred: D141-4r Rate-limit sign-in attempts per address\n\n## What\n\nCap sign-in at ten tries in ten minutes.\n\n## Done when\n\nOne test covers it.",
 };
 
 const HEAD = {
@@ -487,6 +488,9 @@ describe("one job", () => {
     expect(html).toContain("Deferred because");
     expect(html).not.toContain("Dropped because");
     expect(html).toContain("Brief");
+    // the brief starts at its own sections: its title line is the page's h1, never said twice
+    expect(html).toContain("Cap sign-in at ten tries in ten minutes.");
+    expect(html).not.toContain("Deferred: D141-4r");
     expect(html).toContain(
       `href="/projects/${PROJECT}/workspace/agenda/A7-m3"`,
     );

@@ -9,13 +9,18 @@ import { describe, expect, it } from "vitest";
 import { HeadFacts } from "@/hi2vi/workspace/agenda-item/head";
 import { itemProse } from "@/hi2vi/workspace/agenda-item/prose";
 import { BacklogWaiting } from "@/hi2vi/workspace/backlog";
-import { DeferredJob } from "@/hi2vi/workspace/deferred";
+import {
+  DeferredJob,
+  DeferredList,
+  readDeferredPlace,
+} from "@/hi2vi/workspace/deferred";
+import { jobTriggers } from "@/hi2vi/workspace/deferred/prose";
 import { DocVersions } from "@/hi2vi/workspace/docs";
 import { wsSyncLine } from "@/hi2vi/workspace/frame";
 import { PhaseSlices } from "@/hi2vi/workspace/phase/parts";
 import { SliceHead } from "@/hi2vi/workspace/slice";
 import type { ItemView } from "@/hi2vi/workspace/agenda-item/model";
-import type { Job, Slice, SliceRow } from "@/lib/workspace/types";
+import type { Job, JobRow, Slice, SliceRow } from "@/lib/workspace/types";
 
 // Stored prose drawn as its Markdown on every Workspace page (frame.md F46, F80): what the workspace and the
 // operator write carries the workspace's inline Markdown (bold, code, links to its own files), and every place
@@ -162,6 +167,41 @@ describe("stored prose drawn as its Markdown", () => {
     expect(out).toContain("Before <code>KB_SMTP_HOST</code> is set on the box");
     expect(out).toContain("Found by <code>/read-code</code> in the review");
     expect(out).toContain("Done by <strong>the merge</strong>, see the PR.");
+  });
+
+  it("in the Deferred jobs list: each row's trigger under its title", () => {
+    const row = (id: string, trigger: string | null): JobRow => ({
+      id,
+      title: "Cap the **attachments**",
+      lang: "en",
+      status: "deferred",
+      source: "P12-k3.S7",
+      trigger,
+      created: "2026-11-14",
+      reason: null,
+      promotedTo: null,
+      dropped: null,
+      agenda: null,
+    });
+    const jobs = [row("D141-4r", PROSE), row("D142-5s", null)];
+    const out = html(
+      createElement(DeferredList, {
+        project: "p",
+        jobs,
+        created: {},
+        triggers: jobTriggers(jobs),
+        place: readDeferredPlace({}),
+      }),
+    );
+    const sub =
+      /<span class="meta ws-sub"[^>]*>([\s\S]*?)<\/span><\/span>/.exec(
+        out,
+      )?.[0];
+    expect(sub).toBeDefined();
+    expectDrawn(sub!);
+    // a job with no trigger draws no line under its title; the title stays plain text
+    expect(out.split('class="meta ws-sub"').length - 1).toBe(1);
+    expect(out).toContain("Cap the **attachments**");
   });
 
   it("in an agenda item's facts: outcome and note, lines and lists as written", () => {

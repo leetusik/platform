@@ -129,7 +129,13 @@ export function DeferredJob({
             <h2>{g.heads.brief}</h2>
           </div>
           <div className="panel-body has-rule">
-            <Md source={job.brief} level={3} anchor={`brief-${job.id}`} />
+            {/* the engine's brief opens with `# Deferred: <id> <title>`, which the h1 already says */}
+            <Md
+              source={job.brief}
+              dropTitle
+              level={3}
+              anchor={`brief-${job.id}`}
+            />
           </div>
         </section>
       ) : null}

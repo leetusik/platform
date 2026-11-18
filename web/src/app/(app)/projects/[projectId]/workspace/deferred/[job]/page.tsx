@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { notFound, unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
-import { WS_HEAD, WS_PLACES } from "@/content/workspace/frame";
+import { WS_HEAD, WS_PLACES, WS_STATES } from "@/content/workspace/frame";
 import { StateBlock } from "@/hi2vi/states";
 import {
   DeferredJob,
@@ -40,8 +40,9 @@ import { readWorkspace } from "@/lib/workspace/read";
  *
  * A job the workspace does not hold: **Deferred job not found** under the way back; a project the org does not
  * hold: Project not found. A failed read is the page's own Error under the way back with the sync line (F49,
- * F84); a render that throws is the route's (`error.tsx`). The tab title is the Workspace's, or the job's id when
- * it did not load (`<id> · hi2vi`; the read is shared, `loadOnce`).
+ * F84); a render that throws is the route's (`error.tsx`). Both keep the sync line, as every item page's do. The tab
+ * title is the Workspace's, **Deferred job not found** for a job it does not hold, or the job's id when it did not
+ * load (`<id> · hi2vi`; the read is shared, `loadOnce`).
  */
 type Params = { projectId: string; job: string };
 type Search = Record<string, string | string[] | undefined>;
@@ -60,13 +61,18 @@ export async function generateMetadata({
     const load = await loadOnce(token, projectId, job);
     if (load.job.state === "error")
       return { title: wsFailedTitle(job), robots: { index: false } };
+    if (load.job.state === "not-found")
+      return {
+        title: WS_STATES.notFound.title("job"),
+        robots: { index: false },
+      };
   } catch (error) {
     unstable_rethrow(error);
   }
   return { title: WS_HEAD.title, robots: { index: false } };
 }
 
-/** A read that failed or found nothing says nothing of a sync it could not read. */
+/** A Workspace whose head did not read says nothing of a sync it could not read. */
 const NO_LINE: WsSyncLine = { state: "fresh", text: "", cls: "", version: "" };
 
 /** The project's name for the not-found sentence; a project the org does not hold is Project not found. */
@@ -112,11 +118,21 @@ export default async function WorkspaceJobPage({
     );
   }
   if (load.job.state === "not-found") {
-    const name = await projectName(token, projectId);
+    // the job's route says nothing of the sync: the Workspace's head does, read on this path alone
+    const [name, head] = await Promise.all([
+      projectName(token, projectId),
+      readWorkspace(token, projectId).then(wsHeadOf),
+    ]);
+    const timeZone = viewerTimeZone(await cookies());
     return (
       <div className="column">
         <header className="page-top">
-          <BackRow {...back} line={NO_LINE} />
+          <BackRow
+            {...back}
+            line={
+              head ? wsSyncLine(head.sync, head.version, { timeZone }) : NO_LINE
+            }
+          />
           <StateBlock state={wsNotFoundState("job", name, back)} />
         </header>
       </div>

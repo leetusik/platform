@@ -10,6 +10,7 @@ import {
   readDeferredPlace,
 } from "@/hi2vi/workspace/deferred";
 import { loadDeferredList } from "@/hi2vi/workspace/deferred/load";
+import { jobTriggers } from "@/hi2vi/workspace/deferred/prose";
 import { WsNav, wsSyncLine, type WsSyncLine } from "@/hi2vi/workspace/frame";
 import { requireIdentity } from "@/lib/auth-guards";
 import { viewerTimeZone } from "@/lib/time-zone";
@@ -106,6 +107,7 @@ export default async function WorkspaceDeferredPage({
         project={projectId}
         jobs={ws.deferred}
         created={created}
+        triggers={jobTriggers(ws.deferred)}
         place={place}
       />
     </div>
