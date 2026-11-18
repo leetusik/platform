@@ -169,7 +169,7 @@ describe("the one sentence under a slice's title", () => {
     );
     expect(page).not.toContain("slice-lead-text");
     expect(page).toContain(
-      '<p class="slice-words">“accept” signs the canvas as drawn.</p>',
+      '<p class="slice-words ws-prose">“accept” signs the canvas as drawn.</p>',
     );
     expect(page).toContain('<span lang="ko">회의록 정리</span>');
   });

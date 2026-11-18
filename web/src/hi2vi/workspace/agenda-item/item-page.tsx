@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useReducer, useRef, type RefObject } from "react";
+import {
+  useEffect,
+  useReducer,
+  useRef,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -62,6 +68,7 @@ export function AgendaItemPage({
   timeZone,
   now,
   read,
+  prose,
 }: {
   project: string;
   back: WsBack;
@@ -70,6 +77,8 @@ export function AgendaItemPage({
   timeZone: string;
   now: number;
   read: ItemPageRead;
+  /** The item's note, outcome and reason as the server drew them (`itemProse`); plain text without them. */
+  prose?: Readonly<Record<string, ReactNode>>;
 }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(reduce, INITIAL);
@@ -196,6 +205,7 @@ export function AgendaItemPage({
       >
         <HeadFacts
           view={view}
+          prose={prose}
           created={fmt.date(item.created)}
           changed={fmt.date(item.changed)}
         />

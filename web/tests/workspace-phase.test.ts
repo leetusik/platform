@@ -207,7 +207,7 @@ describe("a slice's line under its name (F83)", () => {
     const s7 = open.slices.find((s) => s.id === "S7")!;
     expect(sliceSub(s7, asked)).toBe("Decision asked Nov 14");
     const out = view(open);
-    expect(out).toContain('<span class="meta ws-sub">Decision asked Nov 14</span>');
+    expect(out).toContain('<span class="meta ws-sub ws-prose">Decision asked Nov 14</span>');
     expect(count(out, "Decision asked")).toBe(1);
 
     const answered = phase({
@@ -219,7 +219,7 @@ describe("a slice's line under its name (F83)", () => {
 
   it("draws the outcome, nothing for a stop with no sentence, and the current slice as the step", () => {
     const out = view(phase());
-    expect(out).toContain('<span class="meta ws-sub">Eighteen slices in one pass; the pages run as one eight-wide wave.</span>');
+    expect(out).toContain('<span class="meta ws-sub ws-prose">Eighteen slices in one pass; the pages run as one eight-wide wave.</span>');
     expect(out).toMatch(/<li class="row ws-row" aria-current="step"><span class="ws-id">S10<\/span>/);
     expect(count(out, 'aria-current="step"')).toBe(1);
     expect(out).toContain('<span class="ws-name-text" lang="ko">단계 페이지</span>');

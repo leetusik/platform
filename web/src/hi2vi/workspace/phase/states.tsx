@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import {
   BackRow,
-  useWsRetry,
+  WsItemFailed,
   WsRetrySync,
-  wsErrorState,
   wsNotFoundState,
   type WsBack,
   type WsSyncLine,
@@ -98,10 +96,10 @@ export function PhaseMissing({
 }
 
 /**
- * The phase did not load (`Phase.dc.html`, Error; F49, F5): under the back row, **Try again** (primary) and
- * **Back to Backlog**. Try again shows Loading while the route renders again on the server (`router.refresh()`:
- * the reads are `no-store`; an error boundary's own retry the same way), the sync line a bar (F40), then the
- * phase, or this block again.
+ * The phase did not load (`Phase.dc.html`, Error; F49, F5): the frame's one failed state for an item page, under
+ * the back row, **Try again** (primary) and **Back to Backlog**, the reference when the error has one. Try again
+ * shows Loading while the route renders again on the server (`router.refresh()`: the reads are `no-store`; an
+ * error boundary's own retry the same way), the sync line a bar (F40), then the phase, or this block again.
  */
 export function PhaseFailed({
   back,
@@ -117,15 +115,13 @@ export function PhaseFailed({
   /** An error boundary's own Try again (`boundaryRetry`); without it, the route renders again in place. */
   retry?: () => void;
 }) {
-  const router = useRouter();
-  const [pending, run] = useWsRetry();
-  if (pending) return <PhaseLoading back={back} id={id} />;
   return (
-    <StateUnderBack
+    <WsItemFailed
       back={back}
       line={line}
-      state={wsErrorState(back, digest)}
-      onRetry={() => run(retry ?? (() => router.refresh()))}
+      digest={digest}
+      retry={retry}
+      whileRetrying={<PhaseLoading back={back} id={id} />}
     />
   );
 }

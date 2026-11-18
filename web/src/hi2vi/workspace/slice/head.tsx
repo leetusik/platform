@@ -3,12 +3,12 @@ import {
   Fact,
   Facts,
   ItemHead,
-  WsText,
   wsStatus,
   type WsBack,
   type WsSyncLine,
 } from "@/hi2vi/workspace/frame";
 import { WS_KIND } from "@/content/workspace/frame";
+import { WsProse } from "@/hi2vi/workspace/frame/prose";
 import { langOf } from "@/lib/workspace/model";
 import type { Slice } from "@/lib/workspace/types";
 
@@ -50,13 +50,13 @@ export function SliceHead({
         {lead ? (
           <div className="stack gap-1">
             {lead.text ? (
-              <p className="slice-lead-text">
-                <WsText text={lead.text} />
+              <p className="slice-lead-text ws-prose">
+                <WsProse text={lead.text} />
               </p>
             ) : null}
             {lead.words ? (
-              <p className="slice-words">
-                <WsText text={lead.words} />
+              <p className="slice-words ws-prose">
+                <WsProse text={lead.words} />
               </p>
             ) : null}
           </div>

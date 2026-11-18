@@ -1,4 +1,5 @@
 import { WS_GLOSSARY } from "@/content/workspace/frame";
+import { WsProse, WsProseBlock } from "@/hi2vi/workspace/frame/prose";
 import { Md } from "@/hi2vi/workspace/md";
 import {
   Fact,
@@ -9,7 +10,6 @@ import {
   WaitingBadge,
   WsList,
   WsRow,
-  WsText,
   wsStatus,
   type WsBack,
   type WsSyncLine,
@@ -99,8 +99,8 @@ export function DeferredJob({
       ) : null}
       <Facts>
         {dropped ? (
-          <Fact label={labels.droppedBecause} long>
-            <WsText text={dropped} />
+          <Fact label={labels.droppedBecause} long className="ws-prose">
+            <WsProseBlock text={dropped} />
           </Fact>
         ) : null}
         {isSliceId(source) ? (
@@ -109,15 +109,17 @@ export function DeferredJob({
             links={[{ id: source, href: sliceHref(project, source) }]}
           />
         ) : (
-          <Fact label={labels.source}>
-            {source ? <WsText text={source} /> : g.none}
+          <Fact label={labels.source} className="ws-prose">
+            {source ? <WsProse text={source} /> : g.none}
           </Fact>
         )}
-        <Fact label={labels.trigger}>{job.trigger || g.none}</Fact>
+        <Fact label={labels.trigger} className="ws-prose">
+          {job.trigger ? <WsProse text={job.trigger} /> : g.none}
+        </Fact>
         <Fact label={labels.created}>{created}</Fact>
         {job.reason ? (
-          <Fact label={labels.deferredBecause} long>
-            <WsText text={job.reason} />
+          <Fact label={labels.deferredBecause} long className="ws-prose">
+            <WsProseBlock text={job.reason} />
           </Fact>
         ) : null}
       </Facts>

@@ -20,7 +20,7 @@ export {
   BacklogNowLoading,
   BacklogPhases,
   BacklogPhasesLoading,
-  BacklogWaiting,
 } from "./parts";
+export { BacklogWaiting } from "./waiting";
 export { BacklogFailed } from "./failed";
 export { BacklogLoading } from "./loading";

@@ -5,7 +5,7 @@ import { cache } from "react";
 
 import { WS_GLOSSARY, WS_PLACES } from "@/content/workspace/frame";
 import { PHASE_PAGE } from "@/content/workspace/phase";
-import { wsSyncLine, type WsBack } from "@/hi2vi/workspace/frame";
+import { wsHeadOf, wsSyncLine, type WsBack } from "@/hi2vi/workspace/frame";
 import {
   agendaItemOf,
   PhaseFailed,
@@ -68,8 +68,8 @@ export async function generateMetadata({
   } catch (error) {
     unstable_rethrow(error);
   }
-  // the page renders the failure itself
-  return { robots: { index: false } };
+  // the page renders the failure itself; the tab names the phase (`<id> · hi2vi`)
+  return { title: phaseIdShown(phaseId) ?? undefined, robots: { index: false } };
 }
 
 /** The project's name for Not found's sentence (F49); `—` when the project does not answer. */
@@ -87,11 +87,7 @@ async function workspaceHead(
   token: string,
   project: string,
 ): Promise<WorkspaceHead | null> {
-  const read = await readWorkspace(token, project);
-  if (read.state === "ready")
-    return { version: read.value.version, sync: read.value.sync };
-  if (read.state === "unlinked" || read.state === "never") return read.head;
-  return null;
+  return wsHeadOf(await readWorkspace(token, project));
 }
 
 export default async function PhasePage({

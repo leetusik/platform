@@ -27,6 +27,9 @@ const reads = vi.hoisted(() => ({
   readWorkspace: vi.fn(),
   readDoc: vi.fn(),
   readPhase: vi.fn(),
+  readSlice: vi.fn(),
+  readItem: vi.fn(),
+  readJob: vi.fn(),
 }));
 vi.mock("@/lib/workspace/read", async (orig) => ({
   ...(await orig<object>()),
@@ -34,6 +37,7 @@ vi.mock("@/lib/workspace/read", async (orig) => ({
 }));
 vi.mock("@/lib/knowledge/app", () => ({
   getProject: vi.fn(async () => ({ name: "platform" })),
+  listProjects: vi.fn(async () => [{ id: PROJECT, name: "platform" }]),
 }));
 vi.mock("@/lib/auth-guards", () => ({
   requireIdentity: vi.fn(async () => ({
@@ -66,6 +70,10 @@ const SliceError = (await import(`${W}/slices/[sliceId]/error`)).default;
 const ItemError = (await import(`${W}/agenda/[item]/error`)).default;
 const JobError = (await import(`${W}/deferred/[job]/error`)).default;
 const PhaseError = (await import(`${W}/phases/[phaseId]/error`)).default;
+const SlicePage = (await import(`${W}/slices/[sliceId]/page`)).default;
+const ItemPage = (await import(`${W}/agenda/[item]/page`)).default;
+const JobPage = (await import(`${W}/deferred/[job]/page`)).default;
+const DocError = (await import(`${W}/docs/[doc]/error`)).default;
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const BAR =
@@ -104,10 +112,14 @@ const FAILED: [name: string, draw: () => Promise<string> | string][] = [
   ["the docs list", () => page(DocsPage)],
   ["a doc", () => page(DocPage, { doc: "architecture" })],
   ["a phase", () => page(PhasePage, { phaseId: "P57-4q" })],
+  ["a slice", () => page(SlicePage, { sliceId: "P57-4q.S4" })],
+  ["an agenda item", () => page(ItemPage, { item: "A7-m3" })],
+  ["a deferred job", () => page(JobPage, { job: "D141-4r" })],
   ["a phase's boundary", () => boundary(PhaseError)],
   ["a slice's boundary", () => boundary(SliceError)],
   ["an agenda item's boundary", () => boundary(ItemError)],
   ["a deferred job's boundary", () => boundary(JobError)],
+  ["a doc's boundary", () => boundary(DocError)],
 ];
 
 let end: (() => void) | null = null;

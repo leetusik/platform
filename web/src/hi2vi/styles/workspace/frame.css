@@ -25,13 +25,28 @@
 .ws-row > .ws-id { grid-area: id; }
 .ws-row > .ws-name { grid-area: name; }
 .ws-row > .ws-state { grid-area: status; }
-.ws-row > .ws-end { grid-area: end; min-width: 0; }
+.ws-row > .ws-end { grid-area: end; min-width: 0; overflow-wrap: anywhere; }
 /* the name is the row's link; from 22em it carries the row's 12 px, as td.has-control does in a table */
 .ws-open { padding-block: var(--space-1); }
 .ws-open:hover { text-decoration: none; }
 .ws-open:hover .ws-name-text { text-decoration: underline; text-underline-offset: 2px; }
 .ws-name-text { text-wrap: pretty; }
 .ws-sub { font-weight: 400; }
+/* a long word (a constant, a path, a list of commands) breaks inside its cell, never pushing the page sideways: the
+   name is the row's link, as wide as its text (`.link-strong`), so its text's narrowest width must be a character */
+.ws-name-text, .ws-sub { overflow-wrap: anywhere; }
+
+/* stored prose drawn as its Markdown (`WsProse`; frame.md F46, F80): its bold at the body's strong weight, its code
+   as the .md text's inline code (./md.css), wherever the page draws it */
+.ws-prose strong { font-weight: 600; }
+.ws-prose code { padding: 1px var(--code-pad) 1px 0; border-radius: var(--radius-xs); background: var(--bg); box-shadow: calc(-1 * var(--code-pad)) 0 0 var(--bg); font-family: var(--font-mono); font-size: var(--fs-meta); }
+/* a long value's prose (`WsProseBlock`): its paragraphs and lists in one column, a line break kept as written, a
+   list in the Markdown list style (./md.css) */
+.ws-prose-block { display: flex; flex-direction: column; gap: var(--space-2); white-space: normal; }
+.ws-prose ul, .ws-prose ol { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-5); }
+.ws-prose ul { list-style: disc; }
+.ws-prose ol { list-style: decimal; }
+.ws-prose li::marker { color: var(--ink-2); }
 @container (min-width: 22em) {
   .ws-row { grid-template-columns: var(--id-w) minmax(0, 1fr); grid-template-areas: "id name" ". status" ". end"; padding-block: 0 var(--space-3); }
   .ws-open { padding-block: var(--space-3); }

@@ -12,7 +12,6 @@ import {
   WsList,
   WsRow,
   WsStatus,
-  WsText,
   wsStatus,
   type WsBack,
   type WsSyncLine,
@@ -28,7 +27,7 @@ import type {
 } from "@/lib/workspace/types";
 
 import { NotebookDecisions } from "./decisions";
-import { NotebookText } from "./notebook-text";
+import { WsProse } from "@/hi2vi/workspace/frame/prose";
 import {
   askedDates,
   gatePlace,
@@ -101,7 +100,7 @@ export function PhaseGate({ gate, date }: { gate: Gate; date: Dates["date"] }) {
               ) : null}
               {gate.note ? (
                 <p className="phase-gate-text">
-                  <NotebookText text={gate.note} />
+                  <WsProse text={gate.note} />
                 </p>
               ) : null}
             </div>
@@ -114,7 +113,7 @@ export function PhaseGate({ gate, date }: { gate: Gate; date: Dates["date"] }) {
                   <ol>
                     {gate.walkthrough.map((step, i) => (
                       <li key={i}>
-                        <NotebookText text={step} />
+                        <WsProse text={step} />
                       </li>
                     ))}
                   </ol>
@@ -170,8 +169,8 @@ export function PhaseSlices({
                     {name}
                   </span>
                   {sub ? (
-                    <span className="meta ws-sub">
-                      <WsText text={sub} />
+                    <span className="meta ws-sub ws-prose">
+                      <WsProse text={sub} />
                     </span>
                   ) : null}
                 </span>
@@ -215,7 +214,7 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
         <div className="phase-group">
           <h3>{nowHead}</h3>
           <div className="phase-now phase-md">
-            <NotebookText text={notebook.now ?? ""} block />
+            <WsProse text={notebook.now ?? ""} block />
           </div>
         </div>
       ) : null}
@@ -228,11 +227,11 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
                 <span className="ws-id">{q.id}</span>
                 <span className="row-stack phase-note-text phase-md">
                   <span className="strong">
-                    <NotebookText text={q.text} />
+                    <WsProse text={q.text} />
                   </span>
                   {q.answer ? (
                     <span>
-                      <NotebookText text={q.answer} />
+                      <WsProse text={q.answer} />
                     </span>
                   ) : null}
                 </span>
@@ -252,7 +251,7 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
           <NotebookDecisions
             decisions={notebook.decisions}
             texts={notebook.decisions.map((d, i) => (
-              <NotebookText key={i} text={d.text} />
+              <WsProse key={i} text={d.text} />
             ))}
           />
         </div>
@@ -265,7 +264,7 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
               <li key={i} className="phase-note">
                 <span className="ws-id">{n.slice ?? ""}</span>
                 <span className="phase-note-text phase-md">
-                  <NotebookText text={n.text} />
+                  <WsProse text={n.text} />
                 </span>
               </li>
             ))}
@@ -279,7 +278,7 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
             {notebook.notes.map((n, i) => (
               <li key={i}>
                 <span>
-                  <NotebookText text={n.text} />
+                  <WsProse text={n.text} />
                 </span>
               </li>
             ))}
@@ -295,7 +294,7 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
                 <span className="strong">{`topics/${t.slug}.md`}</span>
                 {t.gist ? (
                   <span>
-                    <NotebookText text={t.gist} />
+                    <WsProse text={t.gist} />
                   </span>
                 ) : null}
               </li>
@@ -393,7 +392,7 @@ export function PhaseReview({ review }: { review: Phase["review"] }) {
       {review.note ? (
         <div className="panel-body has-rule">
           <p className="phase-md">
-            <NotebookText text={review.note} />
+            <WsProse text={review.note} />
           </p>
         </div>
       ) : null}
@@ -476,8 +475,8 @@ export function PhaseView({
       >
         <div className="stack gap-4">
           {phase.objective ? (
-            <p className="phase-text">
-              <WsText text={phase.objective} />
+            <p className="phase-text ws-prose">
+              <WsProse text={phase.objective} />
             </p>
           ) : null}
           <Facts>

@@ -3,7 +3,12 @@ import { cookies } from "next/headers";
 import { notFound, unstable_rethrow } from "next/navigation";
 
 import { WS_STATES } from "@/content/workspace/frame";
-import { wsNotFoundState, wsSyncLine } from "@/hi2vi/workspace/frame";
+import { WS_SLICE } from "@/content/workspace/slice";
+import {
+  WsItemFailed,
+  wsNotFoundState,
+  wsSyncLine,
+} from "@/hi2vi/workspace/frame";
 import {
   SliceMissing,
   SlicePage,
@@ -27,8 +32,9 @@ import { viewerTimeZone } from "@/lib/time-zone";
  * back link reads the phase's id and leads to the phase, carrying the backlog's page on (`?from=`).
  *
  * Not found is drawn here, under the back row; an id that is no project of the active org is the project's Not
- * found; a failed read is the route's Error (`error.tsx`, Try again re-fetches). The tab title is the slice's
- * full id and name, through the site's template (the read is shared, `loadSliceOnce`).
+ * found; a failed read is the page's own Error under the back row with the sync line (Try again re-fetches), and a
+ * render that throws is the route's (`error.tsx`). The tab title is the slice's full id and name, through the
+ * site's template, or its id alone when it did not load (the read is shared, `loadSliceOnce`).
  */
 type Params = { projectId: string; sliceId: string };
 type Search = Record<string, string | string[] | undefined>;
@@ -70,13 +76,24 @@ export default async function SliceRoute({
   const timeZone = viewerTimeZone(await cookies());
   const load = await loadSliceOnce(token, projectId, sliceId);
   if (load.state === "no-project") notFound();
-  if (load.state === "error")
-    throw new Error("The slice did not load from the workspace.");
-
   const phase =
     load.state === "ready" ? load.slice.phase : slicePhaseOf(sliceId);
   const way = wayBack(projectId, { kind: "slice", phase }, from);
   const back = { href: way.href, label: phase };
+
+  // a failed read is the page's own Error, its back row keeping the sync line (F49, F84)
+  if (load.state === "error")
+    return (
+      <WsItemFailed
+        back={back}
+        backLabel={WS_SLICE.back(back.label)}
+        line={
+          load.head
+            ? wsSyncLine(load.head.sync, load.head.version, { timeZone })
+            : null
+        }
+      />
+    );
 
   if (load.state === "not-found") {
     return (

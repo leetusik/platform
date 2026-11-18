@@ -5,6 +5,7 @@ import { WS_GLOSSARY } from "@/content/workspace/frame";
 import { Fact, Facts } from "@/hi2vi/workspace/frame/facts";
 import type { WsBack } from "@/hi2vi/workspace/frame/states-model";
 import type { WsSyncLine } from "@/hi2vi/workspace/frame/sync-model";
+import { WsProse } from "@/hi2vi/workspace/frame/prose";
 import { WsText } from "@/hi2vi/workspace/frame/text";
 import { Md } from "@/hi2vi/workspace/md";
 
@@ -63,8 +64,8 @@ export function DocVersions({ rows }: { rows: VersionRowView[] }) {
               {v.version}
             </Link>
             <span className="dim docs-ver-date">{v.date}</span>
-            <span className="docs-ver-sum">
-              <WsText text={v.summary} />
+            <span className="docs-ver-sum ws-prose">
+              <WsProse text={v.summary} />
             </span>
           </li>
         ))}

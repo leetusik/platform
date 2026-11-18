@@ -13,6 +13,9 @@
 // - `Facts`, `Fact`: label-over-value facts, a long one, links as a value (F44, F80).
 // - `WaitingBadge`, `RefusedBadge`, `RefusedNotice`: a change that waits, one refused (F45).
 // - `wsNotFoundState`, `wsErrorState`: an item page's Not found and Error, for `StateBlock` (F49).
+// - `WsItemFailed`: every item page's failed state, its read's or its boundary's (F49, F84); `wsHeadOf` (the sync
+//   facts from the Workspace's read), `wsFailedTitle` (the tab's `<id>`).
+// - `WsProse` (`./prose`, not in this barrel: server only): stored prose drawn as its Markdown (F46, F80).
 // - `splitIds`, `WsText`, `WsId`: an id never breaks inside a sentence (F80).
 export { wsStatus, type WsStatusWord } from "./status-model";
 export { WsStatus } from "./status";
@@ -39,5 +42,7 @@ export { BackRow, ItemHead } from "./item-head";
 export { Fact, Facts, type FactLink } from "./facts";
 export { RefusedBadge, RefusedNotice, WaitingBadge } from "./waiting";
 export { wsErrorState, wsNotFoundState, type WsBack } from "./states-model";
+export { wsFailedTitle, wsHeadOf } from "./failed-model";
+export { WsItemFailed } from "./failed";
 export { splitIds, type WsTextPart } from "./ids";
 export { WsId, WsText } from "./text";

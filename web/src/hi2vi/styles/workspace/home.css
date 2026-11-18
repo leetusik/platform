@@ -22,6 +22,11 @@
   .ph-name {
     grid-area: name;
   }
+  /* a long word in a phase's name or its slice breaks inside the row, never pushing the panel sideways */
+  .ph-phase .ph-name-text,
+  .ph-phase .ph-sub {
+    overflow-wrap: anywhere;
+  }
   .ph-state {
     grid-area: status;
   }

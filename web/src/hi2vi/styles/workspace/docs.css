@@ -30,6 +30,9 @@
   .docs-join { display: inline; }
 }
 
+/* a long word in a cell (a title, what a doc waits for) breaks inside it, never past the table's edge */
+.docs-table td { overflow-wrap: anywhere; }
+
 /* a doc still loading: bars where its lines will be, on the text's own line height */
 .docs-wait-text { line-height: var(--lh-head); }
 

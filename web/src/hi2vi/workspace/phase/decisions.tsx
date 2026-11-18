@@ -24,7 +24,7 @@ export function NotebookDecisions({
   texts,
 }: {
   decisions: readonly NotebookDecision[];
-  /** Each decision's text as the server drew it (its Markdown, `NotebookText`); the plain text without it. */
+  /** Each decision's text as the server drew it (its Markdown, `WsProse`); the plain text without it. */
   texts?: readonly ReactNode[];
 }) {
   const [expanded, setExpanded] = useState(false);

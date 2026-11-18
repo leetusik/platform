@@ -6,7 +6,6 @@ import { pagerRange } from "@/hi2vi/library/pager-model";
 
 import { Steps } from "../frame/steps";
 import { WsRow } from "../frame/row";
-import { WsText } from "../frame/text";
 
 import {
   ARCHIVED_PER,
@@ -25,50 +24,12 @@ import { ArchivedPager } from "./archived-pager";
  */
 
 /** An id and its name as one link's text (F48's `.ws-id` 8 px before the name). */
-function Ref({ refd }: { refd: BacklogRef }) {
+export function Ref({ refd }: { refd: BacklogRef }) {
   return (
     <span className="backlog-ref">
       <span className="ws-id">{refd.id}</span>
       {refd.name ? <span lang={refd.lang}>{refd.name}</span> : null}
     </span>
-  );
-}
-
-// -- Waiting on operator --------------------------------------------------------------------------
-
-/** What waits on the operator, first on the page; drawn only when something waits (F83). */
-export function BacklogWaiting({ items }: { items: BacklogWaitingItem[] }) {
-  if (items.length === 0) return null;
-  return (
-    <section className="panel" aria-label={BACKLOG.waiting}>
-      <div className="panel-head">
-        <h2>
-          <span className="status status-pending">{BACKLOG.waiting}</span>
-        </h2>
-      </div>
-      <ul>
-        {items.map((it, i) => (
-          <li key={`${it.id}-${i}`} className="row backlog-wait">
-            <div className="cluster gap-3">
-              <Link className="link-strong" href={it.href}>
-                <Ref refd={it} />
-              </Link>
-              {it.kind ? <span className="badge">{it.kind}</span> : null}
-            </div>
-            {it.what ? (
-              <p>
-                <WsText text={it.what} />
-              </p>
-            ) : null}
-            {it.words ? (
-              <p className="dim">
-                <WsText text={it.words} />
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

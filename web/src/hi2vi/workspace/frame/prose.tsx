@@ -2,17 +2,22 @@ import type { Nodes, Root } from "mdast";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { splitIds } from "@/hi2vi/workspace/frame";
+import { splitIds } from "./ids";
 
 /**
- * A line the workspace wrote (a notebook's line, the gate's note and steps, the review's note), drawn as the
- * Markdown it is: its bold, emphasis and code as the `.md` text draws them (frame.md F46, the verdict's
- * sentences), never its marks as characters. A link keeps only its text: the notebook's links name the
- * workspace's own files (`topics/<slug>.md`), which have no address here. Each workspace id stays whole
- * (`span.ws-nobr`, F80), as `WsText` keeps it.
+ * Stored prose (frame.md F46, F80): a line the workspace wrote (a notebook's line, the gate's note and steps, the
+ * review's note, a slice's outcome and its one sentence, a stop's words, a deferred job's reason and source, an
+ * agenda item's note, outcome and reason, a doc version's summary, a phase's objective), drawn as the Markdown it
+ * is: its bold, emphasis and code as the `.md` text draws them (the verdict's sentences), never its marks as
+ * characters. A link keeps only its text: the workspace's links name its own files (`topics/<slug>.md`), which
+ * have no address here, and a line inside a row's link must hold no second link. Each workspace id stays whole
+ * (`span.ws-nobr`, F80), as `WsText` keeps it. Titles are plain text (`WsText` or the text itself), never this.
  *
  * - inline (the default): one line inside its row; any block (a paragraph, a list) is unwrapped to its text.
  * - `block`: Now, lines kept as written: a line break stays a line break, a list stays a list.
+ *
+ * Server-rendered only: it is not in the frame's barrel (`./index.ts`), which client components import, so the
+ * Markdown renderer stays out of the client bundle. A client part takes its text already drawn, as a node.
  */
 const INLINE = ["strong", "em", "del", "code", "br", "span"];
 const BLOCK = [...INLINE, "p", "ul", "ol", "li"];
@@ -53,7 +58,7 @@ function keepLines(text: string): string {
   return text.replace(/[ \t]*\n(?=[^\n])/g, "  \n");
 }
 
-export function NotebookText({
+export function WsProse({
   text,
   block = false,
 }: {
@@ -68,5 +73,17 @@ export function NotebookText({
     >
       {block ? keepLines(text) : text}
     </Markdown>
+  );
+}
+
+/**
+ * A long value's stored prose (a fact on its own line, F80: an agenda item's note, outcome and reason, a deferred
+ * job's reason): its lines and lists kept as written, in one column (`.ws-prose-block`).
+ */
+export function WsProseBlock({ text }: { text: string }) {
+  return (
+    <div className="ws-prose-block">
+      <WsProse text={text} block />
+    </div>
   );
 }

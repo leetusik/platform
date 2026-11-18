@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { WS_ACTIONS, WS_GLOSSARY } from "@/content/workspace/frame";
 import { Swap } from "@/hi2vi/ui";
 import { cx } from "@/lib/cx";
@@ -95,32 +97,39 @@ export function HeadFacts({
   view,
   created,
   changed,
+  prose,
 }: {
   view: ItemView;
   created: string;
   changed: string;
+  /** The stored texts as the server drew them (their Markdown, `itemProse`), by text; plain text without one. */
+  prose?: Readonly<Record<string, ReactNode>>;
 }) {
   const labels = WS_GLOSSARY.labels.item;
+  const text = (value: string) =>
+    (prose && Object.hasOwn(prose, value) ? prose[value] : null) ?? (
+      <WsText text={value} />
+    );
   return (
     <Facts>
       {view.end ? (
         <Fact
           label={labels[view.end.label]}
           long
-          className="agendaitem-long"
+          className="agendaitem-long ws-prose"
           lang={langOf(view.end.text)}
         >
-          <WsText text={view.end.text} />
+          {text(view.end.text)}
         </Fact>
       ) : null}
       {view.note ? (
         <Fact
           label={labels.note}
           long
-          className="agendaitem-long"
+          className="agendaitem-long ws-prose"
           lang={langOf(view.note)}
         >
-          <WsText text={view.note} />
+          {text(view.note)}
         </Fact>
       ) : null}
       <Fact label={labels.created}>{created}</Fact>

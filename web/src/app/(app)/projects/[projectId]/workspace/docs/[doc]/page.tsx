@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { notFound, unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
-import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { WS_PLACES, WS_STATES } from "@/content/workspace/frame";
 import {
   DocBackRow,
@@ -11,8 +10,9 @@ import {
   DocStateBlock,
   docView,
 } from "@/hi2vi/workspace/docs";
+import { wsFailedTitle } from "@/hi2vi/workspace/frame/failed-model";
+import { WsItemFailed } from "@/hi2vi/workspace/frame/failed";
 import {
-  wsErrorState,
   wsNotFoundState,
   type WsBack,
 } from "@/hi2vi/workspace/frame/states-model";
@@ -106,7 +106,7 @@ export async function generateMetadata({
     );
     if (loaded.state === "not-found")
       return { title: WS_STATES.notFound.title("doc") };
-    if (loaded.state === "error") return { title: HI2VI_STATES.error.title };
+    if (loaded.state === "error") return { title: wsFailedTitle(doc) };
     const { latest, shown } = loaded;
     return {
       title:
@@ -176,10 +176,15 @@ export default async function WorkspaceDocPage({
     const way = wayBack(projectId, { kind: "doc" }, from);
     const back: WsBack = { href: way.href, label: WS_PLACES.docs };
     const { line, name } = await around(token, projectId, zone);
-    const state =
-      loaded.state === "not-found"
-        ? wsNotFoundState("doc", name, back)
-        : wsErrorState(back);
+    if (loaded.state === "error")
+      return (
+        <WsItemFailed
+          back={back}
+          backLabel={WS_STATES.back(back.label)}
+          line={line}
+        />
+      );
+    const state = wsNotFoundState("doc", name, back);
     return (
       <div className="column">
         <header className="page-top">

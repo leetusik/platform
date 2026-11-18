@@ -420,3 +420,37 @@ describe("long status words and long phases in the Workspace's rows", () => {
     );
   });
 });
+
+describe("a long word in a list's cell (frame.md F43, F80)", () => {
+  /** The declarations every style rule of a sheet gives `selector` (inside any `@container`). */
+  const declared = (sheet: string, selector: string) =>
+    styleRules(scopeBody(join(workspace, sheet)))
+      .filter((r) => selectors(r.prelude).map(squash).includes(selector))
+      .map((r) => squash(r.body))
+      .join("");
+
+  // Each list's text that sits in a link as wide as its text (`.link-strong`'s `width: fit-content`) or in a flex
+  // item (its least width is its longest word): breaking anywhere makes that least width one character, so the row
+  // stays inside its list at 320 px whatever word it holds.
+  const CELLS: [where: string, sheet: string, selector: string][] = [
+    ["every Workspace row's name", "frame.css", ".ws-name-text"],
+    [
+      "the line under a row's name (an outcome, a trigger, a slice)",
+      "frame.css",
+      ".ws-sub",
+    ],
+    ["a row's end cell (a job's source)", "frame.css", ".ws-row > .ws-end"],
+    [
+      "the backlog's Now cells and waiting list",
+      "backlog.css",
+      ".backlog-ref > span",
+    ],
+    ["project home's phase name", "home.css", ".ph-phase .ph-name-text"],
+    ["project home's current slice", "home.css", ".ph-phase .ph-sub"],
+    ["the docs table's cells", "docs.css", ".docs-table td"],
+  ];
+
+  it.each(CELLS)("breaks inside %s", (_, sheet, selector) => {
+    expect(declared(sheet, selector)).toContain("overflow-wrap:anywhere;");
+  });
+});
