@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode, Ref } from "react";
+import type { CSSProperties, MouseEventHandler, ReactNode, Ref } from "react";
 import Link from "next/link";
 
 import { AGENDA } from "@/content/workspace/agenda";
@@ -52,13 +52,15 @@ export function PartHead({
 
 /**
  * A row (`li.row.agenda-row`, F302): the grip's column, the boxes' column, the frame's Workspace row as the body
- * (a size container, so F43's four layouts follow the body's width), then **Delete**. At rest the grip's column is
- * the empty `span.agenda-nogrip` in every part; `lead` puts the grip there, `check` the row's box.
+ * (a size container, so F43's four layouts follow the body's width), then **Delete**. `lead` is the open part's grip;
+ * without it the grip's column is the empty `span.agenda-nogrip`, so the three parts share their edges. `check` is
+ * the row's box; `className` carries `is-selected` (a picked row) and `is-lifted`.
  */
 export function AgendaRow({
   row,
   href,
   className,
+  style,
   lead,
   check,
   linkRef,
@@ -68,6 +70,8 @@ export function AgendaRow({
   row: AgendaRowModel;
   href: string;
   className?: string;
+  /** A drag's slide (`transform`), while a pointer drags the open part's rows. */
+  style?: CSSProperties;
   lead?: ReactNode;
   check?: ReactNode;
   linkRef?: Ref<HTMLAnchorElement>;
@@ -75,7 +79,11 @@ export function AgendaRow({
   onDelete?: MouseEventHandler<HTMLButtonElement>;
 }) {
   return (
-    <li className={cx("row agenda-row", className)} data-row={row.id}>
+    <li
+      className={cx("row agenda-row", className)}
+      style={style}
+      data-row={row.id}
+    >
       {lead ?? <span className="agenda-nogrip" aria-hidden="true" />}
       {check ?? null}
       <div className="agenda-body">

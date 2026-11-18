@@ -9,11 +9,12 @@ import {
   useTransition,
   type FormEvent,
   type KeyboardEvent,
+  type PointerEvent,
   type RefObject,
 } from "react";
 import { useRouter } from "next/navigation";
 
-import { AGENDA } from "@/content/workspace/agenda";
+import { AGENDA, type AgendaAct } from "@/content/workspace/agenda";
 import { Dialog, DialogActions } from "@/hi2vi/frame/dialog";
 import { Pager } from "@/hi2vi/library/pager";
 import { pagerRange } from "@/hi2vi/library/pager-model";
@@ -22,37 +23,64 @@ import { RefusedNotice, WaitingBadge, WsList } from "@/hi2vi/workspace/frame";
 import { WS_CHANGE } from "@/content/workspace/frame";
 import {
   addAgendaItem,
-  deleteAgendaItems,
   discardChange,
+  moveAgendaItem,
   retryChange,
 } from "@/lib/workspace/actions";
 import { agendaHref, agendaItemHref } from "@/lib/workspace/address";
+import { cx } from "@/lib/cx";
 import { dates, phaseLookup } from "@/lib/workspace/model";
 import {
+  begin,
   discarded,
   EMPTY_OVERLAY,
   reconcile,
   retried,
+  settle,
   view,
   written,
   type AgendaRead,
   type Overlay,
+  type Sending,
 } from "@/lib/workspace/optimistic";
-import { cleanTitle, titleError } from "@/lib/workspace/rules";
-import type { PhaseRow, Unplaced } from "@/lib/workspace/types";
+import { cleanTitle, titleError, type MovePlace } from "@/lib/workspace/rules";
+import type { PhaseRow, Unplaced, WriteAnswer } from "@/lib/workspace/types";
 
+import { BulkStrip, Grip, PartBar, PartCheck, RowCheck } from "./controls";
 import {
   addIsPrimary,
   agendaFrom,
   agendaParts,
   AGENDA_SHOWN,
-  deferredPlace,
   emptyText,
-  endedShown,
   writeShown,
+  type AgendaPartKey,
   type AgendaRowModel,
 } from "./model";
 import { AgendaLoading, AgendaRow, PartHead } from "./parts";
+import {
+  dragAt,
+  dragShift,
+  DRAG_START,
+  gripBlur,
+  gripKey,
+  liftedOrder,
+  movePlace,
+  type Drag,
+  type Lift,
+} from "./reorder";
+import {
+  actAsks,
+  actSending,
+  NO_PICKS,
+  partPicks,
+  rowsOnScreen,
+  sendOrder,
+  toggleAll,
+  toggleRow,
+  type Picks,
+} from "./select";
+import { sendAct } from "./send";
 
 /** The phases an item's state and end cell need: their ids and status. */
 export type AgendaPhase = Pick<PhaseRow, "id" | "short" | "status">;
@@ -82,27 +110,56 @@ export type AgendaForm = null | {
   notice: string | null;
 };
 
-type Ask = null | {
+/** What the confirm asks about (F303): Delete (the default) or Drop, the ids it acts on, Drop's reason. */
+export interface AgendaAsk {
+  kind?: "delete" | "drop";
   ids: string[];
   title: string;
   lang: "en" | "ko";
   busy: boolean;
   notice: string | null;
-};
+  reason?: string;
+}
+
+type Ask =
+  | null
+  | (AgendaAsk & {
+      kind: "delete" | "drop";
+      part: AgendaPartKey;
+      reason: string;
+    });
+
+/** A pointer drag under way: where it started, the rows' middles then, the order it moves in. */
+interface Grab {
+  id: string;
+  title: string;
+  pointerId: number;
+  startY: number;
+  order: string[];
+  mids: number[];
+  from: number;
+  h: number;
+  at: number;
+  lifted: boolean;
+}
 
 /**
- * The Agenda's list (`AgendaList.dc.html`, frame.md F301 to F303), at rest: the three parts in a `.stack.gap-5`.
+ * The Agenda's list (`AgendaList.dc.html`, frame.md F301 to F303, F309): the three parts in a `.stack.gap-5`.
  *
  * - **Open and in progress** (always drawn): its head with the count and **Add item** (primary only while the
  *   agenda holds nothing; away while the form is open); the add form in place under the head; the open web changes
- *   no row carries (`unplaced`, F45's own notice); the rows in the operator's order, or the empty sentence; the
- *   list's status line.
+ *   no row carries (`unplaced`, F45's own notice); the rows in the operator's order, each led by its grip, or the
+ *   empty sentence; the list's status line.
  * - **Deferred** (when any): newest first by `changed`, ten a page, the pager in its foot (`?deferred=N`).
  * - **Solved and dropped** (when any): newest first, five, then **Show all N**.
  *
- * Every row's **Delete** asks (`Delete “<title>”?`, Cancel first, **Yes, delete**). Every write is one inbox entry
- * through the agenda's actions; the page keeps what it wrote (`Overlay`) over each read until a read shows it
- * applied or refused, and reads again after a write (`router.refresh()`).
+ * **Reorder** (F302): the grip drags (pointer, touch) or lifts (Space, Enter; the arrows move, Escape or Tab puts it
+ * back); a put down at another place writes one `move`, shown at once and Waiting for sync; each step is said.
+ * **Picked rows** (F303, F309): each part's boxes cover its rows on screen; with any picked the head's count reads
+ * `N of M selected` and the part's actions come in the head (52em of the part) or the strip at its end. Defer, Solve
+ * and Reopen act at once; Drop and Delete ask. Every write is one inbox entry through the agenda's actions; the page
+ * keeps what it wrote (`Overlay`) over each read until a read shows it applied or refused, and reads again after a
+ * write (`router.refresh()`).
  */
 export function AgendaList({
   project,
@@ -120,6 +177,8 @@ export function AgendaList({
     title: `${uid}-title`,
     note: `${uid}-note`,
     error: `${uid}-error`,
+    how: `${uid}-how`,
+    reason: `${uid}-reason`,
   };
 
   // What this page wrote, laid over every read until a read shows it taken or refused.
@@ -135,12 +194,36 @@ export function AgendaList({
   const [said, setSaid] = useState("");
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<Record<string, "retry" | "discard">>({});
+  const [picks, setPicks] = useState<Picks>(NO_PICKS);
+  const [lift, setLift] = useState<Lift | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [failed, setFailed] = useState<null | {
+    part: AgendaPartKey;
+    message: string;
+  }>(null);
 
   const addRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const focus = useRef<"add" | "title" | "more" | null>(null);
-  const deleted = useRef(false);
+  /** The part a confirmed action acted on: its box takes the focus when the confirm closes. */
+  const acted = useRef<AgendaPartKey | null>(null);
+  /** The part an action that acts at once acted on: its box takes the focus after it. */
+  const focusPart = useRef<AgendaPartKey | null>(null);
+  /** The grip a reorder step keeps focused (the list re-orders under it). */
+  const focusGrip = useRef<string | null>(null);
+  const boxes = useRef<Partial<Record<AgendaPartKey, HTMLInputElement | null>>>(
+    {},
+  );
+  const grips = useRef(new Map<string, HTMLButtonElement>());
+  const grab = useRef<Grab | null>(null);
+  const stopEscape = useRef<(() => void) | null>(null);
+
+  /** The part's box, or Add item when the part (or its box) is gone (F303). */
+  const partFocus = (part: AgendaPartKey): HTMLElement | null => {
+    const box = boxes.current[part];
+    return box && box.isConnected ? box : addRef.current;
+  };
 
   useEffect(() => {
     if (focus.current === "add" && addRef.current) {
@@ -150,22 +233,86 @@ export function AgendaList({
       focus.current = null;
       titleRef.current.focus();
     }
+    if (focusGrip.current !== null) {
+      const el = grips.current.get(focusGrip.current);
+      focusGrip.current = null;
+      if (el && document.activeElement !== el) el.focus();
+    }
+    if (focusPart.current !== null) {
+      const part = focusPart.current;
+      focusPart.current = null;
+      partFocus(part)?.focus();
+    }
   });
+
+  // A drag in motion ends with the page.
+  useEffect(() => () => stopEscape.current?.(), []);
 
   const phaseOf = useMemo(() => phaseLookup(phases), [phases]);
   const fmt = useMemo(() => dates(timeZone), [timeZone]);
   const shown = view(read, overlay);
   const parts = agendaParts(shown.agenda, phaseOf, fmt.date);
-  const place = deferredPlace(deferredPage, parts.deferred.length);
-  const deferredRows = parts.deferred.slice(place.from, place.to);
-  const ended = endedShown(parts.ended, all);
+  const on = rowsOnScreen(parts, deferredPage, all);
+  const place = on.place;
+  const deferredRows = on.deferred;
   const from = agendaFrom(place.page);
   const hrefOf = (row: AgendaRowModel) => agendaItemHref(project, row.id, from);
+
+  // Another page of the Deferred part: what was picked on the last one is not on screen any more.
+  const [pickedPage, setPickedPage] = useState(place.page);
+  if (pickedPage !== place.page) {
+    setPickedPage(place.page);
+    setPicks((p) => ({ ...p, deferred: [] }));
+  }
+
+  const open = parts.open;
+  const openIds = open.map((r) => r.id);
+  const titles = new Map(
+    [...parts.open, ...parts.deferred, ...parts.ended].map((r) => [r.id, r]),
+  );
+  const titleOf = (id: string) => titles.get(id)?.title ?? id;
+  const liveLift = lift !== null && openIds.includes(lift.id) ? lift : null;
+  const openRows = liftedOrder(open, liveLift);
+
+  const pickOf = partPicks(on, parts, picks);
+
+  // -- what a write's answer shows, when it is not taken ---------------------------------------
+
+  const notTaken = (
+    part: AgendaPartKey,
+    answer: WriteAnswer,
+    fallback: string,
+  ) => {
+    const result = writeShown(answer, fallback);
+    if (result.kind === "signed-out") router.refresh();
+    else if (result.kind === "notice" || result.kind === "title")
+      setFailed({ part, message: result.message });
+  };
+
+  /** Show a change at once, send it, and keep it only if it was written (a drop of a drag, Defer, Solve, Reopen). */
+  const sendNow = async (
+    change: Sending,
+    send: () => Promise<WriteAnswer>,
+  ): Promise<WriteAnswer> => {
+    let key = "";
+    setOverlay((o) => {
+      const b = begin(o, change, timeZone);
+      key = b.key;
+      return b.overlay;
+    });
+    const answer = await send();
+    // Queued after the begin above, so `key` is set when this runs.
+    setOverlay((o) => settle(o, key, answer));
+    if (answer.ok) router.refresh();
+    return answer;
+  };
 
   // -- the add form --------------------------------------------------------------------------
 
   const openForm = () => {
     focus.current = "title";
+    setPicks((p) => ({ ...p, open: [] }));
+    setLift(null);
     setForm({ title: "", note: "", phase: "edit", notice: null });
   };
   const closeForm = () => {
@@ -214,41 +361,218 @@ export function AgendaList({
     }
   };
 
-  // -- Delete on a row -----------------------------------------------------------------------
+  // -- reorder: the keyboard -------------------------------------------------------------------
 
-  const askDelete = (row: AgendaRowModel) => {
-    deleted.current = false;
+  /** A put down at another place: one `move`, shown at once and Waiting for sync. */
+  const put = async (id: string, to: MovePlace) => {
+    setFailed(null);
+    const answer = await sendNow(
+      { kind: "move", items: [id], fields: to },
+      () => moveAgendaItem(project, id, to),
+    );
+    if (!answer.ok) notTaken("open", answer, AGENDA.actFailed("move", 1));
+  };
+
+  const gripKeyDown = (event: KeyboardEvent<HTMLButtonElement>, id: string) => {
+    if (grab.current !== null) return;
+    const step = gripKey(openIds, titleOf, liveLift, id, event.key);
+    if (step === null) return;
+    event.preventDefault();
+    if (step.focus !== null) focusGrip.current = step.focus;
+    setLift(step.lift);
+    if (step.said !== null) setSaid(step.said);
+    if (step.put !== null) void put(step.put.id, step.put.place);
+  };
+
+  const gripBlurred = (id: string) => {
+    const step = gripBlur(openIds, titleOf, liveLift, id, focusGrip.current);
+    if (step === null) return;
+    setLift(null);
+    if (step.said !== null) setSaid(step.said);
+  };
+
+  // -- reorder: pointer and touch --------------------------------------------------------------
+
+  const endGrab = () => {
+    grab.current = null;
+    stopEscape.current?.();
+    stopEscape.current = null;
+    setDrag(null);
+  };
+
+  /** Escape, a cancelled pointer or a lost capture: the row goes back where it was. */
+  const putBack = () => {
+    const g = grab.current;
+    if (g === null) return;
+    endGrab();
+    if (g.lifted)
+      setSaid(AGENDA.said.cancelled(g.title, g.from + 1, g.order.length));
+  };
+
+  const pointerDown = (event: PointerEvent<HTMLButtonElement>, id: string) => {
+    if (event.button !== 0 || liveLift !== null || grab.current !== null)
+      return;
+    const fromAt = openIds.indexOf(id);
+    const rects = openIds.map(
+      (x) =>
+        grips.current.get(x)?.closest("li")?.getBoundingClientRect() ?? null,
+    );
+    if (fromAt === -1 || rects.some((r) => r === null)) return;
+    const boxesOf = rects as DOMRect[];
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    grab.current = {
+      id,
+      title: titleOf(id),
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      order: [...openIds],
+      mids: boxesOf.map((r) => r.top + r.height / 2),
+      from: fromAt,
+      h: boxesOf[fromAt].height,
+      at: fromAt,
+      lifted: false,
+    };
+  };
+
+  const pointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const g = grab.current;
+    if (g === null || event.pointerId !== g.pointerId) return;
+    const dy = event.clientY - g.startY;
+    if (!g.lifted) {
+      if (Math.abs(dy) < DRAG_START) return;
+      g.lifted = true;
+      setSaid(
+        AGENDA.said.pickedUpByPointer(g.title, g.from + 1, g.order.length),
+      );
+      const key = (e: globalThis.KeyboardEvent) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          putBack();
+        }
+      };
+      window.addEventListener("keydown", key);
+      stopEscape.current = () => window.removeEventListener("keydown", key);
+    }
+    const at = dragAt(g.mids, g.from, dy);
+    if (at !== g.at) {
+      g.at = at;
+      setSaid(AGENDA.said.movedTo(g.title, at + 1, g.order.length));
+    }
+    setDrag({ id: g.id, from: g.from, at, dy, h: g.h });
+  };
+
+  const pointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const g = grab.current;
+    if (g === null || event.pointerId !== g.pointerId) return;
+    endGrab();
+    if (!g.lifted) return;
+    const to = movePlace(g.order, g.id, g.at);
+    if (to === null) {
+      setSaid(AGENDA.said.putBack(g.title));
+      return;
+    }
+    setSaid(AGENDA.said.putDown(g.title, g.at + 1, g.order.length));
+    void put(g.id, to);
+  };
+
+  // -- picked rows -----------------------------------------------------------------------------
+
+  const pickIn = (
+    part: AgendaPartKey,
+    next: (ticked: readonly string[]) => string[],
+  ) => setPicks((p) => ({ ...p, [part]: next(p[part]) }));
+
+  const clearPart = (part: AgendaPartKey) => {
+    focusPart.current = part;
+    pickIn(part, () => []);
+  };
+
+  /** Defer, Solve, Reopen: at once, for every picked id; the box takes the focus. */
+  const actNow = async (
+    part: AgendaPartKey,
+    kind: "defer" | "solve" | "reopen",
+    items: string[],
+  ) => {
+    setFailed(null);
+    focusPart.current = part;
+    pickIn(part, () => []);
+    setSaid(AGENDA.said.acted(kind, items.length, titleOf(items[0])));
+    const answer = await sendNow(actSending(kind, items), () =>
+      sendAct(project, kind, items),
+    );
+    if (answer.ok) return;
+    // Not taken: the rows are back where they were, still picked, and the part says so.
+    pickIn(part, () => items);
+    notTaken(part, answer, AGENDA.actFailed(kind, items.length));
+  };
+
+  const onAct = (part: AgendaPartKey, kind: AgendaAct) => {
+    const items = sendOrder(shown.agenda, pickOf[part].picked);
+    if (items.length === 0) return;
+    if (actAsks(kind)) {
+      const first = titles.get(items[0]);
+      acted.current = null;
+      setAsk({
+        kind,
+        part,
+        ids: items,
+        title: first?.title ?? items[0],
+        lang: first?.lang ?? "en",
+        busy: false,
+        notice: null,
+        reason: "",
+      });
+      return;
+    }
+    void actNow(part, kind, items);
+  };
+
+  // -- Delete on a row, and the confirm --------------------------------------------------------
+
+  const askDelete = (part: AgendaPartKey, row: AgendaRowModel) => {
+    acted.current = null;
     setAsk({
+      kind: "delete",
+      part,
       ids: [row.id],
       title: row.title,
       lang: row.lang,
       busy: false,
       notice: null,
+      reason: "",
     });
   };
-  const confirmDelete = async () => {
+  const confirmAsk = async () => {
     if (!ask || ask.busy) return;
     const asked = ask;
     setAsk({ ...asked, busy: true, notice: null });
-    const answer = await deleteAgendaItems(project, asked.ids);
+    const answer = await sendAct(project, asked.kind, asked.ids, asked.reason);
+    const n = asked.ids.length;
     if (answer.ok) {
-      deleted.current = true;
+      acted.current = asked.part;
       setOverlay((o) => written(o, answer.entry, timeZone));
-      setSaid(
-        asked.ids.length === 1
-          ? AGENDA.said.deleted(asked.title)
-          : AGENDA.said.deletedMany(asked.ids.length),
-      );
+      pickIn(asked.part, () => []);
+      setFailed(null);
+      setSaid(AGENDA.said.acted(asked.kind, n, asked.title));
       setAsk(null);
       router.refresh();
       return;
     }
-    const result = writeShown(answer, AGENDA.confirmDelete.failed);
+    const result = writeShown(
+      answer,
+      asked.kind === "delete" && n === 1
+        ? AGENDA.confirmDelete.failed
+        : AGENDA.actFailed(asked.kind, n),
+    );
     if (result.kind === "signed-out") router.refresh();
     setAsk({
       ...asked,
       busy: false,
-      notice: result.kind === "notice" ? result.message : null,
+      notice:
+        result.kind === "notice" || result.kind === "title"
+          ? result.message
+          : null,
     });
   };
 
@@ -272,18 +596,65 @@ export function AgendaList({
 
   // -- drawing ---------------------------------------------------------------------------------
 
-  const open = parts.open;
+  const boxOf = (part: AgendaPartKey) => (
+    <PartCheck
+      pick={pickOf[part]}
+      boxRef={(el) => {
+        boxes.current[part] = el;
+      }}
+      onToggle={() => pickIn(part, () => toggleAll(pickOf[part]))}
+    />
+  );
+  const checkOf = (part: AgendaPartKey, row: AgendaRowModel) => (
+    <RowCheck
+      title={row.title}
+      checked={pickOf[part].picked.includes(row.id)}
+      onToggle={() => pickIn(part, (t) => toggleRow(t, row.id))}
+    />
+  );
+  const picked = (part: AgendaPartKey) => pickOf[part].picked.length > 0;
+  const barOf = (part: AgendaPartKey) =>
+    picked(part) ? (
+      <PartBar
+        pick={pickOf[part]}
+        onClear={() => clearPart(part)}
+        onAct={(kind) => onAct(part, kind)}
+      />
+    ) : null;
+  const stripOf = (part: AgendaPartKey) =>
+    picked(part) ? (
+      <BulkStrip
+        pick={pickOf[part]}
+        onClear={() => clearPart(part)}
+        onAct={(kind) => onAct(part, kind)}
+      />
+    ) : null;
+  const failedOf = (part: AgendaPartKey) =>
+    failed !== null && failed.part === part ? (
+      <div className="panel-body has-rule">
+        <p className="notice notice-danger" role="alert">
+          {failed.message}
+        </p>
+      </div>
+    ) : null;
 
   return (
-    <div className="stack gap-5">
+    <div className={cx("stack gap-5", drag !== null && "agenda-dragging")}>
       <section className="panel agenda-part" aria-labelledby={ids.open}>
         <PartHead
           headId={ids.open}
           head={AGENDA.heads.open}
-          count={AGENDA.count(open.length)}
+          count={pickOf.open.count}
+          check={open.length > 0 ? boxOf("open") : null}
         >
+          {barOf("open")}
           {form === null ? (
-            <div className="cluster agenda-head-acts agenda-add">
+            <div
+              className={cx(
+                "cluster agenda-head-acts agenda-add",
+                picked("open") && "is-picking",
+              )}
+            >
               <button
                 type="button"
                 className={addIsPrimary(parts) ? "btn btn-primary" : "btn"}
@@ -306,6 +677,7 @@ export function AgendaList({
             onCancel={closeForm}
           />
         ) : null}
+        {failedOf("open")}
         {shown.unplaced.length > 0 ? (
           <div className="panel-body has-rule stack gap-3">
             {shown.unplaced.map((u) =>
@@ -348,21 +720,59 @@ export function AgendaList({
           </div>
         ) : null}
         {open.length > 0 ? (
-          <WsList>
-            {open.map((row) => (
-              <AgendaRow
-                key={row.id}
-                row={row}
-                href={hrefOf(row)}
-                onDelete={() => askDelete(row)}
-              />
-            ))}
-          </WsList>
+          <>
+            <WsList>
+              {openRows.map((row) => {
+                const lifted = liveLift?.id === row.id || drag?.id === row.id;
+                const shift = dragShift(openIds.indexOf(row.id), drag);
+                return (
+                  <AgendaRow
+                    key={row.id}
+                    row={row}
+                    href={hrefOf(row)}
+                    className={cx(
+                      pickOf.open.picked.includes(row.id) && "is-selected",
+                      lifted && "is-lifted",
+                    )}
+                    style={
+                      shift
+                        ? { transform: `translateY(${Math.round(shift)}px)` }
+                        : undefined
+                    }
+                    lead={
+                      <Grip
+                        title={row.title}
+                        howId={ids.how}
+                        lifted={lifted}
+                        gripRef={(el) => {
+                          if (el) grips.current.set(row.id, el);
+                          else grips.current.delete(row.id);
+                        }}
+                        onPointerDown={(e) => pointerDown(e, row.id)}
+                        onPointerMove={pointerMove}
+                        onPointerUp={pointerUp}
+                        onPointerCancel={putBack}
+                        onLostPointerCapture={putBack}
+                        onKeyDown={(e) => gripKeyDown(e, row.id)}
+                        onBlur={() => gripBlurred(row.id)}
+                      />
+                    }
+                    check={checkOf("open", row)}
+                    onDelete={() => askDelete("open", row)}
+                  />
+                );
+              })}
+            </WsList>
+            <p className="sr-only" id={ids.how}>
+              {AGENDA.grip.how}
+            </p>
+          </>
         ) : (
           <div className="panel-body has-rule block">
             <p className="block-text">{emptyText(parts)}</p>
           </div>
         )}
+        {stripOf("open")}
         <p className="sr-only" role="status">
           {said}
         </p>
@@ -373,15 +783,23 @@ export function AgendaList({
           <PartHead
             headId={ids.deferred}
             head={AGENDA.heads.deferred}
-            count={AGENDA.count(parts.deferred.length)}
-          />
+            count={pickOf.deferred.count}
+            check={boxOf("deferred")}
+          >
+            {barOf("deferred")}
+          </PartHead>
+          {failedOf("deferred")}
           <WsList>
             {deferredRows.map((row) => (
               <AgendaRow
                 key={row.id}
                 row={row}
                 href={hrefOf(row)}
-                onDelete={() => askDelete(row)}
+                className={cx(
+                  pickOf.deferred.picked.includes(row.id) && "is-selected",
+                )}
+                check={checkOf("deferred", row)}
+                onDelete={() => askDelete("deferred", row)}
               />
             ))}
           </WsList>
@@ -401,6 +819,7 @@ export function AgendaList({
               />
             </div>
           ) : null}
+          {stripOf("deferred")}
         </section>
       ) : null}
 
@@ -409,14 +828,21 @@ export function AgendaList({
           <PartHead
             headId={ids.ended}
             head={AGENDA.heads.ended}
-            count={AGENDA.count(parts.ended.length)}
-          />
+            count={pickOf.ended.count}
+            check={boxOf("ended")}
+          >
+            {barOf("ended")}
+          </PartHead>
+          {failedOf("ended")}
           <WsList>
-            {ended.rows.map((row, i) => (
+            {on.ended.map((row, i) => (
               <AgendaRow
                 key={row.id}
                 row={row}
                 href={hrefOf(row)}
+                className={cx(
+                  pickOf.ended.picked.includes(row.id) && "is-selected",
+                )}
                 linkRef={
                   i === AGENDA_SHOWN
                     ? (el) => {
@@ -427,11 +853,12 @@ export function AgendaList({
                       }
                     : undefined
                 }
-                onDelete={() => askDelete(row)}
+                check={checkOf("ended", row)}
+                onDelete={() => askDelete("ended", row)}
               />
             ))}
           </WsList>
-          {ended.more !== null ? (
+          {on.more !== null ? (
             <div className="panel-foot">
               <button
                 type="button"
@@ -441,10 +868,11 @@ export function AgendaList({
                   setAll(true);
                 }}
               >
-                {AGENDA.showAll(ended.more)}
+                {AGENDA.showAll(on.more)}
               </button>
             </div>
           ) : null}
+          {stripOf("ended")}
         </section>
       ) : null}
 
@@ -452,9 +880,13 @@ export function AgendaList({
         <AgendaConfirm
           ask={ask}
           cancelRef={cancelRef}
+          reasonId={ids.reason}
+          onReason={(reason) => setAsk({ ...ask, reason })}
           onCancel={() => setAsk(null)}
-          onConfirm={confirmDelete}
-          returnFocus={() => (deleted.current ? addRef.current : null)}
+          onConfirm={confirmAsk}
+          returnFocus={() =>
+            acted.current !== null ? partFocus(acted.current) : null
+          }
         />
       ) : null}
     </div>
@@ -567,25 +999,33 @@ export function AddForm({
 }
 
 /**
- * Delete asks first (F303; the system's `Dialog`, F3): `Delete “<title>”?`, the sentence, **Cancel** and **Yes,
- * delete** (`.btn-danger`, `Deleting…` while it is sent; Escape does nothing then). Focus opens on Cancel; Cancel or
- * Escape closes it and focus goes back to the button that opened it (`returnFocus()` null). After a delete is
- * sent, focus goes to `returnFocus()`: the opener is gone with its row.
+ * Drop and Delete ask first (F303; the system's `Dialog`, F3), naming what they act on: `Delete “<title>”?` or
+ * `Delete 3 items?` with Delete's sentence, **Cancel** and **Yes, delete** (`.btn-danger`, `Deleting…` while it is
+ * sent); `Drop “<title>”?` or `Drop 3 items?` with Drop's sentence, one field **Reason (optional)** (Enter in it
+ * drops), **Cancel** and **Yes, drop** (`.btn-primary`, `Dropping…`). Escape does nothing while it is sent. Focus
+ * opens on Cancel; Cancel or Escape closes it and focus goes back to the button that opened it (`returnFocus()`
+ * null). After it acts, focus goes to `returnFocus()`: the part's box (Add item when the part is gone).
  */
 export function AgendaConfirm({
   ask,
   cancelRef,
+  reasonId,
+  onReason,
   onCancel,
   onConfirm,
   returnFocus,
 }: {
-  ask: NonNullable<Ask>;
+  ask: AgendaAsk;
   cancelRef: RefObject<HTMLButtonElement | null>;
+  /** Drop's Reason field: its id and its edits. */
+  reasonId?: string;
+  onReason?: (reason: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
   returnFocus: () => HTMLElement | null;
 }) {
-  const w = AGENDA.confirmDelete;
+  const drop = ask.kind === "drop";
+  const w = drop ? AGENDA.confirmDrop : AGENDA.confirmDelete;
   const one = ask.ids.length === 1;
   const cancel = () => {
     if (!ask.busy) onCancel();
@@ -615,6 +1055,28 @@ export function AgendaConfirm({
           {ask.notice}
         </p>
       ) : null}
+      {drop ? (
+        <div className="field">
+          <label className="label" htmlFor={reasonId}>
+            {AGENDA.confirmDrop.reason}
+          </label>
+          <input
+            className="input"
+            id={reasonId}
+            type="text"
+            autoComplete="off"
+            value={ask.reason ?? ""}
+            disabled={ask.busy}
+            onChange={(e) => onReason?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onConfirm();
+              }
+            }}
+          />
+        </div>
+      ) : null}
       <DialogActions>
         <button
           type="button"
@@ -628,7 +1090,7 @@ export function AgendaConfirm({
         </button>
         <button
           type="button"
-          className="btn btn-danger"
+          className={drop ? "btn btn-primary" : "btn btn-danger"}
           data-busy={ask.busy ? "true" : undefined}
           aria-busy={ask.busy ? true : undefined}
           onClick={onConfirm}

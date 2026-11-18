@@ -337,10 +337,10 @@ describe("a row", () => {
     expect(jobsOnly.open[0].end).toBe("1 deferred job");
   });
 
-  it("draws the body as the frame's row, the empty grip cell, the mark and Delete named for the item", () => {
+  it("draws the body as the frame's row, led by the grip and the box, the mark and Delete named for the item", () => {
     const out = list(PLATFORM);
-    expect(out).toContain(
-      '<li class="row agenda-row" data-row="A12-p3"><span class="agenda-nogrip" aria-hidden="true"></span><div class="agenda-body"><div class="ws-row agenda-cells"><span class="ws-id">A12-p3</span>',
+    expect(out).toMatch(
+      /<li class="row agenda-row" data-row="A12-p3"><button type="button" class="agenda-grip" aria-label="Reorder: Say so when the copy has been behind for a day" aria-describedby="[^"]+-how" aria-pressed="false"><\/button><label class="check agenda-check"><input type="checkbox"\/><span class="sr-only">Select: Say so when the copy has been behind for a day<\/span><\/label><div class="agenda-body"><div class="ws-row agenda-cells"><span class="ws-id">A12-p3<\/span>/,
     );
     expect(out).toContain(
       '<span class="dim ws-end">1 of 2 phases done, 3 deferred jobs</span>',
