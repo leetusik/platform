@@ -1,5 +1,48 @@
 /* hi2vi — the Workspace's docs sheet (design job 02, round 02-agenda-and-links). Holds the docs list, a doc, its notice and its earlier versions (`Docs*.dc.html`).
    The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
-   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css. */
+   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css.
+   Changes from the boards: `.docs-head` is the frame's `.ws-head` (F85, one rule); the notice's
+   `#docs-notice .notice a` is `.docs-notice a` (a page holds one notice, and an id is no class). */
 @scope (.ui) to ([data-ui-legacy]) {
+
+/* the list measures itself: from 48em of its own width the docs are a table; under that each row stacks, as F43's narrow row does */
+.docs-list { container-type: inline-size; }
+/* the docs table declares its columns, so they hold while it loads and the Retired table shares its edges */
+.docs-table { table-layout: fixed; }
+.docs-table th:nth-child(1) { width: 19%; }
+.docs-table th:nth-child(2) { width: 29%; }
+.docs-table th:nth-child(3) { width: 12%; }
+.docs-table th:nth-child(4) { width: 14%; }
+/* what a stale doc waits for: under its status, on the status word's left edge */
+.docs-wait { display: block; padding-left: calc(var(--dot) + var(--space-2)); }
+/* the words that join a doc's three facts into one line: only the stacked row shows them */
+.docs-join { display: none; }
+/* under 48em nothing scrolls sideways and nothing is cut: the name, its status and what it waits for, then the facts as one line */
+@container (max-width: 47.99em) {
+  .docs-table, .docs-table tbody, .docs-table tr, .docs-table td { display: block; }
+  .docs-table thead { display: none; }
+  .docs-table tr { padding: 0 var(--space-4) var(--space-3); border-top: 1px solid var(--line); }
+  .docs-table td { padding: 0; border-top: 0; }
+  .docs-table td:first-child { display: flex; align-items: center; min-height: var(--control-h); }
+  .docs-table td:nth-child(2) { padding-bottom: var(--space-1); }
+  .docs-table td.docs-fact { display: inline; color: var(--ink-2); white-space: normal; }
+  .docs-table td.docs-fact.is-none { display: none; }
+  .docs-join { display: inline; }
+}
+
+/* a doc still loading: bars where its lines will be, on the text's own line height */
+.docs-wait-text { line-height: var(--lh-head); }
+
+/* an id inside a sentence stays on one line (frame.md F80) */
+.docs-notice a { white-space: nowrap; }
+
+/* an earlier version: the version (the row's link), its date, what changed. The link carries the row's 12 px (frame.md F24) */
+.docs-vers { container-type: inline-size; }
+.docs-ver { grid-template-columns: var(--id-w) minmax(0, 1fr); grid-template-areas: "v date" ". sum"; padding-block: 0 var(--space-3); }
+.docs-ver-open { grid-area: v; padding-block: var(--space-3); }
+.docs-ver-date { grid-area: date; }
+.docs-ver-sum { grid-area: sum; text-wrap: pretty; }
+@container (min-width: 30em) {
+  .docs-ver { grid-template-columns: var(--id-w) 7em minmax(0, 1fr); grid-template-areas: "v date sum"; padding-block: 0; }
+}
 }
