@@ -1,5 +1,65 @@
 /* hi2vi — the Workspace's agenda item sheet (design job 02, round 02-agenda-and-links). Holds an agenda item's page: its head, its forms, its phases and deferred jobs (`AgendaItem*.dc.html`).
    The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
-   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css. */
+   never redefined here (src/hi2vi/styles/README.md). Changes from the signed boards:
+   - the title row is the frame's item head (`.page-head.ws-head`, F85), whose 8 px this row takes from its title
+     instead, as `AgendaItemHead` draws it, so the buttons' 44 px keep the row one control high;
+   - `.agendaitem-title` is `.agendaitem-row > .page-title`; `.agendaitem-whole` is the frame's `.ws-nobr`; the head's
+     `.stack.gap-2` is the facts' 8 px under the title row;
+   - a long value's own line at the measure is the frame's `.ws-fact-long`; its kept line breaks stay here.
+   Loaded once, through ../index.css. */
 @scope (.ui) to ([data-ui-legacy]) {
+  /* a long title wraps beside the actions, which stay on its first line: the title keeps the line a one-line head gives it (F32) */
+  .page-head.agendaitem-row {
+    align-items: flex-start;
+  }
+  .agendaitem-row.ws-head {
+    padding-block: 0;
+  }
+  .agendaitem-row > .page-title {
+    flex: 1 1 16em;
+    padding-block: calc(
+      (var(--control-h) - var(--fs-title) * var(--lh-title)) / 2
+    );
+  }
+  /* the facts sit 8 px under the title row */
+  .agendaitem-row + .facts {
+    margin-top: var(--space-2);
+  }
+  /* the actions keep the head's right end when they drop under the title; the buttons stay one group, so the sentence wraps before they part */
+  .agendaitem-actions {
+    margin-left: auto;
+  }
+  /* while a form is open the form's own buttons act and the head's step aside: they keep their width, so a title beside them wraps as before, and no height, so their own line under a narrow title closes */
+  .agendaitem-away {
+    visibility: hidden;
+    height: 0;
+    overflow: hidden;
+  }
+  /* the state and the waiting badge are the title's marks: they stay together, and take the title's next line together when the row is full */
+  .agendaitem-marks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-3);
+  }
+  /* a long value (outcome, reason, note) keeps its line breaks */
+  .agendaitem-long > dd {
+    white-space: pre-line;
+  }
+
+  /* the form's buttons keep its right end when they wrap under the field */
+  .agendaitem-end {
+    margin-left: auto;
+  }
+  /* what is typed keeps a line's measure (the frame's --measure), and the buttons end on the fields' right edge */
+  .agendaitem-form {
+    max-width: var(--measure);
+  }
+
+  /* a skeleton row's name cell is as tall as the row's link, so the row keeps a real row's height (F24) */
+  .agendaitem-wait {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+  }
 }
