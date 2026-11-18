@@ -50,6 +50,12 @@ vi.mock("@/lib/knowledge/app", () => ({
   getProjectUsage: reads.getProjectUsage,
 }));
 vi.mock("@/lib/feedback/app", () => ({ listFeedback: reads.listFeedback }));
+vi.mock("@/lib/workspace/read", () => ({
+  readWorkspace: vi.fn(async () => ({
+    state: "unlinked",
+    head: { version: null, sync: { state: "unlinked", at: null } },
+  })),
+}));
 
 const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");
 const { ProjectsPanel } = await import("@/app/(app)/dashboard/projects-panel");

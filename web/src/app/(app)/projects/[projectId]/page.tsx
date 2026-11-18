@@ -16,6 +16,7 @@ import {
 import { ApiError } from "@/lib/knowledge/client";
 import type { KbIdentity, KbProjectUsage } from "@/lib/knowledge/types";
 import { orgSegment, projectLibraryHref } from "@/lib/reader-href";
+import { readWorkspace } from "@/lib/workspace/read";
 
 import { LibraryFailed } from "./library-retry";
 import {
@@ -26,6 +27,7 @@ import {
   projectHomeFormat,
   requestOrigin,
   todayIn,
+  workspacePart,
   type LibraryRow,
 } from "./model";
 import {
@@ -48,7 +50,8 @@ import "./project-home.css";
 // - Active total (Usage) and the Library's count: `getDocuments({project, limit: 1}).total`;
 // - the Library's rows: the org library listing (`getOrgLibrary`), this project's books and documents;
 // - Feedback: `listFeedback({project_id, limit: 5})`;
-// - Workspace's link command: the request's origin (`headers()`) and the project's id.
+// - Workspace: the project's Workspace (`readWorkspace`, one read: its phases and deferred jobs); for a
+//   project not linked or never synced, the link command from the request's origin (`headers()`).
 // Every date is in the viewer's zone (the `kb_tz` cookie), UTC until it is known (decision 5).
 //
 // The <title> stays the static `PROJECT.title`: a `generateMetadata` title would cost a second uncached read.
@@ -115,10 +118,11 @@ export default async function ProjectHomePage({
 
   const usage = await loadProject(token, projectId);
   const { project } = usage;
-  const [documents, rows, feedback] = await Promise.all([
+  const [documents, rows, feedback, workspace] = await Promise.all([
     getDocuments(token, { project: project.id, limit: 1 }),
     loadLibraryRows(token, identity, project.name),
     loadFeedback(token, project.id, format),
+    readWorkspace(token, project.id),
   ]);
   const count = libraryCount(documents.total);
   const origin = requestOrigin(await headers());
@@ -134,7 +138,11 @@ export default async function ProjectHomePage({
         created={date(project.created_at, format)}
         visibility={project.visibility}
       />
-      <WorkspacePanel origin={origin} projectId={project.id} />
+      <WorkspacePanel
+        part={workspacePart(workspace, project.id)}
+        origin={origin}
+        projectId={project.id}
+      />
       <Grid min="26em">
         {rows === null ? (
           <LibraryFailed count={count} />

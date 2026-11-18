@@ -5,26 +5,264 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { afterEach, vi } from "vitest";
+
+import ProjectHomePage from "@/app/(app)/projects/[projectId]/page";
 import { WorkspacePanel } from "@/app/(app)/projects/[projectId]/parts";
 import {
   isMissingProjectStatus,
   libraryRows,
   mintOutcome,
-  projectHomeId,
   requestOrigin,
   visibilityOutcome,
   visibilityReducer,
+  workspacePart,
   workspaceWords,
+  type WorkspacePart,
 } from "@/app/(app)/projects/[projectId]/model";
 import { MINT_CREDENTIAL_ERRORS } from "@/content/project";
 import { railFor } from "@/hi2vi/shell/model";
 import type { KbOrgLibrary } from "@/lib/knowledge/types";
+import type { WorkspaceRead } from "@/lib/workspace/read";
+import type { PhaseRow, Workspace } from "@/lib/workspace/types";
 
-// Project home's core rules (job 01 round 03-instrument; operator D1): the Workspace panel's signed
-// sentence with the link command, the Library's five newest, a refused visibility change, and Not
-// found's statuses.
+// Project home's core rules (job 01 round 03-instrument): the Workspace panel on the project's synced
+// workspace (its five newest phases, its open jobs, the way to the Workspace) and the signed sentence
+// with the link command for a project not linked; the Library's five newest, a refused visibility
+// change, and Not found's statuses.
 
-describe("Workspace panel (operator D1)", () => {
+vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }));
+vi.mock("@/lib/auth-guards", () => ({ requireIdentity: vi.fn() }));
+vi.mock("@/lib/knowledge/app", () => ({
+  getDocuments: vi.fn(),
+  getOrgLibrary: vi.fn(),
+  getProjectUsage: vi.fn(),
+}));
+vi.mock("@/lib/feedback/app", () => ({ listFeedback: vi.fn() }));
+
+const PROJECT = "3f6c2a9e-8b1d-4e7a-9c05-6d2e1f4b7a10";
+
+/** A phase as the read model lists it, with this host's own names. */
+function phase(
+  id: string,
+  name: string,
+  status: string,
+  done: number,
+  total: number,
+  current: string | null = null,
+): PhaseRow {
+  return {
+    id,
+    short: id.split("-")[0],
+    name,
+    objective: null,
+    status,
+    created: "2026-11-13T10:23:44+09:00",
+    started: null,
+    completed: null,
+    archived: false,
+    stream: "default",
+    done,
+    total,
+    current,
+    gate: {
+      state: "required",
+      note: null,
+      walkthrough: [],
+      words: null,
+      cleared: null,
+    },
+    review: { verdict: null, note: null },
+    branches: [],
+    agenda: null,
+  };
+}
+
+/** Newest first, the pointer's phase leading, as `GET …/workspace` orders them. */
+const PHASES: PhaseRow[] = [
+  phase("P67-b1", "Apply hi2vi: Workspace", "in_progress", 4, 18, "S5"),
+  phase("P69-qw", "Landing feedback", "done", 6, 6),
+  phase("P68-jf", "Assistant on the Claude API", "planned", 0, 0),
+  phase("P66-zx", "웹에서 에이전다 고치기", "pending", 7, 9, "REVIEW"),
+  phase("P65-nh", "Apply hi2vi: Feedback", "in_review", 9, 9),
+  phase("P64-3y", "Apply hi2vi: Listen and Review", "blocked", 2, 8, "S3"),
+];
+
+const job = (id: string, status: string) => ({ id, status });
+
+const WORKSPACE = {
+  project: PROJECT,
+  linked: true,
+  version: "97",
+  sync: { state: "fresh", at: "2026-11-18T08:40:00Z" },
+  streams: [],
+  pointer: { phase: "P67-b1", slice: "P67-b1.S5", next: null, waiting: [] },
+  phases: PHASES,
+  deferred: [
+    ...Array.from({ length: 10 }, (_, i) => job(`D${290 + i}-4p`, "deferred")),
+    job("D301-dm", "ready"),
+    job("D302-4z", "ready"),
+    job("D236-ev", "promoted"),
+    job("D111-v0", "done"),
+    job("D137-x2", "dropped"),
+  ],
+  docs: [],
+  retired: [],
+  agenda: [],
+  unplaced: [],
+} as unknown as Workspace;
+
+function panel(part: WorkspacePart): string {
+  return renderToStaticMarkup(
+    createElement(WorkspacePanel, {
+      part,
+      origin: "https://hi2vi.com",
+      projectId: PROJECT,
+    }),
+  );
+}
+
+describe("Workspace panel: linked and synced", () => {
+  const part = workspacePart({ state: "ready", value: WORKSPACE }, PROJECT);
+
+  it("lists the five newest phases in the read's order, with the open jobs as the count", () => {
+    expect(part.kind).toBe("phases");
+    if (part.kind !== "phases") return;
+    expect(part.deferred).toBe("12 deferred");
+    expect(part.phases.map((p) => p.id)).toEqual([
+      "P67",
+      "P69",
+      "P68",
+      "P66",
+      "P65",
+    ]);
+    expect(part.longest).toBe(18);
+    expect(part.all).toBe(`/projects/${PROJECT}/workspace/backlog`);
+  });
+
+  it("draws each phase: id, the name as a link to it, its current slice, status, count and steps", () => {
+    const html = panel(part);
+    expect(html).toContain('<p class="meta">12 deferred</p>');
+    expect(html).toContain(
+      `href="/projects/${PROJECT}/workspace/phases/P67-b1"`,
+    );
+    expect(html).toContain('<span class="dim ph-id">P67</span>');
+    expect(html).toContain(
+      '<span class="ph-name-text" lang="en">Apply hi2vi: Workspace</span>',
+    );
+    expect(html).toContain('<span class="meta ph-sub">S5</span>');
+    expect(html).toContain(
+      '<span class="ph-name-text" lang="ko">웹에서 에이전다 고치기</span>',
+    );
+    // a done phase shows no current slice
+    expect(html.match(/ph-sub/g)).toHaveLength(2);
+    expect(html).toContain(
+      '<span class="status status-live ph-state">In progress</span>',
+    );
+    expect(html).toContain(
+      '<span class="status status-done ph-state">Done</span>',
+    );
+    expect(html).toContain(
+      '<span class="status status-pending ph-state">Waiting on operator</span>',
+    );
+    expect(html).toContain('<span class="progress-count">4/18</span>');
+    expect(html).toContain('aria-label="4 of 18 slices done, 1 in progress"');
+    expect(html).toContain("--steps-n:18");
+    expect(html).toContain(
+      `<a class="link link-row" href="/projects/${PROJECT}/workspace/backlog">See all in Workspace</a>`,
+    );
+    expect(html).not.toContain("Coming");
+    expect(html).not.toContain("No workspace linked yet.");
+    expect(html).not.toContain("P64");
+  });
+
+  it("loads with three skeleton rows and no count", () => {
+    const html = panel({ kind: "loading" });
+    expect(html).toContain('aria-busy="true"');
+    expect(html.match(/ph-wait/g)).toHaveLength(3);
+    expect(html).not.toContain("No workspace linked yet.");
+    expect(html).not.toContain("Coming");
+    expect(html).not.toContain('class="meta"');
+  });
+});
+
+describe("Project home's reads", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads the Workspace once and hands the panel its phases", async () => {
+    process.env.KB_API_BASE_URL = "http://kb.test:8766";
+    const headers = await import("next/headers");
+    const store = { get: () => undefined };
+    vi.mocked(headers.cookies).mockResolvedValue(store as never);
+    vi.mocked(headers.headers).mockResolvedValue(
+      new Headers({ host: "hi2vi.com", "x-forwarded-proto": "https" }) as never,
+    );
+    const guards = await import("@/lib/auth-guards");
+    vi.mocked(guards.requireIdentity).mockResolvedValue({
+      token: "session-token",
+      identity: { tenant: null },
+    } as never);
+    const app = await import("@/lib/knowledge/app");
+    vi.mocked(app.getProjectUsage).mockResolvedValue({
+      project: {
+        id: PROJECT,
+        name: "platform",
+        visibility: "private",
+        created_at: "2026-03-02T01:30:00Z",
+      },
+      totals: { documents_created: 0, searches: 0, documents_deleted: 0 },
+      daily_counts: [],
+      credentials: [],
+    } as never);
+    vi.mocked(app.getDocuments).mockResolvedValue({ total: 0 } as never);
+    const feedback = await import("@/lib/feedback/app");
+    vi.mocked(feedback.listFeedback).mockResolvedValue({
+      records: [],
+    } as never);
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        return new Response(JSON.stringify(WORKSPACE), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const page = await ProjectHomePage({
+      params: Promise.resolve({ projectId: PROJECT }),
+    });
+    const found = findElement(page, WorkspacePanel);
+    expect(calls).toEqual([
+      `http://kb.test:8766/app/projects/${PROJECT}/workspace`,
+    ]);
+    expect(found?.props.part).toEqual(
+      workspacePart({ state: "ready", value: WORKSPACE }, PROJECT),
+    );
+  });
+});
+
+/** The first element of a type in a server render's tree. */
+function findElement(
+  node: unknown,
+  type: unknown,
+): { props: Record<string, unknown> } | null {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const hit = findElement(child, type);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: Record<string, unknown> };
+  if (el.type === type && el.props) return { props: el.props };
+  return el.props ? findElement(el.props.children, type) : null;
+}
+
+describe("Workspace panel: not linked", () => {
   it("reads the signed sentence with the link command for this origin and project", () => {
     const w = workspaceWords({
       origin: "https://hi2vi.com",
@@ -37,7 +275,7 @@ describe("Workspace panel (operator D1)", () => {
         "python3 workflow/scripts/workflow.py link https://hi2vi.com/projects/p_42",
       after: " in the project’s repo.",
     });
-    expect(w.badge).toBe("Coming");
+    expect(w).not.toHaveProperty("badge");
   });
 
   it("takes the origin from the request, behind a proxy or not", () => {
@@ -60,18 +298,12 @@ describe("Workspace panel (operator D1)", () => {
     expect(requestOrigin(h({}))).toBeNull();
   });
 
-  it("finds the project id in project home's own path, and nowhere else", () => {
-    expect(projectHomeId("/projects/p_42")).toBe("p_42");
-    expect(projectHomeId("/projects/p_42?x=1")).toBe("p_42");
-    expect(projectHomeId("/projects/p_42/feedback")).toBeNull();
-    expect(projectHomeId(null)).toBeNull();
-  });
-
   it("lets the link command, and only it, break anywhere inside its card", () => {
     // A self-hosted origin with a port is one run longer than a phone's card; `.ui`'s keep-all
     // would otherwise push the page sideways.
     const html = renderToStaticMarkup(
       createElement(WorkspacePanel, {
+        part: { kind: "link" },
         origin: "http://kb.example.test:60592",
         projectId: "f4cd8de2-2872-45a5-a975-a964542f1dbc",
       }),
@@ -90,6 +322,26 @@ describe("Workspace panel (operator D1)", () => {
       r.replace(/\s+/g, " "),
     );
     expect(rules).toEqual([".ph-cmd { overflow-wrap: anywhere; }"]);
+  });
+
+  it("keeps the sentence for a project not linked, never synced or not found, and drops Coming", () => {
+    const head = { version: null, sync: { state: "unlinked", at: null } };
+    for (const read of [
+      { state: "unlinked", head },
+      { state: "never", head: { ...head, sync: { state: "never", at: null } } },
+      { state: "not-found" },
+    ] as WorkspaceRead[]) {
+      const part = workspacePart(read, PROJECT);
+      expect(part).toEqual({ kind: "link" });
+      const html = panel(part);
+      expect(html).toContain("No workspace linked yet.");
+      expect(html).toContain(
+        `<code class="mono ph-cmd">python3 workflow/scripts/workflow.py link https://hi2vi.com/projects/${PROJECT}</code>`,
+      );
+      expect(html).not.toContain("Coming");
+      expect(html).not.toContain("See all in Workspace");
+      expect(html).not.toContain('class="meta"');
+    }
   });
 
   it("leaves no placeholder in the shipped words", () => {

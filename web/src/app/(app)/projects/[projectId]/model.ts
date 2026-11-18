@@ -4,12 +4,16 @@
 
 import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
+import { stepsN } from "@/hi2vi/workspace/frame/steps-model";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type { KbCredential, KbOrgLibrary } from "@/lib/knowledge/types";
 import { secondTitleLang } from "@/lib/library/lists";
 import { bookHref, orgSegment, readerHref } from "@/lib/reader-href";
-import { plural, type FormatOptions } from "@/lib/format";
+import { num, plural, type FormatOptions } from "@/lib/format";
 import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
+import { backlogHref, phaseHref } from "@/lib/workspace/address";
+import { langOf, openJobs } from "@/lib/workspace/model";
+import type { WorkspaceRead } from "@/lib/workspace/read";
 
 import type {
   MintCredentialState,
@@ -51,7 +55,7 @@ export function isMissingProjectStatus(status: number): boolean {
   return status === 404 || status === 400 || status === 422;
 }
 
-// ── Workspace (operator D1) ─────────────────────────────────────────────────
+// ── Workspace ───────────────────────────────────────────────────────────────
 
 /** The link command's second sentence, split so the panel sets the command as code. */
 export interface WorkspaceRun {
@@ -61,16 +65,14 @@ export interface WorkspaceRun {
 }
 
 /**
- * The Workspace panel until it has workspace data: the signed empty state (its first sentence, then
- * `Run <command> in the project’s repo.`) and the `Coming` badge on its head. No rows, no count, no
- * foot (the board drops a part's count and foot when it is empty), no loading form. Without an origin
- * or a project id the second sentence is left out rather than drawn with a guessed address.
+ * The Workspace panel's signed sentence for a project whose workspace is not linked or has never
+ * synced: its first sentence, then `Run <command> in the project’s repo.`. Without an origin or a
+ * project id the second sentence is left out rather than drawn with a guessed address.
  */
 export function workspaceWords(
   link: { origin: string | null; projectId: string | null } | null = null,
 ): {
   heading: string;
-  badge: string;
   empty: string;
   run: WorkspaceRun | null;
 } {
@@ -83,7 +85,86 @@ export function workspaceWords(
           after: w.run.after,
         }
       : null;
-  return { heading: w.heading, badge: w.coming, empty: w.empty, run };
+  return { heading: w.heading, empty: w.empty, run };
+}
+
+/** The board's five newest phases. */
+export const PHASES_SHOWN = 5;
+
+/** A phase as the panel's row draws it (`ProjectHomeWorkspace.dc.html`). */
+export interface HomePhase {
+  /** The full id, the row's key. */
+  key: string;
+  /** The short id the row shows (`P57`, job 01's figure: the read model's `short`). */
+  id: string;
+  /** The name, or the full id when the phase has none. */
+  name: string;
+  lang: "en" | "ko";
+  /** The phase's page. No `?from=`: project home is not a Workspace list (its way back is the Backlog). */
+  href: string;
+  /** The current slice under the name while the phase is not done (its short id), else `null`. */
+  slice: string | null;
+  status: string | null;
+  done: number;
+  total: number;
+  /** One step runs while the phase is in progress with slices left. */
+  live: boolean;
+}
+
+/** The panel's three forms: the phases, the link sentence, and loading. */
+export type WorkspacePart =
+  | {
+      kind: "phases";
+      /** `12 deferred`: the open jobs (deferred or ready, F42). */
+      deferred: string;
+      phases: HomePhase[];
+      /** `--steps-n`: the longest phase shown, so every row's step is one width. */
+      longest: number;
+      /** See all in Workspace: the Backlog, where the phases are. */
+      all: string;
+    }
+  | { kind: "link" }
+  | { kind: "loading" };
+
+/**
+ * The panel from the page's one Workspace read: a synced workspace's five newest phases (the read
+ * lists them newest first, the pointer's phase leading, as the board does) and its open jobs; the
+ * signed link sentence for a project not linked, never synced, or with no workspace the read can
+ * find. A failed read is not a form the board draws: the page throws it (the Feedback panel's rule).
+ */
+export function workspacePart(
+  read: WorkspaceRead,
+  projectId: string,
+): WorkspacePart {
+  if (read.state === "error") {
+    throw new Error(
+      `The workspace did not load (${read.status ?? "no answer"}).`,
+    );
+  }
+  if (read.state !== "ready") return { kind: "link" };
+  const ws = read.value;
+  const phases = ws.phases.slice(0, PHASES_SHOWN).map((p): HomePhase => {
+    const name = p.name?.trim() || p.id;
+    return {
+      key: p.id,
+      id: p.short || p.id,
+      name,
+      lang: langOf(name),
+      href: phaseHref(projectId, p.id),
+      slice: p.status !== "done" && p.current ? p.current : null,
+      status: p.status,
+      done: p.done,
+      total: p.total,
+      live: p.status === "in_progress" && p.done < p.total,
+    };
+  });
+  return {
+    kind: "phases",
+    deferred: PROJECT_HOME.workspace.deferred(num(openJobs(ws.deferred))),
+    phases,
+    longest: stepsN(phases.map((p) => p.total)),
+    all: backlogHref(projectId),
+  };
 }
 
 /** The request headers the origin is read from (`next/headers`' `headers()` satisfies it). */
@@ -104,17 +185,6 @@ export function requestOrigin(headers: HeaderReader): string | null {
   if (!host) return null;
   const proto = first(headers.get("x-forwarded-proto")) || "http";
   return `${proto}://${host}`;
-}
-
-/** Project home's id from the request's path (`/projects/<id>`, any query), or `null` elsewhere. */
-export function projectHomeId(path: string | null): string | null {
-  const m = /^\/projects\/([^/?#]+)(?:[?#]|$)/.exec(path ?? "");
-  if (!m) return null;
-  try {
-    return decodeURIComponent(m[1]);
-  } catch {
-    return null;
-  }
 }
 
 // ── Library ─────────────────────────────────────────────────────────────────
