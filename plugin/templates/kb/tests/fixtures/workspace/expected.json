@@ -14,7 +14,11 @@
     "done": 2, "total": 3, "current": "S2",
     "gate": {"state": "open", "note": "Opened by the review.", "walkthrough": ["Open the uploads page.", "Click Retry on the failed row.", "It reads Done."], "words": null, "cleared": null},
     "review": {"verdict": "pending", "note": null},
-    "branches": [{"repo": "app", "branch": "feat/retry-queue", "pr": "https://example.com/pr/12"}],
+    "branches": [
+     {"repo": "platform", "branch": "feat/retry-queue", "pr": {"number": 38, "state": "draft", "url": "https://github.com/june/platform/pull/38"}},
+     {"repo": "vocky", "branch": "feat/retry-queue", "pr": {"number": 12, "state": "open", "url": "https://github.com/june/vocky/pull/12"}},
+     {"repo": "bootstrap_agentic_workspace", "branch": "feat/retry-queue", "pr": null}
+    ],
     "agenda": "A2-k5"},
    {"id": "P9-r5", "short": "P9", "name": "Export to Markdown", "objective": "A document exports as Markdown.", "status": "planned",
     "created": "2026-11-12", "started": null, "completed": null, "archived": false, "stream": "default",
@@ -36,13 +40,13 @@
     "created": "2026-10-03", "reason": "알림이 두 번 갑니다.", "promotedTo": null, "dropped": "The alert was removed.", "agenda": null}
   ],
   "docs": [
-   {"id": "product", "title": "Product", "state": "current", "version": "v0002", "versioned": "2026-10-05", "from": ["P7-m3"], "stale": [],
-    "versions": [{"version": "v0001", "date": "2026-09-01", "summary": "Initial product doc"}]},
-   {"id": "architecture", "title": "Architecture", "state": "stale", "version": "v0001", "versioned": "2026-09-01", "from": [],
+   {"id": "product", "title": "Product", "state": "current", "version": "v2611020550", "ordinal": 2, "versioned": "2026-10-05", "from": ["P7-m3"], "stale": [],
+    "versions": [{"version": "v0001", "ordinal": 1, "date": "2026-09-01", "summary": "Initial product doc"}]},
+   {"id": "architecture", "title": "Architecture", "state": "stale", "version": "v0001", "ordinal": 1, "versioned": "2026-09-01", "from": [],
     "stale": [{"phase": "P8-q4", "notes": 1}], "versions": []}
   ],
   "retired": [
-   {"id": "experience", "title": "Experience", "state": "retired", "version": "v0001", "versioned": "2026-09-01", "from": [], "stale": [], "versions": []}
+   {"id": "experience", "title": "Experience", "state": "retired", "version": "v0001", "ordinal": 1, "versioned": "2026-09-01", "from": [], "stale": [], "versions": []}
   ],
   "agenda": [
    {"id": "A2-k5", "title": "Uploads that fail", "lang": "en", "note": "Seen twice last week.", "state": "in_progress", "created": "2026-11-09",
@@ -82,7 +86,11 @@
   },
   "gate": {"state": "open", "note": "Opened by the review.", "walkthrough": ["Open the uploads page.", "Click Retry on the failed row.", "It reads Done."], "words": null, "cleared": null},
   "review": {"verdict": "pending", "note": null},
-  "branches": [{"repo": "app", "branch": "feat/retry-queue", "pr": "https://example.com/pr/12"}],
+  "branches": [
+     {"repo": "platform", "branch": "feat/retry-queue", "pr": {"number": 38, "state": "draft", "url": "https://github.com/june/platform/pull/38"}},
+     {"repo": "vocky", "branch": "feat/retry-queue", "pr": {"number": 12, "state": "open", "url": "https://github.com/june/vocky/pull/12"}},
+     {"repo": "bootstrap_agentic_workspace", "branch": "feat/retry-queue", "pr": null}
+    ],
   "agenda": "A2-k5",
   "explain": null
  },
@@ -104,17 +112,17 @@
   "promotedTo": null, "dropped": null, "agenda": "A2-k5"
  },
  "doc": {
-  "id": "product", "title": "Product", "state": "current", "version": "v0002", "versioned": "2026-10-05", "from": ["P7-m3"], "stale": [],
+  "id": "product", "title": "Product", "state": "current", "version": "v2611020550", "ordinal": 2, "versioned": "2026-10-05", "from": ["P7-m3"], "stale": [],
   "sections": [
    {"id": "product-1", "title": "Status", "md": "Uploads retry."},
    {"id": "product-2", "title": "Scope", "md": "- Retry.\n- ```\n  not a heading\n  ```"}
   ],
-  "versions": [{"version": "v0001", "date": "2026-09-01", "summary": "Initial product doc"}]
+  "versions": [{"version": "v0001", "ordinal": 1, "date": "2026-09-01", "summary": "Initial product doc"}]
  },
  "doc_v0001": {
-  "id": "product", "title": "Product", "state": "current", "version": "v0001", "versioned": "2026-09-01", "from": [], "stale": [],
+  "id": "product", "title": "Product", "state": "current", "version": "v0001", "ordinal": 1, "versioned": "2026-09-01", "from": [], "stale": [],
   "sections": [{"id": "product-1", "title": "Status", "md": "New."}],
-  "versions": [{"version": "v0002", "date": "2026-10-05", "summary": "the retry queue"}]
+  "versions": [{"version": "v2611020550", "ordinal": 2, "date": "2026-10-05", "summary": "the retry queue"}]
  },
  "item": {
   "id": "A2-k5", "title": "Uploads that fail", "lang": "en", "note": "Seen twice last week.", "state": "in_progress", "created": "2026-11-09",
