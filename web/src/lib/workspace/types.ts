@@ -242,9 +242,11 @@ export type ItemState =
 
 /**
  * An item's mark from the web's changes: none, a change that waits for the next sync, or a change
- * the workspace refused (its line verbatim, and the entry Discard and Try again name).
+ * the workspace refused (its line verbatim, the entry Discard and Try again name, and the change's
+ * kind, which picks Try again's pending label; an older server names no kind).
  */
-export type ItemSync = null | "waiting" | { refused: string; entry: string };
+export type ItemSync =
+  null | "waiting" | { refused: string; entry: string; kind?: ChangeKind };
 
 export interface AgendaItem {
   id: string;

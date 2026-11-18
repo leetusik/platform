@@ -135,7 +135,7 @@ export interface ItemView {
   allDone: boolean;
   waiting: boolean;
   /** A change the workspace refused: what it said, and the entry Discard and Try again name. */
-  refused: { said: string; entry: string } | null;
+  refused: { said: string; entry: string; kind: ChangeKind | null } | null;
   /** Outcome (solved) or Reason (dropped), when the line is not empty. */
   end: { label: "outcome" | "reason"; text: string } | null;
   note: string | null;
@@ -172,7 +172,7 @@ export function itemView(read: ItemRead, overlay: Overlay): ItemView | null {
     waiting: sync === "waiting",
     refused:
       sync !== null && typeof sync === "object"
-        ? { said: sync.refused, entry: sync.entry }
+        ? { said: sync.refused, entry: sync.entry, kind: sync.kind ?? null }
         : null,
     end: endText
       ? { label: status === "solved" ? "outcome" : "reason", text: endText }
@@ -195,3 +195,11 @@ export const PENDING_LABEL: Record<ChangeKind, string> = {
   reopen: WS_ACTIONS.reopen[1],
   delete: WS_ACTIONS.delete[1],
 };
+
+/**
+ * Try again's pending label on a refused change: its kind's own (`Dropping…` for a drop), `Saving…` when no kind
+ * is known (a read from an older server).
+ */
+export function retryLabel(kind: ChangeKind | null | undefined): string {
+  return PENDING_LABEL[kind ?? "edit"] ?? PENDING_LABEL.edit;
+}

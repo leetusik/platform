@@ -444,6 +444,36 @@ describe("what a write leaves on the page", () => {
     expect(failed.focus).toBeNull();
   });
 
+  it("labels Try again on a refused change by its kind after a reload, Saving… when the read names none", () => {
+    const line = "refused: A7-m3 is In progress through P56-t8";
+    const entryId = "5e0c1b2a-9f3d-4e4f-8a7b-6c5d4e3f2a10";
+    const retryOf = (html: string) =>
+      html.match(
+        /<span class="swap"><span>Try again<\/span><span>([^<]*)<\/span><\/span>/,
+      )?.[1];
+    for (const [kind, pending] of [
+      ["drop", "Dropping…"],
+      ["defer", "Deferring…"],
+      ["solve", "Solving…"],
+      ["reopen", "Reopening…"],
+      ["delete", "Deleting…"],
+      ["edit", "Saving…"],
+      ["move", "Saving…"],
+    ] as const) {
+      const html = page({
+        state: "ready",
+        ...read({ sync: { refused: line, entry: entryId, kind } }),
+      });
+      expect(retryOf(html), kind).toBe(pending);
+    }
+    // an older read with no kind: the edit's label
+    const bare = page({
+      state: "ready",
+      ...read({ sync: { refused: line, entry: entryId } }),
+    });
+    expect(retryOf(bare)).toBe("Saving…");
+  });
+
   it("puts the title refusal under the field and a 409's line over the form; the form stays open", () => {
     const opened = reduce(INITIAL, { type: "open", form: "edit", item: ITEM });
     expect(opened.draft.title).toBe(ITEM.title);

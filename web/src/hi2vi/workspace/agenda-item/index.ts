@@ -14,6 +14,7 @@ export {
   itemLines,
   itemView,
   PENDING_LABEL,
+  retryLabel,
   type HeadAction,
   type ItemRead,
   type ItemView,

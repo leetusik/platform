@@ -632,6 +632,35 @@ describe("the open changes no row carries", () => {
     expect(top.match(/>Discard</g)).toHaveLength(2);
     expect(top.match(/>Try again</g)).toHaveLength(1);
   });
+
+  it("labels a refused notice's Try again by its change's kind (a move saves, a drop drops)", () => {
+    const notice = (kind: Unplaced["kind"]): Unplaced => ({
+      entry: "7a2e3d4c-1b0f-4d8e-9c3b-2f4a5b6c7d8e",
+      kind,
+      items: ["A2-y8"],
+      fields: {},
+      sync: {
+        refused: "A2-y8 names no agenda item",
+        entry: "7a2e3d4c-1b0f-4d8e-9c3b-2f4a5b6c7d8e",
+        kind,
+      },
+      refused: "A2-y8 names no agenda item",
+      created: "2026-11-17T09:05:00Z",
+    });
+    const retryOf = (out: string) =>
+      out.match(
+        /<span class="swap"><span>Try again<\/span><span>([^<]*)<\/span><\/span>/,
+      )?.[1];
+    for (const [kind, pending] of [
+      ["drop", "Dropping…"],
+      ["defer", "Deferring…"],
+      ["add", "Adding…"],
+      ["move", "Saving…"],
+    ] as const)
+      expect(retryOf(list(PLATFORM, { unplaced: [notice(kind)] })), kind).toBe(
+        pending,
+      );
+  });
 });
 
 describe("after Discard or Try again on an open change no row carries", () => {

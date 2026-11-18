@@ -452,6 +452,38 @@ def test_a_pull_request_reads_its_number_and_state():
     assert read(url="https://github.com/june/vocky/pulls")["number"] is None
 
 
+def test_a_refused_change_names_its_kind_on_the_row_and_unplaced():
+    from server.workspace.types import INBOX_KINDS, InboxEntry
+    from server.workspace_read import WorkspaceReader
+
+    at = datetime(2026, 11, 18, 9, 0, tzinfo=UTC)
+    line = "refused, exit 1 (agenda-drop A2-k5): A2-k5 is In progress through P8-q4"
+    for kind in INBOX_KINDS:
+        entry = InboxEntry(
+            id=uuid4(), kind=kind, items=("A2-k5",), fields={}, state="refused",
+            minted_id="A2-k5" if kind == "add" else None, created_at=at, reason=line,
+        )
+        gone = InboxEntry(
+            id=uuid4(), kind=kind, items=("A9-z1",), fields={}, state="refused",
+            minted_id="A9-z1" if kind == "add" else None, created_at=at, reason=line,
+        )
+        reader = WorkspaceReader(None, uuid4(), None, None, inbox=[entry, gone])
+        stored = [{"id": "A2-k5", "sync": None}]
+        shown = reader._overlay(stored)
+        row = next(r for r in shown if r["id"] == "A2-k5")
+        assert row["sync"] == {"refused": line, "entry": str(entry.id), "kind": kind}, kind
+        if kind == "add":
+            continue  # a refused add is its own row: nothing left unplaced
+        (u,) = reader._unplaced(stored, shown)
+        assert u["kind"] == kind
+        assert u["sync"] == {"refused": line, "entry": str(gone.id), "kind": kind}, kind
+    # a pending change still reads waiting, with no kind
+    waiting = InboxEntry(id=uuid4(), kind="drop", items=("A2-k5",), fields={},
+                         state="pending", minted_id=None, created_at=at)
+    reader = WorkspaceReader(None, uuid4(), None, None, inbox=[waiting])
+    assert reader._overlay([{"id": "A2-k5", "sync": None}])[0]["sync"] == "waiting"
+
+
 def test_a_doc_version_reads_its_place_in_the_stored_history():
     from server.workspace_read import version_ordinals
 

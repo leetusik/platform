@@ -19,6 +19,7 @@ import { Dialog, DialogActions } from "@/hi2vi/frame/dialog";
 import { Pager } from "@/hi2vi/library/pager";
 import { pagerRange } from "@/hi2vi/library/pager-model";
 import { Swap } from "@/hi2vi/ui";
+import { retryLabel } from "@/hi2vi/workspace/agenda-item/model";
 import {
   RefusedNotice,
   useWsRetry,
@@ -768,6 +769,10 @@ export function AgendaList({
                     (typeof u.sync === "object" ? u.sync.refused : "")
                   }
                   busy={busy[u.entry] ?? null}
+                  retryPending={retryLabel(
+                    u.kind ??
+                      (typeof u.sync === "object" ? u.sync.kind : undefined),
+                  )}
                   onRetry={() => retry(u)}
                   onDiscard={() => discard(u)}
                 />

@@ -34,12 +34,7 @@ import {
 import { AgendaItemForm } from "./form";
 import { HeadActions, HeadFacts, HeadMarks } from "./head";
 import { JobsPanel, PhasesPanel } from "./lists";
-import {
-  itemView,
-  PENDING_LABEL,
-  type HeadAction,
-  type ItemRead,
-} from "./model";
+import { itemView, retryLabel, type HeadAction, type ItemRead } from "./model";
 import { formSend, INITIAL, reduce, type Busy } from "./state";
 
 /** What the server page read: the item with its rows, or nothing (the project named for Not found). */
@@ -290,7 +285,7 @@ export function AgendaItemPage({
               <Swap
                 labels={[
                   WS_CHANGE.retry,
-                  PENDING_LABEL[state.kinds[refused.entry] ?? "edit"],
+                  retryLabel(state.kinds[refused.entry] ?? refused.kind),
                 ]}
               />
             </button>

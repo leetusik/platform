@@ -52,7 +52,7 @@ their sha256, so a new head re-reads only what changed. Nothing is persisted.
 **The web's changes.** An agenda change made on the web is an inbox entry until a
 linked engine applies or refuses it (``server/workspace_web_api.py``). The open entries
 are read on every request, outside the memo and its key, and laid over the agenda as
-each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry}``; a pending add is
+each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry, kind}``; a pending add is
 its own row and a pending delete hides its item (:meth:`WorkspaceReader._overlay`).
 The Workspace's ``unplaced`` lists every open entry no row carries (its items gone or
 never there, or its refusal behind a newer entry on the same item), so a change that
@@ -1083,9 +1083,10 @@ class WorkspaceReader:
         """``rows`` with each item's ``sync`` from the open inbox entries naming it.
 
         ``'waiting'`` while the newest open entry naming the item is pending, ``{refused,
-        entry}`` while it is refused (the engine's line, verbatim, and the entry Discard
-        and Try again name). A pending add is its own row, first; a pending delete hides
-        its item. A marked row is a copy: the memoized rows are never changed.
+        entry, kind}`` while it is refused (the engine's line, verbatim, the entry Discard
+        and Try again name, and the change's kind, for Try again's label). A pending add
+        is its own row, first; a pending delete hides its item. A marked row is a copy:
+        the memoized rows are never changed.
         """
 
         if not self._inbox:
@@ -1335,7 +1336,7 @@ def _phase_ids(text: str) -> list[str]:
 def _sync_mark(entry: InboxEntry) -> str | dict[str, Any]:
     if entry.state == INBOX_PENDING:
         return "waiting"
-    return {"refused": entry.reason or "", "entry": str(entry.id)}
+    return {"refused": entry.reason or "", "entry": str(entry.id), "kind": entry.kind}
 
 
 def _added_item(entry: InboxEntry, sync: str | dict[str, Any]) -> dict[str, Any]:
