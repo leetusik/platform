@@ -18,6 +18,7 @@ import {
   type DeferredPlace,
 } from "@/hi2vi/workspace/deferred";
 import { loadDeferredList, loadJob } from "@/hi2vi/workspace/deferred/load";
+import { promotedSub } from "@/hi2vi/workspace/deferred/job-model";
 import { wsSyncLine } from "@/hi2vi/workspace/frame";
 import {
   decodeWorkspaceFrom,
@@ -493,6 +494,56 @@ describe("one job", () => {
     expect(html).toContain("Waiting for sync");
     expect(html.indexOf("Promoted to")).toBeLessThan(html.indexOf("Source"));
     expect(html.indexOf("Brief")).toBeLessThan(html.indexOf("Agenda item"));
+  });
+
+  it("draws Promoted to's current slice as `S4 <name>`, the short id alone without one", () => {
+    const draw = (phase: PhaseRow) =>
+      renderToStaticMarkup(
+        createElement(DeferredJob, {
+          project: PROJECT,
+          job: JOB,
+          back: {
+            href: `/projects/${PROJECT}/workspace/deferred`,
+            label: "Deferred",
+          },
+          line: wsSyncLine(HEAD.sync, HEAD.version, {
+            now: Date.parse("2026-11-18T08:42:00Z"),
+          }),
+          created: "Nov 14",
+          phase,
+          item: null,
+        }),
+      );
+    const named = {
+      ...PHASE,
+      currentRef: {
+        id: "S4",
+        full: "P58-yw.S4",
+        name: "Foundations and shell",
+        status: "in_progress",
+      },
+    };
+    expect(promotedSub(named)).toEqual({
+      sub: "S4 Foundations and shell",
+      subLang: null,
+    });
+    expect(draw(named)).toContain(
+      '<span class="meta ws-sub">S4 Foundations and shell</span>',
+    );
+    const ko = {
+      ...named,
+      currentRef: { ...named.currentRef, name: "문서 화면을 서명대로" },
+    };
+    expect(draw(ko)).toContain(
+      '<span class="meta ws-sub" lang="ko">S4 문서 화면을 서명대로</span>',
+    );
+    // no stored name (or an older read): the short id alone; a done phase: nothing
+    expect(
+      promotedSub({ ...named, currentRef: { ...named.currentRef, name: null } })
+        .sub,
+    ).toBe("S4");
+    expect(promotedSub(PHASE).sub).toBe("S4");
+    expect(promotedSub({ ...named, status: "done" }).sub).toBeNull();
   });
 
   it("puts a dropped job's reason first and a prose source as text", () => {

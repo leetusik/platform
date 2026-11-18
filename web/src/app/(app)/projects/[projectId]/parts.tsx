@@ -82,7 +82,12 @@ export function WorkspacePanel({
                       {ph.name}
                     </span>
                     {ph.slice !== null ? (
-                      <span className="meta ph-sub">{ph.slice}</span>
+                      <span
+                        className="meta ph-sub"
+                        lang={ph.sliceLang ?? undefined}
+                      >
+                        {ph.slice}
+                      </span>
                     ) : null}
                   </span>
                 </Link>

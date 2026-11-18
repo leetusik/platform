@@ -12,8 +12,8 @@
  * - **Phases**: the phases in play (archived ones left out), their own count, `--steps-n` their longest.
  * - **Archived phases**: their own panel, ten a page, the page from `?archived=N` (held to 1 … the last page).
  *
- * A name or a status the read does not return is `null`, never made up: the slices of the pointer and of the
- * waiting list are ids only in the Workspace's read, so their cells draw the id alone.
+ * A name or a status the read does not return is `null`, never made up: a slice the read names with no stored
+ * name (or an older read with ids only) draws its id alone.
  */
 
 import { BACKLOG } from "@/content/workspace/backlog";
@@ -26,7 +26,7 @@ import {
   type WorkspaceList,
 } from "@/lib/workspace/address";
 import { langOf, openJobs } from "@/lib/workspace/model";
-import type { PhaseRow, Workspace } from "@/lib/workspace/types";
+import type { PhaseRow, SliceName, Workspace } from "@/lib/workspace/types";
 
 import { wsStatus, type WsStatusWord } from "../frame/status-model";
 import { stepsN } from "../frame/steps-model";
@@ -85,6 +85,8 @@ export interface BacklogPhase {
   href: string;
   /** The current slice under the name while the phase is not done: `S1`, and its name when the read has one. */
   sub: string | null;
+  /** The current slice's name's language (`ko` for a Korean name). */
+  subLang: "en" | "ko";
   status: WsStatusWord | null;
   verdict: WsStatusWord;
   steps: BacklogSteps;
@@ -131,6 +133,17 @@ export function idleSentence(
   return BACKLOG.now.idle.plain;
 }
 
+/** A phase row's current slice under its name while it is not done: `S9 The backlog page`, or `S9` alone. */
+function currentSub(p: PhaseRow): Pick<BacklogPhase, "sub" | "subLang"> {
+  if (!p.current || p.status === "done") return { sub: null, subLang: "en" };
+  const name =
+    p.currentRef?.id === p.current ? p.currentRef.name?.trim() || null : null;
+  return {
+    sub: name ? `${p.current} ${name}` : p.current,
+    subLang: langOf(name),
+  };
+}
+
 /** The backlog of a linked, synced Workspace, at the archived table's page the address asks for. */
 export function backlogView(
   ws: Workspace,
@@ -158,16 +171,23 @@ export function backlogView(
       href: phaseHref(project, p?.id ?? id, from),
     };
   };
-  const sliceRef = (full: string): BacklogRef => ({
-    id: full,
-    name: null,
-    lang: "en",
-    href: sliceHref(project, full, from),
-  });
+  const sliceRef = (full: string, named?: SliceName | null): BacklogRef => {
+    const name = named?.full === full ? named.name?.trim() || null : null;
+    return {
+      id: full,
+      name,
+      lang: langOf(name),
+      href: sliceHref(project, full, from),
+    };
+  };
+  const sliceStatus = (full: string, named?: SliceName | null) =>
+    named?.full === full ? wsStatus("slice", named.status) : null;
 
   const waiting: BacklogWaitingItem[] = ws.pointer.waiting.map((w) => {
     const stop = w.type === "stop" && !!w.slice;
-    const ref = stop ? sliceRef(w.slice as string) : phaseRef(w.phase);
+    const ref = stop
+      ? sliceRef(w.slice as string, w.sliceRef)
+      : phaseRef(w.phase);
     return {
       ...ref,
       type: stop ? "stop" : "gate",
@@ -192,16 +212,16 @@ export function backlogView(
     ];
     if (s.slice)
       cells.push({
-        ...sliceRef(s.slice),
+        ...sliceRef(s.slice, s.sliceRef),
         label: BACKLOG.now.labels.slice,
-        status: null,
+        status: sliceStatus(s.slice, s.sliceRef),
         steps: null,
       });
     if (s.id === "default" && ws.pointer.next)
       cells.push({
-        ...sliceRef(ws.pointer.next),
+        ...sliceRef(ws.pointer.next, ws.pointer.nextRef),
         label: BACKLOG.now.labels.next,
-        status: null,
+        status: sliceStatus(ws.pointer.next, ws.pointer.nextRef),
         steps: null,
       });
     return { id: s.id, label: s.label, branch: s.branch, cells };
@@ -212,7 +232,7 @@ export function backlogView(
     name: p.name ?? WS_GLOSSARY.none,
     lang: langOf(p.name),
     href: phaseHref(project, p.id, from),
-    sub: p.current && p.status !== "done" ? p.current : null,
+    ...currentSub(p),
     status: wsStatus("phase", p.status),
     verdict: wsStatus("verdict", p.review.verdict ?? "pending") ?? {
       word: "",

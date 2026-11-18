@@ -23,14 +23,14 @@ import type {
   PhaseRow,
 } from "@/lib/workspace/types";
 
-import { isSliceId } from "./job-model";
+import { isSliceId, promotedSub } from "./job-model";
 
 /**
  * One deferred job (`DeferredJob.dc.html`, frame.md F35, F44, F48, F80, F85), one column, 24 px between parts:
  *
  * - the way back **Deferred** (to the list's page, search and status) and the sync line;
  * - the title row: the id, the title, the status on its baseline;
- * - a promoted job's **Promoted to**: the phase's row (its current slice under its name while it is not done,
+ * - a promoted job's **Promoted to**: the phase's row (its current slice, `S4 <name>`, under its name while it is not done,
  *   its status, the count and the steps); it opens that phase;
  * - the facts: a dropped job's **Dropped because** first, on its own line; **Source** (a slice's full id, a
  *   link to that slice); **Trigger**; **Created**; **Deferred because**, on its own line;
@@ -81,9 +81,7 @@ export function DeferredJob({
               name={phase.name ?? ""}
               href={phaseHref(project, phase.id)}
               lang={langOf(phase.name) === "ko" ? "ko" : null}
-              sub={
-                phase.status !== "done" && phase.current ? phase.current : null
-              }
+              {...promotedSub(phase)}
               status={wsStatus("phase", phase.status)}
               end={
                 <Steps

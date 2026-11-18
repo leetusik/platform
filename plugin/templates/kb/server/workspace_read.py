@@ -9,7 +9,10 @@ The shapes (the web's Workspace pages draw every field):
 
 - **Workspace** ``{project, linked, version, sync, streams, pointer, phases, deferred,
   docs, retired, agenda}``: lists only, no bodies (a phase row has no intent, notebook
-  or slices; a job no brief; a doc no sections).
+  or slices; a job no brief; a doc no sections). Each slice id it names (a stream's
+  ``slice``, the pointer's ``slice`` and ``next``, a stop's ``slice``, a phase row's
+  ``current``) has a ``…Ref`` sibling ``{id, full, name, status}`` from the stored
+  ``slice.json`` (``name`` and ``status`` ``None`` when there is none), or ``None``.
 - **Phase** ``{id, short, name, objective, status, created, started, completed,
   archived, stream, intent, slices, done, total, current, notebook, gate, review,
   branches, agenda, explain}``; its ``slices`` are slice rows without ``plan`` and
@@ -683,6 +686,24 @@ class WorkspaceReader:
                 return str(item.get("id", "")).rpartition(".")[2] or None
         return None
 
+    def _named_slice(self, records: dict[str, dict[str, Any]],
+                     full: str | None) -> dict[str, Any] | None:
+        """``{id, full, name, status}`` of a slice the pointer, a stop or a phase row names.
+
+        Read from the phase records already in the snapshot (no stored read of its own); a
+        slice with no stored ``slice.json`` reads ``name`` and ``status`` ``None``.
+        """
+
+        if not full:
+            return None
+        phase_ref, _, suffix = full.rpartition(".")
+        record = self._find_phase(records, phase_ref) if phase_ref else None
+        data = next((s for s in record["slices"]
+                     if str(s.get("id", "")).rpartition(".")[2] == suffix), None) if record else None
+        data = data or {}
+        return {"id": suffix or full, "full": full,
+                "name": _str(data.get("name")), "status": _str(data.get("status"))}
+
     def _slice_row(self, phase_id: str, data: dict[str, Any]) -> dict[str, Any]:
         full = str(data.get("id") or "")
         pending = data.get("pending") if isinstance(data.get("pending"), dict) else None
@@ -712,6 +733,7 @@ class WorkspaceReader:
         review = data.get("review") if isinstance(data.get("review"), dict) else {}
         pr = data.get("pr") if isinstance(data.get("pr"), dict) else {}
         branches = pr.get("branches") if isinstance(pr.get("branches"), list) else []
+        current = self._current_slice(pid, slices)
         return {
             "id": pid,
             "short": short_phase_id(pid),
@@ -725,7 +747,8 @@ class WorkspaceReader:
             "stream": "default",
             "done": sum(1 for s in slices if s.get("status") == "done"),
             "total": len(slices),
-            "current": self._current_slice(pid, slices),
+            "current": current,
+            "currentRef": self._named_slice({pid: record}, f"{pid}.{current}" if current else None),
             "gate": _gate(data.get("acceptance")),
             "review": {"verdict": _str(review.get("status")), "note": _str(review.get("note"))},
             "branches": [
@@ -1129,6 +1152,7 @@ class WorkspaceReader:
 
     async def _waiting(self) -> list[dict[str, Any]]:
         records = await self._phase_records()
+        named = self._named_slice
         out = []
         for pid, rec in records.items():
             if rec["archived"]:
@@ -1138,10 +1162,11 @@ class WorkspaceReader:
                 if data.get("status") == "pending" and isinstance(pending, dict):
                     out.append({"type": "stop", "phase": pid, "slice": _str(data.get("id")),
                                 "kind": _str(pending.get("kind")), "what": None,
-                                "words": _str(pending.get("on_words"))})
+                                "words": _str(pending.get("on_words")),
+                                "sliceRef": named(records, _str(data.get("id")))})
             if _gate(rec["data"].get("acceptance"))["state"] == "open":
                 out.append({"type": "gate", "phase": pid, "slice": None, "kind": None,
-                            "what": None, "words": None})
+                            "what": None, "words": None, "sliceRef": None})
         return out
 
     async def workspace(self) -> dict[str, Any]:
@@ -1156,11 +1181,15 @@ class WorkspaceReader:
             phase_rows = await self.phase_rows()
             docs, retired = await self.doc_rows()
             current = _str(state.get("current_phase"))
+            records = await self._phase_records()
+            pointed, following = _str(state.get("current_slice")), _str(state.get("next_slice"))
+            pointed_ref = self._named_slice(records, pointed)
             return {
                 "streams": [{"id": "default", "label": None, "branch": None,
-                             "phase": current, "slice": _str(state.get("current_slice"))}],
-                "pointer": {"phase": current, "slice": _str(state.get("current_slice")),
-                            "next": _str(state.get("next_slice")),
+                             "phase": current, "slice": pointed, "sliceRef": pointed_ref}],
+                "pointer": {"phase": current, "slice": pointed, "next": following,
+                            "sliceRef": pointed_ref,
+                            "nextRef": self._named_slice(records, following),
                             "waiting": await self._waiting()},
                 "phases": phase_rows,
                 "deferred": await self.job_rows(),

@@ -99,6 +99,15 @@ describe("reading the Workspace", () => {
     expect(read.state).toBe("ready");
     if (read.state !== "ready") return;
     expect(read.value.agenda.map((i) => i.id)).toEqual(["A2-k5", "A1-h7"]);
+    // each slice it names comes with its stored name and status (none stored: null)
+    expect(read.value.pointer.sliceRef?.name).toBe("재시도 버튼을 화면에 연결");
+    expect(read.value.pointer.nextRef).toEqual({
+      id: "S3",
+      full: "P8-q4.S3",
+      name: null,
+      status: null,
+    });
+    expect(read.value.phases[0].currentRef?.status).toBe("pending");
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(
       `http://kb.test:8766/app/projects/${PROJECT}/workspace`,

@@ -102,8 +102,13 @@ export interface HomePhase {
   lang: "en" | "ko";
   /** The phase's page. No `?from=`: project home is not a Workspace list (its way back is the Backlog). */
   href: string;
-  /** The current slice under the name while the phase is not done (its short id), else `null`. */
+  /**
+   * The current slice under the name while the phase is not done, else `null`: `S5 Project home and the rail`
+   * from the read's stored name, its short id alone when the read has none.
+   */
   slice: string | null;
+  /** `ko` when the current slice's name is Korean, else `null`. */
+  sliceLang: "ko" | null;
   status: string | null;
   done: number;
   total: number;
@@ -145,13 +150,19 @@ export function workspacePart(
   const ws = read.value;
   const phases = ws.phases.slice(0, PHASES_SHOWN).map((p): HomePhase => {
     const name = p.name?.trim() || p.id;
+    const current = p.status !== "done" && p.current ? p.current : null;
+    const sliceName =
+      current && p.currentRef?.id === current
+        ? p.currentRef.name?.trim() || null
+        : null;
     return {
       key: p.id,
       id: p.short || p.id,
       name,
       lang: langOf(name),
       href: phaseHref(projectId, p.id),
-      slice: p.status !== "done" && p.current ? p.current : null,
+      slice: current && sliceName ? `${current} ${sliceName}` : current,
+      sliceLang: langOf(sliceName) === "ko" ? "ko" : null,
       status: p.status,
       done: p.done,
       total: p.total,

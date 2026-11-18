@@ -10,7 +10,7 @@
  *
  * Deliberately free of `server-only`.
  */
-import { itemState, phaseLookup } from "@/lib/workspace/model";
+import { itemState, langOf, phaseLookup } from "@/lib/workspace/model";
 import type {
   AgendaItem,
   ItemState,
@@ -56,4 +56,22 @@ export function jobItem(
   const item = ws.agenda.find((i) => i.id === job.agenda);
   if (!item) return null;
   return { item, state: itemState(item, phaseLookup(ws.phases)) };
+}
+
+/**
+ * Promoted to's current slice under the phase's name while it is not done: `S4 Foundations and shell` from the
+ * read's stored name, the short id alone when it has none; `subLang` is `ko` for a Korean name.
+ */
+export function promotedSub(phase: PhaseRow): {
+  sub: string | null;
+  subLang: "ko" | null;
+} {
+  if (!phase.current || phase.status === "done")
+    return { sub: null, subLang: null };
+  const ref = phase.currentRef;
+  const name = ref?.id === phase.current ? ref.name?.trim() || null : null;
+  return {
+    sub: name ? `${phase.current} ${name}` : phase.current,
+    subLang: langOf(name) === "ko" ? "ko" : null,
+  };
 }

@@ -112,6 +112,27 @@ const WORKSPACE = {
   unplaced: [],
 } as unknown as Workspace;
 
+/** The same read with each current slice named from its stored `slice.json` (one has no name stored). */
+const REFS: Record<string, PhaseRow["currentRef"]> = {
+  "P67-b1": {
+    id: "S5",
+    full: "P67-b1.S5",
+    name: "Project home and the rail",
+    status: "in_progress",
+  },
+  "P66-zx": {
+    id: "REVIEW",
+    full: "P66-zx.REVIEW",
+    name: "단계 검토",
+    status: "pending",
+  },
+  "P64-3y": { id: "S3", full: "P64-3y.S3", name: null, status: null },
+};
+const NAMED = {
+  ...WORKSPACE,
+  phases: PHASES.map((p) => ({ ...p, currentRef: REFS[p.id] ?? null })),
+} as Workspace;
+
 function panel(part: WorkspacePart): string {
   return renderToStaticMarkup(
     createElement(WorkspacePanel, {
@@ -121,6 +142,33 @@ function panel(part: WorkspacePart): string {
     }),
   );
 }
+
+describe("Workspace panel: the current slice by name", () => {
+  it("draws `S5 <name>` under the phase's name, a Korean name marked, the id alone without one", () => {
+    const part = workspacePart({ state: "ready", value: NAMED }, PROJECT);
+    if (part.kind !== "phases") throw new Error(part.kind);
+    expect(part.phases.map((p) => [p.slice, p.sliceLang])).toEqual([
+      ["S5 Project home and the rail", null],
+      [null, null],
+      [null, null],
+      ["REVIEW 단계 검토", "ko"],
+      [null, null],
+    ]);
+    const html = panel(part);
+    expect(html).toContain(
+      '<span class="meta ph-sub">S5 Project home and the rail</span>',
+    );
+    expect(html).toContain(
+      '<span class="meta ph-sub" lang="ko">REVIEW 단계 검토</span>',
+    );
+    const sixth = workspacePart(
+      { state: "ready", value: { ...NAMED, phases: NAMED.phases.slice(5) } },
+      PROJECT,
+    );
+    if (sixth.kind !== "phases") throw new Error(sixth.kind);
+    expect(sixth.phases[0].slice).toBe("S3"); // no stored name: the short id alone
+  });
+});
 
 describe("Workspace panel: linked and synced", () => {
   const part = workspacePart({ state: "ready", value: WORKSPACE }, PROJECT);
@@ -224,7 +272,7 @@ describe("Project home's reads", () => {
       "fetch",
       vi.fn(async (url: string) => {
         calls.push(url);
-        return new Response(JSON.stringify(WORKSPACE), {
+        return new Response(JSON.stringify(NAMED), {
           status: 200,
           headers: { "content-type": "application/json" },
         });
@@ -239,7 +287,11 @@ describe("Project home's reads", () => {
       `http://kb.test:8766/app/projects/${PROJECT}/workspace`,
     ]);
     expect(found?.props.part).toEqual(
-      workspacePart({ state: "ready", value: WORKSPACE }, PROJECT),
+      workspacePart({ state: "ready", value: NAMED }, PROJECT),
+    );
+    const part = found?.props.part as WorkspacePart;
+    expect(part.kind === "phases" && part.phases[0].slice).toBe(
+      "S5 Project home and the rail",
     );
   });
 });

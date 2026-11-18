@@ -63,6 +63,20 @@ export interface Branch {
   pr: PullRequest | null;
 }
 
+/**
+ * A slice the Workspace names by id (a stream's or the pointer's slice, the next one, a stop's, a
+ * phase row's current one), with its stored name and status: both null when the store has no
+ * `slice.json` for it (draw the id alone then).
+ */
+export interface SliceName {
+  /** The short id (`S2`). */
+  id: string;
+  /** The full id (`P8-q4.S2`). */
+  full: string;
+  name: string | null;
+  status: string | null;
+}
+
 /** A phase as the Workspace lists it: no intent, notebook or slices. */
 export interface PhaseRow {
   id: string;
@@ -79,6 +93,8 @@ export interface PhaseRow {
   total: number;
   /** The current slice's short id (`S2`), or null. */
   current: string | null;
+  /** The current slice named, or null when there is none (absent from an older read). */
+  currentRef?: SliceName | null;
   gate: Gate;
   review: Review;
   branches: Branch[];
@@ -282,6 +298,8 @@ export interface Stream {
   branch: string | null;
   phase: string | null;
   slice: string | null;
+  /** The stream's slice named (absent from an older read). */
+  sliceRef?: SliceName | null;
 }
 
 export interface Waiting {
@@ -291,12 +309,17 @@ export interface Waiting {
   kind: string | null;
   what: string | null;
   words: string | null;
+  /** A stop's slice named; null for a gate (absent from an older read). */
+  sliceRef?: SliceName | null;
 }
 
 export interface Pointer {
   phase: string | null;
   slice: string | null;
   next: string | null;
+  /** `slice` and `next` named (absent from an older read). */
+  sliceRef?: SliceName | null;
+  nextRef?: SliceName | null;
   waiting: Waiting[];
 }
 

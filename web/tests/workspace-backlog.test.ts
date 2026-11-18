@@ -5,6 +5,7 @@ import type {
   Gate,
   JobRow,
   PhaseRow,
+  SliceName,
   Waiting,
   Workspace,
 } from "@/lib/workspace/types";
@@ -426,6 +427,127 @@ describe("Now", () => {
   });
 });
 
+// -- slices by name --------------------------------------------------------------------------------
+
+const S9: SliceName = {
+  id: "S9",
+  full: "P12-q4.S9",
+  name: "The backlog page",
+  status: "in_progress",
+};
+const S14: SliceName = {
+  id: "S14",
+  full: "P12-q4.S14",
+  name: "Fidelity: the Agenda and its item",
+  status: "pending",
+};
+const KO_S3: SliceName = {
+  id: "S3",
+  full: "P7-m3.S3",
+  name: "색인을 문단 단위로 다시 만들기",
+  status: "pending",
+};
+/** The next slice has no stored `slice.json` yet: the read names it, with no name or status. */
+const S10: SliceName = {
+  id: "S10",
+  full: "P12-q4.S10",
+  name: null,
+  status: null,
+};
+
+/** The same workspace, read with each slice it names carrying its stored name and status. */
+function named(): Workspace {
+  const ws = workspace();
+  const refs: Record<string, SliceName> = {
+    [S14.full]: S14,
+    [KO_S3.full]: KO_S3,
+  };
+  return {
+    ...ws,
+    streams: ws.streams.map((s) => ({ ...s, sliceRef: S9 })),
+    pointer: {
+      ...ws.pointer,
+      sliceRef: S9,
+      nextRef: S10,
+      waiting: ws.pointer.waiting.map((w) => ({
+        ...w,
+        sliceRef: w.slice ? refs[w.slice] : null,
+      })),
+    },
+    phases: ws.phases.map((p) =>
+      p.id === "P12-q4"
+        ? { ...p, currentRef: S9 }
+        : p.id === "P7-m3"
+          ? { ...p, currentRef: KO_S3 }
+          : { ...p, currentRef: null },
+    ),
+  };
+}
+
+describe("slices by their stored name and status", () => {
+  it("draws Now's Slice and Next by id and name, each with its status", () => {
+    const cells = backlogView(named(), PROJECT).now.blocks[0].cells;
+    expect(
+      cells
+        .slice(1)
+        .map((c) => [c.label, c.id, c.name, c.status?.word ?? null]),
+    ).toEqual([
+      ["Slice", "P12-q4.S9", "The backlog page", "In progress"],
+      ["Next", "P12-q4.S10", null, null],
+    ]);
+    const html = renderToStaticMarkup(
+      BacklogNow({ now: backlogView(named(), PROJECT).now }),
+    );
+    expect(html).toContain(
+      '<span class="ws-id">P12-q4.S9</span><span lang="en">The backlog page</span>',
+    );
+    expect(html).toContain(
+      '<span class="status status-live">In progress</span>',
+    );
+    // a slice the store has no record of: the id alone, no status
+    expect(html).toContain(
+      '<span class="backlog-ref"><span class="ws-id">P12-q4.S10</span></span>',
+    );
+  });
+
+  it("names a stopped slice in Waiting on operator, a Korean one marked", () => {
+    const w = backlogView(named(), PROJECT).waiting;
+    expect(w.map((x) => [x.id, x.name, x.lang])).toEqual([
+      ["P12-q4.S14", "Fidelity: the Agenda and its item", "en"],
+      ["P11-k9", "Apply hi2vi: Feedback", "en"],
+      ["P7-m3.S3", "색인을 문단 단위로 다시 만들기", "ko"],
+    ]);
+    const html = renderToStaticMarkup(BacklogWaiting({ items: w }));
+    expect(html).toContain(
+      '<span lang="ko">색인을 문단 단위로 다시 만들기</span>',
+    );
+  });
+
+  it("draws a phase row's current slice as `S9 <name>`, the id alone without one", () => {
+    const rows = backlogView(named(), PROJECT).phases.rows;
+    expect([rows[0].sub, rows[0].subLang]).toEqual([
+      "S9 The backlog page",
+      "en",
+    ]);
+    expect([rows[5].sub, rows[5].subLang]).toEqual([
+      "S3 색인을 문단 단위로 다시 만들기",
+      "ko",
+    ]);
+    const html = renderToStaticMarkup(
+      BacklogPhases({
+        phases: backlogView(named(), PROJECT).phases,
+        archived: null,
+        project: PROJECT,
+      }),
+    );
+    expect(html).toContain(
+      '<span class="meta ws-sub" lang="ko">S3 색인을 문단 단위로 다시 만들기</span>',
+    );
+    // an older read (no refs): the short id, as before
+    expect(backlogView(workspace(), PROJECT).phases.rows[0].sub).toBe("S9");
+  });
+});
+
 // -- the page ------------------------------------------------------------------------------------
 
 function api(answer: { status: number; body: unknown }): string[] {
@@ -474,6 +596,15 @@ describe("the backlog page", () => {
     expect(at(">Phases</h2>")).toBeLessThan(at(">Archived phases</h2>"));
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("21–23 of 23");
+  });
+
+  it("draws the slices' names from that one read", async () => {
+    const calls = api({ status: 200, body: named() });
+    const html = await page();
+    expect(calls).toHaveLength(1);
+    expect(html).toContain(">The backlog page</span>");
+    expect(html).toContain(">S9 The backlog page</span>");
+    expect(html).toContain(">Fidelity: the Agenda and its item</span>");
   });
 
   it("draws only WsNav's panel for a workspace not linked", async () => {

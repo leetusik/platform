@@ -252,6 +252,7 @@ function PhaseRowItem({ ph }: { ph: BacklogPhase }) {
       href={ph.href}
       lang={ph.lang}
       sub={ph.sub}
+      subLang={ph.subLang}
       status={ph.status}
       end={
         <span className="ws-end backlog-end">

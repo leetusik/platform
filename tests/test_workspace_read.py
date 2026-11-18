@@ -272,6 +272,38 @@ def test_the_memo_is_keyed_by_head(store):
     assert _get(client, owner, f"{base}/phases/P9-r5")["name"] == "Export to Markdown and HTML"
 
 
+def test_a_renamed_slice_reads_its_new_name_at_the_new_head(store):
+    client, _url, _engine = store
+    owner, project_id, key = _owner_with_key(client)
+    answer = _store_tree(client, project_id, key)
+    base = f"/app/projects/{project_id}/workspace"
+    path = "works/phases/active/P8-q4/slices/P8-q4.S2/slice.json"
+
+    def named(ws: dict) -> list:
+        return [ws["streams"][0]["sliceRef"]["name"], ws["pointer"]["sliceRef"]["name"],
+                ws["phases"][0]["currentRef"]["name"]]
+
+    first = _get(client, owner, base)
+    assert named(first) == ["재시도 버튼을 화면에 연결"] * 3
+    assert first["pointer"]["waiting"][0]["sliceRef"]["name"] == "재시도 버튼을 화면에 연결"
+    assert first["pointer"]["nextRef"] == {"id": "S3", "full": "P8-q4.S3",
+                                           "name": None, "status": None}
+
+    data = json.loads(_tree()["files"][path])
+    data["name"] = "Wire the retry button"
+    data["status"] = "in_progress"
+    _commit(client, project_id, key,
+            [_put(path, json.dumps(data, indent=2) + "\n", answer["revs"][path])])
+
+    second = _get(client, owner, base)
+    assert named(second) == ["Wire the retry button"] * 3
+    assert second["pointer"]["sliceRef"]["status"] == "in_progress"
+    assert second["phases"][0]["currentRef"] == {"id": "S2", "full": "P8-q4.S2",
+                                                 "name": "Wire the retry button",
+                                                 "status": "in_progress"}
+    assert second["pointer"]["waiting"][0]["type"] == "gate"  # no longer a stop
+
+
 def _item_routes(project_id: str) -> list[str]:
     base = f"/app/projects/{project_id}/workspace"
     return [f"{base}/phases/P8-q4", f"{base}/slices/P8-q4.S1", f"{base}/deferred/D20-a3",
