@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { WS_GLOSSARY } from "@/content/workspace/frame";
 import { PHASE_PAGE } from "@/content/workspace/phase";
@@ -21,13 +21,17 @@ export const DECISIONS_ID = "phase-decisions";
  */
 export function NotebookDecisions({
   decisions,
+  texts,
 }: {
   decisions: readonly NotebookDecision[];
+  /** Each decision's text as the server drew it (its Markdown, `NotebookText`); the plain text without it. */
+  texts?: readonly ReactNode[];
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <DecisionList
       decisions={decisions}
+      texts={texts}
       expanded={expanded}
       onToggle={() => setExpanded((x) => !x)}
     />
@@ -37,10 +41,12 @@ export function NotebookDecisions({
 /** The list and its button at one state: the first five, or all of them (`expanded`). */
 export function DecisionList({
   decisions,
+  texts,
   expanded,
   onToggle,
 }: {
   decisions: readonly NotebookDecision[];
+  texts?: readonly ReactNode[];
   expanded: boolean;
   onToggle?: () => void;
 }) {
@@ -55,8 +61,8 @@ export function DecisionList({
         {shown.map((d, i) => (
           <li key={`${d.id}-${i}`} className="phase-note">
             <span className="ws-id">{d.id}</span>
-            <span className="phase-note-text">
-              <WsText text={d.text} />
+            <span className="phase-note-text phase-md">
+              {texts?.[i] ?? <WsText text={d.text} />}
             </span>
             {d.slice ? (
               <span className="dim phase-note-end">

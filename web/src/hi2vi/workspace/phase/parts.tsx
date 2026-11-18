@@ -28,6 +28,7 @@ import type {
 } from "@/lib/workspace/types";
 
 import { NotebookDecisions } from "./decisions";
+import { NotebookText } from "./notebook-text";
 import {
   askedDates,
   gatePlace,
@@ -100,7 +101,7 @@ export function PhaseGate({ gate, date }: { gate: Gate; date: Dates["date"] }) {
               ) : null}
               {gate.note ? (
                 <p className="phase-gate-text">
-                  <WsText text={gate.note} />
+                  <NotebookText text={gate.note} />
                 </p>
               ) : null}
             </div>
@@ -113,7 +114,7 @@ export function PhaseGate({ gate, date }: { gate: Gate; date: Dates["date"] }) {
                   <ol>
                     {gate.walkthrough.map((step, i) => (
                       <li key={i}>
-                        <WsText text={step} />
+                        <NotebookText text={step} />
                       </li>
                     ))}
                   </ol>
@@ -213,9 +214,9 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
       {shows.now ? (
         <div className="phase-group">
           <h3>{nowHead}</h3>
-          <p>
-            <WsText text={notebook.now ?? ""} />
-          </p>
+          <div className="phase-now phase-md">
+            <NotebookText text={notebook.now ?? ""} block />
+          </div>
         </div>
       ) : null}
       {shows.questions ? (
@@ -225,13 +226,13 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
             {notebookQuestions(notebook.questions).map((q, i) => (
               <li key={`${q.id}-${i}`} className="phase-note">
                 <span className="ws-id">{q.id}</span>
-                <span className="row-stack phase-note-text">
+                <span className="row-stack phase-note-text phase-md">
                   <span className="strong">
-                    <WsText text={q.text} />
+                    <NotebookText text={q.text} />
                   </span>
                   {q.answer ? (
                     <span>
-                      <WsText text={q.answer} />
+                      <NotebookText text={q.answer} />
                     </span>
                   ) : null}
                 </span>
@@ -248,7 +249,12 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
       {shows.decisions ? (
         <div className="phase-group">
           <h3>{decisionsHead}</h3>
-          <NotebookDecisions decisions={notebook.decisions} />
+          <NotebookDecisions
+            decisions={notebook.decisions}
+            texts={notebook.decisions.map((d, i) => (
+              <NotebookText key={i} text={d.text} />
+            ))}
+          />
         </div>
       ) : null}
       {shows.docImpact ? (
@@ -258,8 +264,8 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
             {notebook.docImpact.map((n, i) => (
               <li key={i} className="phase-note">
                 <span className="ws-id">{n.slice ?? ""}</span>
-                <span className="phase-note-text">
-                  <WsText text={n.text} />
+                <span className="phase-note-text phase-md">
+                  <NotebookText text={n.text} />
                 </span>
               </li>
             ))}
@@ -269,11 +275,11 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
       {shows.notes ? (
         <div className="phase-group">
           <h3>{notesHead}</h3>
-          <ul className="phase-plain">
+          <ul className="phase-plain phase-md">
             {notebook.notes.map((n, i) => (
               <li key={i}>
                 <span>
-                  <WsText text={n.text} />
+                  <NotebookText text={n.text} />
                 </span>
               </li>
             ))}
@@ -283,13 +289,13 @@ export function PhaseNotebook({ notebook }: { notebook: Notebook }) {
       {shows.topics ? (
         <div className="phase-group">
           <h3>{topicsHead}</h3>
-          <ul className="phase-plain">
+          <ul className="phase-plain phase-md">
             {notebook.topics.map((t) => (
               <li key={t.slug} className="row-stack">
                 <span className="strong">{`topics/${t.slug}.md`}</span>
                 {t.gist ? (
                   <span>
-                    <WsText text={t.gist} />
+                    <NotebookText text={t.gist} />
                   </span>
                 ) : null}
               </li>
@@ -386,8 +392,8 @@ export function PhaseReview({ review }: { review: Phase["review"] }) {
       </div>
       {review.note ? (
         <div className="panel-body has-rule">
-          <p>
-            <WsText text={review.note} />
+          <p className="phase-md">
+            <NotebookText text={review.note} />
           </p>
         </div>
       ) : null}
