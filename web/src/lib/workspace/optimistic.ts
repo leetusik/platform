@@ -20,7 +20,8 @@
  * - **Never twice**: an id is shown once, an add the read already carries is not added again, and a
  *   change the read shows refused is not also shown waiting.
  * - **Discard and Try again** close the old entry here at once: its mark goes (a discarded add's row
- *   with it) until a read no longer names it.
+ *   with it) until a read no longer names it. Try again on a refused add waits under the id the
+ *   route re-minted, never the old one.
  *
  * The page holds an `Overlay` in its state, adds each write's answer (`written`), and folds every
  * new read in (`reconcile`) before it draws `view(read, overlay)`. All pure; nothing here reads or
@@ -163,9 +164,17 @@ export function written(
   };
 }
 
-/** A discarded change, from the discard route's answer (the entry it closed). */
-export function discarded(overlay: Overlay, closed: InboxEntry): Overlay {
-  return close(overlay, closed.id, closed.kind === "add");
+/**
+ * A discarded change, from the discard route's answer (the entry it closed). A discarded add's row goes with it,
+ * unless `stays`: a read taken after the discard still holds an item under the add's id (one the workspace
+ * itself made, whose id the add's refusal named), so only its mark goes.
+ */
+export function discarded(
+  overlay: Overlay,
+  closed: InboxEntry,
+  stays = false,
+): Overlay {
+  return close(overlay, closed.id, closed.kind === "add" && !stays);
 }
 
 /** Try again: the refused entry closes, and its new entry waits. */

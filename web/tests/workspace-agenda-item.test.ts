@@ -4,13 +4,16 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { loadAgendaItem } from "@/app/(app)/projects/[projectId]/workspace/agenda/[item]/load";
 import {
+  afterSend,
   AgendaItemPage,
   deletedState,
   headActions,
   INITIAL,
   itemLines,
   itemView,
+  pageView,
   reduce,
+  vanished,
   type ItemPageRead,
   type ItemRead,
   type PageState,
@@ -556,6 +559,243 @@ describe("what a write leaves on the page", () => {
     expect(refusedTitle).toContain('aria-invalid="true"');
     expect(refusedTitle).toContain('class="field-error"');
     expect(refusedTitle).toContain("Enter a title of 1–200 characters.");
+  });
+});
+
+describe("a change that takes the item from under the page", () => {
+  // The operator added "Cache the reader's fonts on the box"; the workspace refused it, because an item it made
+  // meanwhile holds the same id (the engine's line). The route draws a refused add as its own row, or, when an
+  // item holds its id, as that item carrying the add's mark.
+  const REFUSED = "6d1e2f3a-4b5c-4d6e-8f70-81a2b3c4d5e6";
+  const AGAIN = "7e2f3a4b-5c6d-4e7f-9a81-92b3c4d5e6f7";
+  const LINE = "agenda item A31-q7 already exists";
+  const MARK = { refused: LINE, entry: REFUSED, kind: "add" as const };
+  const ADDED: AgendaItem = {
+    id: "A31-q7",
+    title: "Cache the reader's fonts on the box",
+    lang: "en",
+    note: "The reader fetches its two fonts again on every page.",
+    state: "open",
+    created: "2026-11-18",
+    changed: "2026-11-18",
+    phases: [],
+    deferred: [],
+    outcome: "",
+    reason: "",
+    sync: MARK,
+  };
+  const HELD: AgendaItem = { ...ITEM, id: "A31-q7", sync: MARK };
+  const addEntry = (
+    id: string,
+    minted: string,
+    state: InboxEntry["state"],
+  ): InboxEntry => ({
+    id,
+    kind: "add",
+    items: [minted],
+    fields: { title: ADDED.title, note: ADDED.note },
+    minted_id: minted,
+    state,
+    reason: null,
+    created_at: "2026-11-18T09:00:00Z",
+  });
+  const RESENT = addEntry(AGAIN, "A42-m8", "pending");
+  const DISCARDED = addEntry(REFUSED, "A31-q7", "discarded");
+  const ready = (item: AgendaItem): ItemPageRead => ({
+    state: "ready",
+    ...read(item),
+  });
+  const GONE: ItemPageRead = { state: "not-found", projectName: "platform" };
+  const AGENDA = `/projects/${PROJECT}/workspace?deferred=2`;
+  const at = (shown: string) => ({
+    project: PROJECT,
+    shown,
+    from: { list: "agenda" as const, deferred: 2 },
+    back: AGENDA,
+  });
+  const press = (
+    busy: "retry" | "discard",
+    answer: WriteAnswer,
+    title: string,
+    refusedEntry?: string,
+  ) =>
+    reduce(reduce(INITIAL, { type: "send", busy }), {
+      type: "answer",
+      answer,
+      timeZone: ZONE,
+      now: NOW,
+      refusedEntry,
+      title,
+    });
+  const shown = (d: ReturnType<typeof pageView>) =>
+    d.kind === "item"
+      ? {
+          id: d.view.item.id,
+          title: d.view.item.title,
+          waiting: d.view.waiting,
+          refused: d.view.refused,
+          phases: d.view.phases.length,
+        }
+      : d;
+
+  it("Try again on a refused add shows the id it was re-sent under, waiting for sync, and the address follows it", () => {
+    for (const item of [ADDED, HELD]) {
+      const answer: WriteAnswer = { ok: true, entry: RESENT, item: "A42-m8" };
+      const s = press("retry", answer, item.title ?? "", REFUSED);
+      const drawn = {
+        id: "A42-m8",
+        title: ADDED.title,
+        waiting: true,
+        refused: null,
+        phases: 0,
+      };
+      expect(shown(pageView(ready(item), s)), item.title ?? "").toEqual(drawn);
+      // the old id's read no longer holds anything: still the new id, never Not found
+      expect(shown(pageView(GONE, s))).toEqual(drawn);
+      expect(s.focus?.on).toBe("edit");
+      const step = afterSend("retry", answer, at("A31-q7"));
+      expect(step).toMatchObject({ go: "replace", item: "A42-m8" });
+      const url = new URL(step.go === "refresh" ? "" : step.href, "http://x");
+      expect(url.pathname).toBe(`/projects/${PROJECT}/workspace/agenda/A42-m8`);
+      expect(url.searchParams.get("from")).toBe(AGENDA);
+    }
+  });
+
+  it("reads the new id again as the same item waiting for sync, once, whether or not the page kept its state", () => {
+    const pending: AgendaItem = { ...ADDED, id: "A42-m8", sync: "waiting" };
+    const html = page(ready(pending));
+    expect(html).toContain("A42-m8");
+    expect(html).toContain("Cache the reader&#x27;s fonts on the box");
+    expect(html).toContain("Waiting for sync");
+    expect(html).not.toContain("not found");
+    // the page kept its state: the read carries the add now, so the page's own copy goes
+    const s = reduce(
+      press(
+        "retry",
+        { ok: true, entry: RESENT, item: "A42-m8" },
+        ADDED.title ?? "",
+        REFUSED,
+      ),
+      { type: "read", item: pending },
+    );
+    expect(s.overlay.changes).toEqual([]);
+    expect(shown(pageView(ready(pending), s))).toMatchObject({
+      id: "A42-m8",
+      waiting: true,
+    });
+  });
+
+  it("Discard on a refused add: Item deleted once the next read no longer holds it, and the Agenda opens", () => {
+    const answer: WriteAnswer = { ok: true, entry: DISCARDED, item: null };
+    let s = press("discard", answer, ADDED.title ?? "");
+    // until that read, the send stays busy and the page as it was
+    expect(s.busy).toBe("discard");
+    expect(shown(pageView(ready(ADDED), s))).toMatchObject({
+      id: "A31-q7",
+      refused: { entry: REFUSED },
+    });
+    expect(afterSend("discard", answer, at("A31-q7"))).toEqual({
+      go: "refresh",
+    });
+    expect(vanished(ready(ADDED), s)).toBe(false);
+    expect(vanished(GONE, s)).toBe(true);
+    expect(pageView(GONE, s)).toEqual({
+      kind: "gone",
+      title: "Cache the reader's fonts on the box",
+    });
+    s = reduce(s, { type: "missing" });
+    expect(s.busy).toBeNull();
+    expect(s.gone).toBe("Cache the reader's fonts on the box");
+    expect(vanished(GONE, s)).toBe(false);
+  });
+
+  it("Discard on a refused add whose id an item holds: that item stays, its mark gone, the focus on Edit", () => {
+    const answer: WriteAnswer = { ok: true, entry: DISCARDED, item: null };
+    const s = press("discard", answer, ITEM.title ?? "");
+    for (const after of [{ ...HELD, sync: null }, HELD]) {
+      // the read after the discard (or one taken before it, still naming the add)
+      const next = reduce(s, { type: "read", item: after });
+      expect(next.busy).toBeNull();
+      expect(next.gone).toBeNull();
+      expect(next.focus?.on).toBe("edit");
+      expect(shown(pageView(ready(after), next))).toEqual({
+        id: "A31-q7",
+        title: ITEM.title,
+        waiting: false,
+        refused: null,
+        phases: 4,
+      });
+      expect(vanished(ready(after), next)).toBe(false);
+    }
+  });
+
+  it("Try again on a refused delete says Item deleted and opens the Agenda, as Delete does", () => {
+    const again: InboxEntry = { ...entry("delete", AGAIN) };
+    const answer: WriteAnswer = { ok: true, entry: again, item: null };
+    const refusedDelete = {
+      refused: LINE,
+      entry: REFUSED,
+      kind: "delete" as const,
+    };
+    const s = press("retry", answer, ITEM.title ?? "", REFUSED);
+    expect(pageView(ready({ ...ITEM, sync: refusedDelete }), s)).toEqual({
+      kind: "gone",
+      title: ITEM.title,
+    });
+    expect(pageView(GONE, s).kind).toBe("gone");
+    expect(afterSend("retry", answer, at("A7-m3"))).toEqual({
+      go: "push",
+      href: AGENDA,
+    });
+  });
+
+  it("Try again and Discard on any other kind leave the page on its item: waiting, or its mark gone", () => {
+    for (const kind of [
+      "edit",
+      "move",
+      "defer",
+      "solve",
+      "drop",
+      "reopen",
+    ] as const) {
+      const r = ready({
+        ...ITEM,
+        sync: { refused: LINE, entry: REFUSED, kind },
+      });
+      const again: WriteAnswer = {
+        ok: true,
+        entry: entry(kind, AGAIN),
+        item: null,
+      };
+      const retried = press("retry", again, ITEM.title ?? "", REFUSED);
+      expect(shown(pageView(r, retried)), kind).toMatchObject({
+        id: "A7-m3",
+        waiting: true,
+        refused: null,
+      });
+      expect(afterSend("retry", again, at("A7-m3")), kind).toEqual({
+        go: "refresh",
+      });
+      const closed: WriteAnswer = {
+        ok: true,
+        entry: { ...entry(kind, REFUSED), state: "discarded" },
+        item: null,
+      };
+      const dropped = press("discard", closed, ITEM.title ?? "");
+      expect(dropped.busy, kind).toBeNull();
+      expect(shown(pageView(r, dropped)), kind).toMatchObject({
+        id: "A7-m3",
+        waiting: false,
+        refused: null,
+      });
+      expect(afterSend("discard", closed, at("A7-m3")), kind).toEqual({
+        go: "refresh",
+      });
+    }
+    // a send that failed reads the page again where it is
+    expect(
+      afterSend("retry", { ok: false, reason: "failed" }, at("A7-m3")),
+    ).toEqual({ go: "refresh" });
   });
 });
 

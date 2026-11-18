@@ -13,6 +13,7 @@ import {
 import { AgendaItemPage } from "@/hi2vi/workspace/agenda-item";
 import { itemProse } from "@/hi2vi/workspace/agenda-item/prose";
 import { requireIdentity } from "@/lib/auth-guards";
+import { decodeWorkspaceFrom } from "@/lib/workspace/address";
 import { readWorkspace } from "@/lib/workspace/read";
 
 import { agendaItemBack } from "./back";
@@ -57,7 +58,8 @@ export default async function AgendaItemRoute({
   searchParams: Promise<Search>;
 }) {
   const { projectId, item } = await params;
-  const back = agendaItemBack(projectId, (await searchParams).from);
+  const from = (await searchParams).from;
+  const back = agendaItemBack(projectId, from);
   const { token } = await requireIdentity();
   const read = await loadOnce(token, projectId, item);
   if (read.state === "not-found" && read.missing) notFound();
@@ -80,6 +82,7 @@ export default async function AgendaItemRoute({
     <AgendaItemPage
       project={projectId}
       back={back}
+      from={decodeWorkspaceFrom(from, projectId)}
       line={line}
       timeZone={timeZone}
       now={now}

@@ -76,7 +76,8 @@ const {
   unplacedDone,
   writeShown,
 } = await import("@/hi2vi/workspace/agenda");
-const { EMPTY_OVERLAY, view } = await import("@/lib/workspace/optimistic");
+const { EMPTY_OVERLAY, reconcile, view } =
+  await import("@/lib/workspace/optimistic");
 const { dates, phaseLookup } = await import("@/lib/workspace/model");
 const { TITLE_REFUSAL } = await import("@/lib/workspace/rules");
 const AgendaPage = (
@@ -718,6 +719,73 @@ describe("after Discard or Try again on an open change no row carries", () => {
     expect(
       view(read, again.overlay).unplaced.map((u) => u.entry),
     ).not.toContain(refused.entry);
+  });
+
+  it("Try again on a refused add shows the item it was re-sent as, waiting for sync, once", () => {
+    // a refused add no row carries (a newer change took its row's mark, or a delete hides it)
+    const add: Unplaced = {
+      entry: "9d3c2b1a-0f4e-4a5b-8c7d-6e5f4a3b2c1d",
+      kind: "add",
+      items: ["A31-q7"],
+      fields: { title: "Cache the reader's fonts on the box" },
+      sync: {
+        refused: "agenda item A31-q7 already exists",
+        entry: "9d3c2b1a-0f4e-4a5b-8c7d-6e5f4a3b2c1d",
+        kind: "add",
+      },
+      refused: "agenda item A31-q7 already exists",
+      created: "2026-11-18T09:00:00Z",
+    };
+    const before = { agenda: PLATFORM, unplaced: [add] };
+    const again = unplacedDone(
+      EMPTY_OVERLAY,
+      add.entry,
+      "retry",
+      {
+        ok: true,
+        entry: {
+          id: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          kind: "add",
+          items: ["A42-m8"],
+          fields: { title: "Cache the reader's fonts on the box" },
+          minted_id: "A42-m8",
+          state: "pending",
+          reason: null,
+          created_at: "2026-11-18T09:10:00Z",
+        },
+        item: "A42-m8",
+      },
+      "Asia/Seoul",
+    ).overlay;
+    const resent = (r: { agenda: AgendaItem[]; unplaced: Unplaced[] }) => {
+      const shown = view(r, reconcile(again, r));
+      return {
+        rows: shown.agenda
+          .filter((row) => row.id === "A42-m8")
+          .map((row) => row.sync),
+        notices: shown.unplaced.length,
+      };
+    };
+    const waitingOnce = { rows: ["waiting"], notices: 0 };
+    // the read taken before Try again, still naming the refusal
+    expect(resent(before)).toEqual(waitingOnce);
+    // the read after it: the route draws the re-sent add as its own row, waiting
+    const after = {
+      agenda: [
+        {
+          ...PLATFORM[0],
+          id: "A42-m8",
+          title: "Cache the reader's fonts on the box",
+          sync: "waiting" as const,
+        },
+        ...PLATFORM,
+      ],
+      unplaced: [],
+    };
+    expect(resent(after)).toEqual(waitingOnce);
+    expect(
+      view(after, again).agenda.filter((r) => r.id === "A42-m8"),
+    ).toHaveLength(1);
   });
 
   it("keeps the notice when the send failed; its buttons were disabled while it ran, so the focus still goes to the box", () => {

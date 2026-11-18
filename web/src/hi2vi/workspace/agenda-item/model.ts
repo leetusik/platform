@@ -12,7 +12,7 @@
  * - `itemView(read, overlay)`: the item as the page shows it, its state, the primary Solve (only while it is
  *   open and every linked phase is done), its marks (Waiting for sync, a refused change), its long facts and
  *   the Phases panel's form (rows, the command to plan one, or none on an ended item); null when this page
- *   deleted it.
+ *   deleted it. It draws the item the page now shows, which is another id only after Try again on a refused add.
  */
 
 import { WS_ACTIONS } from "@/content/workspace/frame";
@@ -145,13 +145,31 @@ export interface ItemView {
   phasesPanel: "rows" | "command" | null;
 }
 
-/** The item as the page shows it: the read, with what the page wrote laid over it; null when it deleted it. */
-export function itemView(read: ItemRead, overlay: Overlay): ItemView | null {
-  const shown = view({ agenda: [read.item] }, overlay).agenda.find(
-    (row) => row.id === read.item.id,
+/** What the server page read: the item with its rows, or nothing (the project named for Not found). */
+export type ItemPageRead =
+  | ({ state: "ready" } & ItemRead)
+  | { state: "not-found"; projectName: string | null };
+
+/**
+ * The item as the page shows it: the read, with what the page wrote laid over it; null when it deleted it.
+ *
+ * `id` is the item the page now shows, the read's own by default. It differs only after Try again on a refused
+ * add, which the route re-sent under a new id: that add is drawn from what the page wrote, with no phase and no
+ * job (an add holds none), and `read` may be null (the old id's read no longer holds anything).
+ */
+export function itemView(
+  read: ItemRead | null,
+  overlay: Overlay,
+  id: string | null = read?.item.id ?? null,
+): ItemView | null {
+  const own = read !== null && read.item.id === id;
+  const shown = view({ agenda: read ? [read.item] : [] }, overlay).agenda.find(
+    (row) => row.id === id,
   );
   if (!shown) return null;
-  const lookup = phaseLookup(read.phases);
+  const phases = own ? read.phases : [];
+  const jobs = own ? read.jobs : [];
+  const lookup = phaseLookup(phases);
   const status = itemState(shown, lookup);
   const ended = status === "solved" || status === "dropped";
   const endText =
@@ -167,8 +185,8 @@ export function itemView(read: ItemRead, overlay: Overlay): ItemView | null {
     actions: headActions(status),
     allDone:
       status === "open" &&
-      read.phases.length > 0 &&
-      everyPhaseDone({ phases: read.phases.map((p) => p.id) }, lookup),
+      phases.length > 0 &&
+      everyPhaseDone({ phases: phases.map((p) => p.id) }, lookup),
     waiting: sync === "waiting",
     refused:
       sync !== null && typeof sync === "object"
@@ -178,9 +196,9 @@ export function itemView(read: ItemRead, overlay: Overlay): ItemView | null {
       ? { label: status === "solved" ? "outcome" : "reason", text: endText }
       : null,
     note: shown.note ? shown.note : null,
-    phases: read.phases,
-    jobs: read.jobs,
-    phasesPanel: read.phases.length > 0 ? "rows" : ended ? null : "command",
+    phases,
+    jobs,
+    phasesPanel: phases.length > 0 ? "rows" : ended ? null : "command",
   };
 }
 

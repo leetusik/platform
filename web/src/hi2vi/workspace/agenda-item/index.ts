@@ -22,12 +22,17 @@ export {
   type PhaseLine,
 } from "./model";
 export {
+  afterSend,
   formSend,
   INITIAL,
+  pageView,
   reduce,
+  vanished,
+  type AfterSend,
   type Draft,
   type FormKind,
   type FormSend,
+  type PageDraw,
   type PageEvent,
   type PageState,
 } from "./state";

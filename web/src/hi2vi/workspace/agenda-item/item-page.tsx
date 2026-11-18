@@ -25,6 +25,7 @@ import {
   retryChange,
   solveAgendaItems,
 } from "@/lib/workspace/actions";
+import type { WorkspaceList } from "@/lib/workspace/address";
 import { dates } from "@/lib/workspace/model";
 import type { WriteAnswer } from "@/lib/workspace/types";
 
@@ -40,13 +41,18 @@ import {
 import { AgendaItemForm } from "./form";
 import { HeadActions, HeadFacts, HeadMarks } from "./head";
 import { JobsPanel, PhasesPanel } from "./lists";
-import { itemView, retryLabel, type HeadAction, type ItemRead } from "./model";
-import { formSend, INITIAL, reduce, type Busy } from "./state";
+import { retryLabel, type HeadAction, type ItemPageRead } from "./model";
+import {
+  afterSend,
+  formSend,
+  INITIAL,
+  pageView,
+  reduce,
+  vanished,
+  type Busy,
+} from "./state";
 
-/** What the server page read: the item with its rows, or nothing (the project named for Not found). */
-export type ItemPageRead =
-  | ({ state: "ready" } & ItemRead)
-  | { state: "not-found"; projectName: string | null };
+export type { ItemPageRead } from "./model";
 
 /**
  * An agenda item's page (`AgendaItem.dc.html`; frame.md F35, F45, F81, F84, F303), in one column:
@@ -59,7 +65,9 @@ export type ItemPageRead =
  *
  * Every write is one inbox entry through the Workspace's actions; it is laid over the read until a read shows
  * it applied or refused, and the page reads again after each one. After its own Delete the page says **Item
- * deleted** and the Agenda opens. An item the read does not hold is Not found, under the back row.
+ * deleted** and the Agenda opens. An item the read does not hold is Not found, under the back row. A change
+ * that takes the item from under the page lands on a drawn state (`state.ts`): Try again on a refused add opens
+ * the id it was re-sent under.
  */
 export function AgendaItemPage({
   project,
@@ -69,9 +77,12 @@ export function AgendaItemPage({
   now,
   read,
   prose,
+  from = null,
 }: {
   project: string;
   back: WsBack;
+  /** The list page the item was opened from, kept when the page moves to another id. */
+  from?: WorkspaceList | null;
   /** The sync line; null when no read could say it. */
   line: WsSyncLine | null;
   timeZone: string;
@@ -91,6 +102,22 @@ export function AgendaItemPage({
     if (readItem) dispatch({ type: "read", item: readItem });
   }, [readItem]);
 
+  // a discarded add the next read no longer holds: Item deleted, and the Agenda opens
+  const away = vanished(read, state);
+  useEffect(() => {
+    if (!away) return;
+    dispatch({ type: "missing" });
+    router.push(back.href);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [away]);
+
+  // the page Try again opened for a re-sent add: Edit takes the focus there (F303), once
+  useEffect(() => {
+    if (!readItem || !arrived(readItem.id)) return;
+    root.current?.querySelector<HTMLElement>('[data-focus="edit"]')?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // the button (or field) the page asked for takes the focus, once
   const focusN = state.focus?.n;
   useEffect(() => {
@@ -104,19 +131,18 @@ export function AgendaItemPage({
 
   const top = <TopRow back={back} line={line} />;
 
-  if (state.gone !== null) {
+  const draw = pageView(read, state);
+  if (draw.kind === "gone") {
     return (
       <div className="column">
         <header className="page-top">
           {top}
-          <StateBlock state={deletedState(state.gone, back)} />
+          <StateBlock state={deletedState(draw.title, back)} />
         </header>
       </div>
     );
   }
-  const view = read.state === "ready" ? itemView(read, state.overlay) : null;
-  if (read.state !== "ready" || !view) {
-    const projectName = read.state === "not-found" ? read.projectName : null;
+  if (draw.kind === "not-found") {
     return (
       <div className="column">
         <header className="page-top">
@@ -124,7 +150,7 @@ export function AgendaItemPage({
           <StateBlock
             state={wsNotFoundState(
               "item",
-              projectName ?? AGENDA_ITEM.thisProject,
+              draw.projectName ?? AGENDA_ITEM.thisProject,
               back,
             )}
           />
@@ -133,6 +159,7 @@ export function AgendaItemPage({
     );
   }
 
+  const view = draw.view;
   const item = view.item;
   const id = item.id;
   const busy = state.busy;
@@ -146,8 +173,17 @@ export function AgendaItemPage({
     dispatch({ type: "send", busy: kind });
     const answer = await send();
     dispatch({ type: "answer", answer, timeZone, ...extra });
-    if (answer.ok && kind === "delete") router.push(back.href);
-    else router.refresh();
+    const step = afterSend(kind, answer, {
+      project,
+      shown: id,
+      from,
+      back: back.href,
+    });
+    if (step.go === "push") router.push(step.href);
+    else if (step.go === "replace") {
+      arriveAt(step.item);
+      router.replace(step.href);
+    } else router.refresh();
   }
 
   async function submitForm() {
@@ -272,8 +308,10 @@ export function AgendaItemPage({
               className="btn"
               disabled={busy === "retry"}
               onClick={() =>
-                void sendHead("discard", () =>
-                  discardChange(project, refused.entry),
+                void sendHead(
+                  "discard",
+                  () => discardChange(project, refused.entry),
+                  { title },
                 )
               }
             >
@@ -288,7 +326,7 @@ export function AgendaItemPage({
                 void sendHead(
                   "retry",
                   () => retryChange(project, refused.entry),
-                  { refusedEntry: refused.entry },
+                  { refusedEntry: refused.entry, title },
                 )
               }
             >
@@ -306,6 +344,31 @@ export function AgendaItemPage({
       <JobsPanel project={project} view={view} date={fmt.date} />
     </div>
   );
+}
+
+/**
+ * Where the id Try again re-sent a refused add under is kept while the page goes there: the new address mounts
+ * the page anew, so the focus F303 gives Edit after Try again is handed over (this tab only, once).
+ */
+const ARRIVING = "hi2vi.workspace.agenda-item.arriving";
+
+function arriveAt(item: string) {
+  try {
+    sessionStorage.setItem(ARRIVING, item);
+  } catch {
+    // no storage (a private window may refuse it): the page opens without moving the focus
+  }
+}
+
+/** Whether Try again opened this item's page; it is told once. */
+function arrived(item: string): boolean {
+  try {
+    if (sessionStorage.getItem(ARRIVING) !== item) return false;
+    sessionStorage.removeItem(ARRIVING);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** A back row with no sync line to say (the reads that carry it failed): the way back alone. */
