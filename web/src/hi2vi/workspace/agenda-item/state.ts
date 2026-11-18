@@ -12,7 +12,8 @@
  * - **A write that landed** is laid over the read (`optimistic.ts`) and waits for sync; the focus goes to Edit
  *   after a save or a Reopen, to Reopen after a solve, a drop or a Defer.
  * - **Delete asks first**; after it the page says Item deleted (`gone`), whatever the next read says.
- * - **Try again and Discard** on a refused change: the old entry closes, Try again's new one waits.
+ * - **Try again and Discard** on a refused change: the old entry closes, Try again's new one waits; the notice
+ *   that held the pressed button is gone, so the focus goes to Edit (F303's rule for a finished action).
  */
 
 import {
@@ -127,8 +128,8 @@ const AFTER: Record<Busy | FormKind, FocusKey | null> = {
   defer: "reopen",
   reopen: "edit",
   delete: null,
-  retry: null,
-  discard: null,
+  retry: "edit",
+  discard: "edit",
 };
 
 export function reduce(state: PageState, event: PageEvent): PageState {

@@ -123,13 +123,16 @@ export interface DeferredPlace {
   paged: boolean;
 }
 
-/** Where the Deferred part is: the address's page when there is one, else page 1 (also past the last page). */
+/**
+ * Where the Deferred part is: the address's page when there is one, else page 1; a page past the last (an action
+ * emptied it) is held to the last page, as the Deferred jobs list and the Backlog's Archived phases do.
+ */
 export function deferredPlace(
   asked: number | null,
   total: number,
 ): DeferredPlace {
   const pages = Math.max(1, Math.ceil(total / AGENDA_PER));
-  const page = asked !== null && asked >= 1 && asked <= pages ? asked : 1;
+  const page = asked !== null && asked >= 1 ? Math.min(asked, pages) : 1;
   return {
     page,
     pages,

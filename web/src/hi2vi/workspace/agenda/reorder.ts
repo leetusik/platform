@@ -7,6 +7,8 @@
  *   down at another place writes: one `move`, before the item it now precedes (after the last one at the end).
  * - **Pointer and touch**: the row lifts once the pointer moves; it follows the pointer, and the rows between its
  *   place and the gap slide by its height; release puts it down at the gap; Escape or a cancelled pointer puts it back.
+ *   While the pointer is near the window's top or bottom edge the window scrolls (faster nearer the edge, stopping
+ *   at the ends), and the row moves by the pointer and the scroll together, so a drag reaches every place.
  * - Each step is said in the list's status line.
  */
 import { AGENDA } from "@/content/workspace/agenda";
@@ -179,4 +181,45 @@ export function dragShift(k: number, drag: Drag | null): number {
   if (drag.from < drag.at && k > drag.from && k <= drag.at) return -drag.h;
   if (drag.at < drag.from && k >= drag.at && k < drag.from) return drag.h;
   return 0;
+}
+
+/** The band (px) at the window's top and bottom edge where a lifted row's pointer scrolls the window. */
+export const EDGE_ZONE = 64;
+/** The scroll (px a frame) with the pointer at the edge itself (or past it, the pointer captured). */
+export const EDGE_SPEED = 18;
+
+/**
+ * How far (px, up negative) to scroll the window this frame while a row is lifted: none outside the edge band,
+ * growing to `EDGE_SPEED` at the edge, and never above the top or past the bottom. `y` is the pointer's place in the
+ * window, `view` the window's height, `top` the scroll now and `max` the most it can scroll.
+ */
+export function edgeScroll(
+  y: number,
+  view: number,
+  top: number,
+  max: number,
+): number {
+  const into =
+    y < EDGE_ZONE
+      ? -(EDGE_ZONE - Math.max(0, y))
+      : y > view - EDGE_ZONE
+        ? Math.min(view, y) - (view - EDGE_ZONE)
+        : 0;
+  if (into === 0) return 0;
+  const step =
+    Math.sign(into) * Math.ceil((EDGE_SPEED * Math.abs(into)) / EDGE_ZONE);
+  return Math.min(Math.max(step, -top), Math.max(0, max - top)) || 0;
+}
+
+/**
+ * How far (px) the lifted row has moved from where it started: the pointer's move in the window plus the window's
+ * scroll since, so the rows' middles taken at the start still place it.
+ */
+export function dragDelta(
+  y: number,
+  startY: number,
+  scroll: number,
+  startScroll: number,
+): number {
+  return y - startY + (scroll - startScroll);
 }

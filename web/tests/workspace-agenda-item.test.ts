@@ -405,6 +405,45 @@ describe("what a write leaves on the page", () => {
     });
   });
 
+  it("after Discard or Try again on a refused change, the notice gone, puts the focus on Edit (F303)", () => {
+    const refused = "5e0c1b2a-9f3d-4e4f-8a7b-6c5d4e3f2a10";
+    const discarded = reduce(
+      reduce(INITIAL, { type: "send", busy: "discard" }),
+      {
+        type: "answer",
+        answer: ok({ ...entry("edit", refused), state: "discarded" }),
+        timeZone: ZONE,
+        now: NOW,
+      },
+    );
+    expect(discarded.busy).toBeNull();
+    expect(discarded.focus?.on).toBe("edit");
+
+    const retried = reduce(reduce(discarded, { type: "send", busy: "retry" }), {
+      type: "answer",
+      answer: ok(entry("edit", "9c4d3e2f-1a0b-4c5d-8e6f-7a8b9c0d1e2f")),
+      timeZone: ZONE,
+      now: NOW,
+      refusedEntry: refused,
+    });
+    expect(retried.focus?.on).toBe("edit");
+    expect(retried.focus?.n).toBe((discarded.focus?.n ?? 0) + 1);
+
+    // a send that failed leaves the notice and its buttons where they are: the focus is not moved
+    const failed = reduce(reduce(INITIAL, { type: "send", busy: "retry" }), {
+      type: "answer",
+      answer: {
+        ok: false,
+        reason: "closed",
+        message: "This change is no longer open.",
+      },
+      timeZone: ZONE,
+      now: NOW,
+      refusedEntry: refused,
+    });
+    expect(failed.focus).toBeNull();
+  });
+
   it("puts the title refusal under the field and a 409's line over the form; the form stays open", () => {
     const opened = reduce(INITIAL, { type: "open", form: "edit", item: ITEM });
     expect(opened.draft.title).toBe(ITEM.title);

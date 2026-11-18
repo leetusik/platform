@@ -10,7 +10,7 @@ import { backlogHref } from "@/lib/workspace/address";
 
 /**
  * A phase whose page threw (`Phase.dc.html`, Error; F49): the back link **Backlog**, then F5's block with
- * **Try again** (it renders the route again on the server) and **Back to Backlog**, and the reference when the
+ * **Try again** (it renders the route again on the server, the phase's Loading meanwhile) and **Back to Backlog**, and the reference when the
  * error has one. A read that fails is the page's own Error, with the sync line; this is the route's last guard.
  */
 export default function PhaseError({

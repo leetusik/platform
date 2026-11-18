@@ -4,7 +4,7 @@ import { WS_DOCS } from "@/content/workspace/docs";
 import { WS_GLOSSARY } from "@/content/workspace/frame";
 import { Fact } from "@/hi2vi/workspace/frame/facts";
 import type { WsBack } from "@/hi2vi/workspace/frame/states-model";
-import { WsSync } from "@/hi2vi/workspace/frame/sync";
+import { WsRetrySync, WsSync } from "@/hi2vi/workspace/frame/sync";
 import type { WsSyncLine } from "@/hi2vi/workspace/frame/sync-model";
 
 // A doc's first row and its loading form: no Markdown here, so a loading boundary (a client component) can draw
@@ -13,7 +13,7 @@ import type { WsSyncLine } from "@/hi2vi/workspace/frame/sync-model";
 /**
  * A doc's first row (F35, F84): the way back, reading its destination's name (**Docs**, or the doc's title from an
  * earlier version), and the sync line at its end in every state. With no sync facts to show (the page's reads
- * failed) the row holds the way back alone.
+ * failed) the row holds the way back alone, and the line's bar while Try again reads the page again.
  */
 export function DocBackRow({
   back,
@@ -35,7 +35,9 @@ export function DocBackRow({
       </Link>
       {line || loading ? (
         <WsSync line={line ?? NO_LINE} loading={loading} />
-      ) : null}
+      ) : (
+        <WsRetrySync />
+      )}
     </div>
   );
 }

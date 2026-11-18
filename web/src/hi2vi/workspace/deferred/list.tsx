@@ -7,7 +7,7 @@ import { DEFERRED_LIST } from "@/content/workspace/deferred";
 import { WS_PAGER, WS_STATES } from "@/content/workspace/frame";
 import { PAGER } from "@/content/library-frame";
 import { Pager } from "@/hi2vi/library/pager";
-import { WsList, WsRow, wsStatus } from "@/hi2vi/workspace/frame";
+import { useWsRetry, WsList, WsRow, wsStatus } from "@/hi2vi/workspace/frame";
 import { num } from "@/lib/format";
 import { deferredHref, jobHref } from "@/lib/workspace/address";
 import type { JobRow } from "@/lib/workspace/types";
@@ -182,10 +182,12 @@ export function DeferredList({
 
 /**
  * The list that did not load (`DeferredList.dc.html`, Failed; F49): the head stands with no count and no
- * toolbar; `Deferred jobs did not load.` and **Try again**, which reads the page again.
+ * toolbar; `Deferred jobs did not load.` and **Try again**, which reads the page again (`WsNav`'s sync line its
+ * bar meanwhile, F40).
  */
 export function DeferredListFailed() {
   const router = useRouter();
+  const [, run] = useWsRetry();
   return (
     <section className="panel" aria-label={DEFERRED_LIST.title}>
       <div className="panel-head">
@@ -193,7 +195,11 @@ export function DeferredListFailed() {
       </div>
       <div className="panel-body has-rule block">
         <p className="block-text">{WS_STATES.partFailed.deferred}</p>
-        <button type="button" className="btn" onClick={() => router.refresh()}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => run(() => router.refresh())}
+        >
           {WS_STATES.retry}
         </button>
       </div>

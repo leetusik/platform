@@ -6,13 +6,15 @@
 // - `AgendaList` (client): the list, holding what the page wrote over each read, what is picked and what is lifted;
 //   `AddForm`, `AgendaConfirm` its form and its confirm.
 // - `Grip`, `RowCheck`, `PartCheck`, `PartBar`, `BulkStrip`: the reorder and picking controls, no state of their own.
-// - Reorder (pure): `liftedOrder`, `movePlace`, `gripKey`, `gripBlur`, `dragAt`, `dragShift`.
+// - Reorder (pure): `liftedOrder`, `movePlace`, `gripKey`, `gripBlur`, `dragAt`, `dragShift`, `edgeScroll`,
+//   `dragDelta`.
 // - Picked rows (pure): `rowsOnScreen`, `partPicks`, `partPick`, `toggleAll`, `toggleRow`, `sendOrder`, `actAsks`, `actSending`, `PART_ACTS`;
 //   `sendAct` sends one action for the picked ids.
 // - `AgendaFailed` (client): the part that failed, with Try again.
 // - `AgendaLoading`, `PartHead`, `AgendaRow`, `LoadingRows`: the parts with no state of their own.
 // - The pure model: `agendaParts`, `deferredPageFrom`, `deferredPlace`, `endedShown`, `emptyText`, `addIsPrimary`,
-//   `agendaFrom`, `workspaceHrefs`, `workspaceProjectId`, `writeShown`.
+//   `agendaFrom`, `workspaceHrefs`, `workspaceProjectId`, `writeShown`; `unplacedDone`, what Discard or Try again on
+//   an open change no row carries leaves (the overlay, and the box that takes the focus).
 export {
   AddForm,
   AgendaConfirm,
@@ -46,8 +48,12 @@ export {
 export { BulkStrip, Grip, PartBar, PartCheck, RowCheck } from "./controls";
 export {
   dragAt,
+  dragDelta,
   dragShift,
   DRAG_START,
+  EDGE_SPEED,
+  EDGE_ZONE,
+  edgeScroll,
   gripBlur,
   gripKey,
   liftedOrder,
@@ -73,3 +79,4 @@ export {
   type Picks,
 } from "./select";
 export { sendAct } from "./send";
+export { unplacedDone, type UnplacedDone } from "./unplaced";

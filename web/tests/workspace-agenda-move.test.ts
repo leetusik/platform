@@ -33,7 +33,10 @@ const {
   AgendaList,
   agendaParts,
   dragAt,
+  dragDelta,
   dragShift,
+  EDGE_ZONE,
+  edgeScroll,
   Grip,
   gripBlur,
   gripKey,
@@ -385,5 +388,77 @@ describe("the pointer", () => {
     expect(movePlace(OPEN, "A12-p3", dragAt(mids, 0, 900))).toEqual({
       after: "A3-n7",
     });
+  });
+});
+
+describe("the pointer near the window's edge", () => {
+  // A phone: a window 844 px tall over a page that scrolls 1,400 px; the open rows 190 px tall.
+  const VIEW = 844;
+  const MAX = 1400;
+
+  it("scrolls the window while the lifted row's pointer is within the edge band, faster nearer the edge", () => {
+    expect(edgeScroll(420, VIEW, 300, MAX)).toBe(0);
+    expect(edgeScroll(EDGE_ZONE, VIEW, 300, MAX)).toBe(0);
+    expect(edgeScroll(VIEW - EDGE_ZONE, VIEW, 300, MAX)).toBe(0);
+    const down = [VIEW - EDGE_ZONE + 8, VIEW - 30, VIEW - 2].map((y) =>
+      edgeScroll(y, VIEW, 300, MAX),
+    );
+    expect(down.every((d) => d > 0)).toBe(true);
+    expect(down[0]).toBeLessThan(down[1]);
+    expect(down[1]).toBeLessThan(down[2]);
+    const up = edgeScroll(6, VIEW, 300, MAX);
+    expect(up).toBeLessThan(0);
+    expect(up).toBe(-edgeScroll(VIEW - 6, VIEW, 300, MAX));
+    // a captured pointer dragged past the window's edge scrolls at the band's top speed, no faster
+    expect(edgeScroll(VIEW + 200, VIEW, 300, MAX)).toBe(
+      edgeScroll(VIEW, VIEW, 300, MAX),
+    );
+    expect(edgeScroll(-200, VIEW, 300, MAX)).toBe(
+      edgeScroll(0, VIEW, 300, MAX),
+    );
+  });
+
+  it("stops at the ends: never above the top or past the bottom", () => {
+    expect(edgeScroll(4, VIEW, 0, MAX)).toBe(0);
+    expect(edgeScroll(VIEW - 4, VIEW, MAX, MAX)).toBe(0);
+    expect(edgeScroll(4, VIEW, 3, MAX)).toBe(-3);
+    expect(edgeScroll(VIEW - 4, VIEW, MAX - 5, MAX)).toBe(5);
+    // a page that does not scroll never does
+    expect(edgeScroll(VIEW - 4, VIEW, 0, 0)).toBe(0);
+    // held at the bottom edge, frame after frame, the window comes to rest exactly at the end
+    let top = 0;
+    let frames = 0;
+    for (let step = 1; step !== 0 && frames < 1000; frames += 1) {
+      step = edgeScroll(VIEW - 10, VIEW, top, MAX);
+      top += step;
+    }
+    expect(top).toBe(MAX);
+    expect(frames).toBeLessThan(200);
+  });
+
+  it("moves the lifted row by the pointer and the scroll together, and a drop after a scroll writes the place it shows", () => {
+    // The five open rows from y 205 at the drag's start (two below the window's edge).
+    const mids = [300, 490, 680, 870, 1060];
+    expect(dragDelta(820, 300, 0, 0)).toBe(520);
+    expect(dragDelta(820, 300, 600, 0)).toBe(1120);
+    expect(dragDelta(30, 820, 100, 700)).toBe(-1390);
+    // held at the bottom edge without a scroll, Say so (1 of 5) only reaches the rows on screen
+    expect(
+      movePlace(OPEN, "A12-p3", dragAt(mids, 0, dragDelta(820, 300, 0, 0))),
+    ).toEqual({
+      before: "A4-c1",
+    });
+    // after the window scrolled 900 px under the held pointer, it lands last: after the last open item
+    const at = dragAt(mids, 0, dragDelta(820, 300, 900, 0));
+    expect(at).toBe(4);
+    expect(movePlace(OPEN, "A12-p3", at)).toEqual({ after: "A3-n7" });
+    // and back up: the last row, the window scrolled back to the top, lands first
+    expect(
+      movePlace(
+        OPEN,
+        "A3-n7",
+        dragAt(mids, 4, dragDelta(40, 1060 - 900, 0, 900)),
+      ),
+    ).toEqual({ before: "A12-p3" });
   });
 });

@@ -7,7 +7,8 @@
 // - `wsSteps`, `phaseSteps`, `stepsN`, `Steps`: a phase's progress (F39).
 // - `WsList`, `WsRow`, `wsRowLayout`, `WS_ROW_BREAKS`: a Workspace row and its four layouts (F43).
 // - `WsNav`: the head of the four places, or the never-synced and not-linked panel (F40, F41).
-// - `wsSyncLine`, `WsSync`: the sync line (F40).
+// - `wsSyncLine`, `WsSync`: the sync line (F40); `useWsRetry` (a page's Try again: the line is the bar while it
+//   reads again), `WsRetrySync` (the bar alone where a failed state draws no line), `markWsRetry`, `useWsRetrying`.
 // - `BackRow`, `ItemHead`: an item page's first row and title row (F35, F84, F85).
 // - `Facts`, `Fact`: label-over-value facts, a long one, links as a value (F44, F80).
 // - `WaitingBadge`, `RefusedBadge`, `RefusedNotice`: a change that waits, one refused (F45).
@@ -26,7 +27,13 @@ export { Steps } from "./steps";
 export { WS_ROW_BREAKS, wsRowLayout, type WsRowLayout } from "./row-model";
 export { WsList, WsRow } from "./row";
 export { wsSyncLine, type WsSyncLine, type WsSyncState } from "./sync-model";
-export { WsSync } from "./sync";
+export {
+  markWsRetry,
+  useWsRetry,
+  useWsRetrying,
+  WsRetrySync,
+  WsSync,
+} from "./sync";
 export { WsNav } from "./nav";
 export { BackRow, ItemHead } from "./item-head";
 export { Fact, Facts, type FactLink } from "./facts";

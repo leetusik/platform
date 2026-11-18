@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -20,7 +19,12 @@ import { Dialog, DialogActions } from "@/hi2vi/frame/dialog";
 import { Pager } from "@/hi2vi/library/pager";
 import { pagerRange } from "@/hi2vi/library/pager-model";
 import { Swap } from "@/hi2vi/ui";
-import { RefusedNotice, WaitingBadge, WsList } from "@/hi2vi/workspace/frame";
+import {
+  RefusedNotice,
+  useWsRetry,
+  WaitingBadge,
+  WsList,
+} from "@/hi2vi/workspace/frame";
 import { WS_CHANGE } from "@/content/workspace/frame";
 import {
   addAgendaItem,
@@ -33,10 +37,8 @@ import { cx } from "@/lib/cx";
 import { dates, phaseLookup } from "@/lib/workspace/model";
 import {
   begin,
-  discarded,
   EMPTY_OVERLAY,
   reconcile,
-  retried,
   settle,
   view,
   written,
@@ -48,6 +50,7 @@ import { cleanTitle, titleError, type MovePlace } from "@/lib/workspace/rules";
 import type { PhaseRow, Unplaced, WriteAnswer } from "@/lib/workspace/types";
 
 import { BulkStrip, Grip, PartBar, PartCheck, RowCheck } from "./controls";
+import { unplacedDone } from "./unplaced";
 import {
   addIsPrimary,
   agendaFrom,
@@ -61,8 +64,10 @@ import {
 import { AgendaLoading, AgendaRow, PartHead } from "./parts";
 import {
   dragAt,
+  dragDelta,
   dragShift,
   DRAG_START,
+  edgeScroll,
   gripBlur,
   gripKey,
   liftedOrder,
@@ -136,6 +141,9 @@ interface Grab {
   title: string;
   pointerId: number;
   startY: number;
+  /** The window's scroll when it started, and the pointer's place in the window now. */
+  startScroll: number;
+  y: number;
   order: string[];
   mids: number[];
   from: number;
@@ -218,7 +226,8 @@ export function AgendaList({
   );
   const grips = useRef(new Map<string, HTMLButtonElement>());
   const grab = useRef<Grab | null>(null);
-  const stopEscape = useRef<(() => void) | null>(null);
+  /** Ends what a lifted drag runs beside it: Escape's listener and the edge scroll's frames. */
+  const stopLift = useRef<(() => void) | null>(null);
 
   /** The part's box, or Add item when the part (or its box) is gone (F303). */
   const partFocus = (part: AgendaPartKey): HTMLElement | null => {
@@ -247,7 +256,7 @@ export function AgendaList({
   });
 
   // A drag in motion ends with the page.
-  useEffect(() => () => stopEscape.current?.(), []);
+  useEffect(() => () => stopLift.current?.(), []);
 
   const phaseOf = useMemo(() => phaseLookup(phases), [phases]);
   const fmt = useMemo(() => dates(timeZone), [timeZone]);
@@ -422,8 +431,8 @@ export function AgendaList({
 
   const endGrab = () => {
     grab.current = null;
-    stopEscape.current?.();
-    stopEscape.current = null;
+    stopLift.current?.();
+    stopLift.current = null;
     setDrag(null);
   };
 
@@ -453,6 +462,8 @@ export function AgendaList({
       title: titleOf(id),
       pointerId: event.pointerId,
       startY: event.clientY,
+      startScroll: window.scrollY,
+      y: event.clientY,
       order: [...openIds],
       mids: boxesOf.map((r) => r.top + r.height / 2),
       from: fromAt,
@@ -462,12 +473,50 @@ export function AgendaList({
     };
   };
 
+  /** The lifted row follows the pointer and the window's scroll together (`dragDelta`). */
+  const follow = (g: Grab) => {
+    const dy = dragDelta(g.y, g.startY, window.scrollY, g.startScroll);
+    const at = dragAt(g.mids, g.from, dy);
+    if (at !== g.at) {
+      g.at = at;
+      setSaid(AGENDA.said.movedTo(g.title, at + 1, g.order.length));
+    }
+    setDrag({ id: g.id, from: g.from, at, dy, h: g.h });
+  };
+
+  /**
+   * While the row is lifted, each frame scrolls the window when the pointer is near its top or bottom edge
+   * (`edgeScroll`, stopping at the ends; an instant scroll, the only motion it adds), and the row follows any scroll.
+   */
+  const edgeFrames = (g: Grab) => {
+    let frame = 0;
+    let seen = window.scrollY;
+    const tick = () => {
+      if (grab.current !== g) return;
+      const root = document.documentElement;
+      const step = edgeScroll(
+        g.y,
+        window.innerHeight,
+        window.scrollY,
+        root.scrollHeight - window.innerHeight,
+      );
+      if (step !== 0) window.scrollBy({ top: step, behavior: "instant" });
+      if (window.scrollY !== seen) {
+        seen = window.scrollY;
+        follow(g);
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  };
+
   const pointerMove = (event: PointerEvent<HTMLButtonElement>) => {
     const g = grab.current;
     if (g === null || event.pointerId !== g.pointerId) return;
-    const dy = event.clientY - g.startY;
+    g.y = event.clientY;
     if (!g.lifted) {
-      if (Math.abs(dy) < DRAG_START) return;
+      if (Math.abs(event.clientY - g.startY) < DRAG_START) return;
       g.lifted = true;
       setSaid(
         AGENDA.said.pickedUpByPointer(g.title, g.from + 1, g.order.length),
@@ -479,14 +528,13 @@ export function AgendaList({
         }
       };
       window.addEventListener("keydown", key);
-      stopEscape.current = () => window.removeEventListener("keydown", key);
+      const stopFrames = edgeFrames(g);
+      stopLift.current = () => {
+        window.removeEventListener("keydown", key);
+        stopFrames();
+      };
     }
-    const at = dragAt(g.mids, g.from, dy);
-    if (at !== g.at) {
-      g.at = at;
-      setSaid(AGENDA.said.movedTo(g.title, at + 1, g.order.length));
-    }
-    setDrag({ id: g.id, from: g.from, at, dy, h: g.h });
+    follow(g);
   };
 
   const pointerUp = (event: PointerEvent<HTMLButtonElement>) => {
@@ -607,21 +655,22 @@ export function AgendaList({
 
   // -- the open changes no row carries ---------------------------------------------------------
 
-  const discard = async (u: Unplaced) => {
-    setBusy((b) => ({ ...b, [u.entry]: "discard" }));
-    const answer = await discardChange(project, u.entry);
+  // The pressed button goes with its notice (or was disabled while it ran): the open part's box takes the focus.
+  const unplacedAct = async (u: Unplaced, act: "discard" | "retry") => {
+    setBusy((b) => ({ ...b, [u.entry]: act }));
+    const answer = await (act === "discard" ? discardChange : retryChange)(
+      project,
+      u.entry,
+    );
     setBusy((b) => without(b, u.entry));
-    if (answer.ok) setOverlay((o) => discarded(o, answer.entry));
+    const done = (o: Overlay) =>
+      unplacedDone(o, u.entry, act, answer, timeZone);
+    focusPart.current = done(EMPTY_OVERLAY).focus;
+    setOverlay((o) => done(o).overlay);
     router.refresh();
   };
-  const retry = async (u: Unplaced) => {
-    setBusy((b) => ({ ...b, [u.entry]: "retry" }));
-    const answer = await retryChange(project, u.entry);
-    setBusy((b) => without(b, u.entry));
-    if (answer.ok)
-      setOverlay((o) => retried(o, u.entry, answer.entry, timeZone));
-    router.refresh();
-  };
+  const discard = (u: Unplaced) => unplacedAct(u, "discard");
+  const retry = (u: Unplaced) => unplacedAct(u, "retry");
 
   // -- drawing ---------------------------------------------------------------------------------
 
@@ -1143,7 +1192,7 @@ export function AgendaConfirm({
 export function AgendaFailed() {
   const router = useRouter();
   const uid = useId();
-  const [pending, start] = useTransition();
+  const [pending, start] = useWsRetry();
   if (pending) return <AgendaLoading headId={`${uid}-open`} />;
   return (
     <div className="stack gap-5">

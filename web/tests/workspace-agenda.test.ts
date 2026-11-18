@@ -73,8 +73,10 @@ const {
   deferredPageFrom,
   deferredPlace,
   endedShown,
+  unplacedDone,
   writeShown,
 } = await import("@/hi2vi/workspace/agenda");
+const { EMPTY_OVERLAY, view } = await import("@/lib/workspace/optimistic");
 const { dates, phaseLookup } = await import("@/lib/workspace/model");
 const { TITLE_REFUSAL } = await import("@/lib/workspace/rules");
 const AgendaPage = (
@@ -362,7 +364,7 @@ describe("a row", () => {
 });
 
 describe("the Deferred part's pages", () => {
-  it("reads the page from the address and resets one out of range to page 1", () => {
+  it("reads the page from the address and holds one past the last page to the last page", () => {
     expect(deferredPageFrom("3")).toBe(3);
     for (const bad of [undefined, "", "0", "02", "-1", "2.5", "x", ["2"]])
       expect(deferredPageFrom(bad)).toBeNull();
@@ -373,7 +375,16 @@ describe("the Deferred part's pages", () => {
       to: 25,
       paged: true,
     });
-    expect(deferredPlace(4, 25).page).toBe(1);
+    // An action that empties the last page (`?deferred=3`, its rows deleted) lands on the new last page.
+    expect(deferredPlace(4, 25)).toEqual({
+      page: 3,
+      pages: 3,
+      from: 20,
+      to: 25,
+      paged: true,
+    });
+    expect(deferredPlace(3, 20)).toMatchObject({ page: 2, from: 10, to: 20 });
+    expect(deferredPlace(99, 0)).toMatchObject({ page: 1, from: 0, to: 0 });
     expect(deferredPlace(null, 25)).toMatchObject({ page: 1, from: 0, to: 10 });
     expect(deferredPlace(2, 10)).toMatchObject({ page: 1, paged: false });
   });
@@ -400,7 +411,7 @@ describe("the Deferred part's pages", () => {
       `?from=%2Fprojects%2F${PROJECT}%2Fworkspace%3Fdeferred%3D2`,
     );
     const out = list(long, { page: 9 });
-    expect(out).toContain("1–10 of 25");
+    expect(out).toContain("21–25 of 25");
     expect(list(PLATFORM)).not.toContain('class="pager"');
   });
 });
@@ -620,6 +631,80 @@ describe("the open changes no row carries", () => {
     );
     expect(top.match(/>Discard</g)).toHaveLength(2);
     expect(top.match(/>Try again</g)).toHaveLength(1);
+  });
+});
+
+describe("after Discard or Try again on an open change no row carries", () => {
+  const refused: Unplaced = {
+    entry: "7a2e3d4c-1b0f-4d8e-9c3b-2f4a5b6c7d8e",
+    kind: "move",
+    items: ["A2-y8"],
+    fields: { before: "A1-z7" },
+    sync: {
+      refused: "A1-z7 names no agenda item",
+      entry: "7a2e3d4c-1b0f-4d8e-9c3b-2f4a5b6c7d8e",
+    },
+    refused: "A1-z7 names no agenda item",
+    created: "2026-11-17T09:05:00Z",
+  };
+  const read = { agenda: PLATFORM, unplaced: [refused] };
+  const closed = (state: "discarded" | "pending", id = refused.entry) => ({
+    id,
+    kind: "move" as const,
+    items: ["A2-y8"],
+    fields: { before: "A1-z7" },
+    minted_id: null,
+    state,
+    reason: null,
+    created_at: "2026-11-18T09:00:00Z",
+  });
+
+  it("closes the notice and gives the focus to the open part's box (F303: Add item when the part is gone)", () => {
+    const done = unplacedDone(
+      EMPTY_OVERLAY,
+      refused.entry,
+      "discard",
+      {
+        ok: true,
+        entry: closed("discarded"),
+        item: null,
+      },
+      "Asia/Seoul",
+    );
+    expect(view(read, done.overlay).unplaced).toEqual([]);
+    expect(done.focus).toBe("open");
+
+    const again = unplacedDone(
+      EMPTY_OVERLAY,
+      refused.entry,
+      "retry",
+      {
+        ok: true,
+        entry: closed("pending", "8b3f4e5d-2c6a-4b7c-9d0e-1f2a3b4c5d6e"),
+        item: null,
+      },
+      "Asia/Seoul",
+    );
+    expect(again.focus).toBe("open");
+    expect(
+      view(read, again.overlay).unplaced.map((u) => u.entry),
+    ).not.toContain(refused.entry);
+  });
+
+  it("keeps the notice when the send failed; its buttons were disabled while it ran, so the focus still goes to the box", () => {
+    const done = unplacedDone(
+      EMPTY_OVERLAY,
+      refused.entry,
+      "discard",
+      {
+        ok: false,
+        reason: "failed",
+      },
+      "Asia/Seoul",
+    );
+    expect(done.overlay).toBe(EMPTY_OVERLAY);
+    expect(view(read, done.overlay).unplaced).toHaveLength(1);
+    expect(done.focus).toBe("open");
   });
 });
 

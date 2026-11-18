@@ -1,11 +1,16 @@
 import { WS_SLICE } from "@/content/workspace/slice";
 import { StateBlock, type StateModel } from "@/hi2vi/states";
-import { BackRow, type WsBack, type WsSyncLine } from "@/hi2vi/workspace/frame";
+import {
+  BackRow,
+  WsRetrySync,
+  type WsBack,
+  type WsSyncLine,
+} from "@/hi2vi/workspace/frame";
 
 /**
  * Not found and Error (`Slice.dc.html`; F49), directly under the back row: the back link reads the phase's id,
  * and the sync line stands when the page knows it (null: the workspace's own read failed too, so there is no
- * line to draw).
+ * line to draw, but its bar while Try again reads the page again).
  */
 export function SliceMissing({
   back,
@@ -36,6 +41,7 @@ export function SliceMissing({
             >
               {back.label}
             </a>
+            <WsRetrySync />
           </div>
         )}
         <StateBlock state={state} onRetry={onRetry} />

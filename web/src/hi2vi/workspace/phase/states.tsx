@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
 import {
   BackRow,
+  useWsRetry,
+  WsRetrySync,
   wsErrorState,
   wsNotFoundState,
   type WsBack,
@@ -16,7 +17,10 @@ import { Block, BlockText, BlockTitle, buttonClass, Cluster } from "@/hi2vi/ui";
 
 import { PhaseLoading } from "./loading-view";
 
-/** The first row: the back link and, when the workspace's sync is known, the sync line (F84). */
+/**
+ * The first row: the back link and, when the workspace's sync is known, the sync line (F84); unknown, the line's
+ * bar alone while Try again reads the page again.
+ */
 function TopRow({ back, line }: { back: WsBack; line: WsSyncLine | null }) {
   if (line) return <BackRow {...back} line={line} />;
   return (
@@ -24,6 +28,7 @@ function TopRow({ back, line }: { back: WsBack; line: WsSyncLine | null }) {
       <Link className="back" href={back.href}>
         {back.label}
       </Link>
+      <WsRetrySync />
     </div>
   );
 }
@@ -95,7 +100,8 @@ export function PhaseMissing({
 /**
  * The phase did not load (`Phase.dc.html`, Error; F49, F5): under the back row, **Try again** (primary) and
  * **Back to Backlog**. Try again shows Loading while the route renders again on the server (`router.refresh()`:
- * the reads are `no-store`), then the phase, or this block again.
+ * the reads are `no-store`; an error boundary's own retry the same way), the sync line a bar (F40), then the
+ * phase, or this block again.
  */
 export function PhaseFailed({
   back,
@@ -112,14 +118,14 @@ export function PhaseFailed({
   retry?: () => void;
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [pending, run] = useWsRetry();
   if (pending) return <PhaseLoading back={back} id={id} />;
   return (
     <StateUnderBack
       back={back}
       line={line}
       state={wsErrorState(back, digest)}
-      onRetry={retry ?? (() => startTransition(() => router.refresh()))}
+      onRetry={() => run(retry ?? (() => router.refresh()))}
     />
   );
 }

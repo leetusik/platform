@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
 import { WS_STATES } from "@/content/workspace/frame";
 import type { StateModel } from "@/hi2vi/states";
+import { useWsRetry } from "@/hi2vi/workspace/frame";
 import { Block, BlockText, BlockTitle, buttonClass, Cluster } from "@/hi2vi/ui";
 
 import { DocsList } from "./list";
 
-/** Fetches the page again: the reads are server reads, never cached, so the route renders anew. */
+/**
+ * Fetches the page again: the reads are server reads, never cached, so the route renders anew; meanwhile the
+ * page's sync line is its bar (F40).
+ */
 function useRefresh(): [boolean, () => void] {
   const router = useRouter();
-  const [busy, startTransition] = useTransition();
-  return [busy, () => startTransition(() => router.refresh())];
+  const [busy, run] = useWsRetry();
+  return [busy, () => run(() => router.refresh())];
 }
 
 /**

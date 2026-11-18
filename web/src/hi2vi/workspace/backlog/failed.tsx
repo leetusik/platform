@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
 import { BACKLOG } from "@/content/workspace/backlog";
+import { useWsRetry } from "@/hi2vi/workspace/frame";
 
 import {
   BacklogNowFailed,
@@ -14,11 +14,11 @@ import {
 /**
  * The backlog when its read failed (F49): Now keeps its head, `The backlog did not load.` and **Try again**; the
  * Phases part is not drawn. Pressed, the parts load (`router.refresh()`: the read is the server's, `no-store`),
- * then the page, or this block again on a second failure.
+ * then the page, or this block again on a second failure; meanwhile `WsNav`'s sync line is its bar (F40).
  */
 export function BacklogFailed() {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [pending, startTransition] = useWsRetry();
   if (pending)
     return (
       <>
