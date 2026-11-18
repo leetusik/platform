@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { STEPS_GAP, STEPS_LEAST } from "@/hi2vi/workspace/frame/steps-model";
+
 // The Workspace's sheets (design job 02, frame.md F35 to F51, F80, F85): the names the Workspace shares with
 // the product are promoted into the system (`bundle.css`), each beside its family and under the system's
 // name (`.status-wait` is `.status-pending`, `.track` is `.steps`); the Workspace's own frame is
@@ -372,5 +374,49 @@ describe("the Workspace's sheets", () => {
     const readme = read(join(styles, "README.md"));
     for (const name of SHEETS)
       expect(readme, name).toContain(`workspace/${name.replace(".css", "")}`);
+  });
+});
+
+describe("long status words and long phases in the Workspace's rows", () => {
+  const bundle = styleRules(scopeBody(join(styles, "bundle.css")));
+  const rule = (prelude: string) => {
+    const found = bundle.filter((r) => squash(r.prelude) === prelude);
+    expect(found, prelude).toHaveLength(1);
+    return squash(found[0].body);
+  };
+
+  it("give project home's status column the Workspace's status width", () => {
+    // the formatter breaks a long track list inside its parentheses
+    const home = squash(read(join(workspace, "home.css")))
+      .replace(/\(\s+/g, "(")
+      .replace(/\s+\)/g, ")");
+    expect(home).toContain(
+      "@container (min-width:44em){.ph-phase{grid-template-columns:3em minmax(10em,19em) var(--status-w) minmax(0,1fr);",
+    );
+    expect(home).not.toContain("7.5em");
+  });
+
+  it("switch the steps to one bar under the least step the model draws", () => {
+    const tokens = squash(read(join(styles, "tokens.css")));
+    expect(tokens).toContain(`--space-1:${STEPS_GAP}px;`);
+    // the least width the list's steps need, n * (least + gap) - gap, against the steps' own width
+    const under = `clamp(0px,calc((var(--steps-n,1) * (${STEPS_LEAST}px + var(--space-1)) - var(--space-1) - 100%) * 100000),100%)`;
+    expect(rule(".steps-cell > .steps")).toBe(
+      "flex-wrap:wrap;height:var(--dot);overflow:clip;",
+    );
+    // under the fit every step takes a line of its own, out of sight; at or over it, its signed width
+    expect(rule(".steps-cell > .steps > i")).toBe(`min-width:${under};`);
+    // the bar: as long as its steps would be, no width where they fit, the signed edge, done and now colours
+    expect(rule(".steps-bar")).toBe(
+      "position:relative;flex:none;width:calc(100% * var(--steps-own,1) / var(--steps-n,1));" +
+        `max-width:${under};height:var(--dot);margin-inline-end:calc(-1 * var(--space-1));` +
+        "overflow:clip;border-radius:var(--radius-xs);box-shadow:inset 0 0 0 1px var(--edge);",
+    );
+    expect(rule(".steps-bar::before")).toBe(
+      "inset-inline-start:0;width:var(--steps-done);background:var(--ink);",
+    );
+    expect(rule(".steps-bar::after")).toBe(
+      "inset-inline-start:var(--steps-done);width:var(--steps-now);background:var(--accent);",
+    );
   });
 });

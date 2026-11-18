@@ -35,6 +35,11 @@ import {
   wsSyncLine,
   WsText,
 } from "@/hi2vi/workspace/frame";
+import {
+  stepsBar,
+  stepsDrawing,
+  stepsFit,
+} from "@/hi2vi/workspace/frame/steps-model";
 
 // The Workspace's frame (design job 02, frame.md F35 to F49, F78, F80, F85, F300, F301, F306): the status
 // words, progress, the row and its four layouts, the head with its places, the sync line, an item's head,
@@ -215,6 +220,7 @@ describe("progress (F39)", () => {
     expect(out).toBe(
       '<span class="progress"><span class="progress-count">1/3</span><span class="steps-cell">' +
         '<span class="steps" role="img" aria-label="1 of 3 slices done, 1 in progress">' +
+        '<span class="steps-bar" style="--steps-own:3;--steps-done:33.333%;--steps-now:33.333%"></span>' +
         '<i class="is-done"></i><i class="is-now"></i><i></i></span></span></span>',
     );
     expect(
@@ -684,5 +690,84 @@ describe("the one pager takes its list's address key (F300)", () => {
       '<a class="btn pager-num" aria-label="Page 6" href="?archived=6">6</a>',
     );
     expect(out).not.toContain("page=");
+  });
+});
+
+// A phase longer than its lane (this host's longest is 37 slices): where a step would be drawn narrower than
+// 4 px the steps are one bar, filled to the done share; where they fit, the signed steps. The switch is the
+// sheet's (the steps' own width against `stepsFit`, at layout); the model states it for the widths each layout gives.
+describe("a phase too long for its steps", () => {
+  it("draws the bar where a step would be under 4 px, the steps where it is not", () => {
+    expect(stepsFit(37)).toBe(292);
+    expect(stepsFit(18)).toBe(140);
+    expect(stepsDrawing(37, 173).kind).toBe("bar");
+    expect(stepsDrawing(18, 173)).toMatchObject({ kind: "steps" });
+    expect(stepsDrawing(37, 292)).toMatchObject({ kind: "steps", seg: 4 });
+    expect(stepsDrawing(37, 291).kind).toBe("bar");
+    expect(stepsDrawing(7, 1200)).toMatchObject({ kind: "steps", seg: 72 });
+  });
+
+  it("fills the bar to the done share, the running slice after it", () => {
+    expect(stepsBar(30, 37, true)).toEqual({ done: 30 / 37, now: 1 / 37 });
+    expect(stepsBar(36, 37, false)).toEqual({ done: 36 / 37, now: 0 });
+    expect(stepsBar(37, 37, true)).toEqual({ done: 1, now: 0 });
+    expect(stepsBar(0, 0, true)).toEqual({ done: 0, now: 0 });
+    const out = html(
+      createElement(Steps, { done: 30, total: 37, live: true, n: 37 }),
+    );
+    expect(out).toContain(
+      '<span class="steps" role="img" aria-label="30 of 37 slices done, 1 in progress">' +
+        '<span class="steps-bar" style="--steps-own:37;--steps-done:81.081%;--steps-now:2.703%"></span>' +
+        '<i class="is-done"></i>',
+    );
+    expect(out.match(/<i\b/g)).toHaveLength(37);
+  });
+
+  // The lanes at a phone's width (390 and 320), from the sheets' lengths at the body's 14 px: the main column's
+  // 16 px edges, a panel's 1 px border, a row's 16 px edges and 16 px columns, the count's 3em and its 16 px.
+  const EM = 14;
+  const lanes = (viewport: number) => {
+    const list = viewport - 2 * 16 - 2;
+    const row = list - 2 * 16;
+    const count = 3 * EM + 16;
+    const ws =
+      wsRowLayout(list / EM) === "one-column" ? row : row - 5.5 * EM - 16;
+    // project home: the id's 3em column, then the count and the steps under the name, in every layout under 44em
+    const home = row - 3 * EM - 16;
+    return {
+      "a Workspace row (backlog, archived, agenda item, promoted to)":
+        ws - count,
+      "project home's panel": home - count,
+      "a phase's title row (compact)": viewport - 2 * 16 - 3 * EM - 8,
+    };
+  };
+
+  it("never draws a row wider than its lane at 390 or 320, for phases of 1 to 60 slices", () => {
+    expect(
+      lanes(390)[
+        "a Workspace row (backlog, archived, agenda item, promoted to)"
+      ],
+    ).toBe(173);
+    expect(lanes(390)["project home's panel"]).toBe(208);
+    for (const viewport of [390, 320])
+      for (const [place, width] of Object.entries(lanes(viewport)))
+        for (let n = 1; n <= 60; n++) {
+          const d = stepsDrawing(n, width);
+          expect(
+            d.width,
+            `${place} at ${viewport}, ${n} slices`,
+          ).toBeLessThanOrEqual(width);
+          if (d.kind === "steps")
+            expect(
+              d.seg,
+              `${place} at ${viewport}, ${n} slices`,
+            ).toBeGreaterThanOrEqual(4);
+        }
+    expect(stepsDrawing(37, lanes(390)["project home's panel"]).kind).toBe(
+      "bar",
+    );
+    expect(
+      stepsDrawing(37, lanes(390)["a phase's title row (compact)"]).kind,
+    ).toBe("steps");
   });
 });

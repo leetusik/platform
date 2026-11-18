@@ -391,6 +391,20 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
 .steps > i.is-now { border-color: var(--accent); background: var(--accent); }
 /* compact: 16 px segments, for a table column or a title's row */
 .steps.is-compact { --steps-seg: var(--steps-seg-compact); flex: 0 1 auto; width: calc(var(--steps-n, 1) * (var(--steps-seg) + var(--space-1)) - var(--space-1)); max-width: 100%; }
+/* a phase too long for its lane: where a step would be under 4 px, the steps are one bar, as long as its steps
+   would be, filled to the done share (the drawing is the steps': their height, edge, radius, done and now colours).
+   n * (4px + gap) - gap is the least width the list's steps need; the steps' own width (100%) is compared with it at
+   layout, so the switch follows every lane and layout. Under it each step takes a line of its own, out of sight below
+   the bar; at or over it the bar has no width and the steps are as signed. It declares no custom property, so the
+   boundary has nothing more to restore */
+.steps-cell > .steps { flex-wrap: wrap; height: var(--dot); overflow: clip; }
+.steps-cell > .steps > i { min-width: clamp(0px, calc((var(--steps-n, 1) * (4px + var(--space-1)) - var(--space-1) - 100%) * 100000), 100%); }
+/* 1 px of slack, so steps that fill their line to the pixel never wrap */
+.steps > i:last-child { margin-inline-end: -1px; }
+.steps-bar { position: relative; flex: none; width: calc(100% * var(--steps-own, 1) / var(--steps-n, 1)); max-width: clamp(0px, calc((var(--steps-n, 1) * (4px + var(--space-1)) - var(--space-1) - 100%) * 100000), 100%); height: var(--dot); margin-inline-end: calc(-1 * var(--space-1)); overflow: clip; border-radius: var(--radius-xs); box-shadow: inset 0 0 0 1px var(--edge); }
+.steps-bar::before, .steps-bar::after { content: ""; position: absolute; inset-block: 0; }
+.steps-bar::before { inset-inline-start: 0; width: var(--steps-done); background: var(--ink); }
+.steps-bar::after { inset-inline-start: var(--steps-done); width: var(--steps-now); background: var(--accent); }
 
 /* copy: a read-only value beside its copy button (Copy.dc.html is the button) */
 .copy-field { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

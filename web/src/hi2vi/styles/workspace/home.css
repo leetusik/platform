@@ -6,7 +6,9 @@
    One line from 44em of list width, two under it (the count and the steps below), and under 22em the status takes
    a line of its own. The board's `.ph-progress`, `.ph-count`, `.ph-track-cell` and `.ph-track` are the frame's
    `.progress`, `.progress-count`, `.steps-cell` and `.steps` (F39, the same values), its `--ph-n` is `--steps-n` and
-   its Done check is `.status-done` (F37); the list's size container is `.ph-list` (the route's sheet). */
+   its Done check is `.status-done` (F37); the list's size container is `.ph-list` (the route's sheet).
+   Changed from the board: from 44em the status column is the Workspace's status width (`--status-w`, frame.md F43),
+   not the board's 7.5em, which drew only the short statuses and cannot hold Waiting on operator. */
 @scope (.ui) to ([data-ui-legacy]) {
   .ph-phase {
     grid-template-columns: 3em minmax(0, 1fr);
@@ -38,7 +40,10 @@
   }
   @container (min-width: 44em) {
     .ph-phase {
-      grid-template-columns: 3em minmax(10em, 19em) 7.5em minmax(0, 1fr);
+      grid-template-columns: 3em minmax(10em, 19em) var(--status-w) minmax(
+          0,
+          1fr
+        );
       grid-template-areas: "id name status progress";
       padding-block: 0;
     }
