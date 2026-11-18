@@ -301,7 +301,7 @@ describe("ReviewEndBody (ReviewEndBody.dc.html)", () => {
     );
     expect(out).toContain('<div class="section-head"><h3 id="');
     expect(out).toContain(
-      '<div class="panel"><div class="panel-body end-next"><div class="row-stack"><p class="end-next-title" lang="en">Capture: from a widget to a message</p><p class="dim facts"><span class="facts-in"><span class="fact">The platform handbook</span><span class="fact"><span class="facts"><span class="facts-in"><span class="fact">Chapter 6 of 14</span><span class="fact">68% read</span></span></span></span></span></p></div><a class="btn btn-primary" href="/@june/platform/books/handbook/capture">Continue reading →</a></div></div></section></div>',
+      '<div class="panel"><div class="panel-body end-next"><div class="row-stack"><p class="end-next-title" lang="en">Capture: from a widget to a message</p><p class="dim end-facts"><span class="end-facts-in"><span class="end-fact">The platform handbook</span><span class="end-fact"><span class="end-facts"><span class="end-facts-in"><span class="end-fact">Chapter 6 of 14</span><span class="end-fact">68% read</span></span></span></span></span></p></div><a class="btn btn-primary" href="/@june/platform/books/handbook/capture">Continue reading →</a></div></div></section></div>',
     );
   });
 

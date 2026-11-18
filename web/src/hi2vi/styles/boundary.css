@@ -69,6 +69,13 @@
   --hi2vi-legacy-ico: var(--ico);
   --hi2vi-legacy-seek-track: var(--seek-track);
   --hi2vi-legacy-seek-thumb: var(--seek-thumb);
+  --hi2vi-legacy-measure: var(--measure);
+  --hi2vi-legacy-steps-seg: var(--steps-seg);
+  --hi2vi-legacy-steps-seg-compact: var(--steps-seg-compact);
+  --hi2vi-legacy-id-w: var(--id-w);
+  --hi2vi-legacy-status-w: var(--status-w);
+  --hi2vi-legacy-outline-w: var(--outline-w);
+  --hi2vi-legacy-code-pad: var(--code-pad);
 }
 
 .ui [data-ui-legacy] {
@@ -126,6 +133,13 @@
   --ico: var(--hi2vi-legacy-ico);
   --seek-track: var(--hi2vi-legacy-seek-track);
   --seek-thumb: var(--hi2vi-legacy-seek-thumb);
+  --measure: var(--hi2vi-legacy-measure);
+  --steps-seg: var(--hi2vi-legacy-steps-seg);
+  --steps-seg-compact: var(--hi2vi-legacy-steps-seg-compact);
+  --id-w: var(--hi2vi-legacy-id-w);
+  --status-w: var(--hi2vi-legacy-status-w);
+  --outline-w: var(--hi2vi-legacy-outline-w);
+  --code-pad: var(--hi2vi-legacy-code-pad);
   color-scheme: normal;
   color: var(--color-ink);
   font: 400 1rem/1.5 var(--font-sans);

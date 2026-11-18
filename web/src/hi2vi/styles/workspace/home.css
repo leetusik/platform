@@ -1,0 +1,5 @@
+/* hi2vi — the Workspace's project home's Workspace panel sheet (design job 02, round 02-agenda-and-links). Holds the panel on a project's home once its workspace is linked (job 01 `ProjectHomeWorkspace`).
+   The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
+   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+}

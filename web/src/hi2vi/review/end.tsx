@@ -92,14 +92,14 @@ export function ReviewEndBody({ view, cont, onLimits }: ReviewEndBodyProps) {
                 <p className="end-next-title" lang={shown.lang}>
                   {hangulRuns(shown.title, !isKorean(shown.lang))}
                 </p>
-                <p className="dim facts">
-                  <span className="facts-in">
-                    <span className="fact">{shown.book}</span>
-                    <span className="fact">
-                      <span className="facts">
-                        <span className="facts-in">
+                <p className="dim end-facts">
+                  <span className="end-facts-in">
+                    <span className="end-fact">{shown.book}</span>
+                    <span className="end-fact">
+                      <span className="end-facts">
+                        <span className="end-facts-in">
                           {shown.facts.map((f) => (
-                            <span key={f} className="fact">
+                            <span key={f} className="end-fact">
                               {f}
                             </span>
                           ))}

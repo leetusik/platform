@@ -1,0 +1,5 @@
+/* hi2vi — the Workspace's Markdown body sheet (design job 02, round 02-agenda-and-links). Holds `.md` and its parts: text on the measure, three heading steps, lists, inline code and a code block, a table, a quote, the way to a section (`Md.dc.html`, frame.md F46, F84).
+   The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
+   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+}

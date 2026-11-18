@@ -1,0 +1,5 @@
+/* hi2vi — the Workspace's backlog sheet (design job 02, round 02-agenda-and-links). Holds the backlog: what waits on the operator, Now, Phases and Archived phases (`Backlog*.dc.html`, frame.md F304).
+   The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
+   never redefined here (src/hi2vi/styles/README.md). Loaded once, through ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+}
