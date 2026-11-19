@@ -26,6 +26,12 @@
     margin-left: auto;
   }
 
+  /* the Workspace sentence's link command: an origin with a port makes a run longer than a phone's
+     card, so it may break anywhere once it must; it wraps as before where it fits */
+  .ph-cmd {
+    overflow-wrap: anywhere;
+  }
+
   /* a part's panel: its foot stays at the bottom when a neighbour is taller */
   .ph-part {
     display: flex;

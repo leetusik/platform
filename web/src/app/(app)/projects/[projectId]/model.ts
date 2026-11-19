@@ -53,18 +53,68 @@ export function isMissingProjectStatus(status: number): boolean {
 
 // ── Workspace (operator D1) ─────────────────────────────────────────────────
 
+/** The link command's second sentence, split so the panel sets the command as code. */
+export interface WorkspaceRun {
+  before: string;
+  command: string;
+  after: string;
+}
+
 /**
- * The Workspace panel as it ships until the sync phase: the signed empty state's first sentence and
- * the `Coming` badge on its head. No rows, no count, no foot (the board drops a part's count and foot
- * when it is empty), no loading form: there is no workspace data yet.
+ * The Workspace panel until it has workspace data: the signed empty state (its first sentence, then
+ * `Run <command> in the project’s repo.`) and the `Coming` badge on its head. No rows, no count, no
+ * foot (the board drops a part's count and foot when it is empty), no loading form. Without an origin
+ * or a project id the second sentence is left out rather than drawn with a guessed address.
  */
-export function workspaceWords(): {
+export function workspaceWords(
+  link: { origin: string | null; projectId: string | null } | null = null,
+): {
   heading: string;
   badge: string;
   empty: string;
+  run: WorkspaceRun | null;
 } {
   const w = PROJECT_HOME.workspace;
-  return { heading: w.heading, badge: w.coming, empty: w.empty };
+  const run =
+    link?.origin && link.projectId
+      ? {
+          before: w.run.before,
+          command: w.run.command(link.origin, link.projectId),
+          after: w.run.after,
+        }
+      : null;
+  return { heading: w.heading, badge: w.coming, empty: w.empty, run };
+}
+
+/** The request headers the origin is read from (`next/headers`' `headers()` satisfies it). */
+export interface HeaderReader {
+  get(name: string): string | null;
+}
+
+/**
+ * The origin the viewer reached the page at: the proxy's forwarded host and scheme when present (the
+ * production nginx sets `Host` and `X-Forwarded-Proto`), else the request's own `Host` over http.
+ * `null` when the request names no host.
+ */
+export function requestOrigin(headers: HeaderReader): string | null {
+  const first = (v: string | null): string =>
+    (v ?? "").split(",")[0]?.trim() ?? "";
+  const host =
+    first(headers.get("x-forwarded-host")) || first(headers.get("host"));
+  if (!host) return null;
+  const proto = first(headers.get("x-forwarded-proto")) || "http";
+  return `${proto}://${host}`;
+}
+
+/** Project home's id from the request's path (`/projects/<id>`, any query), or `null` elsewhere. */
+export function projectHomeId(path: string | null): string | null {
+  const m = /^\/projects\/([^/?#]+)(?:[?#]|$)/.exec(path ?? "");
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
 }
 
 // ── Library ─────────────────────────────────────────────────────────────────
@@ -254,7 +304,7 @@ export function keyRowOf(c: KbCredential): KeyRow {
     id: c.id,
     name: c.name,
     prefix: c.token_prefix,
-    access: c.scope === "capture" ? "capture" : "full",
+    access: c.scope === "capture" || c.scope === "workspace" ? c.scope : "full",
     status: credentialStatus(c),
     created: c.created_at,
     lastUsed: c.last_used_at,

@@ -37,12 +37,20 @@ export function WaitRows({ tail }: { tail: string }) {
 }
 
 /**
- * Workspace, as operator D1 has it until the sync phase: the panel's head with the `Coming` badge (the
- * landing's composition: `cluster baseline gap-3` around the `h2` and the badge) and the signed empty
- * state. The board drops an empty part's count and foot, so "See all in Workspace" is not drawn.
+ * Workspace, as operator D1 has it until there is workspace data: the panel's head with the `Coming`
+ * badge (the landing's composition: `cluster baseline gap-3` around the `h2` and the badge) and the
+ * signed empty state, `No workspace linked yet. Run <link command> in the project’s repo.`, the command
+ * built from the page's `origin` and the `projectId`. The board drops an empty part's count and foot,
+ * so "See all in Workspace" is not drawn.
  */
-export function WorkspacePanel() {
-  const w = workspaceWords();
+export function WorkspacePanel({
+  origin,
+  projectId,
+}: {
+  origin: string | null;
+  projectId: string | null;
+}) {
+  const w = workspaceWords({ origin, projectId });
   return (
     <Panel className="ph-part" aria-label={w.heading}>
       <PanelHead>
@@ -53,13 +61,20 @@ export function WorkspacePanel() {
       </PanelHead>
       <Block className="panel-body has-rule">
         {/*
-          HELD BACK (operator D1, 2026-11-16; D244-h0): the signed sentence continues
-          `Run [LINK COMMAND] in the project’s repo.` The sync phase restores it here, with the real
-          command, in `PROJECT_HOME.workspace.empty`; the phase rows, the `N deferred` count, the
-          "See all in Workspace" foot and the loading rows (`ProjectHomeWorkspace.dc.html`) go in
-          this panel once there is workspace data.
+          The phase rows, the `N deferred` count, the "See all in Workspace" foot and the loading rows
+          (`ProjectHomeWorkspace.dc.html`) go in this panel once there is workspace data.
         */}
-        <BlockText>{w.empty}</BlockText>
+        <BlockText>
+          {w.empty}
+          {w.run ? (
+            <>
+              {" "}
+              {w.run.before}
+              <code className="mono ph-cmd">{w.run.command}</code>
+              {w.run.after}
+            </>
+          ) : null}
+        </BlockText>
       </Block>
     </Panel>
   );

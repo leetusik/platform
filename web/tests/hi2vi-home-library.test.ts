@@ -27,7 +27,7 @@ vi.mock("next/headers", () => ({
     get: (name: string) =>
       name === "kb_tz" && jar.zone !== null ? { value: jar.zone } : undefined,
   })),
-  headers: vi.fn(),
+  headers: vi.fn(async () => new Headers({ host: "hi2vi.com" })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({

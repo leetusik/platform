@@ -58,10 +58,12 @@ const idSchema = z.uuid();
 const nameSchema = z.string().max(200).optional();
 
 /**
- * The key's scope: `full` (the default, also when the field is absent) or `capture`
- * (send feedback only). Anything else is refused before the API sees it.
+ * The key's scope: `full` (the default, also when the field is absent), `capture`
+ * (send feedback only) or `workspace` (link one checkout of this project's
+ * workspace; a project key only, the org action refuses it). Anything else is
+ * refused before the API sees it.
  */
-const scopeSchema = z.enum(["full", "capture"]).default("full");
+const scopeSchema = z.enum(["full", "capture", "workspace"]).default("full");
 
 export interface MintCredentialState {
   /** Display copy for a failure, or `null` on success / first render. */

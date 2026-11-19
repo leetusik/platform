@@ -24,6 +24,16 @@ export const KEYS = {
   accessFull: "Full access",
   accessCapture: "Capture only",
   accessHint: "A capture-only key can send feedback and nothing else.",
+  /** The project form's third option and its hint (the operator's words, 2026-11-17). */
+  accessWorkspace: "Workspace sync",
+  accessWorkspaceHint:
+    "A workspace key links one checkout of this project's workspace and reaches nothing else.",
+  /** The keys table's Access cell, by scope. */
+  accessWord: {
+    full: "Full access",
+    capture: "Capture only",
+    workspace: "Workspace",
+  },
   cancel: "Cancel",
   create: "Create key",
   creating: "Creating…",
