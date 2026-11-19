@@ -24,6 +24,9 @@ the manifests in ``server/books.py`` are the truth):
   It is four segments after the org, so it cannot collide with that 3-segment
   document route.
 
+Every book read carries the manifest's second title as ``sub`` and its language as
+``sub_lang`` (P63, D248-j7), null when the book has none.
+
 A book belongs to exactly one project, so one project-visibility check covers the
 book and every chapter document it lists (each variant's ``doc_id`` is then read
 through the existing ``/app/documents/{id}`` routes, which re-check visibility).
@@ -146,6 +149,9 @@ async def resolve_book_by_slug(
     return {
         **_app_book(found),
         "canonical_path": _book_canonical_path(org_label(tenant), project, book),
+        # P63: the owning org as the org library names it (its ``org`` key's slug and
+        # name), only past the visibility gate: a visitor's way back reads its name.
+        "org": {"slug": tenant.slug, "name": tenant.name},
     }
 
 
@@ -168,6 +174,12 @@ async def org_library(
     a 403. A member's response also carries their private projects, flagged by
     ``visibility``; they are the only ones that name it. ``projects`` lists every
     project the response is over, so a project with nothing to read is countable.
+    Each loose document and each chapter variant carries ``reading_minutes`` (P63,
+    ``server/reading_time.py``), stored with the document, so no body is read here.
+    Each book carries its second title and that title's language, ``sub`` and
+    ``sub_lang`` (P63, D248-j7; null when the manifest names none), as both book
+    reads above do. Each loose document carries its ``tags`` (P63, OQ8), only ever
+    of the projects the response is over.
     """
 
     if config.database_url() is None:
@@ -199,6 +211,8 @@ async def org_library(
                 "project": found["project"],
                 "slug": found["slug"],
                 "title": found["title"],
+                "sub": found["sub"],
+                "sub_lang": found["sub_lang"],
                 "kind": found["kind"],
                 "subject": found["subject"],
                 "chapters": [
@@ -214,6 +228,7 @@ async def org_library(
                                 "title": v["title"],
                                 "version": v["version"],
                                 "format": v["format"],
+                                "reading_minutes": v["reading_minutes"],
                             }
                             for v in ch["variants"]
                         ],
@@ -234,6 +249,11 @@ async def org_library(
             "lang": d["lang"] or "en",
             "version": int(d["version"] or 1),
             "subject": d["subject"],
+            "reading_minutes": d["reading_minutes"],
+            # P63 (OQ8): a visitor's documents table draws a document's tags. Only the
+            # documents of the projects this caller may read are here, so a tag
+            # never names anything a private project holds.
+            "tags": d["tags"],
             "canonical_path": (
                 f"/@{tenant.slug}/{d['project']}/{d['slug']}" if tenant.slug else None
             ),

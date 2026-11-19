@@ -49,7 +49,7 @@ export function PrintPrep() {
     let opened: Element[] = [];
     const before = () => {
       opened = Array.from(
-        document.querySelectorAll("details.kb-ch-callout:not([open])"),
+        document.querySelectorAll("details[data-collapsed]:not([open])"),
       );
       for (const d of opened) d.setAttribute("open", "");
     };

@@ -81,7 +81,19 @@ none of them. No request goes to a font host at runtime.
 | `IBMPlexMono-{Regular,Medium}.woff2` | IBM Plex Mono | 400, 500 | `@ibm/plex-mono` 2.5.0, `fonts/complete/woff2/` |
 
 Licence: SIL Open Font License 1.1, Reserved Font Name "Plex" (`plex/IBMPlex-OFL.txt`, the `LICENSE.txt` the
-three packages ship, byte-identical). Font versions: Plex Sans 3.005, Plex Sans KR 1.003 (all 11,172 modern
+three packages ship, byte-identical; `@ibm/plex-math` 1.1.0 ships the same file, byte-identical too). Font versions: Plex Sans 3.005, Plex Sans KR 1.003 (all 11,172 modern
 Hangul syllables, so unbounded Korean stays in the face), Plex Mono 2.005. To refresh:
 `npm pack @ibm/plex-sans @ibm/plex-sans-kr @ibm/plex-mono`, copy the same files here, and never rename or
 subset them in place (a cut file is a Modified Version under the OFL and may not be called "Plex").
+
+### The Library's math face (`plex/IBMPlexMath-Regular.woff2`, P63-fk.S9)
+
+| File | Face | Source | Role |
+|---|---|---|---|
+| `IBMPlexMath-Regular.woff2` (401,540 bytes; SHA-256 `5fc8851c…99ea8a8c`) | IBM Plex Math 1.000, regular (OFL 1.1, Reserved Font Name "Plex"; 4,382 mapped characters and the `MATH` table) | `@ibm/plex-math` 1.1.0 (IBM's own package from the `ibm/plex` repository, published 2024-11-11; read 2026-11-17), `fonts/complete/woff2/IBMPlexMath-Regular.woff2`, **unmodified** | `--font-math` in the Library's reader: every formula of the body (job 03, Library round 02: frame.md F99, Q9) |
+
+Not wired through `next/font`: `src/app/reader-fonts.css` declares one `@font-face` with `local("IBM Plex Math")`
+first, then the file, beside the reader's other faces, so a page fetches it only when it shows math. The licence is
+`plex/IBMPlex-OFL.txt` (above). STIX Two Math stays the next face in the stack and the old reader's own. To
+refresh: `npm pack @ibm/plex-math`, copy that one `woff2` here, check it still carries `MATH`, and never subset or
+rename it in place.

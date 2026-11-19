@@ -1,34 +1,25 @@
-import { AppShell } from "@/components/app-shell";
-import { PublicShell } from "@/components/public-shell";
-import { optionalIdentity } from "@/lib/auth-guards";
-import { loginHref } from "@/lib/next-path";
+import { headers } from "next/headers";
 
-// P30.S22 — the shell of `/@{org}` and every state of it (`06-library` §1 and §9: "the shell
-// stays in every state"). Signed out: the public shell, whose "Sign in" returns to this page.
-// Signed in (a member or not): the app shell, with no item current. The page, its loading and
-// failed states and its not-found all render inside it, because they are children of this layout.
-// The group has no other route: the documents and the reader keep their own, and `/@{org}/graph`
-// (a redirect here since P37-1p retired the graph) keeps its own not-found.
-export default async function OrgLibraryLayout({
-  params,
+import { REQUEST_PATH_HEADER } from "@/lib/next-path";
+
+import { PublicLibraryFrame } from "./frame";
+
+/**
+ * The frame of `/@{org}` and every state of it (frame.md F52, F71: the frame is complete in every
+ * state): the Shell for a signed-in reader, the bar's frame for a visitor (`./frame.tsx`). The page, its
+ * Loading and Error (`(guarded)/`) and its Not found (here) render inside it.
+ *
+ * The group is split in two so an address that is no public library is refused with a real HTTP 404:
+ * `(guarded)/layout.tsx` checks the `@` before any read and above the Loading boundary, and its
+ * `notFound()` lands on this folder's `not-found.tsx` before anything streams. A miss the page finds by a
+ * read sits under the Loading boundary: the response has begun as a 200, so Next marks it noindex (a
+ * soft 404, `next/dist/docs/01-app/03-api-reference/03-file-conventions/loading.md` § Status Codes; OQ6).
+ */
+export default async function PublicLibraryLayout({
   children,
 }: {
-  params: Promise<{ org: string }>;
   children: React.ReactNode;
 }) {
-  const { org } = await params;
-  const ctx = await optionalIdentity();
-  if (ctx) return <AppShell identity={ctx.identity}>{children}</AppShell>;
-  let path = "/";
-  try {
-    const decoded = decodeURIComponent(org);
-    if (decoded.startsWith("@") && decoded.length > 1) path = `/${decoded}`;
-  } catch {
-    // a malformed escape: the page 404s; the link goes to the bare gate
-  }
-  return (
-    <PublicShell signInHref={path === "/" ? "/login" : loginHref(path)}>
-      {children}
-    </PublicShell>
-  );
+  const path = (await headers()).get(REQUEST_PATH_HEADER) ?? "/";
+  return <PublicLibraryFrame path={path}>{children}</PublicLibraryFrame>;
 }

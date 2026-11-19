@@ -46,8 +46,135 @@ class SearchQueryError(ValueError):
 # bm25 column weights: title 8x, tags 4x, body 1x. The FTS columns are ordered
 # (title, tags_text, markdown), so these weights map to those fields respectively.
 _RANK = "bm25(documents_fts, 8.0, 4.0, 1.0)"
-# snippet over column 2 (markdown), hits wrapped in <mark>, ellipsis, up to 12 tokens.
-_SNIPPET = "snippet(documents_fts, 2, '<mark>', '</mark>', '…', 12)"
+# snippet over column 2 (markdown), hits wrapped in <mark>, ellipsis, up to 64 tokens.
+# 64 is FTS5's ceiling for snippet()'s token count (https://www.sqlite.org/fts5.html,
+# "The snippet() Function"); it takes no width in characters. FTS5 centres the
+# fragment on the hits, so 64 tokens leave about 32 words each side: room for the
+# Library's excerpt (48 characters before the match and 72 after, cut by the web)
+# on prose, which 12 tokens was not (P63, OQ3).
+_SNIPPET_TOKENS = 64
+_SNIPPET = f"snippet(documents_fts, 2, '<mark>', '</mark>', '…', {_SNIPPET_TOKENS})"
+
+# The snippet is only the fallback for a match in the text: FTS5 weights a fragment
+# that starts a column or follows "." or ":" (https://www.sqlite.org/fts5.html, 5.1.3,
+# read 2026-11-17), so on real prose it starts at the match's sentence and leaves a
+# few characters before it. A hit on the page that matches in the text has its
+# snippet rebuilt from highlight() (5.1.2: the whole column, every phrase match
+# marked, so the same tokens FTS5 matched, stems and CJK prefixes included), cut
+# around the first match: at least _WANT_BEFORE plain characters before it and
+# _WANT_AFTER after it where the text has them (the Library cuts 48 and 72, P63-S25),
+# never more than _CUT_CAP raw characters either side.
+_HL_OPEN, _HL_CLOSE = "", ""  # private-use: never in a document's text
+_HIGHLIGHT = "highlight(documents_fts, 2, char(57344), char(57345))"
+_WANT_BEFORE = 64
+_WANT_AFTER = 96
+_CUT_CAP = 480
+_CUT_STEP = 8
+_SNAP = 16  # how far a cut may move to land on white space
+_HEADING_RE = re.compile(r"(^|[\s>…])#{1,6}[ \t]+")
+_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_EMPH_RE = re.compile(r"\*\*|__|`+|~~")
+_SENTINEL_RE = re.compile("[]")
+
+
+def _plain_len(text: str) -> int:
+    """Length of ``text`` as the web's ``plainText`` reads it (lib/library/excerpt.ts)."""
+    t = _HEADING_RE.sub(r"\1", _SENTINEL_RE.sub("", text))
+    t = _EMPH_RE.sub("", _LINK_RE.sub(r"\1", t))
+    return len(_WS_RE.sub(" ", t).strip())
+
+
+def _cut_around_match(hl: str) -> Optional[str]:
+    """The snippet for a text match, from ``hl`` (the column with sentinel marks).
+
+    The same shape as FTS5's snippet: ``<mark>`` around each match, ``…`` where the text
+    goes on before or after. None when ``hl`` marks nothing (the match was elsewhere).
+    """
+    i = hl.find(_HL_OPEN)
+    if i < 0:
+        return None
+    e = hl.find(_HL_CLOSE, i)
+    e = len(hl) if e < 0 else e + 1
+    n = len(hl)
+
+    # Before: step back until the plain text holds enough, then snap to white space.
+    a = i
+    while a > 0 and i - a < _CUT_CAP and _plain_len(hl[a:i]) < _WANT_BEFORE:
+        a = max(0, a - _CUT_STEP)
+    if a > 0:
+        ws = next((k for k in range(a, min(a + _SNAP, i)) if hl[k].isspace()), None)
+        if ws is not None:
+            a = ws + 1
+
+    # After: step on likewise; never end inside a later mark.
+    z = e
+    while z < n and z - e < _CUT_CAP and _plain_len(hl[e:z]) < _WANT_AFTER:
+        z = min(n, z + _CUT_STEP)
+    if z < n:
+        ws = next((k for k in range(z, max(z - _SNAP, e), -1) if hl[k].isspace()), None)
+        if ws is not None:
+            z = ws
+    cut = hl[a:z]
+    if cut.rfind(_HL_OPEN) > cut.rfind(_HL_CLOSE):
+        close = hl.find(_HL_CLOSE, z)
+        z = n if close < 0 else close + 1
+        cut = hl[a:z]
+
+    out = cut.replace(_HL_OPEN, "<mark>").replace(_HL_CLOSE, "</mark>")
+    return ("…" if a > 0 else "") + out + ("…" if z < n else "")
+
+
+def _text_cuts(
+    conn: sqlite3.Connection,
+    match: str,
+    ids: list[int],
+    *,
+    tenant_id: Optional[str] = None,
+) -> dict[int, str]:
+    """The snippet cut around the first match in the text, for each of ``ids`` that has one.
+
+    One query (highlight() over the text column, ``_cut_around_match``); an id whose text
+    holds no match (a title or tag match), another tenant's id (``tenant_id`` set), or any
+    failure gives no cut.
+    """
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    sql = f"SELECT documents_fts.rowid AS id, {_HIGHLIGHT} AS hl FROM documents_fts"
+    params: list[Any] = [match, *ids]
+    if tenant_id is not None:
+        sql += " JOIN documents d ON d.id = documents_fts.rowid"
+    sql += f" WHERE documents_fts MATCH ? AND documents_fts.rowid IN ({marks})"
+    if tenant_id is not None:
+        sql += " AND d.tenant_id = ?"
+        params.append(tenant_id)
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.Error:
+        return {}
+    cuts: dict[int, str] = {}
+    for row in rows:
+        cut = _cut_around_match(row["hl"] or "")
+        if cut is not None:
+            cuts[int(row["id"])] = cut
+    return cuts
+
+
+def _widen_snippets(
+    conn: sqlite3.Connection, page: list[dict[str, Any]], match: str, kw_ids: set[int]
+) -> list[dict[str, Any]]:
+    """Rebuild the snippet of each keyword hit on the page that matches in the text.
+
+    One query over the page's keyword hits only; a hit whose text holds no match (a
+    title or tag match), or any failure, keeps FTS5's snippet. Matching, ranking and
+    every other field are untouched.
+    """
+    ids = [int(r["id"]) for r in page if int(r["id"]) in kw_ids]
+    cuts = _text_cuts(conn, match, ids)
+    for r in page:
+        if int(r["id"]) in cuts:
+            r["snippet"] = cuts[int(r["id"])]
+    return page
 
 # Recency signal: a document's freshness contribution decays exponentially with age.
 # recency = exp(-age_days * ln2 / HALF_LIFE_DAYS) — 0 days -> 1.0, HALF_LIFE_DAYS -> 0.5.
@@ -83,6 +210,17 @@ def _recency(date_str: Optional[str], today: datetime.date) -> float:
     return math.exp(-age_days * _LN2 / HALF_LIFE_DAYS)
 
 
+def _phrases(q: str) -> list[str]:
+    """Each whitespace token of ``q`` as an FTS5 phrase (see ``build_match_query``)."""
+    parts: list[str] = []
+    for tok in q.split():
+        quoted = '"' + tok.replace('"', '""') + '"'
+        if _has_cjk(tok):
+            quoted += "*"
+        parts.append(quoted)
+    return parts
+
+
 def build_match_query(q: str) -> str:
     """Wrap each whitespace token in FTS5 double quotes (internal ``"`` doubled).
 
@@ -91,13 +229,20 @@ def build_match_query(q: str) -> str:
     contains CJK/Hangul/Kana characters is emitted as a prefix query (``"tok"*``) so it
     matches inflected forms; pure-ASCII tokens keep exact porter-stemmed matching.
     """
-    parts: list[str] = []
-    for tok in q.split():
-        quoted = '"' + tok.replace('"', '""') + '"'
-        if _has_cjk(tok):
-            quoted += "*"
-        parts.append(quoted)
-    return " ".join(parts)
+    return " ".join(_phrases(q))
+
+
+def text_match_query(q: str) -> str:
+    """The MATCH expression for a match in a document's text (P63, the Library's table).
+
+    The whole query as ``search`` matches it, and at least one of its phrases in the
+    ``markdown`` column: exactly the keyword hits whose snippet over the text marks
+    something. Empty when ``q`` has no token.
+    """
+    parts = _phrases(q)
+    if not parts:
+        return ""
+    return f"({' '.join(parts)}) AND markdown : ({' OR '.join(parts)})"
 
 
 def _parse_tags(raw_tags: Any) -> list[str]:
@@ -325,6 +470,7 @@ def search(
             rec["_score"] = rec["_kwscore"]
         results = [_finalize(r) for r in kw_order]
         page = _attach_chapters(conn, results[offset : offset + limit])
+        page = _widen_snippets(conn, page, match, set(kw))
         return {"results": page, "total": total, "mode": "bm25"}
 
     # --- RRF fusion of the keyword ordering and the vector ordering ---
@@ -354,4 +500,61 @@ def search(
     fused.sort(key=lambda r: (r["_score"], r["date"], r["id"]), reverse=True)
     results = [_finalize(r) for r in fused]
     page = _attach_chapters(conn, results[offset : offset + limit])
+    page = _widen_snippets(conn, page, match, set(kw))
     return {"results": page, "total": len(records), "mode": "hybrid"}
+
+
+# The Library's documents table (P63) reads, for a search, every document whose text
+# matches (``text_matches``: ids only, to count and page the table) and the excerpt of the
+# rows on its page (``text_snippets``, at most TEXT_SNIPPET_IDS ids). Both are keyword-only:
+# they never embed the query, so a table render pays for no embedding whatever the
+# library's size. A document that matches only by meaning has nothing in its text to mark,
+# so the table never showed one.
+TEXT_SNIPPET_IDS = 50
+
+
+def text_matches(
+    conn: sqlite3.Connection, q: str, *, tenant_id: Optional[str] = None
+) -> list[int]:
+    """The ids of every document whose text matches ``q`` (``text_match_query``), ascending.
+
+    Unbounded, like the org's listing the table pages: one id per matching document of the
+    tenant (``tenant_id``), chapter variants and superseded copies included (the table keeps
+    only its own rows, by id). Never embeds the query. Blank ``q`` -> ``[]``.
+    """
+    match = text_match_query(q or "")
+    if not match:
+        return []
+    sql = (
+        "SELECT d.id FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid "
+        "WHERE documents_fts MATCH ?"
+    )
+    params: list[Any] = [match]
+    if tenant_id is not None:
+        sql += " AND d.tenant_id = ?"
+        params.append(tenant_id)
+    sql += " ORDER BY d.id"
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except sqlite3.OperationalError as exc:
+        raise SearchQueryError(str(exc)) from exc
+    return [int(r["id"]) for r in rows]
+
+
+def text_snippets(
+    conn: sqlite3.Connection,
+    q: str,
+    ids: list[int],
+    *,
+    tenant_id: Optional[str] = None,
+) -> dict[int, str]:
+    """The excerpt snippet of each of ``ids`` whose text matches ``q``: id -> snippet.
+
+    The same snippet ``search`` gives a text match on its page (``<mark>`` around each
+    match, ``…`` where the text goes on, cut around the first match). An id that is not a
+    text match, or not the tenant's, is absent. Never embeds the query.
+    """
+    match = text_match_query(q or "")
+    if not match or not ids:
+        return {}
+    return _text_cuts(conn, match, [int(i) for i in ids], tenant_id=tenant_id)

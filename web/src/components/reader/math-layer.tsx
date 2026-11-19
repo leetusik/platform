@@ -32,8 +32,13 @@ export function MathLayer({ chapter }: { chapter: string }) {
   // `chapter` (document, version, language) re-runs the measure when the reader moves to
   // another chapter and this layer stays mounted.
   useEffect(() => {
+    // P63-fk.S9: the body and its kept runs by the reader's hooks (`HOOK`), in either look.
     const roots = () =>
-      Array.from(document.querySelectorAll<HTMLElement>(".rd-prose > .kb-ch"));
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "[data-reader-prose] > [data-reader-body]",
+        ),
+      );
     const run = () => {
       for (const root of roots()) {
         fitRadicals(root);
@@ -41,7 +46,7 @@ export function MathLayer({ chapter }: { chapter: string }) {
         fitKeeps(root);
       }
     };
-    if (!roots().some((r) => r.querySelector("math, .ra-keep"))) return;
+    if (!roots().some((r) => r.querySelector("math, [data-keep]"))) return;
     run();
     let alive = true;
     document.fonts?.ready.then(() => alive && run()).catch(() => {});
@@ -72,7 +77,7 @@ export function MathLayer({ chapter }: { chapter: string }) {
       ro?.observe(r);
       // P39-hk.F2: a formula held with its particle changes the pair's width when its own box
       // turns on or off (`InlineFormula`'s `is-over`), with no other change to see: fit again.
-      for (const f of r.querySelectorAll<HTMLElement>(".ra-keep > .ra-mi"))
+      for (const f of r.querySelectorAll<HTMLElement>("[data-keep] > .ra-mi"))
         ro?.observe(f);
       shown?.observe(r, {
         subtree: true,
@@ -123,7 +128,7 @@ function fitLegends(root: HTMLElement): void {
  * whose runs are being read, which would then be read against a line the reader never sees.
  */
 function fitKeeps(root: HTMLElement): void {
-  const keeps = Array.from(root.querySelectorAll<HTMLElement>(".ra-keep"));
+  const keeps = Array.from(root.querySelectorAll<HTMLElement>("[data-keep]"));
   if (keeps.length === 0) return;
   const styled = root.hasAttribute("style");
   const clip = root.style.overflowX;

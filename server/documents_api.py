@@ -34,6 +34,10 @@ documents surface codes against — eight reads and one delete:
   (P21.S1): member-only (``require_user``, **no** public fallback), 204 on success.
 * ``GET /app/search`` — full-text/hybrid search over the tenant's documents →
   ``{query, mode, total, limit, offset, results}``.
+* ``GET /app/search/text`` — the ids of every tenant document whose TEXT matches
+  ``q`` → ``{query, total, ids}``; and ``GET /app/search/snippets?ids=…`` — the
+  excerpt snippet of up to 50 of them → ``{query, snippets}`` (P63, the Library's
+  documents table). Keyword-only: neither embeds the query.
 
 These reuse the S1 content-store/search layer **as-is** (``server/db.py`` +
 ``server/search.py``), scoped with ``tenant_id=str(ctx.tenant.id)`` from
@@ -80,6 +84,7 @@ from server import publish_gate
 from server import search as search_mod
 from server.accounts.auth import AuthContext, optional_user, require_user
 from server.accounts.service import get_accounts_service
+from server.accounts.types import TenantRecord
 from server.api_auth import ApiAuthContext, get_tenant_one_id
 
 router = APIRouter()
@@ -119,9 +124,14 @@ def _app_doc(doc: dict, *, include_markdown: bool) -> dict:
     drop = set(_DROP)
     if not include_markdown:
         # The list shape carries neither the body nor the asset map (P30.S4) nor the
-        # native source (P30.S5): all are detail-level, and the list's key set stays
-        # what it was.
-        drop |= {"markdown", "assets", "source"}
+        # native source (P30.S5) nor the reading time (P63: the Library reads it from
+        # the org library and the book reads) nor the version's own publish time (P63,
+        # D171-qk: the reader and the book read it from the document and its
+        # versions): all are detail-level, and the list's key set stays what it was.
+        drop |= {
+            "markdown", "assets", "source", "reading_minutes",
+            "published", "published_best_effort",
+        }
     return {k: v for k, v in doc.items() if k not in drop}
 
 
@@ -299,32 +309,45 @@ def _chapter_of(conn, doc: dict) -> dict[str, str] | None:
     return db.chapter_bindings_for_docs(conn, [doc["id"]]).get(int(doc["id"]))
 
 
-async def _owner_org_slug(doc: dict, ctx: AuthContext | None) -> str | None:
-    """The owning tenant's org slug, or ``None`` — free on the member path.
+async def _owner_tenant(doc: dict, ctx: AuthContext | None) -> TenantRecord | None:
+    """The owning tenant, or ``None`` — free on the member path.
 
-    The owner's slug is already loaded on ``AuthContext.tenant`` when the caller IS
-    the owner, so a member's detail read stays **Postgres-free**, exactly as
+    The owner is already loaded on ``AuthContext.tenant`` when the caller IS the
+    owner, so a member's detail read stays **Postgres-free**, exactly as
     ``_resolve_readable_doc``'s member fast-path is today. Only the anonymous /
     cross-org path pays a tenant lookup — that branch already makes a Postgres call
-    for the visibility gate. Legacy mode, a registry-less owner and a slug-less
-    owner all answer ``None``.
+    for the visibility gate. Legacy mode and a registry-less owner answer ``None``.
     """
 
     owner = str(doc.get("tenant_id") or "")
     if ctx is not None and owner == str(ctx.tenant.id):
-        return ctx.tenant.slug
+        return ctx.tenant
     if config.database_url() is None or not owner:
         return None
     try:
         owner_uuid = UUID(owner)
     except (ValueError, TypeError):
         return None
-    tenant = await get_accounts_service().get_tenant(owner_uuid)
-    return None if tenant is None else tenant.slug
+    return await get_accounts_service().get_tenant(owner_uuid)
+
+
+def _org_of(tenant: TenantRecord | None) -> dict[str, str | None] | None:
+    """The owning org as a reader names it (P63): its slug and display name, the
+    ``org`` key's ``slug`` and ``name`` of ``GET /app/orgs/{org}/library``.
+
+    Additive on the two DETAIL reads, which a caller makes only for a document it
+    may already read, so it names nothing that org's public library does not:
+    a visitor's way back reads the org's name instead of its slug. ``None`` in
+    legacy mode or for a registry-less owner.
+    """
+
+    if tenant is None:
+        return None
+    return {"slug": tenant.slug, "name": tenant.name}
 
 
 async def _document_canonical_path(
-    conn, doc: dict, ctx: AuthContext | None
+    conn, doc: dict, tenant: TenantRecord | None
 ) -> str | None:
     """Resolve ``doc``'s canonical path for this caller, or ``None``.
 
@@ -338,7 +361,7 @@ async def _document_canonical_path(
     which is precisely the slug-less contract, now shared by superseded duplicates.
     """
 
-    org_slug = await _owner_org_slug(doc, ctx)
+    org_slug = None if tenant is None else tenant.slug
     if not org_slug or not _owns_its_canonical_path(conn, doc):
         return None
     return _canonical_path(org_slug, doc)
@@ -406,10 +429,12 @@ async def get_document(
     doc = await _resolve_readable_doc(conn, doc_id, ctx)
     if doc is None:
         raise HTTPException(status_code=404, detail=f"no document with id {doc_id}")
+    tenant = await _owner_tenant(doc, ctx)
     return {
         **_app_doc(doc, include_markdown=True),
-        "canonical_path": await _document_canonical_path(conn, doc, ctx),
+        "canonical_path": await _document_canonical_path(conn, doc, tenant),
         "chapter": _chapter_of(conn, doc),
+        "org": _org_of(tenant),
     }
 
 
@@ -450,20 +475,21 @@ async def resolve_document_by_slug(
     resolved = await _resolve_readable_slug(conn, org, project, slug, ctx)
     if resolved is None:
         raise _no_such_path()
-    doc, tenant_slug, _is_member = resolved
+    doc, tenant, _is_member = resolved
     return {
         **_app_doc(doc, include_markdown=True),
-        "canonical_path": _canonical_path(tenant_slug, doc),
+        "canonical_path": _canonical_path(tenant.slug, doc),
         "chapter": _chapter_of(conn, doc),
+        "org": _org_of(tenant),
     }
 
 
 async def _resolve_readable_slug(
     conn, org: str, project: str, slug: str, ctx: AuthContext | None
-) -> tuple[dict, str, bool] | None:
+) -> tuple[dict, TenantRecord, bool] | None:
     """The slug resolver's trust gate, shared by the document and asset routes.
 
-    ``(doc, org slug, is_member)`` or ``None`` for every miss: legacy mode, an
+    ``(doc, owning tenant, is_member)`` or ``None`` for every miss: legacy mode, an
     unknown org slug, no such document, or a private project for a non-member — all
     indistinguishable to the caller (404-never-403).
     """
@@ -479,7 +505,7 @@ async def _resolve_readable_slug(
     is_member = ctx is not None and ctx.tenant.id == tenant.id
     if not is_member and not await _is_publicly_readable(doc):
         return None
-    return doc, tenant.slug, is_member
+    return doc, tenant, is_member
 
 
 @router.get("/app/documents/{doc_id}/raw")
@@ -778,7 +804,7 @@ async def get_document_asset_by_slug(
     resolved = await _resolve_readable_slug(conn, org, project, slug, ctx)
     if resolved is None:
         raise _no_such_asset()
-    doc, _tenant_slug, is_member = resolved
+    doc, _tenant, is_member = resolved
     return await _asset_response(conn, doc, file, public=not is_member)
 
 
@@ -926,3 +952,48 @@ async def search(
         "offset": offset,
         "results": out["results"],
     }
+
+
+@router.get("/app/search/text")
+async def search_text(
+    q: str,
+    ctx: AuthContext = Depends(require_user),
+    conn=Depends(get_conn),
+) -> dict[str, object]:
+    """Every document of the caller's tenant whose text matches ``q`` (P63, the Library).
+
+    → ``{query, total, ids}``: the ids, ascending, of the documents whose text holds the
+    query as ``/app/search`` matches it (``search.text_match_query``). The Library's
+    documents table counts and pages its search over these (its title and tag matches
+    are its own), so one read serves any library size. Keyword-only: the query is never
+    embedded, so it costs no embedding call whatever the embeddings setting.
+    """
+    try:
+        ids = search_mod.text_matches(conn, q, tenant_id=str(ctx.tenant.id))
+    except search_mod.SearchQueryError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid FTS query: {exc}")
+    return {"query": q, "total": len(ids), "ids": ids}
+
+
+@router.get("/app/search/snippets")
+async def search_snippets(
+    q: str,
+    ids: list[int] = Query(...),
+    ctx: AuthContext = Depends(require_user),
+    conn=Depends(get_conn),
+) -> dict[str, object]:
+    """The excerpt snippet of each of ``ids`` whose text matches ``q`` (P63, the Library).
+
+    → ``{query, snippets}``, ``snippets`` id → the snippet ``/app/search`` gives a text
+    match on its page (``<mark>`` delimiters, cut around the first match). At most
+    ``search.TEXT_SNIPPET_IDS`` ids (one page of the table), else **422**; an id that is
+    not a text match or not the caller's tenant's is absent. Keyword-only, like
+    ``/app/search/text``.
+    """
+    if len(ids) > search_mod.TEXT_SNIPPET_IDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"at most {search_mod.TEXT_SNIPPET_IDS} ids",
+        )
+    snippets = search_mod.text_snippets(conn, q, ids, tenant_id=str(ctx.tenant.id))
+    return {"query": q, "snippets": {str(k): v for k, v in snippets.items()}}

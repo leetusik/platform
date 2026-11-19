@@ -616,10 +616,16 @@ function Chart({ m }: { m: ChartModel }): ReactNode {
 }
 
 /** The chart's data, as a visually hidden table (build prompt "The text alternative"). */
-function ChartTable({ m }: { m: ChartModel }): ReactNode {
+function ChartTable({
+  m,
+  srClass = "dg__sr",
+}: {
+  m: ChartModel;
+  srClass?: string;
+}): ReactNode {
   const t = m.table;
   return (
-    <div className="dg__sr">
+    <div className={srClass}>
       <table>
         <caption>{t.caption}</caption>
         <thead>
@@ -661,10 +667,12 @@ export function diagramParts(
   kind: DiagramKind,
   text: (s: string) => ReactNode,
   lead: string,
+  /** The text alternative's visually hidden class (the old body's `dg__sr`; the Library's `sr-only`, P63-fk.S9). */
+  srClass = "dg__sr",
 ): { drawing: ReactNode; alt: ReactNode } {
   const list = (lines: string[], ordered: boolean): ReactNode =>
     lines.length ? (
-      <div className="dg__sr">
+      <div className={srClass}>
         <p>{lead}</p>
         {ordered ? (
           <ol>
@@ -694,7 +702,10 @@ export function diagramParts(
     }
     case "chart": {
       const m = buildChart(d);
-      return { drawing: <Chart m={m} />, alt: <ChartTable m={m} /> };
+      return {
+        drawing: <Chart m={m} />,
+        alt: <ChartTable m={m} srClass={srClass} />,
+      };
     }
     default: {
       const L = layoutFor(d, kind);

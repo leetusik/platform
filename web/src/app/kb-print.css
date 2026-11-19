@@ -404,45 +404,23 @@
   html .rd-root .pp-notice__addr { max-width: 40em; padding: 12px 14px; border: 1px solid var(--pp-ink); border-radius: 4px; font: 14px/1.5 var(--pp-mono); color: var(--pp-ink); overflow-wrap: anywhere; }
   html .rd-root .pp-notice__printed { margin-top: 8px; font: 12px/1.45 var(--pp-mono); color: var(--pp-sec); }
   html .rd-root .pp-notice :lang(ko) { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+  /* P63-fk.S13: an html document now opens in its Original layout on the Library's frame (`.ui`; the frame and the
+     rest of the page are hidden on paper by its own sheets, `hi2vi/styles/library/document.css` and `reader.css`).
+     That page has no bar under the document and no Print · new tab, so the notice's last line, which points at
+     them, does not print there; the address above it still says where to print from. An html chapter's legacy
+     reader (no `.ui`) prints the notice whole, as before. */
+  html .ui .rd-root .pp-notice > .pp-notice__p:has(+ .pp-notice__printed) { display: none; }
 }
 
 /* ==========================================================================
-   PART 4 — the older document page (P28.S8, unchanged)
-   `/documents/{id}/versions/{v}`, the past-version page of a Markdown or native
-   document, still draws the P28 document frame (`.kb-doc`, `.kb-prose`) with its
-   own masthead, colophon and Export PDF control (`print-blocks.tsx`,
-   `export-pdf-button.tsx`). The reader's sheet above replaces them everywhere the
-   reader renders; this half keeps that one page printing as it did. Retiring it is
-   a redirect of that route to the reader (deferred: see P30's notebook).
+   PART 4 — what the console's old pages keep on paper (P28.S8)
+   The past-version document page and its print layer (masthead, colophon, Export PDF)
+   retired in P63 (`/documents/{id}/versions/{v}` redirects to the reader's Versions
+   view). What stays is what a console page that still draws the P28 classes prints
+   with: the feedback record's panel and its metadata strip.
    ========================================================================== */
 @media print {
-  .kb-docbar, .kb-docversions, .kb-docfull__exit { display: none !important; }
-  /* -------- The layout --------------------------------------------------- */
-  /* Containers, grids and caps all go: the PAGE BOX is now the measure. At A4
-     with 15mm side margins the text column is 180mm ≈ 41rem, which is
-     `--kb-measure` to within a millimetre — the reading column designed for
-     screen turns out to be the shape of a sheet of paper, so the prose grid
-     simply collapses to one column and the bleed track disappears with it. */
-  .kb-app-layout, .kb-app-main { display: block; padding: 0; margin: 0; max-width: none; }
-  .kb-doc { display: block; max-width: none; }
-  .kb-prose { display: block; font-size: 10.5pt; line-height: 1.5; }
-  .kb-prose > * { max-width: none; }
-  .kb-doc__body, .kb-panel { background: transparent; border: 0; border-radius: 0; padding: 0; }
-
-  /* -------- The masthead (print-only, first page) ------------------------ */
-  /* Four facts a printed page must carry that a screen never has to: where it
-     came from, which version it is, when it was taken off the screen, and who
-     made it. Rendered print-only so it never appears in the app. */
-  .kb-printonly { display: block; }
-  .kb-printhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1.1rem; border-bottom: 0.75pt solid var(--kb-border-strong); padding-bottom: 6pt; margin-bottom: 14pt; font-family: var(--kb-font-mono); font-size: 7.5pt; letter-spacing: 0.04em; text-transform: uppercase; color: var(--kb-hint); }
-  .kb-printhead__word { font-family: var(--kb-font-display); font-size: 11pt; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--kb-ink); margin-right: auto; }
-  .kb-printhead__url { text-transform: none; letter-spacing: 0; color: var(--kb-secondary); overflow-wrap: anywhere; }
-
-  /* -------- The title block ---------------------------------------------- */
-  .kb-dochead { display: block; margin-bottom: 10pt; break-after: avoid; }
-  .kb-dochead .kb-app-eyebrow { font-size: 7.5pt; color: var(--kb-hint); }
-  .kb-dochead .kb-app-title { font-size: 20pt; line-height: 1.2; margin: 3pt 0 0; }
-  .kb-dochead .kb-app-sub { font-size: 8.5pt; margin-top: 3pt; }
+  .kb-panel { background: transparent; border: 0; border-radius: 0; padding: 0; }
 
   /* -------- The metadata strip ------------------------------------------- */
   /* It prints, but not as a grid of fields: on paper it is one wrapped
@@ -458,62 +436,4 @@
   .kb-docmeta__field--tags .kb-docmeta__value { display: inline; }
   .kb-docmeta .kb-chip { display: inline; background: none; border: 0; padding: 0; color: var(--kb-secondary); font-size: 7.5pt; text-transform: none; letter-spacing: 0.02em; }
   .kb-docmeta .kb-chip + .kb-chip::before { content: ", "; }
-
-  /* -------- The superseded stamp (DECISION · question 9) ----------------- */
-  /* It prints, and it is the loudest thing on the sheet. A reader holding a
-     piece of paper is the one reader who cannot check whether it is current,
-     and a printed archive body that does not say so is the single most
-     dangerous artefact this product can produce. Boxed, above the title, and
-     never split across a break. */
-  .kb-docnotice { display: block; border: 1.25pt solid var(--kb-status-idle); border-left-width: 4pt; background: transparent; padding: 6pt 8pt; margin-bottom: 12pt; font-size: 9pt; font-weight: 600; color: var(--kb-status-idle-ink); break-inside: avoid; break-after: avoid; }
-  .kb-docnotice .kb-status__dot { display: none; }
-
-  /* -------- Prose on paper ------------------------------------------------ */
-  .kb-prose h1, .kb-prose h2, .kb-prose h3, .kb-prose h4, .kb-prose h5, .kb-prose h6 { break-after: avoid; break-inside: avoid; margin: 16pt 0 5pt; color: #000000; }
-  .kb-prose h1 { font-size: 15pt; }
-  .kb-prose h2 { font-size: 13pt; border-bottom: 0.5pt solid var(--kb-border); padding-bottom: 2pt; }
-  .kb-prose h3 { font-size: 11.5pt; }
-  .kb-prose h4, .kb-prose h5, .kb-prose h6 { font-size: 10.5pt; }
-  .kb-prose p, .kb-prose li { orphans: 3; widows: 3; }
-  .kb-prose p { margin: 6pt 0; }
-  .kb-prose blockquote, .kb-prose figure, .kb-prose img { break-inside: avoid; }
-  .kb-prose pre { break-inside: auto; white-space: pre-wrap; overflow: visible; background: var(--kb-surface-sunken); border: 0.5pt solid var(--kb-border); font-size: 8.5pt; line-height: 1.45; padding: 6pt 8pt; margin: 8pt 0; }
-  .kb-prose code { background: transparent; border: 0; padding: 0; font-size: 9pt; }
-  .kb-prose pre code { font-size: inherit; }
-  /* A code fence is the one block allowed to break, because a 200-line fence
-     that may not break leaves a blank page in front of it. It breaks with a
-     hairline continuation rule instead of silently. */
-  .kb-prose pre { box-decoration-break: clone; }
-
-  /* Tables lose the scroller — there is nothing to scroll — and are allowed to
-     break, repeating their header row, because a wide GFM table is often the
-     reason the document was printed at all. */
-  .kb-prose__wide { overflow: visible; background: none; margin: 8pt 0; }
-  .kb-prose table { min-width: 0; width: 100%; font-size: 8.5pt; break-inside: auto; }
-  .kb-prose thead { display: table-header-group; }
-  .kb-prose tr { break-inside: avoid; }
-  .kb-prose th, .kb-prose td { border: 0.5pt solid var(--kb-border); padding: 3pt 5pt; }
-  .kb-prose th { background: var(--kb-surface-sunken); font-size: 7pt; }
-  .kb-prose tbody tr:nth-child(even) { background: transparent; }
-
-  /* -------- Links on paper (DECISION · question 7) ----------------------- */
-  /* The target is printed after the text, in mono, for every link whose href
-     is not already its own text. A printed link with no URL is a dead end; a
-     printed URL after "here" is the difference between a document and a
-     souvenir. `MarkdownBody` absolutizes relative hrefs against the canonical
-     URL before this rule ever sees them (see the contract) and marks a link
-     whose text IS its href with `data-bare`, which suppresses the repeat. */
-  .kb-prose a { color: var(--kb-ink); border-bottom: 0.5pt solid var(--kb-border-strong); text-decoration: none; }
-  .kb-prose a[href]::after { content: " (" attr(href) ")"; font-family: var(--kb-font-mono); font-size: 7.5pt; color: var(--kb-hint); word-break: break-all; }
-  .kb-prose a[data-bare]::after, .kb-prose a[href^="#"]::after { content: none; }
-
-  /* -------- The colophon (print-only, last) ------------------------------ */
-  /* Where this came from and when — repeated from the masthead on purpose,
-     because the first page and the last page get separated. */
-  .kb-printfoot { display: block; margin-top: 16pt; padding-top: 6pt; border-top: 0.75pt solid var(--kb-border); font-family: var(--kb-font-mono); font-size: 7.5pt; line-height: 1.6; color: var(--kb-hint); break-inside: avoid; }
-  .kb-printfoot b { font-weight: 600; color: var(--kb-secondary); }
-  .kb-printfoot span { overflow-wrap: anywhere; }
 }
-
-/* -------- Screen: the older page's print-only blocks are not there ------ */
-.kb-printonly, .kb-printhead, .kb-printfoot { display: none; }

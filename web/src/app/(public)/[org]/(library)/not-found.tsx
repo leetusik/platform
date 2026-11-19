@@ -1,10 +1,30 @@
-import { LibraryNotFound } from "@/components/library/library-states";
-import { optionalIdentity } from "@/lib/auth-guards";
+import { headers } from "next/headers";
 
-// P30.S22 — `/@{org}`'s not-found (`06-library` §9, the constant 404): "Library not found", with
-// one secondary action: signed out "Sign in", signed in "‹ Back to your library". It renders inside
-// the layout's shell, so the shell stays.
-export default async function OrgLibraryNotFound() {
-  const ctx = await optionalIdentity();
-  return <LibraryNotFound signedIn={ctx !== null} />;
+import { StateBlock } from "@/hi2vi/states";
+import { optionalIdentity } from "@/lib/auth-guards";
+import { REQUEST_PATH_HEADER } from "@/lib/next-path";
+import { signInFrom } from "@/lib/public-library/model";
+
+import { libraryNotFound } from "./parts";
+
+/**
+ * Library not found (`PublicLibrary.dc.html`, Not found; frame.md F71; D249-7z), inside the layout's
+ * frame: an address with no `@` (any unknown one-segment address, `/nope`), an unknown org, and an org
+ * that shows this reader nothing public. A visitor reads the visitor's words and **Sign in**; a
+ * signed-in reader the member's words and **Back to Library**, with no rail item current.
+ */
+export default async function PublicLibraryNotFound() {
+  const [ctx, path] = await Promise.all([
+    optionalIdentity(),
+    headers().then((h) => h.get(REQUEST_PATH_HEADER) ?? "/"),
+  ]);
+  return (
+    <StateBlock
+      state={libraryNotFound(
+        ctx
+          ? { viewer: "member" }
+          : { viewer: "visitor", signInHref: signInFrom(path) },
+      )}
+    />
+  );
 }

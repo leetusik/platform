@@ -17,6 +17,8 @@ import type {
   KbProjectUsage,
   KbSearchPage,
   KbTenant,
+  KbTextMatches,
+  KbTextSnippets,
   KbUsage,
 } from "./types";
 
@@ -139,7 +141,8 @@ export async function getUsage(
 
 /**
  * `GET /app/dashboard` (bearer) → 200 `{projects, activity}` — the P12.S3 tenant
- * rollup: per-project `documents`/`keys`/`last_used_at` plus a newest-first
+ * rollup: per-project `documents`/`active_documents`/`keys`/`last_used_at` (the live
+ * `active_documents` since P63, so org home makes no per-project count read) plus a newest-first
  * lifecycle activity feed, assembled server-side so the browser makes one
  * round-trip. Called BARE (30-day window). No envelope — the payload IS the
  * response. Tenant-scoped + unmetered on the backend.
@@ -478,7 +481,8 @@ export async function getBook(
 }
 
 /**
- * `GET /app/orgs/{org}/library` → 200 the org's books and loose documents (P30.S22).
+ * `GET /app/orgs/{org}/library` → 200 the org's books and loose documents (P30.S22),
+ * each document and chapter variant with its `reading_minutes` (P63).
  * `org` is the BARE slug, or the tenant id for a tenant without one. OPTIONAL-IDENTITY: a
  * member reads every project (`scope: "all"`) or only the public ones (`"public"`, the
  * org's public page); anyone else reads the public ones. Every miss, an unknown org or an
@@ -595,10 +599,13 @@ export async function getDocumentVersion(
   version: number,
   signal?: AbortSignal,
 ): Promise<KbDocumentVersion> {
-  return getJson<KbDocumentVersion>(`/app/documents/${id}/versions/${version}`, {
-    token,
-    signal,
-  });
+  return getJson<KbDocumentVersion>(
+    `/app/documents/${id}/versions/${version}`,
+    {
+      token,
+      signal,
+    },
+  );
 }
 
 /**
@@ -655,8 +662,43 @@ export async function searchDocuments(
   query: KbDocumentsQuery & { q: string },
   signal?: AbortSignal,
 ): Promise<KbSearchPage> {
-  return getJson<KbSearchPage>(
-    `/app/search${documentsQueryString(query)}`,
+  return getJson<KbSearchPage>(`/app/search${documentsQueryString(query)}`, {
+    token,
+    signal,
+  });
+}
+
+/**
+ * `GET /app/search/text?q=` (bearer) → 200 `{query, total, ids}` (P63): every document of the
+ * caller's tenant whose text matches `q`, ids only. One read whatever the library's size, and
+ * keyword-only: it never embeds the query (no paid call). The Library's table counts and pages its
+ * search over these.
+ */
+export async function searchText(
+  token: string,
+  q: string,
+  signal?: AbortSignal,
+): Promise<KbTextMatches> {
+  return getJson<KbTextMatches>(
+    `/app/search/text?${new URLSearchParams({ q })}`,
     { token, signal },
   );
+}
+
+/**
+ * `GET /app/search/snippets?q=&ids=…` (bearer) → 200 `{query, snippets}` (P63): the excerpt
+ * snippet of each of `ids` (at most 50; one page of the table) whose text matches `q`. Keyword-only.
+ */
+export async function searchSnippets(
+  token: string,
+  q: string,
+  ids: readonly number[],
+  signal?: AbortSignal,
+): Promise<KbTextSnippets> {
+  const query = new URLSearchParams({ q });
+  for (const id of ids) query.append("ids", String(id));
+  return getJson<KbTextSnippets>(`/app/search/snippets?${query}`, {
+    token,
+    signal,
+  });
 }

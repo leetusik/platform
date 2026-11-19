@@ -18,10 +18,12 @@ _PAYLOAD = {
 }
 # Byte-exact frontmatter the serializer must emit (title via json.dumps).
 # Note: source_repo is sanitized at write time (absolute paths -> basename).
+_PUBLISHED = "2026-07-02T09:30:00Z"
 _EXPECTED_FM = (
     '---\n'
     'title: "API Smoke Test: Colons & Quotes"\n'
     'date: 2026-07-02\n'
+    'published: "2026-07-02T09:30:00Z"\n'
     'tags:\n  - testing\n  - api\n'
     'source:\n  project: test-project\n  repo: test-project\n'
     '---\n'
@@ -45,6 +47,9 @@ def client(tmp_path, monkeypatch):
     _git(tmp_path, "commit", "-m", "seed")
     monkeypatch.setenv("KB_ROOT", str(tmp_path))
     monkeypatch.setenv("KB_DB_PATH", str(tmp_path / "data" / "kb.sqlite3"))
+    # P63 (D171-qk): a publish stamps its own time into the header; pin it so the
+    # byte-exact file pins below stay exact.
+    monkeypatch.setattr("server.documents.now_stamp", lambda: _PUBLISHED)
     from server.main import app  # imported after env is set
 
     return TestClient(app), tmp_path

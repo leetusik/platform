@@ -1,0 +1,387 @@
+/* hi2vi — the Library: highlights, notes and bookmarks in the text (`Annotations.css`). Owner: P63-fk.S11; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+   P63-fk.S11 transcribes the signed sheet's sections 1 to 7 (8 is in frame.css since the join; 9 is the canvas's).
+   Changes from the signed sheet:
+   - the names: every `.an-*` class but the paint is built as `.marks-*` (`.an-box` is `.marks-box`, `.an-note-text`
+     is `.marks-note-text`, …): the old reader's sheet (`app/reader.css`, still loaded for Listen's old look) styles
+     `.an-box`, `.an-float`, `.an-slot`, `.an-pick`, `.an-place` and `.an-notes` with no scope. The paint keeps the
+     signed `.an-m` and `.an-pending`, which the old sheets style only under the old root.
+   - section 2: `.an-block` is not built: a group of notes is a node of its own after its block, placed against the
+     article (`.blocks-host`, blocks.css section B), and the margin's state `.is-rail` is on the group itself, with its
+     top and width from the layer (`--marks-top`, `--marks-rail-w`, set on the node); `.in-margin` (a board's sample)
+     reads `.is-rail`.
+   - section 3: `.an-col` is not built: the floating parts are placed against the article too; a part not placed yet
+     is hidden (`data-placed="0"`).
+   - section 5: the box's height is also capped at 80% of the window, as the product capped it (the record's own words).
+   - section 6: `.pill > .link-row[aria-pressed="true"]` is written on the place bar, the one pill that has one.
+   - section 7: the Notes sheet's count sits in the frame's sheet head (`Sheet` takes a title only), after the title on
+     its baseline, Close kept at the end; the signed `.an-sheet-title` wrapper is not built. The title's top margin
+     puts the baseline pair on Close's centre line, where the centred wrapper sits (P63-fk.S22).
+   - paper: nothing of the marks prints, and the highlights print unpainted (moved here from blocks.css's bridge). */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* 1 ── the paint: a highlight is the accent's tint with a line under it, so it is never colour alone ── */
+  .an-m {
+    padding: 0;
+    border-bottom: 1px solid var(--ink-2);
+    border-radius: 0;
+    background: var(--accent-tint);
+    color: inherit;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .an-m.is-2 {
+    background: color-mix(in srgb, var(--accent) 22%, var(--accent-tint));
+  }
+  .an-m.has-note,
+  .an-m:hover {
+    border-bottom-width: 2px;
+  }
+  .an-m.is-open {
+    border-bottom: 2px solid var(--accent);
+  }
+  /* being selected, not saved yet: a dashed line, so it is never taken for a highlight */
+  .an-pending {
+    padding: 0;
+    border-bottom: 1px dashed var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: inherit;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .an-m.is-pending {
+    border-bottom-style: dashed;
+    border-bottom-color: var(--accent);
+  }
+  .read-code .an-m,
+  .read-code .an-pending {
+    font: inherit;
+  }
+
+  /* 2 ── the notes beside the text: under their block, and in the margin where the page has the room (.is-rail) ── */
+  .marks-notes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .marks-note {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-1);
+    width: 100%;
+    min-height: var(--control-h);
+    margin: 0;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+    border: 0;
+    border-left: 2px solid var(--edge);
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink);
+    font: 400 var(--fs-text) / var(--lh-text) var(--font);
+    text-align: left;
+    cursor: pointer;
+  }
+  .marks-note:hover {
+    background: var(--hover);
+  }
+  .marks-note[aria-current="true"] {
+    border-left-color: var(--accent);
+    background: var(--accent-tint);
+  }
+  .marks-note-kind {
+    color: var(--ink-2);
+    font-size: var(--fs-meta);
+    font-weight: 500;
+    line-height: var(--lh-meta);
+  }
+  .marks-note-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+  .marks-notes.is-rail {
+    position: absolute;
+    top: var(--marks-top, 0px);
+    left: calc(100% + var(--space-5));
+    width: var(--marks-rail-w, 220px);
+    font-size: var(--fs-text);
+  }
+  .marks-notes.is-rail .marks-note-text {
+    -webkit-line-clamp: 4;
+  }
+
+  /* 3 ── what floats in the column: the bar, Sign in to save and the box sit under the passage they act on ── */
+  .marks-float {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    max-width: 100%;
+  }
+  .marks-float[data-placed="0"] {
+    visibility: hidden;
+  }
+  .marks-float.is-box {
+    width: min(26em, 100%);
+    font-size: var(--fs-text);
+  }
+  .marks-float.is-save {
+    width: min(30em, 100%);
+    box-shadow: var(--shadow);
+    border-radius: var(--radius-m);
+  }
+
+  /* 4 ── the bar a selection shows ── */
+  .marks-bar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: fit-content;
+    max-width: min(28em, 100%);
+    padding: var(--space-2);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .marks-bar-line {
+    padding: var(--space-1) var(--space-2) 0;
+    text-wrap: pretty;
+  }
+  .marks-bar-line:only-child {
+    padding-bottom: var(--space-1);
+  }
+  /* a button that is on or off: pressed, it is filled as a choice is (frame.md F58) and its word changes */
+  .marks-toggle[aria-pressed="true"],
+  .marks-toggle[aria-pressed="true"]:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  /* 5 ── the box of a mark ── */
+  .marks-box {
+    display: flex;
+    flex-direction: column;
+    max-height: min(36em, 80vh);
+    overflow-y: auto;
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  /* the head's button sits over the body's own buttons, so it shares their 16 px edge (frame.md F23) */
+  .marks-box > .sheet-head {
+    align-items: start;
+    padding-right: var(--space-4);
+  }
+  /* the head's first line sits on Close's centre line whatever follows it (frame.md F73): a long section drops under the word, and Close stays where it is */
+  .marks-box > .sheet-head > .btn {
+    margin-block: calc((var(--top-h) - 1px - var(--control-h)) / 2);
+  }
+  .marks-box-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-3);
+    min-width: 0;
+    padding-block: calc(
+      (var(--top-h) - 1px - var(--fs-head) * var(--lh-head)) / 2
+    );
+  }
+  .marks-box-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+  .marks-box-part {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .marks-box-note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .marks-box-field {
+    min-height: calc(3 * var(--control-h));
+  }
+  /* the count's line is always there, as tall as its longest sentence at this width, so the buttons under it never move (shown from 1,800 characters) */
+  .marks-box-count {
+    display: grid;
+    font-variant-numeric: tabular-nums;
+  }
+  .marks-box-count > * {
+    grid-area: 1 / 1;
+  }
+  .marks-box-count-size {
+    visibility: hidden;
+  }
+  .marks-box-count > .is-full {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .marks-box-under {
+    padding-left: calc(var(--mark-h) + var(--space-2));
+  }
+  /* the last row of a box: what goes with the mark, then the button that deletes it, at the row's end */
+  .marks-box-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+  .marks-box-end > p {
+    flex: 1 1 10em;
+    padding-top: var(--space-3);
+    color: var(--ink-2);
+  }
+  .marks-box-end > .btn {
+    margin-left: auto;
+  }
+  .marks-box-items {
+    display: flex;
+    flex-direction: column;
+  }
+  .marks-box-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-4);
+    align-items: start;
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--line);
+  }
+  .marks-box-item > div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    padding-top: var(--space-3);
+  }
+  .marks-box-items.is-picks {
+    gap: var(--space-2);
+  }
+  .marks-pick {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    min-height: var(--control-h);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .marks-pick:hover {
+    background: color-mix(in srgb, var(--surface) 92%, var(--ink));
+  }
+  .marks-quote {
+    margin: 0;
+  }
+  .marks-end {
+    margin-left: auto;
+  }
+  .marks-pick-quote {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  /* 6 ── the bottom slot: the place bar, the undo line and a visitor's Sign in to save, above the foot bar ── */
+  .marks-slot {
+    position: sticky;
+    bottom: calc(var(--top-h) + var(--space-3));
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    height: 0;
+    pointer-events: none;
+  }
+  .marks-slot > * {
+    position: absolute;
+    bottom: 0;
+    max-width: calc(100% - 2 * var(--space-4));
+    margin-bottom: 0;
+    pointer-events: auto;
+  }
+  .marks-slot > .save {
+    width: min(30em, calc(100% - 2 * var(--space-4)));
+    box-shadow: var(--shadow);
+  }
+  .marks-place {
+    max-width: none;
+    margin-bottom: 0;
+  }
+  .marks-place .swap {
+    white-space: nowrap;
+  }
+  .marks-place > span.marks-place-label {
+    display: block;
+    min-width: 0;
+    max-width: 16em;
+    min-height: 0;
+    padding-block: var(--space-3);
+  }
+  .marks-place > .link-row[aria-pressed="true"] {
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  /* 7 ── the Notes sheet ── */
+  .sheet-head:has(> .marks-sheet-count) > h2,
+  .marks-sheet-count {
+    align-self: baseline;
+  }
+  /* A baseline pair sits at the head's top, so the title takes the half of the head its line leaves: on Close's
+     centre line, as the signed title row (centred) puts it; the count follows on the title's baseline. */
+  .sheet-head:has(> .marks-sheet-count) > h2 {
+    margin-block-start: calc((var(--top-h) - 1lh) / 2);
+  }
+  .marks-sheet-count {
+    min-width: 0;
+    margin-inline: calc(var(--space-3) - var(--space-4)) auto;
+  }
+  .sheet-head:has(> .marks-sheet-count) > .btn {
+    order: 1;
+  }
+  .marks-notes-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
+  /* paper: what floats, the slot and the notes beside the text never print; a highlight prints unpainted */
+  @media print {
+    .marks-float,
+    .marks-slot,
+    .marks-notes {
+      display: none;
+    }
+    .an-m,
+    .an-pending {
+      border-bottom: 0;
+      background: none;
+    }
+  }
+}

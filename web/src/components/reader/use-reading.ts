@@ -67,7 +67,9 @@ function sampleDom(root: HTMLElement | null, bar: HTMLElement | null): Sample {
   const line = (bar?.getBoundingClientRect().bottom ?? 59) + 16 + 8;
   let anchor: string | null = null;
   root
-    ?.querySelectorAll<HTMLElement>(".rd-article [data-block]")
+    ?.querySelectorAll<HTMLElement>(
+      ":is(.rd-article, [data-reader-article]) [data-block]",
+    )
     .forEach((el) => {
       if (el.getBoundingClientRect().top <= line) {
         anchor = el.getAttribute("data-block");
@@ -145,7 +147,9 @@ function headingText(node: Node): string {
 function sectionTitleOf(root: HTMLElement, el: Element): string | null {
   let found: string | null = null;
   root
-    .querySelectorAll<HTMLElement>(".rd-article :is(h2, h3, h4)[id]")
+    .querySelectorAll<HTMLElement>(
+      ":is(.rd-article, [data-reader-article]) :is(h2, h3, h4)[id]",
+    )
     .forEach((h) => {
       if (
         h === el ||
@@ -259,7 +263,7 @@ export function useReading({
     const block =
       r?.block && view.version === view.newest
         ? root.querySelector(
-            `.rd-article [data-block="${CSS.escape(r.block)}"]`,
+            `:is(.rd-article, [data-reader-article]) [data-block="${CSS.escape(r.block)}"]`,
           )
         : null;
     const resume =

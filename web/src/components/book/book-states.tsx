@@ -1,105 +1,98 @@
-import { BOOK } from "@/content/book";
+import { BOOK_PAGE } from "@/content/book-page";
+import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { Skeleton } from "@/hi2vi/ui";
+import type { StateModel } from "@/hi2vi/states";
 
-const W = [
-  "bk-sk__w90",
-  "bk-sk__w75",
-  "bk-sk__w85",
-  "bk-sk__w60",
-  "bk-sk__w50",
-];
+import { BookChapters } from "./book-chapters";
+import { BookContinue } from "./book-continue";
+import { BookHead } from "./book-head";
 
 /**
- * Loading, not found, failed (`07-book-page` §8, `BookState`, board 11): the reader's §16
- * with the noun "book", inside the page under the top bar (which stays, with no middle).
- * Server-safe: only "Try again" needs a handler, passed in.
- *
- *  - Loading: `role="status"`, aria-label "Loading…", the skeleton in the page's own shape
- *    (the kind line, two title lines, the progress line and track, a Continue block, then
- *    the list head and five rows; two columns from 64rem);
- *  - Not found: a private book's address and a missing one are the same state (404, never 403);
- *  - Failed: "Error · 500", the primary "Try again" and the request's reference.
+ * The book page while it loads (`Book.dc.html`, preset Loading): the Bar complete (the frame's), skeleton
+ * bars in the real elements: the title's line, the description, the facts; the way on's two lines at its
+ * button's height; Contents with five rows at a row's height. `aria-busy` and `Loading…` for a screen
+ * reader.
  */
-export function BookStateBlock({
-  kind,
-  libraryHref,
-  reference,
-  onRetry,
-}: {
-  kind: "loading" | "notfound" | "failed";
-  libraryHref?: string;
-  reference?: string | null;
-  onRetry?: () => void;
-}) {
-  const s = BOOK.states;
+export function BookLoading() {
   return (
-    <main className="bk-main" id="main-content">
-      {kind === "loading" ? (
-        <div className="bk-layout" role="status" aria-label={s.loadingLabel}>
-          <div className="bk-sk">
-            <span className="rd-skel bk-sk__kind" />
-            <span className="rd-skel bk-sk__title" />
-            <span className="rd-skel bk-sk__title2" />
-            <span className="rd-skel bk-sk__prog" />
-            <span className="rd-skel bk-sk__bar" />
-            <div className="bk-sk__cont">
-              <span className="rd-skel bk-sk__label" />
-              <span className="rd-skel bk-sk__ctitle" />
-              <span className="rd-skel bk-sk__m bk-sk__w60" />
-              <span className="rd-skel bk-sk__btn" />
-            </div>
-          </div>
-          <div className="bk-sk">
-            <span className="rd-skel bk-sk__head" />
-            <div className="bk-sk__rows">
-              {W.map((w) => (
-                <div key={w} className="bk-sk__row">
-                  <span className="rd-skel bk-sk__n" />
-                  <span className="bk-sk__lines">
-                    <span className={`rd-skel bk-sk__t ${w}`} />
-                    <span className="rd-skel bk-sk__m" />
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+    <>
+      <BookHead loading />
+      <BookContinue loading />
+      <section
+        className="section"
+        aria-labelledby="book-contents"
+        aria-busy="true"
+      >
+        <div className="section-head">
+          <h2 id="book-contents">{BOOK_PAGE.contents.title}</h2>
+          <span className="meta">
+            <Skeleton width="6em" />
+          </span>
         </div>
-      ) : null}
-      {kind === "notfound" ? (
-        <div className="rd-ed">
-          <span className="rd-ed__code">{s.notFoundCode}</span>
-          <h1 className="rd-ed__title">{s.notFoundTitle}</h1>
-          <p className="rd-ed__sub">{s.notFoundSub}</p>
-          <div className="rd-ed__actions">
-            <a
-              className="rd-btn rd-btn--primary"
-              href={libraryHref ?? "/library"}
-            >
-              <span aria-hidden="true">‹</span> {s.backToLibrary}
-            </a>
-          </div>
-        </div>
-      ) : null}
-      {kind === "failed" ? (
-        <div className="rd-ed">
-          <span className="rd-ed__code">{s.errorCode}</span>
-          <h1 className="rd-ed__title">{s.errorTitle}</h1>
-          <p className="rd-ed__sub">{s.errorSub}</p>
-          <div className="rd-ed__actions">
-            <button
-              type="button"
-              className="rd-btn rd-btn--primary"
-              onClick={onRetry}
-            >
-              {s.retry}
-            </button>
-          </div>
-          {reference ? (
-            <p className="rd-ed__ref">
-              {s.refPrefix} · {reference}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </main>
+        <BookChapters rows={[]} loading />
+      </section>
+    </>
   );
+}
+
+/**
+ * Book not found (frame.md F71, F5's block): a member reads that the book does not exist or is not part of
+ * their org, and goes back where they came from; a visitor reads that the link points at no shared book,
+ * and is offered Sign in.
+ */
+export function bookNotFound({
+  signedIn,
+  back,
+  signInHref,
+}: {
+  signedIn: boolean;
+  back: { href: string; label: string };
+  signInHref: string;
+}): StateModel {
+  const t = BOOK_PAGE.states.notFound;
+  return {
+    title: t.title,
+    text: signedIn ? t.member : t.visitor,
+    actions: [
+      signedIn
+        ? {
+            kind: "link",
+            label: HI2VI_STATES.back(back.label),
+            href: back.href,
+            variant: "default",
+          }
+        : {
+            kind: "link",
+            label: t.signIn,
+            href: signInHref,
+            variant: "default",
+          },
+    ],
+    reference: null,
+  };
+}
+
+/** Error (F5's whole): Try again (primary, re-fetches), the way back, and the reference when there is one. */
+export function bookError({
+  back,
+  digest,
+}: {
+  back: { href: string; label: string };
+  digest?: string | null;
+}): StateModel {
+  const e = HI2VI_STATES.error;
+  return {
+    title: e.title,
+    text: e.text,
+    actions: [
+      { kind: "retry", label: e.retry, variant: "primary" },
+      {
+        kind: "link",
+        label: HI2VI_STATES.back(back.label),
+        href: back.href,
+        variant: "default",
+      },
+    ],
+    reference: digest ? e.reference(digest) : null,
+  };
 }

@@ -1,6 +1,7 @@
 import { ORG_HOME } from "@/content/dashboard";
 import type { KeyRow } from "@/hi2vi/frame";
 import { date, num, when, type FormatOptions } from "@/lib/format";
+import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type {
   KbActivityEvent,
@@ -13,6 +14,17 @@ import type {
  * `OrgHomeUrl.dc.html`, `OrgHomeActivity.dc.html`), pure so they are tested without a DOM
  * (tests/hi2vi-org-home.test.ts). The panels hold no other logic.
  */
+
+/**
+ * One `now` and one zone for every date on the page, server and client alike (no hydration drift):
+ * the viewer's zone from the cookie, UTC until it is known (the operator's decision 5, D254-wv).
+ */
+export function orgHomeFormat(
+  store: CookieReader,
+  now: number = Date.now(),
+): FormatOptions {
+  return { now, timeZone: viewerTimeZone(store) };
+}
 
 /** The id on the Org API keys head: the landing's "Mint an org key" links to `/dashboard#org-keys-head`. */
 export const ORG_KEYS_HEAD_ID = "org-keys-head";
@@ -45,13 +57,16 @@ export function langOf(name: string): "ko" | undefined {
   return HANGUL.test(name) ? "ko" : undefined;
 }
 
+/** What the Documents cell shows for a count the dashboard read could not give: the system's `—`. */
+const UNKNOWN_COUNT = "—";
+
 /**
  * The table's rows, newest first (a created project is the first row). `docs` is each project's active
- * documents now (`GET /app/documents?project=<id>`'s `total`), never the rollup's 30-day count.
+ * documents now, the dashboard read's `active_documents` (D246-p7: one read for every project), never
+ * the rollup's 30-day `documents`. A count that read could not give is `—`; the row still stands.
  */
 export function projectRows(
   projects: readonly KbDashboardProject[],
-  docs: ReadonlyMap<string, number>,
   format: FormatOptions,
 ): ProjectRowView[] {
   return [...projects]
@@ -60,7 +75,10 @@ export function projectRows(
       id: p.id,
       name: p.name,
       lang: langOf(p.name),
-      docs: num(docs.get(p.id) ?? 0),
+      docs:
+        typeof p.active_documents === "number"
+          ? num(p.active_documents)
+          : UNKNOWN_COUNT,
       keys: num(p.keys),
       visibility:
         p.visibility === "public"

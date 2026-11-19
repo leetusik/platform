@@ -17,6 +17,63 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
 import { READER } from "@/content";
+import { MARK_ROW } from "@/content/library-frame";
+import { READER_MARKS } from "@/content/reader-marks";
+import type { Mark } from "@/hi2vi/library";
+import {
+  barKind,
+  besideNote,
+  blockWord as libBlockWord,
+  boxAria,
+  boxTitle,
+  cardOf,
+  deleteWord,
+  floatAt,
+  goesLine,
+  languageName,
+  LIBRARY_PAINT,
+  madeOn,
+  notesCount,
+  pickQuote,
+  placeUp as libPlaceUp,
+  pressFor,
+  railFits,
+  railTops as stackRail,
+  reviewLine as libReviewLine,
+  rowOf,
+  type BesideNote,
+  type BoxKind,
+  type Send,
+} from "@/hi2vi/reader/marks/model";
+import {
+  BesideButton,
+  MarkBox,
+  MarksBar,
+  MarksFloat,
+  NotesBody,
+  PlaceBar as LibraryPlaceBar,
+  SheetCount,
+  SlotLine,
+  SlotSave,
+  type BoxList,
+  type BoxPick,
+  type MarkBoxProps,
+  type SheetRow,
+} from "@/hi2vi/reader/marks/parts";
+import { undoClock } from "@/hi2vi/reader/marks/undo";
+import {
+  bookmarkWire,
+  cleanLabel,
+  highlightWire,
+  labelWire,
+  noteWire,
+  removeBookmarkWire,
+  removeWire,
+  reviewWire,
+  sectionNoteWire,
+  snapshotOf as snapshotFor,
+  type Wire,
+} from "@/hi2vi/reader/marks/wire";
 import { readerHref, type ReaderTarget } from "@/lib/reader-href";
 import {
   editAnnotation,
@@ -25,10 +82,7 @@ import {
   removeBookmark,
   saveAnnotation,
   saveBookmark,
-  type AnnotationPatch,
   type AnnotationResult,
-  type AnnotationWrite,
-  type BookmarkWrite,
 } from "@/lib/reader/actions";
 import {
   capture,
@@ -145,7 +199,7 @@ function formulaAtoms(
   sections: ReadonlyMap<string, readonly string[]>,
 ): Map<string, QuoteAtom[]> {
   const out = new Map<string, QuoteAtom[]>();
-  if (!root.querySelector("math.ra-m[data-an-len]")) return out;
+  if (!root.querySelector("math[data-an-len]")) return out;
   for (const seg of verified(segments(root as unknown as ANode), sections)) {
     for (const u of units(seg.el)) {
       const el = u.node as unknown as Element;
@@ -186,15 +240,8 @@ interface Toast {
   retry?: () => void;
 }
 
-/** A write as data, so the ones a lapsed session stopped can outlive a sign-in. */
-type Wire =
-  | { op: "save"; input: AnnotationWrite }
-  | { op: "edit"; input: AnnotationPatch }
-  | { op: "remove"; input: { id: string } }
-  | { op: "bm-save"; input: BookmarkWrite }
-  | { op: "bm-edit"; input: { id: string; label: string | null } }
-  | { op: "bm-remove"; input: { id: string } };
-
+// A write as data (`Wire`, `@/hi2vi/reader/marks/wire`, P63-fk.S11: the payloads are built there for both looks),
+// so the ones a lapsed session stopped can outlive a sign-in.
 const runWire = (w: Wire): Promise<AnnotationResult> => {
   switch (w.op) {
     case "save":
@@ -247,6 +294,14 @@ interface Job {
   done?: (r: AnnotationResult) => void;
   /** Put the page back when the server refuses the write for good (404, 422). */
   undo?: () => void;
+  /**
+   * P63-fk.S11 (the Library's look only): the part that sent it says the write failed in its own place (a note's
+   * `Could not save the note. Try again.`, a delete's failed line), so a write that does not go through (refused,
+   * still failing after its tries, or a lapsed session) is dropped and this runs, instead of the old look's held
+   * queue and "Not saved" line. The part sends it again when asked; a create keeps its client id, so a write the
+   * server already took is not doubled.
+   */
+  fail?: () => void;
   tries: number;
 }
 
@@ -272,9 +327,36 @@ export interface AnnotationLayerProps {
   place: "chapter" | "document";
   /** The chapter or document on screen, for the links to other languages and versions. */
   target: ReaderTarget;
+  /**
+   * P63-fk.S11: how the marks look. `old` (the default) is the old reader's, unchanged, for the document routes and
+   * the legacy reader. `library` is the signed Library look (job 03, round 02, § Page: annotations), drawn by
+   * `@/hi2vi/reader/marks`: the same marks, the same writes at the same moments, the same anchoring; only what the
+   * reader sees and where it sits differ, and a note's save waits for its answer (`Saving…`, `Could not save`).
+   */
+  look?: "old" | "library";
 }
 
 const toItem = (n: ReaderNote): Item => ({ ...n, everOn: n.card !== "" });
+
+/** Where the layer finds the page around it, by look: the old reader's classes, or the Library's frame. */
+const PAGE = {
+  old: {
+    top: ".rd-top",
+    end: ".rd-end",
+    head: ".rd-head",
+    title: ".rd-head__title",
+    sheet: ".rd-sheet",
+    own: ".an-layer, .an-rows, .an-rail",
+  },
+  library: {
+    top: ".bar-wrap > .bar",
+    end: "[data-end]",
+    head: ".read-head",
+    title: ".read-title",
+    sheet: "dialog[open]",
+    own: "[data-an-ui]",
+  },
+} as const;
 
 export function AnnotationLayer({
   notes,
@@ -284,12 +366,15 @@ export function AnnotationLayer({
   chapterTitle,
   place,
   target,
+  look: lookName = "old",
 }: AnnotationLayerProps) {
   const progress = useReaderProgress();
   const bridge = useNotesBridge();
   const member = !!progress?.member;
   const signInHref = progress?.signInHref ?? "/login";
   const plain = notes.plain;
+  const lib = lookName === "library";
+  const PG = PAGE[lookName];
 
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const desc = useMemo(
@@ -338,7 +423,24 @@ export function AnnotationLayer({
     art: HTMLElement;
     root: HTMLElement;
     shell: HTMLElement;
+    /** Where a selection is read and a press closes what is open: the old article; the Library's text column. */
+    scope: HTMLElement;
   } | null>(null);
+  // P63-fk.S11, the Library's look: a note's save waits for its answer; a row of the Notes sheet waiting out its
+  // ten seconds stays listed (it is its own undo line) but is out of the counts; the notes beside the text, by group.
+  const [sendState, setSendState] = useState<{ pop: Pop | null; v: Send }>({
+    pop: null,
+    v: "rest",
+  });
+  /** The box's save, for the box it was pressed in: any other box is at rest. */
+  const send: Send = sendState.pop === pop ? sendState.v : "rest";
+  const [rowWaiting, setRowWaiting] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [besideHosts, setBesideHosts] = useState<Record<string, HTMLElement>>(
+    {},
+  );
+  const [besideOf, setBesideOf] = useState<Record<string, string[]>>({});
 
   const layerRef = useRef<HTMLDivElement>(null);
   const floatRef = useRef<HTMLDivElement>(null);
@@ -356,23 +458,49 @@ export function AnnotationLayer({
   const queue = useRef<Job[]>([]);
   const paused = useRef<Job[]>([]);
   const running = useRef(false);
-  const pendingDel = useRef<{ key: string; commit: () => void } | null>(null);
+  /** Deletes waiting out their undo line (`@/hi2vi/reader/marks/undo`, moved out of `scheduleDelete`). */
+  const clock = useRef(undoClock());
+  /** A row's delete, as its `MarkRow` hears it (the Library's Notes sheet): settled by the send. */
+  const rowSends = useRef(new Map<string, Promise<void>>());
+  /** The client id a new mark keeps while its box tries to save it, so a second try is not a second mark. */
+  const boxId = useRef<string | null>(null);
+  /** The box's own save: an answer for a box that has since changed moves nothing on screen. */
+  const sendRun = useRef(0);
   const mouseDown = useRef(false);
   const railRaf = useRef(0);
   // The current state, for the document listeners (registered once).
-  const now = useRef({ sel, pop, save, items, orph, others, bms, obms, member });
+  const now = useRef({
+    sel,
+    pop,
+    save,
+    items,
+    orph,
+    others,
+    bms,
+    obms,
+    member,
+  });
   useEffect(() => {
     now.current = { sel, pop, save, items, orph, others, bms, obms, member };
   });
 
   // ---- where the layer lives ------------------------------------------------------------
   useEffect(() => {
-    const art = layerRef.current?.closest<HTMLElement>(".rd-article");
-    const root = art?.querySelector<HTMLElement>(".kb-ch");
-    const shell = art?.closest<HTMLElement>(".rd-root");
+    // P63-fk.S9: the body and its article by the reader's hooks (`HOOK`); the document routes' article is
+    // still `.rd-article` (`reader-frame.tsx`, until S12). The shell is the old root the layer sits in.
+    const art = layerRef.current?.closest<HTMLElement>(
+      ".rd-article, [data-reader-article]",
+    );
+    const root = art?.querySelector<HTMLElement>("[data-reader-body]");
+    // P63-fk.S11: the Library's layer sits in no old root; its bottom slot is the frame's (the bridge's `slot`),
+    // and its selections are read over the whole column (the head refuses, the end is no text to mark).
+    const shell = lib
+      ? art
+      : layerRef.current?.closest<HTMLElement>(".rd-root");
+    const scope = lib ? (art?.closest<HTMLElement>("article") ?? art) : art;
     // The layer reads the server-rendered page around it once it is hydrated.
-    if (art && root && shell) setHost({ art, root, shell });
-  }, []);
+    if (art && root && shell && scope) setHost({ art, root, shell, scope });
+  }, [lib]);
 
   // P39-hk.F4: the formulas are server markup, read once the layer has its host (reported in a
   // frame, as the code quotes are: the lists, not the page, read it).
@@ -387,10 +515,7 @@ export function AnnotationLayer({
 
   // ---- what the layer holds, as the lists and the margin show it ---------------------------------
   const names = notes.langNames;
-  const langName = useCallback(
-    (l: string) => names[l] ?? l,
-    [names],
-  );
+  const langName = useCallback((l: string) => names[l] ?? l, [names]);
   const look = useMemo<SectionIndex>(
     () =>
       new Map(
@@ -446,20 +571,34 @@ export function AnnotationLayer({
         { sections: look, chapterTitle, code: codeIds, shown },
         new Set(
           [...items, ...orph, ...others, ...bms, ...obms]
-            .filter((x) => x.gone)
+            // a row waiting out its ten seconds stays listed (the Library's Notes sheet: the row is the undo line)
+            .filter((x) => x.gone && !rowWaiting.has(x.id))
             .map((x) => x.id),
         ),
       ),
-    [items, orph, others, bms, obms, look, chapterTitle, codeIds, shown],
+    [
+      items,
+      orph,
+      others,
+      bms,
+      obms,
+      look,
+      chapterTitle,
+      codeIds,
+      shown,
+      rowWaiting,
+    ],
   );
+  /** F91: a delete still waiting its ten seconds is out of the counts at once. */
+  const listCount = groups.count - rowWaiting.size;
   const groupsRef = useRef(groups);
   useEffect(() => {
     groupsRef.current = groups;
   });
   const setCount = bridge?.setCount;
   useEffect(() => {
-    setCount?.(member ? groups.count : 0);
-  }, [setCount, groups.count, member]);
+    setCount?.(member ? listCount : 0);
+  }, [setCount, listCount, member]);
 
   /** A section's bookmark is on (the place bar and the bar read "Bookmarked"). */
   const bookmarked = (sec: string | null): boolean =>
@@ -480,6 +619,8 @@ export function AnnotationLayer({
     lang?: string;
     order: number;
     look: MarkerLook;
+    /** P63-fk.S11: the same note in the Library's look (`AnnotationsPaint`'s words). */
+    beside: BesideNote;
   }
   const markers = useMemo<Marker[]>(() => {
     const out: Marker[] = [];
@@ -501,6 +642,10 @@ export function AnnotationLayer({
             text: x.note,
             lang: langOf(x.note, x.lang),
           },
+          beside: besideNote("note", {
+            text: x.note,
+            lang: langOf(x.note, x.lang),
+          }),
         });
       } else if (x.kind === "bnote" && x.status === "anchored") {
         const diagram = look.get(sec)?.label.startsWith("Diagram");
@@ -516,6 +661,10 @@ export function AnnotationLayer({
             text: x.note,
             lang: langOf(x.note, x.lang),
           },
+          beside: besideNote("bnote", {
+            text: x.note,
+            lang: langOf(x.note, x.lang),
+          }),
         });
       }
     }
@@ -537,6 +686,10 @@ export function AnnotationLayer({
           text: T.changed.item(marksWord(list), list.length),
           lang,
         },
+        beside: besideNote("changed", {
+          words: marksWord(list),
+          n: list.length,
+        }),
       });
     const byOther = new Map<string, OtherItem[]>();
     for (const x of others)
@@ -560,6 +713,10 @@ export function AnnotationLayer({
           lang,
           endonym: { name: langName(list[0].lang), lang: list[0].lang },
         },
+        beside: besideNote("other", {
+          words: marksWord(list),
+          endonym: { name: langName(list[0].lang), lang: list[0].lang },
+        }),
       });
     }
     for (const b of bms)
@@ -577,6 +734,10 @@ export function AnnotationLayer({
             text: b.label,
             lang: langOf(b.label, "en"),
           },
+          beside: besideNote("bm", {
+            text: b.label,
+            lang: langOf(b.label, "en"),
+          }),
         });
     return out.sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
   }, [items, others, bms, look, lang, langName]);
@@ -615,9 +776,71 @@ export function AnnotationLayer({
     return pop.t === "other" && pop.sec === m.sec && pop.lang === m.lang;
   };
 
+  // P63-fk.S11, the Library's look: the notes beside the text, each group a node after its block (made below, once
+  // the paint is in), in the margin where the page has the room for it, under its block elsewhere.
+  const besideNodes = useRef(new Map<string, HTMLElement>());
+  const besideKeys = useRef<Record<string, string[]>>({});
+  const layoutBeside = useCallback(() => {
+    if (!host) return;
+    const app = host.art.closest<HTMLElement>(".app");
+    const main = host.art.closest<HTMLElement>(".reader-main");
+    const col = host.scope;
+    const nodes = [...besideNodes.current.entries()].filter(
+      ([, n]) => n.isConnected,
+    );
+    if (!nodes.length) return;
+    const em = app ? parseFloat(getComputedStyle(app).fontSize) || 16 : 16;
+    const fit =
+      app && main
+        ? railFits({
+            appWidth: app.clientWidth,
+            em,
+            mainWidth: main.clientWidth,
+            colWidth: col.offsetWidth,
+          })
+        : { rail: false, width: 0 };
+    // in document order, so each stays clear of the one above
+    nodes.sort(([, a], [, b]) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
+    for (const [, n] of nodes) {
+      n.classList.toggle("is-rail", fit.rail);
+      if (fit.rail) n.style.setProperty("--marks-rail-w", `${fit.width}px`);
+      else {
+        n.style.removeProperty("--marks-rail-w");
+        n.style.removeProperty("--marks-top");
+      }
+    }
+    if (!fit.rail) return;
+    const ar = host.art.getBoundingClientRect();
+    const lines = nodes.map(([k, n]) => {
+      const first = besideKeys.current[k]?.[0];
+      const m = markers.find((x) => x.key === first);
+      let a: Element | null =
+        m?.at === "mark" && m.id
+          ? host.root.querySelector(`mark.an-m[data-an~="${CSS.escape(m.id)}"]`)
+          : null;
+      // a mark in a closed fold has no box: its group starts on the fold's summary
+      if (a && !a.getClientRects().length)
+        a = a.closest("details")?.querySelector("summary") ?? null;
+      const r = a?.getClientRects()[0];
+      const line = r
+        ? r.top
+        : (n.previousElementSibling?.getBoundingClientRect().top ?? ar.top);
+      return { line: line - ar.top, height: n.offsetHeight };
+    });
+    stackRail(lines).forEach((t, i) =>
+      nodes[i][1].style.setProperty("--marks-top", `${t}px`),
+    );
+  }, [host, markers]);
+
   // The margin items' tops: each beside its anchor (a mark, or a block), 8 px clear of the one above.
   const layoutRail = useCallback((): boolean => {
     if (!host) return false;
+    if (lib) {
+      layoutBeside();
+      return false;
+    }
     const rail = host.art.querySelector<HTMLElement>(".an-rail");
     if (!rail || !rail.offsetParent) return false; // below 64rem the rail is not shown
     const ar = host.art.getBoundingClientRect();
@@ -630,18 +853,14 @@ export function AnnotationLayer({
       if (!el) return;
       let a: Element | null =
         m.at === "mark" && m.id
-          ? host.root.querySelector(
-              `mark.an-m[data-an~="${CSS.escape(m.id)}"]`,
-            )
+          ? host.root.querySelector(`mark.an-m[data-an~="${CSS.escape(m.id)}"]`)
           : null;
       // A mark inside a closed fold has no box: its item anchors to the fold's summary.
       if (a && !a.getClientRects().length)
         a = a.closest("details")?.querySelector("summary") ?? null;
       if (!a)
         a = host.root.querySelector(`[data-block="${CSS.escape(m.sec)}"]`);
-      let y: number | null = a
-        ? a.getBoundingClientRect().top - ar.top
-        : null;
+      let y: number | null = a ? a.getBoundingClientRect().top - ar.top : null;
       if (y === null) {
         missing = true;
         y = prev + 8;
@@ -658,7 +877,7 @@ export function AnnotationLayer({
       return same ? o : tops;
     });
     return missing;
-  }, [host, markers]);
+  }, [host, markers, lib, layoutBeside]);
   const scheduleRail = useCallback(() => {
     cancelAnimationFrame(railRaf.current);
     railRaf.current = requestAnimationFrame(() => {
@@ -706,7 +925,9 @@ export function AnnotationLayer({
     [host],
   );
   useLayoutEffect(() => {
-    if (!host) return;
+    // P63-fk.S11: the Library's look has no tag in the heading and no rows of this kind (its notes beside the
+    // text are made below).
+    if (!host || lib) return;
     const tagSecs = new Set(
       markers.filter((m) => m.kind === "bm").map((m) => m.sec),
     );
@@ -738,7 +959,10 @@ export function AnnotationLayer({
     });
     const rowSecs = new Set(
       markers
-        .filter((m) => m.kind === "bnote" || m.kind === "changed" || m.kind === "other")
+        .filter(
+          (m) =>
+            m.kind === "bnote" || m.kind === "changed" || m.kind === "other",
+        )
         .map((m) => m.sec),
     );
     const nodes = hostNodes.current;
@@ -749,7 +973,9 @@ export function AnnotationLayer({
       }
     for (const sec of rowSecs) {
       if (nodes.has(sec)) continue;
-      const block = host.root.querySelector(`[data-block="${CSS.escape(sec)}"]`);
+      const block = host.root.querySelector(
+        `[data-block="${CSS.escape(sec)}"]`,
+      );
       if (!block) continue;
       const node = document.createElement("div");
       node.className = "an-rows";
@@ -762,7 +988,7 @@ export function AnnotationLayer({
         [...nodes].every(([k, v]) => o[k] === v);
       return same ? o : Object.fromEntries(nodes);
     });
-  }, [host, markers]);
+  }, [host, markers, lib]);
 
   // ---- the section being read, for the place bar -----------------------------------------------
   useEffect(() => {
@@ -771,10 +997,13 @@ export function AnnotationLayer({
     const measure = () => {
       raf = 0;
       const doc = document.documentElement;
-      const p = progressPercent(window.scrollY, doc.scrollHeight - window.innerHeight);
+      const p = progressPercent(
+        window.scrollY,
+        doc.scrollHeight - window.innerHeight,
+      );
       setPct((o) => (o === p ? o : p));
       const bar =
-        document.querySelector(".rd-top")?.getBoundingClientRect().bottom ?? 59;
+        document.querySelector(PG.top)?.getBoundingClientRect().bottom ?? 59;
       const line = bar + 24;
       let found: string | null = null;
       host.root.querySelectorAll<HTMLElement>("[data-block]").forEach((h) => {
@@ -783,7 +1012,7 @@ export function AnnotationLayer({
           found = id;
       });
       setBlk((o) => (o === found ? o : found));
-      const end = host.art.querySelector(".rd-end");
+      const end = host.scope.querySelector(PG.end);
       const seen = end
         ? end.getBoundingClientRect().top < window.innerHeight - 40 || p >= 95
         : p >= 95;
@@ -801,7 +1030,7 @@ export function AnnotationLayer({
       window.removeEventListener("scroll", on);
       window.removeEventListener("resize", on);
     };
-  }, [host, look]);
+  }, [host, look, PG]);
 
   // ---- the toast ---------------------------------------------------------------------------
   const showToast = useCallback((t: Omit<Toast, "id">, timed: boolean) => {
@@ -835,6 +1064,21 @@ export function AnnotationLayer({
           continue;
         }
         const st = r.status ?? 0;
+        if (job.fail && (st === 401 || st === 0 || st === 429 || st >= 500)) {
+          // P63-fk.S11: a part that says its own failure is told so once its tries are spent (a lapsed session at
+          // once, with Sign in to save as before); the rest of the queue goes on.
+          if (st !== 401) {
+            job.tries += 1;
+            if (job.tries < 3) {
+              await new Promise((ok) => window.setTimeout(ok, 800 * job.tries));
+              continue;
+            }
+          } else
+            setSlotSave(job.wire.op.startsWith("bm") ? "bookmarks" : "notes");
+          queue.current.shift();
+          job.fail();
+          continue;
+        }
         if (st === 401) {
           paused.current.push(...queue.current);
           queue.current = [];
@@ -860,7 +1104,8 @@ export function AnnotationLayer({
         // Refused for good: drop it and put the page back as the server holds it.
         queue.current.shift();
         job.undo?.();
-        showToast({ text: T.notSaved }, true);
+        if (job.fail) job.fail();
+        else showToast({ text: T.notSaved }, true);
       }
     } finally {
       running.current = false;
@@ -931,18 +1176,15 @@ export function AnnotationLayer({
     [pump],
   );
 
-  const patchItem = useCallback(
-    (id: string, change: Partial<Item>) => {
-      const apply = (list: Item[]) =>
-        list.map((x) => (x.id === id ? { ...x, ...change } : x));
-      setItems(apply);
-      setOrph(apply);
-      setOthers((list) =>
-        list.map((x) => (x.id === id ? { ...x, ...change } : x)),
-      );
-    },
-    [],
-  );
+  const patchItem = useCallback((id: string, change: Partial<Item>) => {
+    const apply = (list: Item[]) =>
+      list.map((x) => (x.id === id ? { ...x, ...change } : x));
+    setItems(apply);
+    setOrph(apply);
+    setOthers((list) =>
+      list.map((x) => (x.id === id ? { ...x, ...change } : x)),
+    );
+  }, []);
   const patchBookmark = useCallback(
     (id: string, change: Partial<Bk>) =>
       setBms((list) =>
@@ -972,10 +1214,9 @@ export function AnnotationLayer({
     setObms(keep);
   }, []);
 
-  // A delete waits out its undo line; this sends it now (the next delete, leaving).
+  // A delete waits out its undo line; this sends it now (leaving; the next delete sends its own forerunner).
   const flushDelete = useCallback(() => {
-    const p = pendingDel.current;
-    if (p) p.commit();
+    clock.current.flush();
   }, []);
 
   useEffect(() => {
@@ -1039,6 +1280,7 @@ export function AnnotationLayer({
       pending,
       active,
       desc,
+      ...(lib ? { classes: LIBRARY_PAINT } : {}),
     });
     // Which highlights sit in code (a list shows their quote in mono, unpainted).
     const code = new Set<string>();
@@ -1061,7 +1303,7 @@ export function AnnotationLayer({
     );
     // ranges/pending/active are folded into paintKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [host, paintKey, sections, desc]);
+  }, [host, paintKey, sections, desc, lib]);
   useEffect(
     () => () => {
       unpaint(painted.current);
@@ -1069,6 +1311,70 @@ export function AnnotationLayer({
     },
     [],
   );
+
+  // ---- P63-fk.S11: the notes beside the text, in the Library's look (`AnnotationsPaint`) ------------------------
+  // A heading's notes (its bookmark, its note, Text changed, another language) hang after the heading, a highlight's
+  // note after the block its first piece is in, each group a node of the layer's own after that block (the old
+  // rows' way), made once the paint is in. `layoutBeside` puts them in the margin, or leaves them under the block.
+  useLayoutEffect(
+    () => () => {
+      besideNodes.current.forEach((n) => n.remove());
+      besideNodes.current.clear();
+    },
+    [host],
+  );
+  useLayoutEffect(() => {
+    if (!host || !lib) return;
+    const { root } = host;
+    const top = (el: Element | null): Element | null => {
+      let e = el;
+      while (e && e.parentElement !== root) e = e.parentElement;
+      return e;
+    };
+    const own = (e: Element) => e.hasAttribute("data-an-ui");
+    const want = new Map<string, { anchor: Element; keys: string[] }>();
+    for (const m of markers) {
+      const mark =
+        m.at === "mark" && m.id
+          ? root.querySelector(`mark.an-m[data-an~="${CSS.escape(m.id)}"]`)
+          : null;
+      const block = root.querySelector(`[data-block="${CSS.escape(m.sec)}"]`);
+      const anchor = top(mark) ?? top(block) ?? block;
+      if (!anchor) continue;
+      const at = Array.prototype.filter
+        .call(root.children, (c: Element) => !own(c))
+        .indexOf(anchor);
+      const k = at >= 0 ? `b${at}` : `s${m.sec}`;
+      const g = want.get(k) ?? { anchor, keys: [] };
+      g.keys.push(m.key);
+      want.set(k, g);
+    }
+    const nodes = besideNodes.current;
+    for (const [k, node] of [...nodes]) {
+      const g = want.get(k);
+      if (!g || !node.isConnected || node.previousElementSibling !== g.anchor) {
+        node.remove();
+        nodes.delete(k);
+      }
+    }
+    for (const [k, g] of want) {
+      if (nodes.has(k)) continue;
+      const node = document.createElement("div");
+      node.className = "marks-notes";
+      node.setAttribute("data-an-ui", "");
+      g.anchor.after(node);
+      nodes.set(k, node);
+    }
+    const keys = Object.fromEntries([...want].map(([k, g]) => [k, g.keys]));
+    besideKeys.current = keys;
+    setBesideHosts((o) => {
+      const same =
+        Object.keys(o).length === nodes.size &&
+        [...nodes].every(([k, v]) => o[k] === v);
+      return same ? o : Object.fromEntries(nodes);
+    });
+    setBesideOf((o) => (JSON.stringify(o) === JSON.stringify(keys) ? o : keys));
+  }, [host, lib, markers, paintKey]);
 
   // ---- closing and focus ---------------------------------------------------------------------
   const clearNative = () => {
@@ -1112,11 +1418,8 @@ export function AnnotationLayer({
   );
 
   const snapshotOf = useCallback(
-    (sec: string, text: string) => ({
-      text: Array.from(text).slice(0, 5000).join(""),
-      block_title: Array.from(sectionLabel(sec)).slice(0, 500).join(""),
-      chapter_title: Array.from(chapterTitle).slice(0, 500).join(""),
-    }),
+    (sec: string, text: string) =>
+      snapshotFor(text, sectionLabel(sec), chapterTitle),
     [sectionLabel, chapterTitle],
   );
 
@@ -1149,18 +1452,15 @@ export function AnnotationLayer({
       };
       setItems((list) => [...list, item]);
       enqueue({
-        wire: {
-          op: "save",
-          input: {
-            ...write,
-            id,
-            version,
-            block_id: s.sec,
-            quote: s.quote,
-            note: note || null,
-            snapshot: snapshotOf(s.sec, s.quote.exact),
-          },
-        },
+        wire: highlightWire({
+          write,
+          id,
+          version,
+          sec: s.sec,
+          quote: s.quote,
+          note,
+          snapshot: snapshotOf(s.sec, s.quote.exact),
+        }),
         undo: () => setItems((list) => list.filter((x) => x.id !== id)),
       });
       return id;
@@ -1171,7 +1471,8 @@ export function AnnotationLayer({
   const highlight = useCallback(() => {
     const s = now.current.sel;
     if (!s || s.mode !== "passage") return;
-    if (!now.current.member) {
+    // A visitor is offered Sign in to save, and nothing is written (`pressFor`).
+    if ("save" in pressFor(now.current.member, "highlight")) {
       setSaveWhat("notes");
       setSave(true);
       return;
@@ -1190,7 +1491,7 @@ export function AnnotationLayer({
   const noteSel = useCallback(() => {
     const s = now.current.sel;
     if (!s || s.mode !== "passage") return;
-    if (!now.current.member) {
+    if ("save" in pressFor(now.current.member, "note")) {
       setSaveWhat("notes");
       setSave(true);
       return;
@@ -1198,6 +1499,7 @@ export function AnnotationLayer({
     clearNative();
     setSel({ ...s, pointer: true });
     setDraft("");
+    boxId.current = null;
     setPop({ t: "new" });
     focusWant.current = "field";
   }, []);
@@ -1224,6 +1526,7 @@ export function AnnotationLayer({
       focusWant.current = "box";
     } else {
       setDraft("");
+      boxId.current = null;
       setPop({ t: "bnew", sec });
       focusWant.current = "field";
     }
@@ -1245,31 +1548,45 @@ export function AnnotationLayer({
     focusWant.current = "back";
   }, []);
 
-  /** A delete waits out its undo line, hidden everywhere meanwhile; Undo puts it all back. */
+  /**
+   * A delete waits out its undo line, hidden everywhere meanwhile; Undo puts it all back (the clock: one undo line at
+   * a time, so a later delete sends the one before it). In the Library's look a send that fails brings the mark back
+   * with its failed line (frame.md F65), in the undo line's place.
+   */
   const scheduleDelete = useCallback(
-    (ids: string[], text: string, wireOf: (id: string) => Wire) => {
-      flushDelete();
+    (
+      ids: string[],
+      text: string,
+      wireOf: (id: string) => Wire,
+      failed?: string,
+    ) => {
       setGone(ids, true);
       const key = ids.join(",");
-      let timer = 0;
-      const commit = () => {
-        window.clearTimeout(timer);
-        if (pendingDel.current?.key === key) pendingDel.current = null;
-        for (const id of ids)
-          enqueue({
-            wire: wireOf(id),
-            done: () => dropMarks([id]),
-            undo: () => setGone([id], false),
-          });
-      };
-      timer = window.setTimeout(commit, UNDO_MS);
-      pendingDel.current = { key, commit };
+      clock.current.start(
+        key,
+        () => {
+          for (const id of ids)
+            enqueue({
+              wire: wireOf(id),
+              done: () => dropMarks([id]),
+              undo: () => setGone([id], false),
+              ...(lib && failed
+                ? {
+                    fail: () => {
+                      setGone([id], false);
+                      showToast({ text: failed }, true);
+                    },
+                  }
+                : {}),
+            });
+        },
+        true,
+      );
       showToast(
         {
           text,
           undo: () => {
-            window.clearTimeout(timer);
-            if (pendingDel.current?.key === key) pendingDel.current = null;
+            clock.current.undo(key);
             setGone(ids, false);
             setToast(null);
           },
@@ -1277,7 +1594,7 @@ export function AnnotationLayer({
         true,
       );
     },
-    [dropMarks, enqueue, flushDelete, setGone, showToast],
+    [dropMarks, enqueue, setGone, showToast, lib],
   );
 
   const remove = useCallback(
@@ -1293,7 +1610,8 @@ export function AnnotationLayer({
         it.kind === "bnote"
           ? T.undo.noteOnly
           : undoText({ note: it.note, card: it.card !== "" || !!it.everOn }),
-        () => ({ op: "remove", input: { id } }),
+        removeWire,
+        it.kind === "bnote" ? MARK_ROW.failed.note : MARK_ROW.failed.highlight,
       );
       setPop(null);
       setSel(null);
@@ -1307,10 +1625,12 @@ export function AnnotationLayer({
   const removeBookmarks = useCallback(
     (ids: string[]) => {
       if (!ids.length) return;
-      scheduleDelete(ids, T.bm.removed, (id) => ({
-        op: "bm-remove",
-        input: { id },
-      }));
+      scheduleDelete(
+        ids,
+        T.bm.removed,
+        removeBookmarkWire,
+        MARK_ROW.failed.bookmark,
+      );
       setPop(null);
       setSel(null);
       focusWant.current = "back";
@@ -1342,10 +1662,7 @@ export function AnnotationLayer({
       };
       setBms((list) => [...list, bk]);
       enqueue({
-        wire: {
-          op: "bm-save",
-          input: { ...write, id, version, anchor, snippet },
-        },
+        wire: bookmarkWire({ write, id, version, anchor, snippet }),
         undo: () => setBms((list) => list.filter((x) => x.id !== id)),
       });
       return id;
@@ -1379,23 +1696,29 @@ export function AnnotationLayer({
   /** What the reader is looking at: the fraction read, and the first text under the top bar. */
   const placeNow = useCallback((): { frac: number; snippet: string } => {
     const doc = document.documentElement;
-    const p = progressPercent(window.scrollY, doc.scrollHeight - window.innerHeight);
+    const p = progressPercent(
+      window.scrollY,
+      doc.scrollHeight - window.innerHeight,
+    );
     let snippet = "";
     const line =
-      (document.querySelector(".rd-top")?.getBoundingClientRect().bottom ??
-        59) + 8;
+      (document.querySelector(PG.top)?.getBoundingClientRect().bottom ?? 59) +
+      8;
     const all = host?.root.querySelectorAll<HTMLElement>(
       "p, li, h2, h3, h4, pre, blockquote",
     );
     if (all)
       for (const el of Array.from(all)) {
-        if (el.getBoundingClientRect().top >= line - 4 && el.textContent?.trim()) {
+        if (
+          el.getBoundingClientRect().top >= line - 4 &&
+          el.textContent?.trim()
+        ) {
           snippet = el.textContent;
           break;
         }
       }
     return { frac: p / 100, snippet: snippetOf(snippet) };
-  }, [host]);
+  }, [host, PG]);
 
   /** A plain document's position bookmark; one within 2% of the reader's place is removed instead. */
   const togglePosition = useCallback(
@@ -1425,11 +1748,11 @@ export function AnnotationLayer({
   const setLabel = useCallback(
     (id: string, label: string) => {
       const before = now.current.bms.find((b) => b.id === id)?.label ?? "";
-      const clean = label.trim().slice(0, 120);
+      const clean = cleanLabel(label);
       if (clean === before) return;
       patchBookmark(id, { label: clean });
       enqueue({
-        wire: { op: "bm-edit", input: { id, label: clean || null } },
+        wire: labelWire(id, clean),
         undo: () => patchBookmark(id, { label: before }),
       });
     },
@@ -1440,7 +1763,7 @@ export function AnnotationLayer({
     (id: string, note: string, before: string) => {
       patchItem(id, { note });
       enqueue({
-        wire: { op: "edit", input: { id, note: note || null } },
+        wire: noteWire(id, note),
         undo: () => patchItem(id, { note: before }),
       });
     },
@@ -1494,17 +1817,14 @@ export function AnnotationLayer({
       };
       setItems((list) => [...list, item]);
       enqueue({
-        wire: {
-          op: "save",
-          input: {
-            ...write,
-            id,
-            version,
-            block_id: p.sec,
-            note: text,
-            snapshot: snapshotOf(p.sec, sectionLabel(p.sec)),
-          },
-        },
+        wire: sectionNoteWire({
+          write,
+          id,
+          version,
+          sec: p.sec,
+          note: text,
+          snapshot: snapshotOf(p.sec, sectionLabel(p.sec)),
+        }),
         undo: () => setItems((list) => list.filter((x) => x.id !== id)),
       });
       setPop({ t: "bnote", id, edit: false });
@@ -1543,6 +1863,198 @@ export function AnnotationLayer({
     setNote,
   ]);
 
+  /**
+   * P63-fk.S11, the Library's look (`AnnotationsBox`'s `send`): Save note waits for its answer. The write is the
+   * one the old look sends, built the same way and sent at the same press; the box reads `Saving…` meanwhile, then
+   * shows the mark, or `Could not save the note. Try again.` with the words kept, and Save note sends it again (a
+   * new mark keeps its client id, so the server never takes it twice). An empty save keeps the old rules: a new
+   * highlight is saved alone, a highlight's note is removed, a section's note is deleted.
+   */
+  const saveNoteLib = useCallback(() => {
+    const p = now.current.pop;
+    if (!p) return;
+    const text = cleanNote(draft);
+    const run = ++sendRun.current;
+    const mine = () => run === sendRun.current && now.current.pop === p;
+    const wait = () => setSendState({ pop: p, v: "saving" });
+    const fail = () => {
+      if (mine()) setSendState({ pop: p, v: "failed" });
+    };
+    if (p.t === "new") {
+      const s = now.current.sel;
+      if (!s || s.mode !== "passage" || !write) {
+        setPop(null);
+        return;
+      }
+      const id = (boxId.current ??= newId());
+      const item: Item = {
+        id,
+        kind: "hl",
+        block: s.sec,
+        sec: s.sec,
+        start: s.s,
+        end: s.e,
+        status: "anchored",
+        method: "exact",
+        quote: {
+          exact: s.quote.exact,
+          prefix: s.quote.prefix,
+          suffix: s.quote.suffix,
+        },
+        note: text,
+        review: false,
+        card: "",
+        snapshot: null,
+        everOn: false,
+        lang,
+        version,
+        created: new Date().toISOString(),
+      };
+      wait();
+      enqueue({
+        wire: highlightWire({
+          write,
+          id,
+          version,
+          sec: s.sec,
+          quote: s.quote,
+          note: text,
+          snapshot: snapshotOf(s.sec, s.quote.exact),
+        }),
+        done: () => {
+          setItems((list) =>
+            list.some((x) => x.id === id) ? list : [...list, item],
+          );
+          if (!mine()) return;
+          boxId.current = null;
+          clearNative();
+          setSel(null);
+          opener.current = { el: null, mark: id };
+          setPop({ t: "hl", id, edit: false });
+          focusWant.current = "box";
+        },
+        fail,
+      });
+      return;
+    }
+    if (p.t === "bnew") {
+      if (!text || !write) {
+        setPop(null);
+        focusWant.current = "back";
+        return;
+      }
+      const id = (boxId.current ??= newId());
+      const item: Item = {
+        id,
+        kind: "bnote",
+        block: p.sec,
+        sec: p.sec,
+        start: null,
+        end: null,
+        status: "anchored",
+        method: "section",
+        quote: null,
+        note: text,
+        review: false,
+        card: "",
+        snapshot: null,
+        everOn: false,
+        lang,
+        version,
+        created: new Date().toISOString(),
+      };
+      wait();
+      enqueue({
+        wire: sectionNoteWire({
+          write,
+          id,
+          version,
+          sec: p.sec,
+          note: text,
+          snapshot: snapshotOf(p.sec, sectionLabel(p.sec)),
+        }),
+        done: () => {
+          setItems((list) =>
+            list.some((x) => x.id === id) ? list : [...list, item],
+          );
+          if (!mine()) return;
+          boxId.current = null;
+          setPop({ t: "bnote", id, edit: false });
+          focusWant.current = "box";
+        },
+        fail,
+      });
+      return;
+    }
+    if (p.t !== "hl" && p.t !== "bnote") return;
+    const it = now.current.items.find((x) => x.id === p.id);
+    // Saving an empty section note deletes it (with its undo line).
+    if (p.t === "bnote" && !text) {
+      remove(p.id);
+      return;
+    }
+    if (!it || it.note === text) {
+      setPop({ ...p, edit: false });
+      focusWant.current = "box";
+      return;
+    }
+    wait();
+    enqueue({
+      wire: noteWire(p.id, text),
+      done: () => {
+        patchItem(p.id, { note: text });
+        if (!mine()) return;
+        setPop({ ...p, edit: false });
+        focusWant.current = "box";
+      },
+      fail,
+    });
+  }, [
+    draft,
+    write,
+    lang,
+    version,
+    enqueue,
+    snapshotOf,
+    sectionLabel,
+    remove,
+    patchItem,
+  ]);
+  const submitNote = lib ? saveNoteLib : saveNote;
+  // The Library's box: its bookmark's label (edit, back to the box, save), its delete, a pick among overlaps.
+  const labelEdit = useCallback(() => {
+    const p = now.current.pop;
+    if (p?.t !== "bm") return;
+    setPop({ t: "bm", id: p.id, edit: true });
+    focusWant.current = "field";
+  }, []);
+  const labelBox = useCallback(() => {
+    const p = now.current.pop;
+    if (p?.t !== "bm") return;
+    setPop({ t: "bm", id: p.id, edit: false });
+    focusWant.current = "box";
+  }, []);
+  const labelSave = useCallback(
+    (label: string) => {
+      const p = now.current.pop;
+      if (p?.t !== "bm") return;
+      setLabel(p.id, label);
+      setPop({ t: "bm", id: p.id, edit: false });
+      focusWant.current = "box";
+    },
+    [setLabel],
+  );
+  const deleteBox = useCallback(() => {
+    const p = now.current.pop;
+    if (p?.t === "bm") removeBookmarks([p.id]);
+    else if (p?.t === "hl" || p?.t === "bnote") remove(p.id);
+  }, [removeBookmarks, remove]);
+  const pickMark = useCallback((id: string) => {
+    // A pick swaps the box's content: focus goes into the box again.
+    setPop({ t: "hl", id, edit: false });
+    focusWant.current = "box";
+  }, []);
+
   const deleteNote = useCallback(() => {
     const p = now.current.pop;
     if (!p) return;
@@ -1579,7 +2091,7 @@ export function AnnotationLayer({
     const card: CardStatus = on ? "active" : "suspended";
     patchItem(p.id, { review: on, card, everOn: it.everOn || on });
     enqueue({
-      wire: { op: "edit", input: { id: p.id, review: on } },
+      wire: reviewWire(p.id, on),
       done: (r) =>
         patchItem(p.id, {
           review: !!r.review,
@@ -1626,13 +2138,16 @@ export function AnnotationLayer({
 
   // ---- landing on a mark, from a list ---------------------------------------------------------
   /** Scroll so the element sits 32 px under the top bar (not a gesture: the chrome stays as it is). */
-  const scrollUnderBar = useCallback((el: Element) => {
-    window.dispatchEvent(new Event("reader:quiet"));
-    const bar =
-      document.querySelector(".rd-top")?.getBoundingClientRect().bottom ?? 59;
-    const y = el.getBoundingClientRect().top + window.scrollY - (bar + 32);
-    window.scrollTo({ top: Math.max(0, y), behavior: "instant" });
-  }, []);
+  const scrollUnderBar = useCallback(
+    (el: Element) => {
+      window.dispatchEvent(new Event("reader:quiet"));
+      const bar =
+        document.querySelector(PG.top)?.getBoundingClientRect().bottom ?? 59;
+      const y = el.getBoundingClientRect().top + window.scrollY - (bar + 32);
+      window.scrollTo({ top: Math.max(0, y), behavior: "instant" });
+    },
+    [PG],
+  );
 
   const land = useCallback(
     (it: ListItem) => {
@@ -1675,7 +2190,10 @@ export function AnnotationLayer({
       if (it.frac > 0) {
         window.dispatchEvent(new Event("reader:quiet"));
         const max = document.documentElement.scrollHeight - window.innerHeight;
-        window.scrollTo({ top: Math.max(0, it.frac * max), behavior: "instant" });
+        window.scrollTo({
+          top: Math.max(0, it.frac * max),
+          behavior: "instant",
+        });
       }
     },
     [host, scrollUnderBar],
@@ -1704,10 +2222,7 @@ export function AnnotationLayer({
   const deleteFromList = useCallback(
     (it: ListItem) => {
       if (it.kind === "bm") {
-        scheduleDelete([it.id], T.bm.removed, (id) => ({
-          op: "bm-remove",
-          input: { id },
-        }));
+        scheduleDelete([it.id], T.bm.removed, removeBookmarkWire);
         return;
       }
       const cur = now.current;
@@ -1723,11 +2238,77 @@ export function AnnotationLayer({
               note: it.note,
               card: (n ? n.card !== "" || !!n.everOn : false) || it.card !== "",
             }),
-        (id) => ({ op: "remove", input: { id } }),
+        removeWire,
       );
     },
     [scheduleDelete],
   );
+
+  // ---- P63-fk.S11: a row of the Library's Notes sheet (the frame's `MarkRow`, frame.md F65, F91) -------------
+  // The row is its own undo line: deleting hides the mark everywhere at once (out of the counts) but keeps its row
+  // listed, saying what went; the delete is sent once its ten seconds run out, or on leaving the page; Undo within
+  // them sends nothing. A send that fails brings the mark back, and the row says so (`MarkRow`'s failed line).
+  const rowItem = useCallback((id: string): ListItem | undefined => {
+    const g = groupsRef.current;
+    return [...g.items, ...g.orphans, ...g.other.flatMap((x) => x.items)].find(
+      (x) => x.id === id,
+    );
+  }, []);
+  const rowStop = useCallback((id: string) => {
+    rowSends.current.delete(id);
+    setRowWaiting((o) => {
+      if (!o.has(id)) return o;
+      const n = new Set(o);
+      n.delete(id);
+      return n;
+    });
+  }, []);
+  const rowDelete = useCallback(
+    (id: string) => {
+      const it = rowItem(id);
+      if (!it) return;
+      let ok = () => {};
+      let no = () => {};
+      const settled = new Promise<void>((resolve, reject) => {
+        ok = resolve;
+        no = () => reject(new Error("not deleted"));
+      });
+      settled.catch(() => {});
+      rowSends.current.set(id, settled);
+      setGone([id], true);
+      setRowWaiting((o) => new Set(o).add(id));
+      clock.current.start(`row:${id}`, () =>
+        enqueue({
+          wire: it.kind === "bm" ? removeBookmarkWire(id) : removeWire(id),
+          done: () => {
+            rowStop(id);
+            dropMarks([id]);
+            ok();
+          },
+          undo: () => setGone([id], false),
+          fail: () => {
+            rowStop(id);
+            setGone([id], false);
+            no();
+          },
+        }),
+      );
+    },
+    [rowItem, rowStop, setGone, enqueue, dropMarks],
+  );
+  const rowUndo = useCallback(
+    (id: string) => {
+      clock.current.undo(`row:${id}`);
+      rowStop(id);
+      setGone([id], false);
+    },
+    [rowStop, setGone],
+  );
+  const rowGone = useCallback((id: string): Promise<unknown> => {
+    const settled = rowSends.current.get(id) ?? Promise.resolve();
+    clock.current.fire(`row:${id}`);
+    return settled;
+  }, []);
 
   // `?note=<id>` (a row in the book's list, or in another language): land on the mark once
   // the page is painted, again when the fonts settle if the reader has not moved.
@@ -1772,14 +2353,14 @@ export function AnnotationLayer({
       const last = s.getRangeAt(s.rangeCount - 1);
       const sc = first.startContainer;
       const el = sc.nodeType === 1 ? (sc as Element) : sc.parentElement;
-      if (!el || !host.art.contains(el)) return;
-      if (el.closest(".an-layer, .an-rows, .an-rail, .rd-end")) return;
+      if (!el || !host.scope.contains(el)) return;
+      if (el.closest(`${PG.own}, ${PG.end}`)) return;
       let c: Captured | NoneSel | null;
       if (plain) {
         // A plain Markdown document: nothing can be highlighted, anywhere in it.
         c = { mode: "none" };
       } else if (!host.root.contains(sc)) {
-        if (!el.closest(".rd-head")) return;
+        if (!el.closest(PG.head)) return;
         c = { mode: "refuse" };
       } else {
         c = capture(
@@ -1817,23 +2398,24 @@ export function AnnotationLayer({
       // keep the native selection (its handles) until an action is pressed.
       if (pointer && c.mode === "passage") s.removeAllRanges();
     },
-    [host, sections, plain],
+    [host, sections, plain, PG],
   );
 
   // ---- the page's events ---------------------------------------------------------------------
   useEffect(() => {
     if (!host) return;
-    const { art } = host;
+    // The old article, or the Library's text column (P63-fk.S11): a press anywhere in it closes what is open.
+    const art = host.scope;
     let selT = 0;
     const inFloat = (t: EventTarget | null) =>
-      t instanceof Element && !!t.closest(".an-layer, .an-rows, .an-rail");
+      t instanceof Element && !!t.closest(PG.own);
     let pointerUpAt = 0;
     const onSelChange = () => {
       // A mouse selection is read once, on mouseup; the selectionchange events that the
       // browser queues around the release must not turn it into a touch-style read.
       if (mouseDown.current || Date.now() - pointerUpAt < 400) return;
       const a = document.activeElement;
-      if (a && a.closest(".an-layer")) return;
+      if (a && a.closest(PG.own)) return;
       window.clearTimeout(selT);
       selT = window.setTimeout(() => read(false), 350);
     };
@@ -1905,7 +2487,7 @@ export function AnnotationLayer({
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest?.("input, textarea, select, [contenteditable]")) return;
-      if (document.querySelector(".rd-sheet")) return;
+      if (document.querySelector(PG.sheet)) return;
       const k = e.key;
       const { sel: s, pop: p, save: sv } = now.current;
       // Round 02: Enter or Space on a highlight's stop opens what a tap there opens.
@@ -1973,7 +2555,7 @@ export function AnnotationLayer({
       art.removeEventListener("touchend", onTouchEnd);
       art.removeEventListener("toggle", onToggle, true);
     };
-  }, [host, read, openMarks, closeAll, closePop, highlight, noteSel]);
+  }, [host, read, openMarks, closeAll, closePop, highlight, noteSel, PG]);
 
   // ---- the floating box: where it hangs ---------------------------------------------------
   const kind: "bar" | "pop" | "save" | null = pop
@@ -2045,14 +2627,14 @@ export function AnnotationLayer({
       else {
         native();
         if (!rects.length) {
-          const t = art.querySelector(".rd-head__title");
+          const t = host.scope.querySelector(PG.title);
           if (t) take([t]);
         }
       }
     }
     if (!rects.length) return;
     const ar = art.getBoundingClientRect();
-    const colEl = art.querySelector(".rd-prose") ?? root;
+    const colEl = art.querySelector("[data-reader-prose]") ?? root;
     const cr = colEl.getBoundingClientRect();
     const firstR = rects[0];
     const lastR = rects[rects.length - 1];
@@ -2072,20 +2654,39 @@ export function AnnotationLayer({
     const gap = kind === "bar" && coarse ? 28 : 8;
     // The visible band: 8 px under the top bar to 8 px above the chapter bar (64 px).
     const topBar =
-      document.querySelector(".rd-top")?.getBoundingClientRect().bottom ?? 59;
-    const loose = !!host.shell.classList.contains("rd-loose");
+      document.querySelector(PG.top)?.getBoundingClientRect().bottom ?? 59;
+    const loose = !lib && !!host.shell.classList.contains("rd-loose");
     const bandTop = Math.max(0, topBar) - ar.top + 8;
     const bandBottom = window.innerHeight - (loose ? 8 : 64) - ar.top - 8;
     let t = bottom + gap;
     if (kind === "bar" && t + h > bandBottom && top - gap - h >= bandTop)
       t = top - gap - h;
-    const next: Placed = {
+    let next: Placed = {
       sig,
       left: Math.round(left),
       top: Math.round(t),
       width: want ? Math.round(W) : null,
       maxW: Math.floor(colW),
     };
+    if (lib) {
+      // P63-fk.S11 (`Annotations.dc.html` `float()`): 8 px under the last line, starting where that line starts,
+      // never out of the column; the box's 26em and Sign in to save's 30em are the sheet's (`marks-float`).
+      const at = floatAt({
+        lineLeft: lastR.left - ar.left,
+        lineBottom: bottom,
+        colLeft: colL,
+        colWidth: colW,
+        width: fl.offsetWidth,
+      });
+      t = at.top;
+      next = {
+        sig,
+        left: at.left,
+        top: at.top,
+        width: null,
+        maxW: Math.floor(colW),
+      };
+    }
     setPlaced((o) =>
       o &&
       o.sig === next.sig &&
@@ -2113,7 +2714,7 @@ export function AnnotationLayer({
         window.scrollBy(0, dy);
       }
     }
-  }, [host, kind, sig, pop, sel, items, bms]);
+  }, [host, kind, sig, pop, sel, items, bms, lib, PG]);
 
   useLayoutEffect(() => {
     layout();
@@ -2168,7 +2769,8 @@ export function AnnotationLayer({
   };
 
   let body: ReactNode = null;
-  if (kind === "bar" && sel) body = bar(sel);
+  if (lib) body = null;
+  else if (kind === "bar" && sel) body = bar(sel);
   else if (kind === "save")
     body = (
       <SignInToSave
@@ -2229,7 +2831,8 @@ export function AnnotationLayer({
           onMouseDown={hold}
         >
           <p className="an-box__msg">
-            {m?.word ?? "Section"} · <b lang={m?.lang ?? lang}>{m?.title ?? ""}</b>
+            {m?.word ?? "Section"} ·{" "}
+            <b lang={m?.lang ?? lang}>{m?.title ?? ""}</b>
           </p>
           <button
             type="button"
@@ -2292,7 +2895,9 @@ export function AnnotationLayer({
   }
 
   /** The quotes and notes of Text changed and the other language: unpainted, each with Delete. */
-  function markList(list: readonly (ReaderNote & { gone?: boolean })[]): ReactNode {
+  function markList(
+    list: readonly (ReaderNote & { gone?: boolean })[],
+  ): ReactNode {
     return (
       <ul className="an-box__list">
         {list.map((x) => (
@@ -2472,7 +3077,9 @@ export function AnnotationLayer({
             return (
               <div key={v} className="an-box__grp">
                 <p className="an-box__fine">
-                  {(group.length === 1 ? T.changed.leadOne : T.changed.leadMany)(
+                  {(group.length === 1
+                    ? T.changed.leadOne
+                    : T.changed.leadMany)(
                     names[group[0].lang] ?? group[0].lang,
                     v,
                   )}
@@ -2771,6 +3378,446 @@ export function AnnotationLayer({
     (plain ? true : !!blk);
   const placeSec = !plain && blk && look.has(blk) ? blk : null;
 
+  // ---- P63-fk.S11: the Library's look ------------------------------------------------------------------------
+  const W = READER_MARKS;
+  const boxKey = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
+    const p = now.current.pop;
+    if (!p) return;
+    // Escape leaves the field first (a new mark's box returns to the bar), then closes the box.
+    if (p.t === "bm" && p.edit) {
+      setPop({ ...p, edit: false });
+      focusWant.current = "box";
+    } else if (
+      p.t === "new" ||
+      p.t === "bnew" ||
+      ((p.t === "hl" || p.t === "bnote") && p.edit)
+    )
+      cancelEdit();
+    else closePop();
+  };
+
+  /** What the box of a mark says, by what it is about (data only; `libBox` wires it). */
+  function libBoxSpec(
+    p: Pop,
+  ): Omit<
+    MarkBoxProps,
+    | "fieldId"
+    | "hintId"
+    | "boxRef"
+    | "fieldRef"
+    | "labelRef"
+    | "draft"
+    | "send"
+    | `on${string}`
+  > | null {
+    const at = (sec: string | null) => ({
+      where: sectionLabel(sec),
+      whereLang: sectionLang(sec),
+    });
+    if (p.t === "choose") {
+      const picks: BoxPick[] = p.ids
+        .map(byId)
+        .filter((x): x is Item => !!x)
+        .map((x) => ({
+          id: x.id,
+          quote: pickQuote(shown.get(x.id) ?? x.quote?.exact ?? ""),
+          lang: x.lang,
+          paint: x.note
+            ? `${LIBRARY_PAINT.mark} ${LIBRARY_PAINT.note}`
+            : LIBRARY_PAINT.mark,
+          word: boxTitle("highlight", { note: x.note }),
+        }));
+      const title = boxTitle("choose", { n: picks.length });
+      // The section is the first pick's, as the board names it (AnnotationsBoxStates, Two overlap).
+      const first = byId(p.ids[0]);
+      return {
+        kind: "choose",
+        title,
+        aria: boxAria("choose", title),
+        ...at(first ? (first.sec ?? first.block) : null),
+        editing: false,
+        picks,
+      };
+    }
+    if (p.t === "new" || p.t === "bnew") {
+      const kind: BoxKind = p.t === "new" ? "new" : "section";
+      const sec =
+        p.t === "bnew" ? p.sec : sel?.mode === "passage" ? sel.sec : null;
+      const title = boxTitle(kind);
+      return {
+        ...at(sec),
+        kind,
+        title,
+        aria: boxAria(kind, title),
+        editing: true,
+        noteLang: langOf(draft, lang),
+      };
+    }
+    if (p.t === "changed") {
+      const list = items.filter(
+        (x) => !x.gone && x.status === "block" && (x.sec ?? x.block) === p.sec,
+      );
+      if (!list.length) return null;
+      // One group per version the marks were made on (usually one).
+      const versions = [...new Set(list.map((x) => x.version))].sort(
+        (a, b) => a - b,
+      );
+      const lists: BoxList[] = versions.map((v) => {
+        const group = list.filter((x) => x.version === v);
+        return {
+          key: String(v),
+          lead: W.box.changedLead(
+            group.length > 1,
+            madeOn(languageName(group[0].lang, names), v),
+          ),
+          items: group.map((x) => ({
+            id: x.id,
+            quote: x.quote?.exact ?? "",
+            lang: x.lang,
+            note: x.note,
+            noteLang: langOf(x.note, x.lang),
+          })),
+          read: {
+            href: readerHref(target, {
+              lang: group[0].lang,
+              version: v,
+              section: p.sec,
+            }),
+            name: `v${v}`,
+            lang: "en",
+          },
+        };
+      });
+      const title = boxTitle("changed");
+      return {
+        ...at(p.sec),
+        kind: "changed",
+        title,
+        aria: boxAria("changed", title),
+        editing: false,
+        lists,
+      };
+    }
+    if (p.t === "other") {
+      const list = others.filter(
+        (x) => !x.gone && x.at === p.sec && x.lang === p.lang,
+      );
+      if (!list.length) return null;
+      const name = languageName(p.lang, names);
+      const title = boxTitle("other", { n: list.length });
+      return {
+        ...at(p.sec),
+        kind: "other",
+        title,
+        titleName: { name, lang: p.lang },
+        aria: boxAria("other", title, name),
+        editing: false,
+        lists: [
+          {
+            key: p.lang,
+            lead: W.box.otherLead(list.length > 1, languageName(lang, names)),
+            items: list.map((x) => ({
+              id: x.id,
+              quote: x.quote?.exact ?? "",
+              lang: x.lang,
+              note: x.note,
+              noteLang: langOf(x.note, x.lang),
+            })),
+            read: {
+              href: readerHref(target, {
+                lang: p.lang,
+                section: list[0].sec ?? list[0].block,
+              }),
+              name,
+              lang: p.lang,
+            },
+          },
+        ],
+      };
+    }
+    if (p.t === "bm") {
+      const b = bms.find((x) => x.id === p.id && !x.gone);
+      if (!b) return null;
+      const title = boxTitle("bookmark");
+      return {
+        ...at(b.at),
+        kind: "bookmark",
+        title,
+        aria: boxAria("bookmark", title),
+        label: b.label,
+        labelLang: langOf(b.label, "en"),
+        editing: p.edit,
+        delWord: deleteWord("bookmark"),
+      };
+    }
+    const it = byId(p.id);
+    if (!it) return null;
+    const kind: BoxKind = p.t === "hl" ? "highlight" : "section";
+    const card = cardOf(it.review, it.everOn);
+    const title = boxTitle(kind, { note: it.note });
+    return {
+      ...at(it.sec ?? it.block),
+      kind,
+      title,
+      aria: boxAria(kind, title),
+      note: it.note,
+      noteLang: langOf(p.edit ? draft : it.note, lang),
+      editing: p.edit,
+      card,
+      reviewLine: libReviewLine(card),
+      goes: kind === "highlight" ? goesLine(it.note, card) : "",
+      delWord: deleteWord(kind),
+    };
+  }
+
+  function libBox(p: Pop): ReactNode {
+    const spec = libBoxSpec(p);
+    if (!spec) return null;
+    const bm = p.t === "bm";
+    return (
+      <MarkBox
+        {...spec}
+        fieldId={field}
+        hintId={hintId}
+        boxRef={boxRef}
+        fieldRef={fieldRef}
+        labelRef={labelRef}
+        draft={draft}
+        send={send}
+        onClose={closePop}
+        onKeyDown={boxKey}
+        onDraft={setDraft}
+        onSave={submitNote}
+        onCancel={bm ? labelBox : cancelEdit}
+        onEdit={bm ? labelEdit : startEdit}
+        onDeleteNote={deleteNote}
+        onReview={toggleReview}
+        onSaveLabel={labelSave}
+        onDelete={deleteBox}
+        onDeleteItem={remove}
+        onPick={pickMark}
+      />
+    );
+  }
+
+  /** What the bar a selection shows says, by what was selected. */
+  function libBar(x: Sel): ReactNode {
+    const k = barKind(x);
+    if (x.mode === "passage")
+      return (
+        <MarksBar
+          kind={k}
+          section={sectionLabel(x.sec)}
+          sectionLang={sectionLang(x.sec)}
+          onHighlight={highlight}
+          onNote={noteSel}
+          onMouseDown={hold}
+        />
+      );
+    if (x.mode === "block") {
+      const m = meta.get(x.sec);
+      return (
+        <MarksBar
+          kind="block"
+          section={m?.title ?? ""}
+          sectionLang={m?.lang ?? lang}
+          word={libBlockWord(m?.word)}
+          bookmarked={bookmarked(x.sec)}
+          onNote={() => blockNote(x.sec)}
+          onBookmark={() => toggleSection(x.sec, "bar")}
+          onMouseDown={hold}
+        />
+      );
+    }
+    if (x.mode === "none")
+      return (
+        <MarksBar
+          kind="plain"
+          bookmarked={positionOn}
+          onBookmark={() => togglePosition("bar")}
+          onMouseDown={hold}
+        />
+      );
+    return <MarksBar kind="refused" onMouseDown={hold} />;
+  }
+
+  const libSave = (what: "notes" | "bookmarks") =>
+    what === "bookmarks" ? "bookmarks" : "highlights";
+
+  if (lib) {
+    let float: ReactNode = null;
+    if (kind === "bar" && sel) float = libBar(sel);
+    else if (kind === "save")
+      float = (
+        <SlotSave
+          what={libSave(saveWhat)}
+          signInHref={signInHref}
+          onNotNow={() => {
+            closeAll(true);
+            clearNative();
+          }}
+        />
+      );
+    else if (kind === "pop" && pop) float = libBox(pop);
+    const placeSecLib = !plain && blk && look.has(blk) ? blk : null;
+    const placeShown =
+      !!host &&
+      libPlaceUp({
+        barsHidden: !!bridge?.barsHidden,
+        sheet: !!bridge?.sheetOpen,
+        pill: !!bridge?.pillUp,
+        selection: !!sel,
+        box: !!pop,
+        line: !!toast,
+        save: save || !!slotSave,
+        end: endSeen,
+        plain,
+        section: placeSecLib,
+      });
+    let slot: ReactNode = null;
+    if (toast)
+      slot = (
+        <SlotLine
+          text={toast.text}
+          action={
+            toast.undo
+              ? { label: W.undo, onClick: toast.undo }
+              : toast.retry
+                ? { label: T.tryAgain, onClick: toast.retry }
+                : undefined
+          }
+        />
+      );
+    else if (slotSave)
+      slot = (
+        <SlotSave
+          what={libSave(slotSave)}
+          signInHref={signInHref}
+          onNotNow={() => setSlotSave(false)}
+        />
+      );
+    else if (placeShown && host)
+      slot = plain ? (
+        <LibraryPlaceBar
+          kind="position"
+          label=""
+          lang={lang}
+          bookmarked={positionOn}
+          onNote={() => {}}
+          onBookmark={() => togglePosition("place")}
+        />
+      ) : placeSecLib ? (
+        <LibraryPlaceBar
+          kind="section"
+          label={sectionLabel(placeSecLib)}
+          lang={sectionLang(placeSecLib)}
+          bookmarked={bookmarked(placeSecLib)}
+          onNote={() => {
+            // The page first shows what the note is about: the section's heading.
+            const el = host.root.querySelector(
+              `[data-block="${CSS.escape(placeSecLib)}"]`,
+            );
+            if (el) scrollUnderBar(el);
+            opener.current = { el: null, mark: null };
+            blockNote(placeSecLib, "place");
+          }}
+          onBookmark={() => toggleSection(placeSecLib, "place")}
+        />
+      ) : null;
+    const rowsOf = (list: readonly ListItem[]): SheetRow[] =>
+      list.map((it) => rowOf(it, lang));
+    const sheetHead =
+      bridge?.open && bridge.host
+        ? (bridge.host
+            .closest("dialog")
+            ?.querySelector<HTMLElement>(".sheet-head") ?? null)
+        : null;
+    return (
+      <div ref={layerRef} data-an-ui="">
+        <span id={desc.one} className="sr-only">
+          {W.desc.one}
+        </span>
+        <span id={desc.note} className="sr-only">
+          {W.desc.note}
+        </span>
+        <span id={desc.many} className="sr-only">
+          {W.desc.many}
+        </span>
+        {kind && float ? (
+          <MarksFloat
+            kind={kind === "pop" ? "box" : kind}
+            floatRef={floatRef}
+            placed={isPlaced}
+            style={
+              isPlaced && placed
+                ? { left: placed.left, top: placed.top, maxWidth: placed.maxW }
+                : { left: 0, top: 0, visibility: "hidden" }
+            }
+          >
+            {float}
+          </MarksFloat>
+        ) : null}
+        {Object.entries(besideHosts).map(([k, node]) =>
+          createPortal(
+            (besideOf[k] ?? []).map((key) => {
+              const m = markers.find((x) => x.key === key);
+              return m ? (
+                <BesideButton
+                  key={key}
+                  note={m.beside}
+                  current={markerOpen(m)}
+                  onOpen={(el) => openMarker(m, el)}
+                />
+              ) : null;
+            }),
+            node,
+            k,
+          ),
+        )}
+        {bridge?.slot && slot ? createPortal(slot, bridge.slot) : null}
+        {bridge?.open && bridge.host
+          ? createPortal(
+              <NotesBody
+                visitor={!member}
+                text={place}
+                here={rowsOf(groups.items)}
+                other={groups.other.map((g) => ({
+                  lang: g.lang,
+                  name: languageName(g.lang, names),
+                  rows: rowsOf(g.items),
+                }))}
+                lost={rowsOf(groups.orphans)}
+                waiting={rowWaiting}
+                allHref={target.kind === "chapter" ? bridge.bookHref : null}
+                signInHref={signInHref}
+                onOpen={(m: Mark) => {
+                  const it = rowItem(m.id);
+                  if (it) goTo(it);
+                }}
+                onLabel={(id, text) => setLabel(id, text)}
+                onDelete={rowDelete}
+                onUndo={rowUndo}
+                onGone={rowGone}
+                onNotNow={() => bridge.close()}
+                onAll={() => bridge.close()}
+              />,
+              bridge.host,
+            )
+          : null}
+        {sheetHead && member && listCount
+          ? createPortal(
+              <SheetCount count={notesCount(listCount)} />,
+              sheetHead,
+            )
+          : null}
+      </div>
+    );
+  }
+
   const rowsOf = (sec: string) =>
     markers.filter(
       (m) =>
@@ -2790,7 +3837,11 @@ export function AnnotationLayer({
         {T.desc.many}
       </span>
       {markers.length ? (
-        <div className="an-rail" role="complementary" aria-label={T.margin.rail}>
+        <div
+          className="an-rail"
+          role="complementary"
+          aria-label={T.margin.rail}
+        >
           {markers.map((m) => (
             <div
               key={m.key}

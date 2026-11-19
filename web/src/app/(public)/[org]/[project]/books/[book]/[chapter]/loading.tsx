@@ -1,19 +1,7 @@
-import { cookies } from "next/headers";
+import { ReaderLoading } from "@/hi2vi/reader";
 
-import { ReaderFrame } from "@/components/reader/reader-frame";
-import { ReaderStateBlock } from "@/components/reader/reader-state";
-import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
-import { stateView } from "@/lib/reader/state-view";
-
-// P30.S13 (`01-reader` §16) — the skeleton, in the reader's frame with the line and
-// the top bar (the chapter bar appears only once the chapter is ready).
-export default async function ChapterLoading() {
-  const settings = parseReaderCookie(
-    (await cookies()).get(READER_COOKIE)?.value,
-  );
-  return (
-    <ReaderFrame view={stateView(settings)} state="loading">
-      <ReaderStateBlock kind="loading" />
-    </ReaderFrame>
-  );
+// P63-fk.S8 — Loading keeps the reader's frame and scheme (`Chapter.dc.html`, frame.md F93): the Bar,
+// skeleton bars in the real elements, no foot bar until the chapter is ready.
+export default function ChapterLoading() {
+  return <ReaderLoading />;
 }

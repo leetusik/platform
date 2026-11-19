@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { DASHBOARD } from "@/content/dashboard";
 import { Keys, Trend, Usage } from "@/hi2vi/frame";
@@ -13,6 +14,7 @@ import {
   getUsage,
   listOrgCredentials,
 } from "@/lib/knowledge/app";
+import type { KbDashboard } from "@/lib/knowledge/types";
 
 import { ActivityPanel } from "./activity-panel";
 import { HashLanding } from "./hash-landing";
@@ -27,6 +29,7 @@ import {
   activityLines,
   keyRow,
   ORG_KEYS_HEAD_ID,
+  orgHomeFormat,
   projectRows,
 } from "./org-home-model";
 import { ProjectsPanel } from "./projects-panel";
@@ -39,9 +42,10 @@ import { UrlPanel } from "./url-panel";
  *
  * Reads, in parallel: `/app/usage` (the 30-day figures and the trend), `/app/credentials` (the org's
  * keys, and their lines in the feed), `/app/documents` (`total`: Active total, the documents the org
- * holds now), and the Projects panel's own: `/app/dashboard` (the rows and the project feed) with one
- * `/app/documents?project=<id>` a project for its Documents column. A failure of the Projects reads
- * is that panel's own state (Projects did not load.); any other failure is the route's error page.
+ * holds now), and the Projects panel's own: `/app/dashboard` (the rows, each with its Documents count,
+ * and the project feed), one read whatever the number of projects. A failure of that read is the
+ * panel's own state (Projects did not load.); any other failure is the route's error page. Dates are
+ * in the viewer's zone (`kb_tz`), UTC until it is known.
  *
  * At the end of the page head, hi2vi's own feedback control (job 08, round
  * 01-landing-diagram-feedback, `## Build` §5) as the signed-in user, `Sends as` the Shell's account,
@@ -49,35 +53,12 @@ import { UrlPanel } from "./url-panel";
  */
 export const metadata: Metadata = { title: DASHBOARD.title };
 
-interface ProjectsData {
-  dashboard: Awaited<ReturnType<typeof getDashboard>>;
-  docs: Map<string, number>;
-}
-
-async function readProjects(token: string): Promise<ProjectsData | null> {
+async function readProjects(token: string): Promise<KbDashboard | null> {
   try {
-    const dashboard = await getDashboard(token);
-    const counts = await Promise.all(
-      dashboard.projects.map(
-        async (p) =>
-          [
-            p.id,
-            (await getDocuments(token, { project: p.id, limit: 1 })).total,
-          ] as const,
-      ),
-    );
-    return { dashboard, docs: new Map(counts) };
+    return await getDashboard(token);
   } catch {
     return null;
   }
-}
-
-/** One `now` and one zone for every date on the page, server and client alike (no hydration drift). */
-function pageFormat(): FormatOptions {
-  return {
-    now: Date.now(),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  };
 }
 
 /** Today's calendar date in the zone the page formats in. */
@@ -94,7 +75,7 @@ export default async function DashboardPage() {
   const { token, identity } = await requireIdentity();
   const orgName = identity.tenant?.name ?? "";
   const slug = identity.tenant?.slug ?? null;
-  const format = pageFormat();
+  const format = orgHomeFormat(await cookies());
   const feedback = feedbackControl();
 
   const [usage, orgKeys, held, projects] = await Promise.all([
@@ -133,11 +114,7 @@ export default async function DashboardPage() {
         }}
       />
       <ProjectsPanel
-        rows={
-          projects
-            ? projectRows(projects.dashboard.projects, projects.docs, format)
-            : null
-        }
+        rows={projects ? projectRows(projects.projects, format) : null}
         create={createOrgProject}
       />
       <Grid className="orghome-pair">
@@ -146,11 +123,7 @@ export default async function DashboardPage() {
           <UrlPanel slug={slug} save={saveOrgSlug} />
         </Stack>
         <ActivityPanel
-          lines={activityLines(
-            projects?.dashboard.activity ?? [],
-            orgKeys,
-            format,
-          )}
+          lines={activityLines(projects?.activity ?? [], orgKeys, format)}
         />
       </Grid>
       <Keys

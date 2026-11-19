@@ -1,0 +1,67 @@
+/* hi2vi — the Library: a loose document (`Document.dc.html`), then the original layout. Owner: P63-fk.S12, then P63-fk.S13; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+
+   P63-fk.S13 — an html document in its Original layout (`## Build` § Page: document, the state Original layout:
+   "the tag in the bar and the head, then the stand-in; no text, no end"). Where the board draws its stand-in
+   (`.read-flow` in the column) the page keeps the original html as it renders today (`09-legacy-and-print`,
+   P30.S25), and only its frame's box is set here:
+   - the frame takes the window's whole width (the html lays itself out at the width it always had, not the
+     column's) and the window's height under the bar (`--original-bar`, the bar's measured height, set on the
+     element by the page; the bar's height until it is measured), so once the head has scrolled away the frame
+     fills the window and is, as it was, the document's only scroller; the column's bottom padding goes, so the
+     page ends with the frame;
+   - the frame's own ground is the document's page colour, as the legacy reader painted it: the html's colours, not
+     the Library's, so they stay in the legacy reader's own sheet (`app/legacy.css` `.lg-docframe`, which the page
+     imports with the frame), never here;
+   - the ring, inside the frame's edge, when focus came into it by keyboard (an iframe never matches
+     :focus-visible, so the page sets [data-ring]): the system's focus ring;
+   - while the frame loads, the Loading state's paragraphs stand over it, in the column's measure;
+   - print: the framed html never prints (it is a sandboxed frame); with reader.css's print rules (the bar, the
+     head and the foot print nothing) ⌘P prints the one notice sheet, `app/kb-print.css` part 3's
+     `.rd-root .pp-notice`. */
+@scope (.ui) to ([data-ui-legacy]) {
+  .read-flow[data-original] {
+    --original-bar: var(--top-h);
+    position: relative;
+    width: 100cqw;
+    height: calc(100vh - var(--original-bar));
+    height: calc(100dvh - var(--original-bar));
+    margin-inline: calc(50% - 50cqw);
+    gap: 0;
+  }
+  .reader-main:has(> .reader-col > .read-flow[data-original]) {
+    padding-bottom: 0;
+  }
+  .read-flow[data-original] > iframe {
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+  }
+  .read-flow[data-original] > iframe[data-ring="1"] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .read-flow[data-original] > [data-original-state] {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    overflow-y: auto;
+    padding: 0 var(--gutter-narrow);
+    background: var(--surface);
+  }
+  .read-flow[data-original] > [data-original-state] > .read {
+    max-width: calc(var(--read-measure) * var(--read-fs));
+    margin-inline: auto;
+  }
+
+  @media print {
+    .reader .read-flow[data-original] {
+      display: none;
+    }
+  }
+}

@@ -77,6 +77,10 @@ import "@/app/legacy.css";
  *    is ignored. The parent sends one `restore` on load (the resume, a language switch's
  *    place, From the top).
  *  - Reading memory: `useLegacyReading` (S3's rules, fed by the bridge).
+ *
+ * P63-fk.S13: it serves an html chapter of a book only. An html document opens in its Original layout on the
+ * Library's frame (`@/hi2vi/reader/document` `DocumentOriginal`), which keeps this file's frame, bridge, probe
+ * and reading memory as they are.
  */
 type Panel = "contents" | "display" | "versions" | null;
 type Status = "loading" | "slow" | "ready" | "missing" | "failed";
@@ -149,9 +153,12 @@ function newId(): string {
 export function LegacyReader({
   view,
   frame,
+  timeZone,
 }: {
   view: ReaderView;
   frame: LegacyFrame;
+  /** The viewer's zone for the Version history's dates (D5); UTC when not known. */
+  timeZone: string | undefined;
 }) {
   const router = useRouter();
   const loose = view.kind === "loose" || view.book === null;
@@ -1338,6 +1345,7 @@ export function LegacyReader({
                     newest={view.newest}
                     noun={noun}
                     onOpen={openVersion}
+                    timeZone={timeZone}
                   />
                 ) : null}
                 {panel === "display" ? (

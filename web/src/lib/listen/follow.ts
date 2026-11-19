@@ -104,7 +104,7 @@ export function segmentAt(
 function weightOf(el: Element): number {
   const tag = el.tagName;
   if (tag === "HR" || tag === "PRE") return 0;
-  if (el.matches(".kb-ch-code, .kb-ch-unshowable")) return 0;
+  if (el.matches("[data-unspoken]")) return 0;
   if (tag === "UL" || tag === "OL") {
     return Math.max(1, el.querySelectorAll("li").length);
   }
@@ -132,9 +132,17 @@ export function readablesOf(root: HTMLElement): ReadableEl[] {
   if (title) out.push({ el: title, id: null, weight: 1 });
   const lede = root.querySelector<HTMLElement>(".rd-head__lede");
   if (lede) out.push({ el: lede, id: null, weight: 1 });
-  const body = root.querySelector<HTMLElement>(".rd-article .kb-ch");
+  const body = root.querySelector<HTMLElement>(
+    ":is(.rd-article, [data-reader-article]) [data-reader-body]",
+  );
   if (!body) return out;
-  for (const child of Array.from(body.children)) {
+  // An old-look island of the Library's body (P63-fk.S9) holds blocks of the body: they are read in its place.
+  const blocks = Array.from(body.children).flatMap((el) =>
+    el.hasAttribute("data-island")
+      ? Array.from(el.querySelector("[data-island-body]")?.children ?? [])
+      : [el],
+  );
+  for (const child of blocks) {
     if (!(child instanceof HTMLElement)) continue;
     if (getComputedStyle(child).display === "none") continue;
     const id = child.getAttribute("data-block") || child.id || null;

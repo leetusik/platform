@@ -1,51 +1,28 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 
-import { ReaderFrame } from "@/components/reader/reader-frame";
-import { ReaderStateBlock } from "@/components/reader/reader-state";
-import { readReaderCookie } from "@/lib/reader-cookie";
-import { stateView } from "@/lib/reader/state-view";
+import { ReaderFailed } from "@/hi2vi/reader";
+import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
 
-// P30.S13 (`01-reader` §16) — "Something on our side stopped reading." with Try again
-// and the request's reference. *Wiring*: "Try again → reloads the chapter", and it
-// "shows the skeleton, then the chapter": the skeleton stands in at once and the page
-// reloads (a bare `reset()` only re-renders the same failed server payload, and
-// `router.refresh()` inside a transition left the dev runtime on the skeleton).
-//
-// This boundary renders on the client, so the `kb_reader` cookie is read through
-// `useSyncExternalStore` (the server snapshot is the default; the frame is keyed on the
-// jar so it re-mounts with the reader's own settings).
-const subscribe = () => () => {};
-
+// P63-fk.S8 — Error, in the bar's frame (`Chapter.dc.html`, F5's words). Try again shows Loading, then
+// the chapter: `boundaryRetry` re-fetches the route (Next 16.3's `retry`); a failure that persists
+// arrives as a new error, which shows Error again (the retry is held for the error it was pressed on).
 export default function ChapterError({
   error,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
-  const [retrying, setRetrying] = useState(false);
-  const jar = useSyncExternalStore(
-    subscribe,
-    () => document.cookie,
-    () => "",
-  );
-  const retry = () => {
-    setRetrying(true);
-    window.location.reload();
-  };
+  const [retried, setRetried] = useState<Error | null>(null);
   return (
-    <ReaderFrame
-      key={jar}
-      view={stateView(readReaderCookie(jar))}
-      state={retrying ? "loading" : "failed"}
-    >
-      <ReaderStateBlock
-        kind={retrying ? "loading" : "failed"}
-        noun="chapter"
-        reference={error.digest ?? null}
-        onRetry={retry}
-      />
-    </ReaderFrame>
+    <ReaderFailed
+      digest={error.digest ?? null}
+      retrying={retried === error}
+      onRetry={() => {
+        setRetried(error);
+        boundaryRetry(boundary)();
+      }}
+    />
   );
 }

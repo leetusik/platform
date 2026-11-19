@@ -6,14 +6,39 @@ import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type { KbCredential, KbOrgLibrary } from "@/lib/knowledge/types";
+import { secondTitleLang } from "@/lib/library/lists";
 import { bookHref, orgSegment, readerHref } from "@/lib/reader-href";
-import { plural } from "@/lib/format";
+import { plural, type FormatOptions } from "@/lib/format";
+import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
 
 import type {
   MintCredentialState,
   RevokeCredentialState,
   SetVisibilityState,
 } from "./actions";
+
+// ── Dates ───────────────────────────────────────────────────────────────────
+
+/**
+ * The request's clock, read once, and the viewer's zone from the cookie (UTC until it is known: the
+ * operator's decision 5, D254-wv), for every formatter on the page, server and browser alike.
+ */
+export function projectHomeFormat(
+  store: CookieReader,
+  now: number = Date.now(),
+): FormatOptions {
+  return { now, timeZone: viewerTimeZone(store) };
+}
+
+/** Today's calendar date (`YYYY-MM-DD`) in the page's zone: Trend's last day when it has none. */
+export function todayIn(format: FormatOptions): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: format.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(format.now ?? Date.now());
+}
 
 // ── Not found ───────────────────────────────────────────────────────────────
 
@@ -52,9 +77,11 @@ export interface LibraryRow {
   title: string;
   lang: string;
   book: boolean;
-  /** A book's second title (`.meta` under the title); `null` when the data has none. */
+  /** A book's second title (`.meta` under the title); `null` when the read carries none. */
   sub: string | null;
-  /** `14 chapters` for a book; `null` where the data has no length (a document's minutes). */
+  /** The second title's `lang`: the manifest's `sub_lang`, else `ko` for a Korean one, else unset. */
+  subLang: string | undefined;
+  /** `14 chapters` for a book, `6 min` for a document; `null` when the read carries no length. */
   length: string | null;
   /** `YYYY-MM-DD`, or `null` when unknown. */
   date: string | null;
@@ -62,6 +89,19 @@ export interface LibraryRow {
 }
 
 const CALENDAR = /^\d{4}-\d{2}-\d{2}/;
+
+/** A document's reading time as the board draws it (`6 min`), or `null` when the read carries none. */
+export function readingTime(minutes: number | null | undefined): string | null {
+  return typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 1
+    ? PROJECT_HOME.library.minutes(Math.round(minutes))
+    : null;
+}
+
+/** A book's second title, only when the read carries one. */
+function secondTitle(sub: string | null | undefined): string | null {
+  const text = sub?.trim();
+  return text ? text : null;
+}
 
 /** A book's date: its newest chapter's, read off the variant's document stem (`<date>-<slug>`). */
 export function bookDate(book: KbOrgLibrary["books"][number]): string | null {
@@ -77,7 +117,9 @@ export function bookDate(book: KbOrgLibrary["books"][number]): string | null {
 
 /**
  * The Library panel's rows: the project's books and loose documents from the org library listing,
- * newest first, at most five. A book carries its `Book` badge and its chapter count as its length.
+ * newest first, at most five. A book carries its `Book` badge, its chapter count as its length and its
+ * second title when the read has one; a document its reading time (D248-j7). Rows carry no `?from=`:
+ * the way back (F324) names a list, and project home is not one.
  */
 export function libraryRows(
   listing: KbOrgLibrary,
@@ -91,7 +133,8 @@ export function libraryRows(
       title: b.title,
       lang: "en",
       book: true,
-      sub: null,
+      sub: secondTitle(b.sub),
+      subLang: secondTitleLang(b.sub, b.sub_lang),
       length: plural(b.chapters.length, PROJECT_HOME.library.chapter),
       date: bookDate(b),
       href: bookHref({ org, project: b.project, book: b.slug }),
@@ -104,7 +147,8 @@ export function libraryRows(
       lang: d.lang || "en",
       book: false,
       sub: null,
-      length: null,
+      subLang: undefined,
+      length: readingTime(d.reading_minutes),
       date: CALENDAR.test(d.date) ? d.date.slice(0, 10) : null,
       href: readerHref({
         kind: "document",

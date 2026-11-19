@@ -1,38 +1,54 @@
 import type { ReactNode } from "react";
 
-import { schemeFor, type ReaderSettings } from "@/lib/reader-cookie";
+import { BookDock } from "@/components/book/book-listen";
+import { ListenPlayer } from "@/components/listen/player";
+import { UiRoot } from "@/hi2vi/ui";
 
-import "@/app/reader-fonts.css";
-import "@/app/reader.css";
-import "@/app/book.css";
+import { ListenHost } from "./listen-host";
 
 /**
- * The book page's frame (`07-book-page` *What it is, and where it sits*): the reader's
- * root and themes, a slim top bar of its own, no app rail and no app top bar, for members
- * and the signed-out alike. The page follows the reader's Display setting for the THEME (the
- * `kb_reader` cookie, read on the server, so the first paint already has it) but not its
- * text size: the root is the reader's root at size 3 (open question 12).
+ * The book page's frame, the Bar's (`Book.dc.html`, frame.md F52): `.ui > .page > .app.bare > Bar +
+ * main.app-main > .column.is-narrow` (`.column` for a state: Not found and Error are F5's block). One
+ * `main` a page. The page, its loading state, Not found and Error all draw it, so the Bar is complete in
+ * every state. `nonce` is the request's (the book's address carries the reader routes' nonce CSP).
+ *
+ * `listenSignInHref`, on the loaded page: Listen's dock and player in their old look (operator decision 3),
+ * fixed to the window, outside the column; each renders nothing until a Listen lives.
  */
 export function BookFrame({
-  settings,
-  top,
+  bar,
   children,
+  state = false,
+  nonce,
+  listenSignInHref,
 }: {
-  settings: ReaderSettings;
-  top: ReactNode;
+  bar: ReactNode;
   children: ReactNode;
+  /** A whole-page state: the children bring their own `.column`. */
+  state?: boolean;
+  nonce?: string;
+  listenSignInHref?: string;
 }) {
   return (
-    <div
-      className="rd-root rd-size-3 bk-page"
-      data-md-color-scheme={schemeFor(settings.theme)}
-      data-theme-choice={settings.theme}
-      lang="en"
-    >
-      <div className="rd-in">
-        {top}
-        <div className="bk-room">{children}</div>
+    <UiRoot nonce={nonce}>
+      <div className="page">
+        <div className="app bare">
+          {bar}
+          <main id="main-content" className="app-main">
+            {state ? (
+              children
+            ) : (
+              <div className="column is-narrow book-col">{children}</div>
+            )}
+          </main>
+          {listenSignInHref ? (
+            <ListenHost>
+              <BookDock signInHref={listenSignInHref} />
+              <ListenPlayer signInHref={listenSignInHref} />
+            </ListenHost>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </UiRoot>
   );
 }

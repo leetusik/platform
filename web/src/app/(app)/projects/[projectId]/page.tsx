@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { PROJECT } from "@/content";
@@ -14,7 +15,7 @@ import {
 } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
 import type { KbIdentity, KbProjectUsage } from "@/lib/knowledge/types";
-import { orgSegment } from "@/lib/reader-href";
+import { orgSegment, projectLibraryHref } from "@/lib/reader-href";
 
 import { LibraryFailed } from "./library-retry";
 import {
@@ -22,6 +23,8 @@ import {
   keyRowOf,
   libraryCount,
   libraryRows,
+  projectHomeFormat,
+  todayIn,
   type LibraryRow,
 } from "./model";
 import {
@@ -44,17 +47,10 @@ import "./project-home.css";
 // - Active total (Usage) and the Library's count: `getDocuments({project, limit: 1}).total`;
 // - the Library's rows: the org library listing (`getOrgLibrary`), this project's books and documents;
 // - Feedback: `listFeedback({project_id, limit: 5})`.
+// Every date is in the viewer's zone (the `kb_tz` cookie), UTC until it is known (decision 5).
 //
 // The <title> stays the static `PROJECT.title`: a `generateMetadata` title would cost a second uncached read.
 export const metadata: Metadata = { title: PROJECT.title };
-
-/** Dates on the server and in the browser agree: one clock and one zone for every formatter. */
-const ZONE = "UTC";
-
-/** The request's clock, read once, for every formatter on the page. */
-function requestFormat(): FormatOptions {
-  return { now: Date.now(), timeZone: ZONE };
-}
 
 /** The project read; a missing or another org's id renders Not found (404-never-403). */
 async function loadProject(
@@ -113,7 +109,7 @@ export default async function ProjectHomePage({
   const { projectId } = await params;
   const { token, identity } = await requireIdentity();
   const org = identity.tenant?.name ?? "—";
-  const format = requestFormat();
+  const format = projectHomeFormat(await cookies());
 
   const usage = await loadProject(token, projectId);
   const { project } = usage;
@@ -124,9 +120,7 @@ export default async function ProjectHomePage({
   ]);
   const count = libraryCount(documents.total);
   const series = usage.daily_counts.map((d) => d.searches);
-  const lastDay =
-    usage.daily_counts.at(-1)?.day ??
-    new Date(format.now as number).toISOString().slice(0, 10);
+  const lastDay = usage.daily_counts.at(-1)?.day ?? todayIn(format);
 
   return (
     <div className="column">
@@ -144,7 +138,11 @@ export default async function ProjectHomePage({
         ) : (
           <LibraryPanel
             count={count}
-            state={{ kind: "rows", rows }}
+            state={{
+              kind: "rows",
+              rows,
+              all: projectLibraryHref(project.id),
+            }}
             format={format}
           />
         )}

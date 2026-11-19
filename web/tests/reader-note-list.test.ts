@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { bookNotesHref, readerHref } from "@/lib/reader-href";
 import {
-  bookCountLine,
-  bookCounts,
   buildGroups,
   groupBook,
   positionNear,
@@ -310,23 +308,13 @@ describe("the per-book list", () => {
       "ko",
     ]);
   });
-  it("counts follow the filter, with approximate and unanchored named", () => {
+  it("the filter keeps only its kind of mark", () => {
     const entries = [
       entry("h", "one", {}),
       entry("b", "one", { kind: "bm", at: 1 }),
       entry("ap", "one", { kind: "bm", status: "approx" }),
       entry("o", "two", { status: "orphan" }),
     ];
-    expect(bookCounts(entries)).toEqual({ all: 4, bm: 2, hl: 2 });
-    expect(bookCountLine(entries, "all", 2)).toBe(
-      "4 items in 2 chapters · 1 approximate · 1 unanchored",
-    );
-    expect(bookCountLine(entries, "bm", 1)).toBe(
-      "2 bookmarks in 1 chapter · 1 approximate",
-    );
-    expect(bookCountLine(entries, "hl", 2)).toBe(
-      "2 highlights and notes in 2 chapters · 1 unanchored",
-    );
     expect(
       groupBook(entries, "bm", chapters)
         .flatMap((c) => c.entries)

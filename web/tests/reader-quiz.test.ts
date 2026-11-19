@@ -266,4 +266,39 @@ describe("what a saved answer may show (item drift)", () => {
       "You answered a different version of this question (v2, 12 Oct 2026), so it starts fresh here.",
     );
   });
+
+  it("dates a saved answer on the viewer's day (D5), in each look's form", () => {
+    // P63-fk.S26: answered at 23:30 UTC on 12 Nov is 13 Nov in Seoul.
+    const late = {
+      answeredAt: "2026-11-12T23:30:00Z",
+      sameLang: true,
+      version: 1,
+      viewVersion: 1,
+      langName: "English",
+    };
+    const now = new Date("2026-11-17T00:00:00Z");
+    // No cookie: UTC, as before.
+    expect(provenance(late)).toBe("Your answer from 12 Nov 2026");
+    expect(provenance({ ...late, timeZone: "Asia/Seoul" })).toBe(
+      "Your answer from 13 Nov 2026",
+    );
+    // The Library's look: the board's form (`BlocksQuizStates`).
+    expect(provenance({ ...late, form: "library", now })).toBe(
+      "Your answer from Nov 12",
+    );
+    expect(
+      provenance({ ...late, form: "library", now, timeZone: "Asia/Seoul" }),
+    ).toBe("Your answer from Nov 13");
+    expect(
+      driftNote({
+        ...late,
+        otherLanguageCloze: false,
+        form: "library",
+        now,
+        timeZone: "Asia/Seoul",
+      }),
+    ).toBe(
+      "You answered a different version of this question (v1, Nov 13), so it starts fresh here.",
+    );
+  });
 });

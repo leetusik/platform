@@ -305,3 +305,30 @@ def test_visibility_toggle_flips_anonymous_read(documents_client):
     assert client.get(f"/app/documents/{doc_id}").status_code == 200
     _set_public(client, headers, proj, visibility="private")
     assert client.get(f"/app/documents/{doc_id}").status_code == 404
+
+
+def test_document_reads_name_their_org_past_the_gate_only(documents_client):
+    """P63: both DETAIL reads carry the owning org as the org library names it
+    (``org``: its slug and display name), for a visitor's way back. A private
+    project's document still answers the one 404, so the name leaks nowhere new."""
+
+    client, _ = documents_client
+    headers, tenant = _signup(client, f"orgname-{uuid4()}@example.com")
+    org = _set_slug(client, headers)
+    pub = _project(client, headers, "pub")
+    _project(client, headers, "priv")  # left private
+    _set_public(client, headers, pub)
+    pub_id = _seed(tenant, "pub", slug="p")
+    priv_id = _seed(tenant, "priv", slug="s")
+
+    library = client.get(f"/app/orgs/{org}/library?scope=public").json()["org"]
+    expected = {"slug": org, "name": library["name"]}
+    assert library["name"]
+    for hdrs in ({}, headers):  # the anonymous lookup and the member fast-path agree
+        assert client.get(f"/app/documents/{pub_id}", headers=hdrs).json()["org"] == expected
+        assert client.get(f"/app/orgs/{org}/pub/p", headers=hdrs).json()["org"] == expected
+    # The member reads their private document's org too; nobody else reads anything.
+    assert client.get(f"/app/documents/{priv_id}", headers=headers).json()["org"] == expected
+    for path in (f"/app/documents/{priv_id}", f"/app/orgs/{org}/priv/s"):
+        miss = client.get(path)
+        assert miss.status_code == 404 and "org" not in miss.json()

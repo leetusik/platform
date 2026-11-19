@@ -24,6 +24,13 @@ export interface NotesBridge {
   pillUp: boolean;
   /** "All notes in this book →", for the place the reader is at; null in a loose document. */
   bookHref: string | null;
+  /**
+   * P63-fk.S11, the Library's reader: the frame's bottom slot (above the foot bar), where the layer puts the undo
+   * line, Sign in to save and the place bar. The old frame has none (the layer portals into its old root).
+   */
+  slot?: HTMLElement | null;
+  /** P63-fk.S11: the bars are hidden while reading down; the place bar leaves with them. */
+  barsHidden?: boolean;
 }
 
 export const NotesBridgeContext = createContext<NotesBridge | null>(null);

@@ -1,20 +1,24 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
-import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
-import { ReaderPage } from "@/components/reader/reader-page";
-import { DOCUMENTS } from "@/content";
+import {
+  firstOf,
+  missTitle,
+  renderDocument,
+} from "@/components/reader/document-page";
+import { READER_DOCUMENT } from "@/content/reader-document";
+import { requestNonce } from "@/hi2vi/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { getDocument } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
-import { docSeed, readListenState } from "@/lib/listen/seed";
-import type { ListenSeed } from "@/lib/listen/types";
+import { FROM_PARAM } from "@/lib/library/from";
 import { loginHref } from "@/lib/next-path";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 import { chapterRedirectHref } from "@/lib/reader-href";
 import { loadLooseReader, type ReaderLoad } from "@/lib/reader/load";
+import { viewerTimeZone } from "@/lib/time-zone";
 import type { KbDocument } from "@/lib/knowledge/types";
 
 // P19 — one document in full, on the OPTIONAL-IDENTITY public route group (the URL
@@ -36,10 +40,10 @@ import type { KbDocument } from "@/lib/knowledge/types";
 // document read per request (`getDocumentOnce`, React `cache`). A miss or a fault falls
 // back to the static title; the page handles the miss itself.
 //
-// P41-sr.W2 — Listen: a signed-in member of a native document whose org the reader knows
-// (`view.write`, from its pretty path) gets the Listen seed the pretty route reads, keyed
-// the same way, after the load (the key's org comes from it). A document with no org slug
-// has no Listen key here and stays without Listen.
+// P63-fk.S12 — a native or md document reads in the Library's reader (`renderDocument`, job 03 Library
+// round 02, § Page: document), as on its pretty address: the way back by `?from=`, `?v=n` (a version that
+// does not exist is Document not found), the marks by format (OQ14). The signed document draws no Listen,
+// so P41-sr.W2's Listen seed is no longer read here. Loading, Not found and Error are the document's own.
 const getDocumentOnce = cache(
   (token: string | undefined, id: number): Promise<KbDocument> =>
     getDocument(token, id),
@@ -47,20 +51,38 @@ const getDocumentOnce = cache(
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   try {
     const id = Number((await params).id);
     if (Number.isInteger(id) && id >= 1) {
       const ctx = await optionalIdentity();
       const doc = await getDocumentOnce(ctx?.token, id);
-      if (doc.title) return { title: doc.title };
+      // Sent on (a visitor to the pretty address, a bound chapter to its book): nothing renders here.
+      if ((!ctx && doc.canonical_path) || chapterRedirectHref(doc)) {
+        return { title: doc.title };
+      }
+      // The version on screen (one that does not exist is Document not found).
+      const loaded = await loadOnce(
+        ctx?.token,
+        id,
+        versionOf((await searchParams).v),
+        (await cookies()).get(READER_COOKIE)?.value,
+      );
+      const title =
+        loaded.kind === "reader"
+          ? loaded.reader.view.title
+          : loaded.legacy.view.title;
+      if (title) return { title };
     }
-  } catch {
-    // the page renders the miss or the failure itself
+  } catch (error) {
+    // the page renders the miss or the failure itself; the tab names it the same way
+    return { title: missTitle(error) };
   }
-  return { title: DOCUMENTS.title };
+  return { title: READER_DOCUMENT.notFound.title };
 }
 
 /**
@@ -90,8 +112,8 @@ async function loadDocument(
 }
 
 /**
- * The page's one load (reader or legacy reader), deduped per request so the viewport
- * (`viewport-fit=cover` for the legacy reader) and the page read once. Every argument is
+ * The page's one load (reader or legacy reader), deduped per request so the metadata
+ * and the page read once. Every argument is
  * a primitive; the settings arrive as the raw cookie value.
  */
 const loadOnce = cache(
@@ -106,6 +128,7 @@ const loadOnce = cache(
       doc: await getDocumentOnce(token, id),
       v,
       settings: parseReaderCookie(cookie),
+      strictVersion: true,
     }),
 );
 
@@ -119,56 +142,24 @@ function versionOf(raw: string | string[] | undefined): number | null {
   return v && /^\d{1,6}$/.test(v) ? Number(v) : null;
 }
 
-export async function generateViewport({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): Promise<Viewport> {
-  try {
-    const id = Number((await params).id);
-    if (Number.isInteger(id) && id >= 1) {
-      const ctx = await optionalIdentity();
-      const doc = await getDocumentOnce(ctx?.token, id);
-      // An anonymous visit to a document with a pretty URL is redirected there, and a
-      // bound chapter to its chapter URL (P30.F4): nothing is rendered here.
-      if (!ctx && doc.canonical_path) return {};
-      if (chapterRedirectHref(doc)) return {};
-      const loaded = await loadOnce(
-        ctx?.token,
-        id,
-        versionOf((await searchParams).v),
-        (await cookies()).get(READER_COOKIE)?.value,
-      );
-      if (loaded.kind === "legacy") return { viewportFit: "cover" };
-    }
-  } catch {
-    // the page renders the miss or the failure itself
-  }
-  return {};
-}
-
-function render(loaded: ReaderLoad, listen: ListenSeed | null = null) {
-  return loaded.kind === "reader" ? (
-    <ReaderPage reader={loaded.reader} listen={listen} />
-  ) : (
-    <LegacyReaderPage legacy={loaded.legacy} />
-  );
-}
-
-/** A member's Listen seed for a native document with a known org (the pretty route's key). */
-async function listenSeedOf(
-  token: string,
-  doc: KbDocument,
+/** The page as it renders: the reader, or the legacy reader (`renderDocument`). */
+async function render(
   loaded: ReaderLoad,
-  id: number,
-): Promise<ListenSeed | null> {
-  if (loaded.kind !== "reader" || !doc.source) return null;
-  const write = loaded.reader.view.write;
-  if (!write) return null;
-  const state = await readListenState(token, write);
-  return docSeed(loaded.reader.view, state, write, `/documents/${id}`);
+  query: Record<string, string | string[] | undefined>,
+) {
+  const [nonce, jar] = await Promise.all([requestNonce(), cookies()]);
+  const org = loaded.kind === "reader" ? orgOf(loaded.reader.view) : null;
+  return renderDocument(loaded, {
+    from: firstOf(query[FROM_PARAM]),
+    org,
+    nonce,
+    timeZone: viewerTimeZone(jar),
+  });
+}
+
+/** The org's slug a document's own address names (`/@{org}/…`), for a visitor's way back. */
+function orgOf(view: { write: { org: string } | null }): string | null {
+  return view.write?.org ?? null;
 }
 
 export default async function DocumentPage({
@@ -199,8 +190,7 @@ export default async function DocumentPage({
     // Temporary (307), like the pretty-URL redirect below; the browser keeps `#section`.
     const chapter = chapterRedirectHref(doc, { v, lang: langOf(query.lang) });
     if (chapter) redirect(chapter);
-    const loaded = await loadOnce(ctx.token, id, v, cookie);
-    return render(loaded, await listenSeedOf(ctx.token, doc, loaded, id));
+    return render(await loadOnce(ctx.token, id, v, cookie), query);
   }
 
   // ── Anonymous branch — public-only read, no token. A miss bounces to /login. ─
@@ -227,5 +217,5 @@ export default async function DocumentPage({
   if (doc.canonical_path) {
     redirect(v !== null ? `${doc.canonical_path}?v=${v}` : doc.canonical_path);
   }
-  return render(await loadOnce(undefined, id, v, cookie));
+  return render(await loadOnce(undefined, id, v, cookie), query);
 }

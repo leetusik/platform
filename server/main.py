@@ -551,6 +551,9 @@ class BookRefIn(BaseModel):
     kind: Optional[str] = None
     subject: Optional[str] = None
     description: Optional[str] = None
+    # P63 (D248-j7): the book's second title and its language, seeding a NEW book only.
+    subtitle: Optional[str] = None
+    subtitle_lang: Optional[str] = None
 
 
 class ChapterRefIn(BaseModel):
@@ -659,10 +662,13 @@ def _validated_placement(body: DocumentIn) -> Optional[dict]:
     subject = books_mod.validate_subject(b.subject)
     if kind == "subject" and subject is None:
         raise documents_mod.ConventionError("a subject book needs book.subject")
+    subtitle, subtitle_lang = books_mod.validate_subtitle(b.subtitle, b.subtitle_lang)
     return {
         "book": {
             "slug": books_mod.validate_book_slug(b.slug),
             "title": books_mod.validate_text(b.title, "book.title", required=False),
+            "subtitle": subtitle,
+            "subtitle_lang": subtitle_lang,
             "kind": kind,
             "subject": subject,
             "description": books_mod.validate_text(
@@ -728,6 +734,9 @@ def _place_variant(
         manifest = {
             "slug": book["slug"],
             "title": book["title"] or book["slug"],
+            # Unset ones (None) are dropped by normalize_manifest on write.
+            "subtitle": book["subtitle"],
+            "subtitle_lang": book["subtitle_lang"],
             "kind": book["kind"],
             "subject": book["subject"],
             "description": book["description"],
@@ -961,6 +970,8 @@ class _CheckedWrite:
     native: Any
     native_warnings: Any
     native_assigned: Any
+    # P63 (D171-qk): this version's own publish time, stamped into its header.
+    published: Any
 
 
 def _check_document(body: DocumentIn, ctx: ApiAuthContext, conn) -> _CheckedWrite:
@@ -1218,6 +1229,9 @@ def _check_document(body: DocumentIn, ctx: ApiAuthContext, conn) -> _CheckedWrit
     else:
         prev_version = None
     doc_version = prev_version + 1 if prev_version is not None else 1
+    # P63 (D171-qk): the version's own publish time (UTC, to the second), written
+    # into its header so it is archived with the body and reindex re-derives it.
+    published_at = documents_mod.now_stamp()
 
     # 2c. A native chapter (P30.S5; P29 *Ingest*): compose the file (the server's
     #     header + the body), parse and validate it, resolve its references, check a
@@ -1242,6 +1256,7 @@ def _check_document(body: DocumentIn, ctx: ApiAuthContext, conn) -> _CheckedWrit
             translated_from=translated_from,
             assets=asset_map,
             summary=body.summary,
+            published=published_at,
         )
         reserved = (
             native_ingest.retired_ids(conn, superseded, tenant_id=_tenant_filter(ctx))
@@ -1324,6 +1339,7 @@ def _check_document(body: DocumentIn, ctx: ApiAuthContext, conn) -> _CheckedWrit
         native=native,
         native_warnings=native_warnings,
         native_assigned=native_assigned,
+        published=published_at,
     )
 
 
@@ -1396,6 +1412,8 @@ def create_document(
         checked.native_assigned,
     )
 
+    published_at = checked.published
+
     # P34-n0.S1: whether this write publishes (commit, Recent bullet, landing) is the
     # project-visibility rule's answer, carried in from the async registry dependency.
     publish_decision = registry.publish
@@ -1460,11 +1478,15 @@ def create_document(
                 docs_root=root, rel_path=migrated_from or rel, version=prev_version
             )
             if archive_path is not None and superseded is not None:
+                archived_text = (root / archive_path).read_text(encoding="utf-8")
                 archived_source = None
                 if superseded.get("format") == "native":
                     # The archived file itself (its `version:` line stamped), exactly
                     # what reindex re-derives from disk.
-                    archived_source = (root / archive_path).read_text(encoding="utf-8")
+                    archived_source = archived_text
+                # P63: the superseded body's own publish time, read from its archived
+                # header (disk is canonical), exactly as reindex re-derives it.
+                archived_published = documents_mod.read_published(archived_text)
                 db.upsert_document_version(
                     conn,
                     rel_path=rel,
@@ -1481,6 +1503,8 @@ def create_document(
                     # the old version keeps rendering its own images (P29.S1).
                     assets=superseded.get("assets"),
                     source=archived_source,
+                    published=archived_published[0] if archived_published else None,
+                    published_best_effort=bool(archived_published and archived_published[1]),
                 )
         # 3a+. Store this version's images (P30.S4) under
         #      <root>/.assets/<project>/<date>-<slug>/, before the body that names
@@ -1521,6 +1545,7 @@ def create_document(
                 subject=subject,
                 translated_from=translated_from,
                 assets=asset_map,
+                published=published_at,
             )
             if body.format == "html":
                 raw_html = stored_body
@@ -1571,6 +1596,8 @@ def create_document(
             translated_from=translated_from,
             assets=asset_map,
             source=native_source,
+            published=published_at,
+            published_best_effort=False,
         )
 
         # 3b. Bind the variant (P30.S2): write the manifest, then rebuild the book's
@@ -2088,6 +2115,9 @@ class BookPutIn(BaseModel):
 
     slug: Optional[str] = None
     title: str
+    # P63 (D248-j7): the second title and its language; omitted = none (PUT replaces).
+    subtitle: Optional[str] = None
+    subtitle_lang: Optional[str] = None
     kind: str
     subject: Optional[str] = None
     description: Optional[str] = None
@@ -2133,6 +2163,8 @@ def put_book(
             {
                 "slug": book,
                 "title": body.title,
+                "subtitle": body.subtitle,
+                "subtitle_lang": body.subtitle_lang,
                 "kind": body.kind,
                 "subject": body.subject,
                 "description": body.description,

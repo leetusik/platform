@@ -16,6 +16,7 @@
  */
 import "server-only";
 
+import { CHAPTER } from "@/content";
 import { getBook, getDocument } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
 import {
@@ -49,6 +50,15 @@ export interface ContinueItem {
   langName: string;
   /** The heading the saved place is under; empty for plain Markdown and legacy. */
   section: string;
+  /**
+   * The language of the place's name when it is not the text's own (D156-gc d): the Glossary is
+   * named in the reader's words (`chromeLangOf`), English in a chapter that is not English.
+   */
+  sectionLang: string | null;
+  /** The org segment the text is read under (the reader state's `org`). */
+  org: string;
+  /** The loose document's id; null for a chapter. */
+  docId: number | null;
   pct: number;
   href: string;
 }
@@ -77,13 +87,34 @@ async function orMiss<T>(run: () => Promise<T>): Promise<T | undefined> {
  * (P39-hk.F4, OQ10: an inline formula as its linear text, never its TeX).
  */
 export function sectionTitle(source: string, anchorId: string): string {
+  return sectionPlace(source, anchorId).title;
+}
+
+/**
+ * The name of the place a block id sits in, and that name's language when it is not the text's
+ * (D156-gc d): the nearest heading at or before it, or, when the reader left off in the glossary,
+ * the Glossary itself, named as the reader names it (`CHAPTER.terms.glossary`, in the reader's own
+ * words: English in a chapter that is not English, `chromeLangOf`), never the heading before it.
+ */
+export function sectionPlace(
+  source: string,
+  anchorId: string,
+  lang?: string | null,
+): { title: string; lang: string | null } {
   const checked = validateChapter(source, "native");
   let heading = "";
   for (const block of checked.tree.blocks) {
     if (block.type === "heading") heading = displayText(block.content);
-    if (block.id === anchorId) return heading;
+    if (block.id === anchorId) {
+      if (block.type === "glossary")
+        return {
+          title: CHAPTER.terms.glossary,
+          lang: lang && !/^en\b/i.test(lang) ? "en" : null,
+        };
+      return { title: heading, lang: null };
+    }
   }
-  return "";
+  return { title: "", lang: null };
 }
 
 function chapterVariant(chapter: KbBookChapter, lang: string) {
@@ -171,7 +202,9 @@ async function build(
       finishedN: 0,
       title: doc.title,
       ...langParts(position.lang || doc.lang),
-      section: await sectionOf(token, doc, position),
+      ...(await sectionOf(token, doc, position)),
+      org: doc.org,
+      docId: doc.doc_id,
       pct,
       href: readerHref({ kind: "document", id: doc.doc_id }),
     };
@@ -198,7 +231,9 @@ async function build(
       finishedN: 0,
       title: doc.title,
       ...langParts(lang),
-      section: await sectionOf(token, doc, position),
+      ...(await sectionOf(token, doc, position)),
+      org: doc.org,
+      docId: null,
       pct,
       href: readerHref(
         {
@@ -238,6 +273,9 @@ async function build(
     title: variant.title,
     ...langParts(variant.lang),
     section: "",
+    sectionLang: null,
+    org: doc.org,
+    docId: null,
     pct: 0,
     href: readerHref(
       {
@@ -252,18 +290,24 @@ async function build(
   };
 }
 
-/** The saved place's heading text (native only); empty when there is none or it cannot be read. */
+/** The saved place's name (native only) and its language; empty when there is none or it cannot be read. */
 async function sectionOf(
   token: string,
   doc: KbStateDoc,
   position: KbPosition,
-): Promise<string> {
-  if (doc.format !== "native" || !position.anchor_id) return "";
+): Promise<{ section: string; sectionLang: string | null }> {
+  const none = { section: "", sectionLang: null };
+  if (doc.format !== "native" || !position.anchor_id) return none;
   const full = await orMiss(() => getDocument(token, doc.doc_id));
-  if (!full || full.format !== "native" || !full.source) return "";
+  if (!full || full.format !== "native" || !full.source) return none;
   try {
-    return sectionTitle(full.source, position.anchor_id);
+    const place = sectionPlace(
+      full.source,
+      position.anchor_id,
+      position.lang || doc.lang,
+    );
+    return { section: place.title, sectionLang: place.lang };
   } catch {
-    return "";
+    return none;
   }
 }

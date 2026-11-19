@@ -21,6 +21,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { CHAPTER, SITE } from "@/content";
@@ -57,9 +58,12 @@ import {
 } from "@/lib/native";
 import { lookOf } from "@/lib/legacy/messages";
 import { displayText } from "@/lib/native/display-text";
+import { headingSlug, IdRegistry } from "@/lib/native/ids";
+import { plainText } from "@/lib/native/parse";
 import { planTerms } from "@/lib/native/terms";
 import { parseReaderCookie, type ReaderSettings } from "@/lib/reader-cookie";
 import { bookHref, readerHref, type ReaderTarget } from "@/lib/reader-href";
+import { viewerTimeZone } from "@/lib/time-zone";
 
 import { languageName } from "./language";
 import { chromeLangOf, loadNotes } from "./notes-load";
@@ -86,6 +90,11 @@ export interface LoadedReader {
   checked: CheckedChapter;
   /** The chapter or document id the asset relay and the links are keyed by. */
   docId: number;
+  /**
+   * A loose document's org's display name, as its read names it (P63, `KbDocument.org`): a visitor's way back
+   * reads it (`documentBack`'s `names.org`). Null when the read carries none; absent on a chapter.
+   */
+  orgName?: string | null;
   assets: Record<string, KbAsset> | null;
   /** `md` only: the document's absolute URL, which a relative link resolves against. */
   baseUrl?: string;
@@ -111,12 +120,45 @@ export interface LoadedLegacy {
   frame: LegacyFrame;
   /** The document id the relay and the view are keyed by. */
   docId: number;
+  /** As `LoadedReader.orgName`: a loose document's org's display name (P63), or null. */
+  orgName?: string | null;
+  /**
+   * P63-fk.S13 — a loose html document's bookmarks as its Notes sheet lists them (the Original layout,
+   * `hi2vi/reader/document/original.tsx`): each a position, with its label, version and language, and the
+   * bridge's anchor it was made at. The same bookmarks as `frame.bookmarks`, read by the same rule; absent on a
+   * chapter (the legacy reader there lists none).
+   */
+  marks?: LegacyMark[];
+}
+
+/** One bookmark of an html document, as its Notes sheet keeps it (P63-fk.S13). */
+export interface LegacyMark {
+  id: string;
+  /** How far through the document, 0..1: where the bridge lands it. */
+  fraction: number;
+  /** The heading id the bridge reported when it was made, or null. */
+  anchor: string | null;
+  label: string;
+  lang: string;
+  version: number;
 }
 
 /** The result of loading: the reader (native and md), or the legacy reader (html). */
 export type ReaderLoad =
   | { kind: "reader"; reader: LoadedReader }
   | { kind: "legacy"; legacy: LoadedLegacy };
+
+/**
+ * The viewer's zone (D5) for a saved answer's day; UTC (undefined) outside a request, where there are no
+ * cookies to read.
+ */
+async function quizZone(): Promise<string | undefined> {
+  try {
+    return viewerTimeZone(await cookies());
+  } catch {
+    return undefined;
+  }
+}
 
 /** Map knowledge's miss statuses to `undefined`; anything else (an outage) rethrows. */
 async function orMiss<T>(run: () => Promise<T>): Promise<T | undefined> {
@@ -229,6 +271,28 @@ export function headingsOf(
   return out;
 }
 
+/**
+ * A loose Markdown document's sections (P63-fk.S27): the md parse gives no heading an id, so
+ * `headingsOf` listed none and the head had no "In this document" and no fold. Each top-level
+ * h2, h3 and h4 (the levels a native chapter ids) gets the id the native parse would assign it
+ * (`parse.ts` `assign`: `headingSlug` of its plain text, de-duplicated by `IdRegistry.assignSlug`,
+ * a heading with no ASCII slug numbered `s-N`), in source order. A heading whose text is blank
+ * gets none, so it is never a list entry. Only the loose reader asks for this; every other caller
+ * of the md parse keeps its id-less tree. Mutates `checked` (its blocks are the tree's objects).
+ */
+export function idMarkdownHeadings(checked: CheckedChapter): void {
+  if (checked.format !== "md") return;
+  const ids = new IdRegistry();
+  for (const block of checked.tree.blocks) {
+    if (block.type !== "heading" || block.level < 2 || block.level > 4)
+      continue;
+    const text = plainText(block.content);
+    if (!text.trim()) continue;
+    const slug = headingSlug(text);
+    block.id = slug ? ids.assignSlug(slug) : ids.assignNumbered("s");
+  }
+}
+
 /** The pieces of one document the reader renders. */
 interface NativeBody {
   format: "native" | "md";
@@ -238,6 +302,9 @@ interface NativeBody {
   version: number;
   /** `YYYY-MM-DD`, the version's publication date. */
   date: string;
+  /** The version's own publish time (P63): `published`, else `date`. */
+  published: string;
+  bestEffort: boolean;
 }
 
 /** An html version: the legacy reader frames it through the raw relay (P30.S25). */
@@ -246,6 +313,28 @@ interface HtmlBody {
   title: string;
   version: number;
   date: string;
+  published: string;
+  bestEffort: boolean;
+}
+
+/** What a read carries of one version's dates: its document's date and its own publish time. */
+interface Dated {
+  date: string;
+  published?: string | null;
+  published_best_effort?: boolean;
+}
+
+/**
+ * A version's own publish time (P63, D171-qk): the `published` its header carries (the server's
+ * stamp, or a one-time best-effort fill), else the document's date, as before the stamp existed.
+ */
+export function versionDate(read: Dated): {
+  date: string;
+  bestEffort: boolean;
+} {
+  return read.published
+    ? { date: read.published, bestEffort: !!read.published_best_effort }
+    : { date: read.date ?? "", bestEffort: false };
 }
 
 type Body = NativeBody | HtmlBody;
@@ -254,17 +343,32 @@ type Body = NativeBody | HtmlBody;
  * The body at a version. `v` below the current number reads that archived version;
  * the current number, an unreadable one and a bad value all read the current body.
  * An html version is the legacy reader's (`format: "html"`, nothing to render here).
+ *
+ * `strict` (a loose Markdown or native document, P63-fk.S12: an earlier version is a state of the page,
+ * `?v=n`): a version that does not exist, above the newest, below 1 or missing from the archive, is
+ * `notFound()` (Document not found) instead of the current body. The chapter route never passes it.
  */
 async function readBody(
   token: string | undefined,
   doc: KbDocument,
   v: number | null,
+  strict = false,
 ): Promise<Body> {
+  if (strict && v !== null && (v < 1 || v > doc.version)) notFound();
   if (v !== null && v >= 1 && v < doc.version) {
     const old = await orMiss(() => getDocumentVersion(token, doc.id, v));
+    if (!old && strict) notFound();
     if (old) {
+      const own = versionDate(old);
       if (old.format === "html") {
-        return { format: "html", title: old.title, version: v, date: old.date };
+        return {
+          format: "html",
+          title: old.title,
+          version: v,
+          date: old.date,
+          published: own.date,
+          bestEffort: own.bestEffort,
+        };
       }
       return toBody(
         old.format,
@@ -274,15 +378,19 @@ async function readBody(
         old.title,
         v,
         old.date,
+        own,
       );
     }
   }
+  const own = versionDate(doc);
   if (doc.format === "html") {
     return {
       format: "html",
       title: doc.title,
       version: doc.version,
       date: doc.date,
+      published: own.date,
+      bestEffort: own.bestEffort,
     };
   }
   return toBody(
@@ -293,6 +401,7 @@ async function readBody(
     doc.title,
     doc.version,
     doc.date,
+    own,
   );
 }
 
@@ -304,6 +413,7 @@ function toBody(
   title: string,
   version: number,
   date: string,
+  own: { date: string; bestEffort: boolean },
 ): NativeBody {
   // A native document is rendered from its stored file; if the read carried none
   // (an older backend), its plain-text projection is shown as md rather than nothing.
@@ -315,6 +425,8 @@ function toBody(
       title,
       version,
       date,
+      published: own.date,
+      bestEffort: own.bestEffort,
     };
   }
   return {
@@ -324,6 +436,8 @@ function toBody(
     title,
     version,
     date,
+    published: own.date,
+    bestEffort: own.bestEffort,
   };
 }
 
@@ -376,7 +490,7 @@ async function loadVersions(
   const label = languageName(lang);
   const current: VersionRow = {
     n: doc.version,
-    date: doc.date,
+    ...versionDate(doc),
     from: from
       ? { label: languageName(from.lang), version: from.version }
       : null,
@@ -386,7 +500,7 @@ async function loadVersions(
     const page = await getDocumentVersions(token, doc.id);
     const older: VersionRow[] = [...page.versions]
       .sort((a, b) => b.version - a.version)
-      .map((v) => ({ n: v.version, date: v.date, from: null }));
+      .map((v) => ({ n: v.version, ...versionDate(v), from: null }));
     return { ok: true, label, rows: [current, ...older] };
   } catch {
     return { ok: false, label, rows: [] };
@@ -560,7 +674,30 @@ function legacyBookmarks(
   const out: { id: string; fraction: number }[] = [];
   for (const b of state?.bookmarks ?? []) {
     const f = b.place?.fraction ?? b.anchor?.fraction;
-    if (typeof f === "number" && f >= 0 && f <= 1) out.push({ id: b.id, fraction: f });
+    if (typeof f === "number" && f >= 0 && f <= 1)
+      out.push({ id: b.id, fraction: f });
+  }
+  return out;
+}
+
+/**
+ * P63-fk.S13 — a loose html document's bookmarks for its Notes sheet: `legacyBookmarks`' rule (a fraction
+ * from the server's place, else the one it was saved with; nothing outside 0..1), plus what a row shows.
+ */
+export function legacyMarks(state: KbVariantState | null): LegacyMark[] {
+  const out: LegacyMark[] = [];
+  for (const b of state?.bookmarks ?? []) {
+    const f = b.place?.fraction ?? b.anchor?.fraction;
+    if (typeof f !== "number" || f < 0 || f > 1) continue;
+    const anchor = b.anchor?.anchor;
+    out.push({
+      id: b.id,
+      fraction: f,
+      anchor: typeof anchor === "string" && anchor !== "" ? anchor : null,
+      label: b.label ?? "",
+      lang: b.lang,
+      version: b.version,
+    });
   }
   return out;
 }
@@ -702,6 +839,8 @@ export async function loadChapterReader(args: {
     newest: doc.version,
     summary: checked?.tree.summary ?? null,
     date: body.date,
+    published: body.published,
+    publishedBestEffort: body.bestEffort,
     project,
     staleSource: staleSourceOf(chapter, variant, body.version === doc.version),
     target,
@@ -769,6 +908,7 @@ export async function loadChapterReader(args: {
         version: v.version,
       })),
     langName: languageName,
+    timeZone: await quizZone(),
   }).catch((): QuizSaved => ({}));
 
   return {
@@ -794,7 +934,8 @@ export async function loadChapterReader(args: {
 /**
  * A loose document that the page has already read (by id or by its pretty URL): native
  * and md in the reader with no book navigation, html (or an html version) in the legacy
- * reader (P30.S25), noun "document", back to the library.
+ * reader (P30.S25), noun "document", back to the library. P63-fk.S13: the html one now opens in its
+ * Original layout on the Library's frame (`kind: "legacy"` still names it), with its bookmarks' rows.
  */
 export async function loadLooseReader(args: {
   token: string | undefined;
@@ -803,9 +944,19 @@ export async function loadLooseReader(args: {
   settings: ReaderSettings;
   /** The `{org}` of the URL read through (the pretty route), when it has one. */
   org?: string | null;
+  /**
+   * P63-fk.S12: `?v=` names a version that must exist (Document not found otherwise), for a Markdown or
+   * native document; an html document keeps today's reading (the newest for a version it cannot read).
+   */
+  strictVersion?: boolean;
 }): Promise<ReaderLoad> {
   const { token, doc, settings } = args;
-  const body = await readBody(token, doc, args.v);
+  const body = await readBody(
+    token,
+    doc,
+    args.v,
+    !!args.strictVersion && doc.format !== "html",
+  );
   const org = orgOfPath(doc.canonical_path) ?? args.org ?? null;
   const stem = docStem(doc.project, doc.rel_path);
 
@@ -833,6 +984,8 @@ export async function loadLooseReader(args: {
       newest: doc.version,
       summary: null,
       date: body.date,
+      published: body.published,
+      publishedBestEffort: body.bestEffort,
       project: doc.project,
       staleSource: null,
       target: {
@@ -855,17 +1008,20 @@ export async function loadLooseReader(args: {
       legacy: {
         view,
         docId: doc.id,
+        orgName: doc.org?.name || null,
         frame: {
           src: relayOf(doc.id, body.version, doc.version),
           look: raw.look,
           missing: raw.missing,
           bookmarks: token && org ? legacyBookmarks(variantState) : [],
         },
+        marks: token && org ? legacyMarks(variantState) : [],
       },
     };
   }
 
   const checked = validateChapter(body.text, body.format);
+  idMarkdownHeadings(checked);
   const lang = guessLang(`${body.title}\n${body.text.slice(0, 4000)}`);
   // The member's saved progress and the history, beside the link resolution. A
   // tenant with no org slug has nowhere to address a save (`org` is the slug or the
@@ -898,6 +1054,7 @@ export async function loadLooseReader(args: {
     loose: true,
     variants: [],
     langName: languageName,
+    timeZone: await quizZone(),
   }).catch((): QuizSaved => ({}));
 
   const view: ReaderView = {
@@ -910,6 +1067,8 @@ export async function loadLooseReader(args: {
     newest: doc.version,
     summary: checked.tree.summary,
     date: body.date,
+    published: body.published,
+    publishedBestEffort: body.bestEffort,
     project: doc.project,
     staleSource: null,
     target: {
@@ -933,6 +1092,7 @@ export async function loadLooseReader(args: {
       view,
       checked,
       docId: doc.id,
+      orgName: doc.org?.name || null,
       assets: body.assets,
       baseUrl:
         body.format === "md"

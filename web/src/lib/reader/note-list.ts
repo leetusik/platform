@@ -492,34 +492,6 @@ export function groupBook(
   return out;
 }
 
-/** The head's count line, following the filter ("26 items in 5 chapters · 2 approximate · 2 unanchored"). */
-export function bookCountLine(
-  entries: readonly BookEntry[],
-  filter: BookFilter,
-  chapters: number,
-): string {
-  const shown = entries.filter((e) => matches(filter, e.item));
-  const approx = shown.filter((e) => e.item.status === "approx").length;
-  const gone = shown.filter((e) => e.item.status === "orphan").length;
-  return READER.notes.book.count(
-    shown.length,
-    filter === "bm" ? "bookmarks" : filter === "hl" ? "highlights" : "items",
-    chapters,
-    approx,
-    gone,
-  );
-}
-
-export function bookCounts(
-  entries: readonly BookEntry[],
-): Record<BookFilter, number> {
-  return {
-    all: entries.length,
-    bm: entries.filter((e) => e.item.kind === "bm").length,
-    hl: entries.filter((e) => e.item.kind !== "bm").length,
-  };
-}
-
 // --- bookmarks --------------------------------------------------------------------------
 
 /** A position bookmark within this much of the reader's place is "the same place" (±2%). */

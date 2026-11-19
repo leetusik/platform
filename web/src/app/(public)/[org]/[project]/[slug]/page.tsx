@@ -1,20 +1,24 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
-import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
-import { ReaderPage } from "@/components/reader/reader-page";
-import { DOCUMENTS } from "@/content";
+import {
+  firstOf,
+  missTitle,
+  renderDocument,
+} from "@/components/reader/document-page";
+import { READER_DOCUMENT } from "@/content/reader-document";
+import { requestNonce } from "@/hi2vi/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { resolveDocument } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
-import { docStem } from "@/lib/knowledge/reader";
 import type { KbDocument } from "@/lib/knowledge/types";
-import { docSeed, readListenState } from "@/lib/listen/seed";
+import { FROM_PARAM } from "@/lib/library/from";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 import { chapterRedirectHref } from "@/lib/reader-href";
 import { loadLooseReader, type ReaderLoad } from "@/lib/reader/load";
+import { viewerTimeZone } from "@/lib/time-zone";
 
 // P25.S3 — the PRETTY public document URL, `/@{org}/{project}/{doc-slug}`. Same page
 // as `(public)/documents/[id]`, addressed by DURABLE parts instead of the disposable
@@ -42,14 +46,17 @@ import { loadLooseReader, type ReaderLoad } from "@/lib/reader/load";
 // variant, `01-reader`); `?v=N` reads an older version. P30.S25 — an html explainer (or
 // an html version) opens in the LEGACY READER (`09-legacy-and-print`), with no app shell.
 //
-// P41-sr.W1 — Listen: a signed-in reader of a native document's current version gets the
-// page's Listen seed, read beside the page's own load (Listen's routes are session-only;
-// any miss is "no Listen here", never a failed page).
+// P63-fk.S12 — a native or md document reads in the Library's reader (`@/hi2vi/reader/document`, job 03
+// Library round 02, § Page: document; `renderDocument`): the way back by `?from=` (F328), an earlier version
+// at `?v=n` (one that does not exist is Document not found), Version history, the marks by format (OQ14).
+// The signed document draws no Listen, so the page reads no Listen seed any more (P41-sr.W1's, retired).
+// Loading, Not found and Error are the document's own, fed by this folder's layout. An unknown
+// three-segment address (`/nope/x/y`) reaches the same Document not found (D249-7z).
 //
 // The <title> is the document's title (P30.S15), through `generateMetadata`. The
 // knowledge client is `cache: "no-store"`, so the page and the metadata share ONE
-// resolver read per request (`resolveDocumentOnce`, React `cache`); a miss or a fault
-// falls back to the static title and the page handles the miss itself.
+// resolver read per request (`resolveDocumentOnce`, React `cache`); a miss names the tab
+// Document not found and a fault Error, and the page handles both itself.
 const resolveDocumentOnce = cache(
   (
     token: string | undefined,
@@ -61,8 +68,10 @@ const resolveDocumentOnce = cache(
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; project: string; slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   try {
     const p = await params;
@@ -75,12 +84,27 @@ export async function generateMetadata({
         safeDecode(p.project),
         safeDecode(p.slug),
       );
-      if (doc.title) return { title: doc.title };
+      if (chapterRedirectHref(doc)) return { title: doc.title };
+      // The version on screen (one that does not exist is Document not found).
+      const loaded = await loadOnce(
+        ctx?.token,
+        org.slice(1),
+        safeDecode(p.project),
+        safeDecode(p.slug),
+        versionOf((await searchParams).v),
+        (await cookies()).get(READER_COOKIE)?.value,
+      );
+      const title =
+        loaded.kind === "reader"
+          ? loaded.reader.view.title
+          : loaded.legacy.view.title;
+      if (title) return { title };
     }
-  } catch {
-    // the page renders the miss or the failure itself
+  } catch (error) {
+    // the page renders the miss or the failure itself; the tab names it the same way
+    return { title: missTitle(error) };
   }
-  return { title: DOCUMENTS.title };
+  return { title: READER_DOCUMENT.notFound.title };
 }
 
 /**
@@ -116,8 +140,8 @@ async function loadDocument(
 }
 
 /**
- * The page's one load (reader or legacy reader), deduped per request so the viewport
- * (`viewport-fit=cover` for the legacy reader) and the page read once.
+ * The page's one load (reader or legacy reader), deduped per request so the metadata
+ * and the page read once.
  */
 const loadOnce = cache(
   async (
@@ -134,6 +158,7 @@ const loadOnce = cache(
       v,
       settings: parseReaderCookie(cookie),
       org,
+      strictVersion: true,
     }),
 );
 
@@ -145,41 +170,6 @@ function langOf(raw: string | string[] | undefined): string | null {
 function versionOf(raw: string | string[] | undefined): number | null {
   const v = Array.isArray(raw) ? raw[0] : raw;
   return v && /^\d{1,6}$/.test(v) ? Number(v) : null;
-}
-
-export async function generateViewport({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ org: string; project: string; slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}): Promise<Viewport> {
-  try {
-    const p = await params;
-    const org = safeDecode(p.org);
-    if (org.startsWith("@") && org.length >= 2) {
-      const ctx = await optionalIdentity();
-      const doc = await resolveDocumentOnce(
-        ctx?.token,
-        org.slice(1),
-        safeDecode(p.project),
-        safeDecode(p.slug),
-      );
-      if (chapterRedirectHref(doc)) return {};
-      const loaded = await loadOnce(
-        ctx?.token,
-        org.slice(1),
-        safeDecode(p.project),
-        safeDecode(p.slug),
-        versionOf((await searchParams).v),
-        (await cookies()).get(READER_COOKIE)?.value,
-      );
-      if (loaded.kind === "legacy") return { viewportFit: "cover" };
-    }
-  } catch {
-    // the page renders the miss or the failure itself
-  }
-  return {};
 }
 
 export default async function PrettyDocumentPage({
@@ -215,34 +205,17 @@ export default async function PrettyDocumentPage({
   // Temporary (307), outside any try; the browser keeps `#section`.
   const chapter = chapterRedirectHref(doc, { v, lang: langOf(query.lang) });
   if (chapter) redirect(chapter);
-  const token = ctx?.token;
-  const [loaded, listenState] = await Promise.all([
-    loadOnce(token, orgSlug, project, slug, v, cookie),
-    token && doc.source
-      ? readListenState(token, {
-          org: orgSlug,
-          project: doc.project,
-          doc: docStem(doc.project, doc.rel_path),
-        })
-      : Promise.resolve(null),
+  const [loaded, nonce, jar] = await Promise.all([
+    loadOnce(ctx?.token, orgSlug, project, slug, v, cookie),
+    requestNonce(),
+    cookies(),
   ]);
-  return loaded.kind === "reader" ? (
-    <ReaderPage
-      reader={loaded.reader}
-      listen={docSeed(
-        loaded.reader.view,
-        listenState,
-        {
-          org: orgSlug,
-          project: doc.project,
-          doc: docStem(doc.project, doc.rel_path),
-        },
-        doc.canonical_path ?? `/${orgParam}/${projectParam}/${slugParam}`,
-      )}
-    />
-  ) : (
-    <LegacyReaderPage legacy={loaded.legacy} />
-  );
+  return renderDocument(loaded, {
+    from: firstOf(query[FROM_PARAM]),
+    org: orgSlug,
+    nonce,
+    timeZone: viewerTimeZone(jar),
+  });
 }
 
 /** `decodeURIComponent` that returns the input unchanged on a malformed escape. */

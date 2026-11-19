@@ -20,9 +20,12 @@ import type { StateAction, StateModel } from "./model";
 export function StateBlock({
   state,
   onRetry,
+  narrow = false,
 }: {
   state: StateModel;
   onRetry?: () => void;
+  /** The page's narrow column (`.column.is-narrow`), where its board draws the block in it (Notes in this book). */
+  narrow?: boolean;
 }) {
   const actions = state.actions.map((action) => (
     <StateActionControl
@@ -33,7 +36,7 @@ export function StateBlock({
     />
   ));
   return (
-    <div className="column">
+    <div className={narrow ? "column is-narrow" : "column"}>
       <Block page>
         <BlockTitle>{state.title}</BlockTitle>
         {state.text !== null ? <BlockText>{state.text}</BlockText> : null}

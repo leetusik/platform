@@ -158,17 +158,55 @@ function newId(): string {
   return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10).join("")}`;
 }
 
-function initialState(item: QuizItemProps): ItemState {
+function initialState(item: QuizStateItem): ItemState {
   const s = item.saved;
   if (!s) return fresh();
   if (s.state === "fresh") return fresh(s.note);
   return savedState(s.response, s.correct, s.prov);
 }
 
-export function QuizBlock(props: QuizBlockProps) {
-  const { id, items, member, write, version, place, lang } = props;
+/** An item as the quiz's state needs it: its rules, its DOM id and what it shows on return. */
+export interface QuizStateItem {
+  spec: QuizSpec;
+  domId: string;
+  saved?: QuizSavedItem;
+}
+
+/**
+ * Where the focus goes after each step (a selector inside the item's `[id=domId]`), by the look's markup.
+ * A step with none leaves the focus where it is.
+ */
+export type QuizFocus = Partial<
+  Record<"retry" | "reveal" | "self" | "check" | "signclose", string>
+>;
+
+/** The old look's: the item's first control, its answer card, Try again, the main action. */
+const OLD_FOCUS: QuizFocus = {
+  retry: "[data-qz-first]",
+  reveal: "[data-qz-answer]",
+  self: "[data-qz-retry]",
+  signclose: "[data-qz-main]",
+};
+
+/**
+ * P63-fk.S10 — the quiz's state and its one save path, shared by both looks (this file's `QuizBlock` and the
+ * Library's `LibraryQuiz`, `@/hi2vi/reader/aids`): each item's state from the view model, the reducer, the send
+ * of a graded attempt (`saveQuizAttempt`, the same payload, at the same moment) and its reply landing only on the
+ * send that started it (`landSend`), Sign in to save once per view for a signed-out reader, and the focus moved
+ * (never scrolled) to the next step. Moved here unchanged from `QuizBlock`.
+ */
+export function useQuiz<I extends QuizStateItem>(
+  props: {
+    id: string;
+    items: I[];
+    member: boolean;
+    write: { org: string; project: string; doc: string } | null;
+    version: number;
+  },
+  focus: QuizFocus = OLD_FOCUS,
+) {
+  const { id, items, member, write, version } = props;
   const saves = member && write !== null;
-  const total = items.length;
 
   const [states, setStates] = useState<Record<string, ItemState>>(() =>
     Object.fromEntries(items.map((it) => [it.spec.id, initialState(it)])),
@@ -198,23 +236,26 @@ export function QuizBlock(props: QuizBlockProps) {
     el?.focus({ preventScroll: true });
   }, [tick]);
 
-  const act = (item: QuizItemProps, a: QuizAction | { t: "signclose" }) => {
+  const act = (item: I, a: QuizAction | { t: "signclose" }) => {
     const spec = item.spec;
     if (a.t === "signclose") {
       setSign((s) => ({ ...s, closed: true }));
-      want.current = { dom: item.domId, sel: "[data-qz-main]" };
+      if (focus.signclose)
+        want.current = { dom: item.domId, sel: focus.signclose };
       setTick((t) => t + 1);
       return;
     }
     const cur = ref.current[spec.id] ?? fresh();
     const r = reduce(spec, cur, a);
     const st = r.st;
-    if (a.t === "retry")
-      want.current = { dom: item.domId, sel: "[data-qz-first]" };
-    if (a.t === "reveal")
-      want.current = { dom: item.domId, sel: "[data-qz-answer]" };
-    if (a.t === "self")
-      want.current = { dom: item.domId, sel: "[data-qz-retry]" };
+    if (a.t === "retry" && focus.retry)
+      want.current = { dom: item.domId, sel: focus.retry };
+    if (a.t === "reveal" && focus.reveal)
+      want.current = { dom: item.domId, sel: focus.reveal };
+    if (a.t === "self" && focus.self)
+      want.current = { dom: item.domId, sel: focus.self };
+    if (a.t === "check" && r.graded && focus.check)
+      want.current = { dom: item.domId, sel: focus.check };
     let send: (() => void) | null = null;
     if (r.graded) {
       if (saves && write) {
@@ -253,6 +294,14 @@ export function QuizBlock(props: QuizBlockProps) {
     if (want.current) setTick((t) => t + 1);
     send?.();
   };
+
+  return { states, sign, saves, act, rootRef };
+}
+
+export function QuizBlock(props: QuizBlockProps) {
+  const { id, items, member, place, lang } = props;
+  const total = items.length;
+  const { states, sign, saves, act, rootRef } = useQuiz(props);
 
   const answered = items.filter(
     (it) => states[it.spec.id]?.ph === "graded",
@@ -563,7 +612,10 @@ function QuizItemView({
               <Status lines={lines} />
               <div className="qz-acts">
                 <div
-                  className={cx("qz-acts__layer", st.ph !== "revealed" && "is-off")}
+                  className={cx(
+                    "qz-acts__layer",
+                    st.ph !== "revealed" && "is-off",
+                  )}
                   aria-hidden={st.ph === "revealed" ? undefined : "true"}
                 >
                   <button

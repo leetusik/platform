@@ -174,6 +174,73 @@ export function signInToSaveHref(
  */
 export const LIBRARY_HREF = "/library";
 
+/**
+ * hi2vi Library (`03-library` round 02, F321, F324) — a list's place in its address. The library
+ * has two views (By project, the default, and All documents); a project's page has `page` and `q`.
+ * Each part is optional; an omitted or default part is omitted from the address.
+ */
+export interface ListPlace {
+  /** The library's view: `all` is All documents; `project` (By project) is the default. */
+  view?: "project" | "all" | null;
+  /** The pager's page, 1-based; page 1 is omitted. */
+  page?: number | null;
+  /** The search. */
+  q?: string | null;
+  /** The All documents view's project filter. */
+  filter?: string | null;
+}
+
+/** The list's query, in one order: `view`, `page`, `q`, `filter`. `keys` limits which parts apply. */
+function listQuery(
+  place: ListPlace,
+  keys: readonly (keyof ListPlace)[],
+): string {
+  const query = new URLSearchParams();
+  if (keys.includes("view") && place.view === "all") query.set("view", "all");
+  if (
+    keys.includes("page") &&
+    place.page != null &&
+    Number.isInteger(place.page) &&
+    place.page > 1
+  ) {
+    query.set("page", String(place.page));
+  }
+  if (keys.includes("q") && place.q) query.set("q", place.q);
+  if (keys.includes("filter") && place.filter)
+    query.set("filter", place.filter);
+  const qs = query.toString();
+  return qs ? `?${qs}` : "";
+}
+
+const LIBRARY_KEYS = ["view", "page", "q", "filter"] as const;
+const PROJECT_KEYS = ["page", "q"] as const;
+
+/** `/library?view=all&page=2&q=…&filter=…` — the member's library at a view and a place. */
+export function libraryHref(place: ListPlace = {}): string {
+  return `${LIBRARY_HREF}${listQuery(place, LIBRARY_KEYS)}`;
+}
+
+/** `/projects/{id}/library?page=…&q=…` — a project's library, for a member (in the Shell). */
+export function projectLibraryHref(
+  projectId: string | number,
+  place: ListPlace = {},
+): string {
+  return `/projects/${seg(String(projectId))}/library${listQuery(place, PROJECT_KEYS)}`;
+}
+
+/** `/@{org}/{project}?page=…&q=…` — a public project's library, for a visitor (the bar's frame). */
+export function publicProjectHref(
+  target: { org: string; project: string },
+  place: ListPlace = {},
+): string {
+  return `/@${seg(target.org)}/${seg(target.project)}${listQuery(place, PROJECT_KEYS)}`;
+}
+
+/** `/@{org}?…` — the org's public library, at a place on its list. */
+export function publicLibraryHref(org: string, place: ListPlace = {}): string {
+  return `/@${seg(org)}${listQuery(place, LIBRARY_KEYS)}`;
+}
+
 /** Where the per-book list was opened from (`05-annotations` round 02, `book-page` 7). */
 export type NotesFrom = "chapter" | "book";
 

@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { hook, HOOK } from "@/lib/native/look";
+
 /**
  * The two scrolling boxes of the prose kit (`01-reader` round 02, §8 ASCII drawings,
  * §9 tables and §9a the scroll fades). Both are the only places the page lets
@@ -114,12 +116,15 @@ export function Fades() {
 
 /** A table in its frame. `wide` (8+ columns) and `long` (more than 20 rows) are known from the data. */
 export function TableBox({
+  hooks = false,
   wide,
   long,
   ariaLabel,
   hint,
   children,
 }: {
+  /** Draw the reader's hook (`HOOK.box`: a tap on the table never toggles the bars), P63-fk.S9. */
+  hooks?: boolean;
   wide: boolean;
   long: boolean;
   /** The region's accessible name, used whenever the box can scroll. */
@@ -145,7 +150,7 @@ export function TableBox({
     .filter(Boolean)
     .join(" ");
   return (
-    <div className={cls}>
+    <div className={cls} {...hook(hooks, HOOK.box)}>
       <div className="kb-ch-table__wrap">
         <div
           className="kb-ch-table__scroll"
@@ -167,6 +172,7 @@ export function TableBox({
 
 /** An ASCII drawing (a `text` fence): every character and column kept, scrolling inside its own box. */
 export function ArtBox({
+  hooks = false,
   id,
   lang,
   cols,
@@ -175,6 +181,8 @@ export function ArtBox({
   hint,
   children,
 }: {
+  /** Draw the reader's hooks (`HOOK.box`, `HOOK.unspoken`), P63-fk.S9. */
+  hooks?: boolean;
   id: string | undefined;
   lang: string | undefined;
   /** The widest line, in monospace cells: paper sets the drawing at the size that fits (P30.S26). */
@@ -202,6 +210,8 @@ export function ArtBox({
       data-block={id}
       data-lang={lang}
       style={{ "--fg-cols": cols } as CSSProperties}
+      {...hook(hooks, HOOK.box)}
+      {...hook(hooks, HOOK.unspoken)}
     >
       {bar}
       <div className="kb-ch-code__wrap">

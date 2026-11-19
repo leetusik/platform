@@ -452,41 +452,5 @@ export const READER = {
       del: "Delete",
       remove: "Remove",
     },
-    /** The per-book list (`BookNotes`). */
-    book: {
-      backChapter: "Back to the chapter",
-      backBook: "Back to the book",
-      title: "Notes in this book",
-      show: "Show",
-      all: "All",
-      bookmarks: "Bookmarks",
-      highlights: "Highlights and notes",
-      chapterN: (n: number): string => `Chapter ${n}`,
-      emptyAll:
-        "Nothing marked in this book yet: highlights, notes and bookmarks you make in its chapters gather here.",
-      emptyBookmarks:
-        "No bookmarks in this book yet: use Bookmark in the bar below a chapter’s text.",
-      emptyHighlights:
-        "No highlights or notes in this book yet: select a passage in a chapter to highlight it.",
-      /** "26 items in 5 chapters · 2 approximate · 2 unanchored" */
-      count: (
-        n: number,
-        noun: "items" | "bookmarks" | "highlights",
-        chapters: number,
-        approx: number,
-        gone: number,
-      ): string => {
-        const nouns = {
-          items: n === 1 ? "item" : "items",
-          bookmarks: n === 1 ? "bookmark" : "bookmarks",
-          highlights: n === 1 ? "highlight or note" : "highlights and notes",
-        } as const;
-        return (
-          `${n} ${nouns[noun]} in ${chapters} ${chapters === 1 ? "chapter" : "chapters"}` +
-          (approx ? ` · ${approx} approximate` : "") +
-          (gone ? ` · ${gone} unanchored` : "")
-        );
-      },
-    },
   },
 } as const;

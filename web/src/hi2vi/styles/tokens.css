@@ -1,14 +1,21 @@
 /* hi2vi — the product's copy of the signed system's tokens.css (design-system/hi2vi/project/tokens.css).
-   Every value is the signed file's. Four changes, all of them isolation (see ./README.md):
+   Every value is the signed file's. Four changes, all of them isolation (see ./README.md), and the Library's
+   scheme gap (below):
    - the whole file is scoped: it applies inside a `.ui` root and stops at `[data-ui-legacy]`;
    - `:root` reads `:scope` (the `.ui` root); inside @scope a bare selector matches descendants only, so the
      dark roles also name `:scope[...]` to reach the root's own attribute;
    - `--font-sans` and `--font-mono` read the self-hosted faces' variables (src/lib/fonts.ts) where the
-     signed file names the hosted families. */
+     signed file names the hosted families.
+   The Library's reader sets its own scheme on its root (job 03 frame.md F57: `data-scheme` light, dark or sepia,
+   the reader's root only). Two additions make that hold, and change no other page (no element but the reader's
+   root carries them):
+   - the light roles also answer to `data-scheme="light"`, so Light holds on a device set to dark;
+   - Sepia, the reader's third scheme: the same roles, with the values and contrasts of frame.md F57 (a token gap
+     the signed system did not have; drawn in the job's frame.css section 1). */
 /* hi2vi Design System — generated from tokens.json */
 /* The dark roles also answer to data-scheme="dark", the attribute the signed boards set. */
 @scope (.ui) to ([data-ui-legacy]) {
-  :scope, [data-theme="light"] {
+  :scope, [data-theme="light"], [data-scheme="light"] {
     --bg: #f2f4f7;
     --surface: #ffffff;
     --ink: #14171c;
@@ -41,6 +48,24 @@
     --scrim: rgba(0, 0, 0, 0.6);
     --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
+  }
+  /* Sepia (job 03 frame.md F57): ink 13.70:1 on surface, ink-2 7.15:1, edge 3.90:1, accent 7.21:1, danger 6.42:1. */
+  [data-scheme="sepia"] {
+    --bg: #ece2cf;
+    --surface: #f7f0e2;
+    --ink: #2a2318;
+    --ink-2: #5a4e3c;
+    --line: #d9ccb3;
+    --edge: #85765e;
+    --accent: #1c44b8;
+    --accent-tint: #e3dfd9;
+    --on-accent: #ffffff;
+    --danger: #a4271a;
+    --danger-tint: #f4ddd2;
+    --hover: rgba(42, 35, 24, 0.08);
+    --scrim: rgba(42, 35, 24, 0.5);
+    --shadow: 0 8px 24px rgba(42, 35, 24, 0.18);
+    color-scheme: light;
   }
   :scope {
     --space-1: 4px;

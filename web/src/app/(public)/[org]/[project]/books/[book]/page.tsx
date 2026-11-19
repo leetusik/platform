@@ -1,29 +1,30 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { BookPage } from "@/components/book/book-page";
-import { BOOK } from "@/content/book";
+import { BookBar } from "@/components/book/book-bar";
+import { BookBody } from "@/components/book/book-body";
+import { BookFrame } from "@/components/book/book-frame";
+import { BOOK_PAGE } from "@/content/book-page";
+import { HI2VI_STATES } from "@/content/hi2vi-states";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { loadBookOnce } from "@/lib/book/load";
 import type { BookView } from "@/lib/book/view";
 import { readBookSeed } from "@/lib/listen/seed";
-import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
+import { requestNonce } from "@/hi2vi/shell/data";
 
-// P30.S23 — the book page (`07-book-page`): `/@{org}/{project}/books/{book}`, with `{org}`
-// the org slug or the tenant id (the server's book read resolves both). Optional identity,
-// like the chapter route: a member reads with their bearer, anyone else tokenless (public
-// projects only), and every miss — an unknown org, project or book, a private project — is
-// the same constant not-found, with no word about why.
+// The book page (hi2vi Library, job 03 round 02, `## Build` § Page: book): `/@{org}/{project}/books/{book}`,
+// with `{org}` the org slug or the tenant id (the server's book read resolves both). Optional identity: a
+// signed-in reader reads with their bearer, anyone else tokenless (public projects only), and every miss
+// (an unknown org, project or book, a private project) is the same constant not-found.
 //
-// The page has the reader's chrome and no app shell, and follows the reader's Display
-// setting for its theme (the `kb_reader` cookie, read on the server so the first paint has
-// it). The <title> is the book's; the page and its metadata share ONE load per request
-// (`loadBookOnce`), since the knowledge client is `cache: "no-store"`.
+// Wholly new: the Bar's frame (`.ui > .page > .app.bare > Bar + main.app-main > .column.is-narrow`) with
+// BookHead, the way on, Contents and Your reading data. `?from=` is the list it was opened from (F324,
+// F328): the Bar's way back, carried on by every chapter link. The tab title is the book's, through the
+// site's template; the page and its metadata share one load per request (`loadBookOnce`).
 //
-// P41-sr.W2 — Listen: a signed-in reader gets the landing's Listen seed (the book from its
-// first chapter, and the place left part-way), read after the load, which names the
-// chapters; any miss is "no Listen here", never a failed page.
+// Listen (operator decision 3): a signed-in reader gets the head's Listen in its old look, seeded as before
+// (the book from its first chapter, and the place left part-way); any miss is "no Listen here", never a
+// failed page.
 
 function safeDecode(value: string): string {
   try {
@@ -34,44 +35,62 @@ function safeDecode(value: string): string {
 }
 
 type Params = { org: string; project: string; book: string };
+type Search = Record<string, string | string[] | undefined>;
 
-async function loadOnce(params: Params) {
+const fromOf = (search: Search): string =>
+  typeof search.from === "string" ? search.from : "";
+
+async function loadOnce(params: Params, from: string) {
   const org = safeDecode(params.org);
   const project = safeDecode(params.project);
   const book = safeDecode(params.book);
-  // THE GUARD: our public namespace is `@`-prefixed (the pretty route's rule). Reject
-  // before reading the session or calling upstream.
+  // THE GUARD: our public namespace is `@`-prefixed (the pretty route's rule). Reject before reading
+  // the session or calling upstream.
   if (!org.startsWith("@") || org.length < 2) notFound();
   if (project === "" || book === "") notFound();
-  return loadBookOnce(org.slice(1), project, book);
+  return loadBookOnce(org.slice(1), project, book, from);
 }
+
+/** `notFound()`'s throw: Next marks it with this digest. */
+const isNotFound = (error: unknown) =>
+  typeof (error as { digest?: unknown })?.digest === "string" &&
+  (error as { digest: string }).digest.startsWith(
+    "NEXT_HTTP_ERROR_FALLBACK;404",
+  );
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<Search>;
 }): Promise<Metadata> {
   try {
-    return { title: (await loadOnce(await params)).title };
-  } catch {
+    return {
+      title: (await loadOnce(await params, fromOf(await searchParams))).title,
+    };
+  } catch (error) {
     // the page renders the miss or the failure itself
-    return { title: BOOK.metaTitle };
+    return {
+      title: isNotFound(error)
+        ? BOOK_PAGE.states.notFound.title
+        : HI2VI_STATES.error.title,
+    };
   }
 }
 
 export default async function BookRoute({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<Search>;
 }) {
   const p = await params;
-  const view = await loadOnce(p);
-  const settings = parseReaderCookie(
-    (await cookies()).get(READER_COOKIE)?.value,
-  );
-  const ctx = await optionalIdentity();
+  const view = await loadOnce(p, fromOf(await searchParams));
+  const [ctx, nonce] = await Promise.all([optionalIdentity(), requestNonce()]);
   const listen =
-    ctx?.token && view.viewer !== "anon"
+    ctx?.token && view.signedIn
       ? await readBookSeed(
           ctx.token,
           { org: view.org, project: view.project, book: view.slug },
@@ -83,15 +102,36 @@ export default async function BookRoute({
           variantsOf(view),
         )
       : null;
-  return <BookPage view={view} settings={settings} listen={listen} />;
+  return (
+    <BookFrame
+      nonce={nonce}
+      listenSignInHref={view.signInHref}
+      bar={
+        <BookBar
+          back={view.back}
+          homeHref={view.homeHref}
+          title={view.title}
+          meta={view.signedIn ? view.head.state.word : view.head.count}
+          visitor={!view.signedIn}
+          signInHref={view.signInHref}
+        />
+      }
+    >
+      <BookBody
+        key={`${view.org}/${view.project}/${view.slug}`}
+        view={view}
+        listen={listen}
+      />
+    </BookFrame>
+  );
 }
 
-/** The landing's own path, as asked. */
+/** The book page's own path, as asked. */
 function bookPath(p: Params): string {
   return `/${p.org}/${p.project}/books/${p.book}`;
 }
 
-/** The book's chapters, in its order, as the player and the rows name them. */
+/** The book's chapters, in its order, as the player names them. */
 function chaptersOf(view: BookView) {
   return view.rows.map((r) => ({
     key: r.key,
@@ -107,7 +147,7 @@ function variantsOf(view: BookView): Record<string, Record<string, string>> {
   return Object.fromEntries(
     view.rows.map((r) => [
       r.key,
-      Object.fromEntries(r.langLinks.map((l) => [l.code, l.href])),
+      Object.fromEntries(r.langs.map((l) => [l.code, l.href])),
     ]),
   );
 }

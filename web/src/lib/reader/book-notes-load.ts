@@ -3,6 +3,13 @@ import "server-only";
 import { notFound } from "next/navigation";
 
 import { CHAPTER } from "@/content";
+import {
+  notesBack,
+  notesRow,
+  readingOrder,
+  type NotesChapter,
+  type NotesView,
+} from "@/hi2vi/reader/book-notes/model";
 import { getBook } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
 import { getReaderBookNotes } from "@/lib/knowledge/reader";
@@ -12,6 +19,7 @@ import { bookHref, readerHref } from "@/lib/reader-href";
 import { languageName } from "./language";
 import {
   bookmarkItem,
+  groupBook,
   noteItem,
   type BookEntry,
   type BuildOptions,
@@ -28,6 +36,8 @@ export interface BookRow {
   entry: BookEntry;
   /** Where choosing the row goes: the chapter in the row's language at the mark; null = nowhere (Unanchored). */
   href: string | null;
+  /** The section the mark lands on (the `#hash`), or null. */
+  section: string | null;
 }
 
 export interface BookNotesView {
@@ -57,13 +67,26 @@ export interface NotesOpening {
   section: string | null;
 }
 
-export async function loadBookNotes(args: {
+interface LoadArgs {
   token: string;
   org: string;
   project: string;
   book: string;
   opening: NotesOpening;
-}): Promise<BookNotesView> {
+}
+
+/**
+ * The book and every mark in it. `soft`: a notes read that fails (not a miss) leaves the marks empty and says
+ * so (`failed`), so the page can stand with the book's title and offer Try again.
+ */
+async function readBookNotes(
+  args: LoadArgs,
+  soft: boolean,
+): Promise<{
+  view: BookNotesView;
+  failed: boolean;
+  defaults: Map<string, string>;
+}> {
   const { token, project } = args;
   const miss = (error: unknown): never => {
     if (
@@ -103,11 +126,21 @@ export async function loadBookNotes(args: {
     return Math.max(0, langs.indexOf(lang));
   };
 
+  let failed = false;
   const data = await getReaderBookNotes(token, {
     org,
     project,
     book: book.slug,
-  }).catch(miss);
+  }).catch((error: unknown) => {
+    if (
+      !soft ||
+      (error instanceof ApiError &&
+        (error.status === 404 || error.status === 400))
+    )
+      return miss(error);
+    failed = true;
+    return { annotations: [], unanchored: [], bookmarks: [] };
+  });
   const opts = (chapterKey: string): BuildOptions => ({
     sections: new Map(),
     known: false,
@@ -149,6 +182,7 @@ export async function loadBookNotes(args: {
         item.status === "orphan"
           ? null
           : readerHref(target(key), { lang: a.lang, section: sec, note: a.id }),
+      section: sec,
     });
   }
   for (const b of data.bookmarks) {
@@ -187,6 +221,7 @@ export async function loadBookNotes(args: {
               section: placed,
               note: b.id,
             }),
+      section: placed,
     });
   }
   for (const c of chapters) langs.add(c.lang);
@@ -208,13 +243,79 @@ export async function loadBookNotes(args: {
           href: bookHref({ org, project, book: book.slug }),
         };
   return {
-    org,
-    project,
-    bookSlug: book.slug,
-    bookTitle: book.title,
+    view: {
+      org,
+      project,
+      bookSlug: book.slug,
+      bookTitle: book.title,
+      chapters,
+      rows,
+      langNames: Object.fromEntries(
+        [...langs].map((l) => [l, languageName(l)]),
+      ),
+      back,
+    },
+    failed,
+    defaults: new Map(chapters.map((c) => [c.key, c.lang])),
+  };
+}
+
+/**
+ * Notes in this book (P63-fk.S14; job 03, Library round 02, `## Build` § Page: book-notes): the book's title, its
+ * chapters in book order, every mark as its row shows it in reading order (`null` when the marks did not load) and
+ * the Bar's way back (the chapter the list was opened from, else the book). A miss is `notFound()`; a failed book
+ * read throws (the route's error boundary).
+ */
+export async function loadNotesPage(args: LoadArgs): Promise<NotesView> {
+  const { view, failed, defaults } = await readBookNotes(args, true);
+  const target = (chapter: string) => ({
+    kind: "chapter" as const,
+    org: view.org,
+    project: view.project,
+    book: view.bookSlug,
+    chapter,
+  });
+  const chapters: NotesChapter[] = view.chapters.map((c) => ({
+    key: c.key,
+    n: c.n,
+    title: c.title,
+    lang: c.lang,
+  }));
+  const sorted = groupBook(
+    view.rows.map((r) => r.entry),
+    "all",
+    view.chapters,
+  ).flatMap((c) => c.entries);
+  const sectionOf = new Map(view.rows.map((r) => [r.entry.item.id, r.section]));
+  const rows = readingOrder(
+    sorted.map((e) => {
+      const key = e.item.chapterKey ?? "";
+      return notesRow(
+        e.item,
+        { key, lang: defaults.get(key) ?? e.item.lang },
+        (place) => readerHref(target(key), place),
+        sectionOf.get(e.item.id) ?? null,
+      );
+    }),
     chapters,
-    rows,
-    langNames: Object.fromEntries([...langs].map((l) => [l, languageName(l)])),
-    back,
+  );
+  const o = args.opening;
+  const from =
+    o.from === "chapter" && o.chapter
+      ? chapters.find((c) => c.key === o.chapter)
+      : undefined;
+  return {
+    bookTitle: view.bookTitle,
+    chapters,
+    rows: failed ? null : rows,
+    back: notesBack({
+      bookTitle: view.bookTitle,
+      bookHref: bookHref({
+        org: view.org,
+        project: view.project,
+        book: view.bookSlug,
+      }),
+      chapter: from ? { title: from.title, href: view.back.href } : null,
+    }),
   };
 }

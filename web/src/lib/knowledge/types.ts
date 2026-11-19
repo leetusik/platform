@@ -126,14 +126,21 @@ export interface KbUsage {
 
 /**
  * One project row in the dashboard rollup (`GET /app/dashboard`, P12.S3). NOTE:
- * `documents` is `documents_created` over the window, NOT a live per-project total
- * (the content-plane bridge is S5).
+ * `documents` is `documents_created` over the window, NOT a live per-project total;
+ * the live total is `active_documents` (P63).
  */
 export interface KbDashboardProject {
   id: string;
   name: string;
   created_at: string;
   documents: number;
+  /**
+   * The project's documents in the library now (P63, D246-p7): the same number
+   * `GET /app/documents?project=<id>` answers as `total`, read for every project in
+   * one query. `null` when that one read failed; the rest of the row still stands.
+   * Optional so an older backend (and existing fixtures) still type-check.
+   */
+  active_documents?: number | null;
   /** Non-revoked credential count. */
   keys: number;
   /** Most-recent ingest recency across the project's credentials, or null. */
@@ -330,6 +337,33 @@ export interface KbDocument extends KbDocumentListItem {
    * older backend still type-checks.
    */
   chapter?: { book: string; chapter_key: string; lang: string } | null;
+  /**
+   * Whole minutes to read the document (P63; at least 1), on the two detail reads
+   * only: the list projection does not carry it. `null` only on a store that has
+   * not computed it yet. Optional so an older backend still type-checks.
+   */
+  reading_minutes?: number | null;
+  /**
+   * This version's own publish time (P63, D171-qk), from its file's `published:` header line, on the
+   * two detail reads only: UTC ISO 8601 to the second (`2026-11-17T09:30:12Z`), or a `YYYY-MM-DD` day
+   * when a one-time fill had only the document's date. `null` when the file carries none (a version
+   * published before P63 and not filled): the reader then shows `date`, as before.
+   */
+  published?: string | null;
+  /** True when `published` is a one-time best-effort fill, not the server's own stamp. */
+  published_best_effort?: boolean;
+  /**
+   * The owning org as the org library names it (P63, `KbOrgLibrary.org`'s `slug` and `name`), on the
+   * two detail reads, past their visibility gate: a visitor's way back reads its name. Null in legacy
+   * mode; absent from an older backend.
+   */
+  org?: KbOwnerOrg | null;
+}
+
+/** An item's owning org as its read names it (P63): the slug (null when it has none) and the display name. */
+export interface KbOwnerOrg {
+  slug: string | null;
+  name: string;
 }
 
 /** `GET /app/documents` → `{total, items}` (offset-paged; `total` is the full count). */
@@ -375,6 +409,25 @@ export interface KbSearchPage {
   limit: number;
   offset: number;
   results: KbSearchResult[];
+}
+
+/**
+ * `GET /app/search/text` (P63, the Library's documents table): the ids, ascending, of every document
+ * of the tenant whose TEXT matches `q` as `/app/search` matches it. Keyword-only: never embeds.
+ */
+export interface KbTextMatches {
+  query: string;
+  total: number;
+  ids: number[];
+}
+
+/**
+ * `GET /app/search/snippets` (P63): id → the snippet `/app/search` gives a text match on its page
+ * (literal `<mark>…</mark>` delimiters), for the asked ids that match in their text. At most 50 ids.
+ */
+export interface KbTextSnippets {
+  query: string;
+  snippets: Record<string, string>;
 }
 
 /**
@@ -427,6 +480,10 @@ export interface KbDocumentVersion {
   format: "md" | "html" | "native";
   /** ISO-8601. When this body was superseded and archived. */
   created_at: string;
+  /** That version's own publish time (P63), as `KbDocument.published`; null when its file has none. */
+  published?: string | null;
+  /** True when `published` is a one-time best-effort fill. */
+  published_best_effort?: boolean;
   /**
    * The archived body, present ONLY on a single-version fetch (index rows are
    * body-less). For an `html` version this is the extracted plain text; the
@@ -474,6 +531,8 @@ export interface KbBookVariant {
   updated_at: string;
   /** `{lang, version}` of the source it was translated from, or null. */
   translated_from: { lang: string; version: number } | null;
+  /** Whole minutes to read this variant (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
 }
 
 export interface KbBookChapter {
@@ -491,10 +550,25 @@ export interface KbBook {
   title: string;
   kind: string;
   subject: string | null;
+  /**
+   * The book's second title (P63, D248-j7): drawn under the title. Null when the book
+   * manifest names none (its optional `subtitle`); absent from an older backend.
+   */
+  sub?: string | null;
+  /**
+   * The language of `sub`, a lowercase primary subtag (`ko`): the manifest's optional
+   * `subtitle_lang`. Null when the author gave none; absent from an older backend.
+   */
+  sub_lang?: string | null;
   description: string | null;
   chapters: KbBookChapter[];
   /** `/@{org}/{project}/books/{book}`, on the slug (or the tenant id when it has none). */
   canonical_path: string;
+  /**
+   * The owning org as the org library names it (P63): its slug and display name, on the public
+   * read (`GET /app/orgs/{org}/{project}/books/{book}`) only. Absent from an older backend.
+   */
+  org?: KbOwnerOrg | null;
 }
 
 /** One chapter variant in an org library listing (`GET /app/orgs/{org}/library`, P30.S22). */
@@ -506,6 +580,8 @@ export interface KbLibraryVariant {
   title: string;
   version: number;
   format: "md" | "html" | "native";
+  /** Whole minutes to read this variant (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
 }
 
 export interface KbLibraryBook {
@@ -514,6 +590,10 @@ export interface KbLibraryBook {
   title: string;
   kind: string;
   subject: string | null;
+  /** The book's second title (P63, D248-j7); null when the manifest names none, absent from an older backend. */
+  sub?: string | null;
+  /** The language of `sub` (`ko`), or null when the author gave none; absent from an older backend. */
+  sub_lang?: string | null;
   chapters: {
     key: string;
     position: number;
@@ -534,6 +614,13 @@ export interface KbLibraryDocument {
   lang: string;
   version: number;
   subject: string | null;
+  /** Whole minutes to read the document (P63; at least 1); null when not computed, absent from an older backend. */
+  reading_minutes?: number | null;
+  /**
+   * The document's tags (P63, OQ8), as on `GET /app/documents`: a visitor's documents table draws them.
+   * Only ever of the projects the response is over. Absent from an older backend.
+   */
+  tags?: string[];
   /** `/@{org}/{project}/{slug}`, or null for a slug-less org. */
   canonical_path: string | null;
 }
