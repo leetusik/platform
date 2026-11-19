@@ -2,6 +2,7 @@
 // the org rail revised by job 03 round 02-one-library, F320). No React and no I/O, so the rules are
 // tested on their own (tests/hi2vi-shell-*.test.ts); `shell.tsx` renders what these return.
 
+import { feedbackHref } from "@/lib/feedback/place";
 import { due as dueText } from "@/lib/format";
 import { workspaceHref } from "@/lib/workspace/address";
 
@@ -100,7 +101,7 @@ export interface Rail {
 
 const ORG_HOME = "/dashboard";
 const LIBRARY = "/library";
-const FEEDBACK = "/feedback";
+const FEEDBACK = feedbackHref();
 const REVIEW = "/review";
 
 const under = (pathname: string, base: string) =>
@@ -108,6 +109,13 @@ const under = (pathname: string, base: string) =>
 
 /** `/projects/<id>/library` and beneath it: a project's library (job 03 round 02, F321). */
 const PROJECT_LIBRARY = /^\/projects\/[^/?#]+\/library(?:[/?#]|$)/;
+
+/**
+ * `/projects/<id>/feedback` and beneath it: Feedback with that project picked in the Shell, the list
+ * and an item opened from it (P65: job 04 round 02 draws both "under an org alone or with a project
+ * picked"; the scope is a route of its own, as a project's library is, never the org list's filter).
+ */
+const PROJECT_FEEDBACK = /^\/projects\/[^/?#]+\/feedback(?:[/?#]|$)/;
 
 /** `/projects/<id>/workspace` and beneath it: the project's Workspace (job 02, F41 and F74). */
 const PROJECT_WORKSPACE = /^\/projects\/[^/?#]+\/workspace(?:[/?#]|$)/;
@@ -146,9 +154,11 @@ export function projectSwitchHref(pathname: string, projectId: string): string {
  * The project form's Workspace is current on every page under `/projects/<id>/workspace` (the Agenda,
  * an item, the Backlog, a phase, a slice, Deferred, Docs), Overview then not.
  * The project form's Library is the project's library (`/projects/<id>/library`, job 03 round 02,
- * F321), current there (Overview is then not); its Feedback is `/feedback?project=<id>` (the record
- * names no project-scoped Feedback route, so the nearest page, with its project filter).
- * The org form's Library is also current on an org's public library, `/@<org>` (P63).
+ * F321), current there (Overview is then not); its Feedback is the project's Feedback,
+ * `/projects/<id>/feedback` (`feedbackHref`, P65), current on that list and on an item opened from
+ * it, `/projects/<id>/feedback/<feedbackId>` (Overview is then not). The org's Feedback, `/feedback`,
+ * is current on its list (filtered to a project or not) and on an item opened from it: those keep
+ * the org form. The org form's Library is also current on an org's public library, `/@<org>` (P63).
  *
  * `known` says whether the path's project is one of the active org's (the Shell's project list). A
  * `/projects/<id>` that is no project of the org is project home's Not found: the board draws it
@@ -164,11 +174,16 @@ export function railFor(pathname: string, known = true): Rail {
   if (projectId !== null && known) {
     const home = `/projects/${encodeURIComponent(projectId)}`;
     const library = PROJECT_LIBRARY.test(pathOf(pathname));
+    const feedback = PROJECT_FEEDBACK.test(pathOf(pathname));
     const workspace = PROJECT_WORKSPACE.test(pathOf(pathname));
     return {
       form: "project",
       items: [
-        { key: "overview", href: home, current: !library && !workspace },
+        {
+          key: "overview",
+          href: home,
+          current: !library && !feedback && !workspace,
+        },
         {
           key: "workspace",
           href: workspaceHref(projectId),
@@ -177,8 +192,8 @@ export function railFor(pathname: string, known = true): Rail {
         { key: "library", href: `${home}/library`, current: library },
         {
           key: "feedback",
-          href: `${FEEDBACK}?project=${encodeURIComponent(projectId)}`,
-          current: false,
+          href: feedbackHref(projectId),
+          current: feedback,
         },
       ],
       review,
@@ -194,7 +209,11 @@ export function railFor(pathname: string, known = true): Rail {
         current:
           under(pathname, LIBRARY) || PUBLIC_LIBRARY.test(pathOf(pathname)),
       },
-      { key: "feedback", href: FEEDBACK, current: under(pathname, FEEDBACK) },
+      {
+        key: "feedback",
+        href: FEEDBACK,
+        current: under(pathOf(pathname), FEEDBACK),
+      },
     ],
     review,
   };

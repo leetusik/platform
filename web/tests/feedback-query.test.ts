@@ -1,65 +1,37 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { getFeedbackDetail, listFeedback } from "@/lib/feedback/app";
 import {
-  feedbackQueryString,
-  nextPageHref,
-  readActiveParams,
-  toQuery,
-} from "@/lib/feedback/query";
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
-// The Feedback list's query builder (URL → API) and the two reads it feeds.
+import {
+  countFeedback,
+  getFeedbackDetail,
+  listFeedbackPage,
+} from "@/lib/feedback/app";
+import { feedbackQueryString } from "@/lib/feedback/query";
+
+// The Feedback API's query string and the session reads it feeds.
 
 const PROJECT = "7f1c2a9e-3b4d-4e5f-8a6b-9c0d1e2f3a4b";
 
-describe("the Feedback query builder", () => {
-  it("drops blanks, sends `project` as `project_id`, and passes nothing unknown", () => {
-    // What a GET form submit looks like: every field present, blanks included,
-    // plus a stray param and the API's own name for the project filter.
-    const active = readActiveParams({
-      q: "  결제 ",
-      project: PROJECT,
-      feedback_value: "",
-      tag: "   ",
-      bogus: "x",
-      project_id: "11111111-1111-1111-1111-111111111111",
-    });
-    expect(active).toEqual({ q: "결제", project: PROJECT });
-
-    const query = toQuery(active);
-    expect(query).toEqual({ q: "결제", project_id: PROJECT });
-    expect(feedbackQueryString(query)).toBe(
-      `?q=${encodeURIComponent("결제")}&project_id=${PROJECT}`,
+describe("the Feedback query string", () => {
+  it("drops blanks, trims, escapes, and keeps an empty query bare", () => {
+    expect(
+      feedbackQueryString({ q: "  결제 ", project_id: PROJECT, tag: "   " }),
+    ).toBe(`?q=${encodeURIComponent("결제")}&project_id=${PROJECT}`);
+    expect(feedbackQueryString({ feedback_value: 2, limit: 10 })).toBe(
+      "?feedback_value=2&limit=10",
     );
-  });
-
-  it("narrows the numeric params and keeps an empty query bare", () => {
-    expect(toQuery({ feedback_value: "2", limit: "10" })).toEqual({
-      feedback_value: 2,
-      limit: 10,
-    });
     expect(feedbackQueryString({})).toBe("");
-  });
-
-  it("carries the cursor and every active filter onto the next page", () => {
-    const href = nextPageHref(
-      { q: "slow", project: PROJECT, cursor: "old" },
-      "new",
-    );
-    const url = new URL(href, "http://x");
-    expect(url.pathname).toBe("/feedback");
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      q: "slow",
-      project: PROJECT,
-      cursor: "new",
-    });
-    // The cursor in the URL reaches the API unchanged.
-    const query = toQuery(readActiveParams(Object.fromEntries(url.searchParams)));
-    expect(query).toEqual({ q: "slow", project_id: PROJECT, cursor: "new" });
   });
 });
 
-describe("listFeedback / getFeedbackDetail", () => {
+describe("listFeedbackPage / countFeedback / getFeedbackDetail", () => {
   beforeAll(() => {
     process.env.KB_API_BASE_URL = "http://kb.test:8766";
   });
@@ -76,24 +48,41 @@ describe("listFeedback / getFeedbackDetail", () => {
       headers: { "content-type": "application/json" },
     });
 
-  it("returns the records and the cursor, and keeps an absent cursor absent", async () => {
+  it("reads one numbered page and its total", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      json({ records: [{ id: "a" }], next_cursor: "c2" }),
+      json({ records: [{ id: "a" }], total: 230 }),
     );
-    const page = await listFeedback("tok", { project_id: PROJECT, q: "" });
-    expect(page).toEqual({ records: [{ id: "a" }], next_cursor: "c2" });
-    const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe(
-      `http://kb.test:8766/app/feedback?project_id=${PROJECT}`,
+    const page = await listFeedbackPage(
+      "tok",
+      { project_id: PROJECT, q: "slow" },
+      3,
     );
-    expect((init as RequestInit).headers).toMatchObject({
-      Authorization: "Bearer tok",
+    expect(page).toEqual({ records: [{ id: "a" }], total: 230 });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]));
+    expect(url.pathname).toBe("/app/feedback");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      project_id: PROJECT,
+      q: "slow",
+      page: "3",
     });
+  });
 
-    vi.mocked(fetch).mockResolvedValueOnce(json({ records: [] }));
-    const last = await listFeedback("tok");
-    expect(last).toEqual({ records: [] });
-    expect("next_cursor" in last).toBe(false);
+  it("counts a window with `limit: 1` and reads only the total", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ records: [{ id: "a" }], total: 42 }),
+    );
+    const start = "2026-11-01T00:00:00.000Z";
+    const end = "2026-12-01T00:00:00.000Z";
+    await expect(
+      countFeedback("tok", { project_id: PROJECT, start, end }),
+    ).resolves.toBe(42);
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0][0]));
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      project_id: PROJECT,
+      start_ingested_at: start,
+      end_ingested_at: end,
+      limit: "1",
+    });
   });
 
   it("unwraps `{record}`", async () => {

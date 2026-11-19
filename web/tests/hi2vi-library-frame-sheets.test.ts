@@ -238,7 +238,12 @@ describe("the Library's sheets", () => {
       "./boundary.css",
       "./library/frame.css",
     ]);
-    expect(imports.at(-1)).toBe("./library/boundary.css");
+    // the Library's parts are one run, its boundary last; Listen's, Review's and the Workspace's sheets
+    // sit between them, and a later job's sheets (Feedback's) follow the boundary
+    const own = imports.filter((i) => i.startsWith("./library/"));
+    const at = imports.indexOf("./library/frame.css");
+    expect(imports.slice(at, at + own.length - 1)).toEqual(own.slice(0, -1));
+    expect(own.at(-1)).toBe("./library/boundary.css");
     expect(new Set(imports).size).toBe(imports.length);
     expect(
       imports

@@ -142,6 +142,36 @@ def test_event_round_trips_through_get_list_and_search(run):
     run(scenario)
 
 
+def test_a_numbered_page_and_its_total_share_one_filtered_statement(run):
+    async def scenario(feedback, accounts, _maker):
+        _tenant, project = await _org(accounts)
+        _other_tenant, other = await _org(accounts)
+        product = f"prod-{uuid4().hex[:8]}"
+        made = [await feedback.create_feedback_event(_event(
+            project.id, product, message=f"{'needle' if i % 2 else 'hay'} {i}"))
+            for i in range(5)]
+        await feedback.create_feedback_event(_event(other.id, product, message="needle there"))
+
+        filters = FeedbackQueryFilters(project_ids=(project.id,), search="needle")
+        second = await feedback.list_feedback(
+            ListFeedbackQuery(limit=1, filters=filters, page=2, with_total=True))
+        assert second.total == 2 and second.next_cursor is None
+        newest_first = sorted((r for r in made if "needle" in r.message),
+                               key=lambda r: (r.ingested_at, r.id), reverse=True)
+        assert [r.id for r in second.records] == [newest_first[1].id]
+        past = await feedback.list_feedback(
+            ListFeedbackQuery(limit=1, filters=filters, page=3, with_total=True))
+        assert (past.records, past.total) == ((), 2)
+        # Without ``with_total`` nothing is counted (the key routes' reads).
+        plain = await feedback.list_feedback(ListFeedbackQuery(limit=1, filters=filters))
+        assert plain.total is None and plain.next_cursor is not None
+        with pytest.raises(ValueError):
+            await feedback.list_feedback(ListFeedbackQuery(
+                limit=1, filters=filters, page=1, cursor=plain.next_cursor))
+
+    run(scenario)
+
+
 def test_comment_and_attachment_round_trip_and_delete_returns_storage_keys(run):
     async def scenario(feedback, accounts, _maker):
         _tenant, project = await _org(accounts)

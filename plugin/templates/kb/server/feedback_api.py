@@ -124,6 +124,10 @@ ALLOWED_TARGET_ROLES = ("user", "assistant", "system", "tool")
 
 DEFAULT_LIST_LIMIT = 50
 MAX_LIST_LIMIT = 100
+#: The highest ``page`` ``/app/feedback`` reads: the web's six-digit cap. Its offset,
+#: ``(page - 1) * MAX_LIST_LIMIT``, stays far inside the database's bigint, so a larger
+#: page is a 400 here rather than an overflow (a 500) in SQL.
+MAX_LIST_PAGE = 999_999
 #: A capture-supplied project name is a get-or-create key; vocky's bound.
 MAX_CAPTURE_PROJECT_NAME_LENGTH = 200
 #: ``/api/project/usage``'s window when the caller names none.
@@ -544,11 +548,12 @@ def _require_scope_value(value: str | None, *, field_name: str) -> str:
     return trimmed
 
 
-def normalize_list_query(request: Request) -> ListFeedbackQuery:
+def normalize_list_query(request: Request, *, keyset: bool = True) -> ListFeedbackQuery:
     """Vocky's list filters (``source_product``, ``source_integration``,
     ``recorded_by``, ``conversation_id``, ``session_id``, ``user_id``,
     ``trigger_type``, ``feedback_value``, ``channel``, ``target_type``, ``tag``, the
-    ``start/end_ingested_at`` window), ``limit`` (1..100, default 50) and ``cursor``."""
+    ``start/end_ingested_at`` window), ``limit`` (1..100, default 50) and, with
+    ``keyset`` (the key routes), ``cursor``; without it ``cursor`` is never read."""
 
     params = request.query_params
     start = _parse_timestamp(params.get("start_ingested_at"), field_name="start_ingested_at")
@@ -575,7 +580,7 @@ def normalize_list_query(request: Request) -> ListFeedbackQuery:
             tag=_normalize_tag(params.get("tag")),
         ),
         limit=_normalize_limit(_parse_int_param(params.get("limit"), field_name="limit")),
-        cursor=decode_cursor(params.get("cursor")),
+        cursor=decode_cursor(params.get("cursor")) if keyset else None,
     )
 
 
@@ -1462,12 +1467,21 @@ async def get_api_project_usage(request: Request) -> Response:
 @router.get("/app/feedback")
 async def list_app_feedback(request: Request) -> Response:
     """List and search (``q``: a case-insensitive substring) the active org's
-    feedback, newest first; ``project_id`` narrows to one of its projects."""
+    feedback, newest first; ``project_id`` narrows to one of its projects.
+
+    ``page`` (1-based, 1 when absent) reads one numbered page of ``limit``, with
+    ``total``: the whole filtered list's count, the same on every page. ``cursor`` is
+    the key routes' and is ignored here, as ``page`` is there."""
 
     _ctx, owned = await _session_caller(request)
     try:
-        query = normalize_list_query(request)
+        query = normalize_list_query(request, keyset=False)
         query.filters.search = normalize_optional_text(request.query_params.get("q"))
+        number = _parse_int_param(request.query_params.get("page"), field_name="page")
+        if number is not None and not 1 <= number <= MAX_LIST_PAGE:
+            raise FeedbackValidationError(f"page must be between 1 and {MAX_LIST_PAGE}")
+        query.page = 1 if number is None else number
+        query.with_total = True
     except FeedbackValidationError as exc:
         return _detail(str(exc), 400)
 
@@ -1482,15 +1496,16 @@ async def list_app_feedback(request: Request) -> Response:
             return _detail("project not found", 404)
         scope = (narrow,)
     if not scope:
-        return JSONResponse({"records": []})
+        return JSONResponse({"records": [], "total": 0})
     query.filters.project_ids = scope
     try:
         page = await get_feedback_service().list_feedback(query)
     except FeedbackReadError:
         return _read_failed()
-    payload: dict[str, object] = {"records": [_with_project_id(record) for record in page.records]}
-    if page.next_cursor is not None:
-        payload["next_cursor"] = encode_cursor(page.next_cursor)
+    payload: dict[str, object] = {
+        "records": [_with_project_id(record) for record in page.records],
+        "total": page.total,
+    }
     return JSONResponse(payload)
 
 

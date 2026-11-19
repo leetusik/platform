@@ -1,6 +1,6 @@
 // Project home's three parts (`ProjectHomeWorkspace`, `ProjectHomeLibrary`, `ProjectHomeFeedback`):
-// server-safe markup, so `page.tsx` and `loading.tsx` both render them. The Library's Try again is the
-// one client island (`library-retry.tsx`).
+// server-safe markup, so `page.tsx` and `loading.tsx` both render them. Each panel's Try again is its
+// client island (`library-retry.tsx`, `feedback-retry.tsx`).
 
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
@@ -14,10 +14,11 @@ import {
   PanelHead,
   Skeleton,
 } from "@/hi2vi/ui";
+import { Rating } from "@/hi2vi/feedback";
 import { Steps, WsStatus } from "@/hi2vi/workspace/frame";
 import { date, type FormatOptions } from "@/lib/format";
 
-import type { LibraryRow, WorkspacePart } from "./model";
+import type { FeedbackRow, LibraryRow, WorkspacePart } from "./model";
 import { workspaceWords } from "./model";
 
 /** Three skeleton rows of a row's height (F24), the second bar `tail` wide. */
@@ -224,51 +225,64 @@ export function LibraryPanel({
   );
 }
 
-export interface FeedbackRow {
-  id: string;
-  text: string;
-  /** `when()` of the time it arrived. */
-  when: string;
-}
-
 const F = PROJECT_HOME.feedback;
 
+/** The Feedback panel's states: the board's, and the Library's failed form (D247-4x). */
+export type FeedbackState =
+  /** `all`: the foot's address, the project's own Feedback list (`feedbackHref(projectId)`). */
+  | { kind: "rows"; rows: readonly FeedbackRow[]; all: string }
+  | { kind: "failed"; retry: ReactNode }
+  /** Fetched again after Try again: the count stays, three skeleton rows. */
+  | { kind: "loading" }
+  /** Nothing known yet: no count, three skeleton rows. */
+  | { kind: "first-load" };
+
 /**
- * Feedback (`ProjectHomeFeedback.dc.html`): the newest messages, each the text as a link to the
- * message and the time; the foot to the project's Feedback list. `rows` `null` is the loading form.
+ * Feedback (`ProjectHomeFeedback.dc.html`): `N this month` in the head; the five newest messages, each
+ * its Rating (the Feedback job's Liked, Disliked, Unrated: operator D3) in the rating column at the
+ * panel's weight, the text as a link to the message in the project's Shell (`lang` set) and the time;
+ * the foot to the project's Feedback list. Empty drops the count and the foot; the failed form is the
+ * Library's (`Feedback did not load.` and Try again, the head kept).
  *
- * Not built, no source (Operator Questions): the head's `N this month`, each message's `3/5` rating
- * (the API's `feedback_value` is liked/disliked, not a five-point rating) and a message's `lang`.
- * The rating cell keeps its column, empty.
+ * A long message is cut at the Feedback list's two lines by the list's own `.clamp-2`, put on the text
+ * span rather than through `ClampLink`, which would drop `.ph-open`'s text-only underline, the text's
+ * weight 400 and the span's `lang`. The link keeps one 12 px over and under: `.ph-open` and the list's
+ * `.link-strong:has(> .clamp-2)` set the same `padding-block` to the same step, never adding up.
  */
 export function FeedbackPanel({
-  projectId,
-  rows,
+  count,
+  state,
 }: {
-  projectId: string;
-  rows: readonly FeedbackRow[] | null;
+  /** `23 this month`, or `null` when not known. */
+  count: string | null;
+  state: FeedbackState;
 }) {
+  const waiting = state.kind === "loading" || state.kind === "first-load";
+  const rows = state.kind === "rows" ? state.rows : null;
+  const shown =
+    state.kind === "first-load" || (rows !== null && rows.length === 0)
+      ? null
+      : count;
   return (
     <Panel
       className="ph-part"
       aria-label={F.heading}
-      aria-busy={rows === null ? "true" : undefined}
+      aria-busy={waiting ? "true" : undefined}
     >
       <PanelHead>
         <h2>{F.heading}</h2>
+        {shown !== null ? <p className="meta">{shown}</p> : null}
       </PanelHead>
-      {rows === null ? <WaitRows tail="3em" /> : null}
       {rows !== null && rows.length > 0 ? (
         <>
           <ul className="ph-list">
             {rows.map((m) => (
               <li key={m.id} className="row ph-msg">
-                <span className="ph-rating" />
-                <Link
-                  href={`/feedback/${encodeURIComponent(m.id)}`}
-                  className="link-strong ph-open ph-said"
-                >
-                  <span className="ph-name-text">{m.text}</span>
+                <Rating value={m.rating} className="ph-rating" />
+                <Link href={m.href} className="link-strong ph-open ph-said">
+                  <span className="ph-name-text clamp-2" lang={m.lang}>
+                    {m.text}
+                  </span>
                 </Link>
                 <span className="dim ph-when">{m.when}</span>
               </li>
@@ -276,7 +290,7 @@ export function FeedbackPanel({
           </ul>
           <div className="panel-foot">
             <Link
-              href={`/feedback?project=${encodeURIComponent(projectId)}`}
+              href={state.kind === "rows" ? state.all : "/feedback"}
               className="link link-row"
             >
               {F.all}
@@ -289,6 +303,13 @@ export function FeedbackPanel({
           <BlockText>{F.empty}</BlockText>
         </Block>
       ) : null}
+      {state.kind === "failed" ? (
+        <Block className="panel-body has-rule">
+          <BlockText>{F.failed}</BlockText>
+          {state.retry}
+        </Block>
+      ) : null}
+      {waiting ? <WaitRows tail="3em" /> : null}
     </Panel>
   );
 }

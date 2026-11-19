@@ -509,11 +509,23 @@ class FeedbackRepository:
         self,
         query: ListFeedbackQuery,
     ) -> FeedbackListPage:
-        """Return a cursor-paginated list of stored feedback records, newest first."""
+        """Return a page of stored feedback records, newest first.
 
-        statement = select(FeedbackEventModel)
-        statement = self._apply_query_filters(statement, query.filters)
+        Keyset (``cursor``) or offset (``page``) paging over one filtered statement;
+        ``with_total`` counts that same filtered statement before paging.
+        """
 
+        if query.page is not None and query.cursor is not None:
+            raise ValueError("page and cursor are exclusive")
+
+        filtered = self._apply_query_filters(select(FeedbackEventModel), query.filters)
+
+        total = None
+        if query.with_total:
+            count_statement = select(func.count()).select_from(filtered.subquery())
+            total = int((await self._session.execute(count_statement)).scalar_one())
+
+        statement = filtered
         if query.cursor is not None:
             statement = statement.where(
                 or_(
@@ -529,13 +541,15 @@ class FeedbackRepository:
             FeedbackEventModel.ingested_at.desc(),
             FeedbackEventModel.id.desc(),
         ).limit(query.limit + 1)
+        if query.page is not None:
+            statement = statement.offset((query.page - 1) * query.limit)
 
         models = (await self._session.execute(statement)).scalars().all()
         has_next_page = len(models) > query.limit
         page_models = models[: query.limit]
 
         next_cursor = None
-        if has_next_page and page_models:
+        if has_next_page and page_models and query.page is None:
             last_model = page_models[-1]
             next_cursor = FeedbackListCursor(
                 ingested_at=last_model.ingested_at,
@@ -545,6 +559,7 @@ class FeedbackRepository:
         return FeedbackListPage(
             records=tuple(self._to_record(model) for model in page_models),
             next_cursor=next_cursor,
+            total=total,
         )
 
     async def summarize_feedback(

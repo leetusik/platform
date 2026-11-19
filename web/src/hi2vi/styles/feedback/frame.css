@@ -1,0 +1,121 @@
+/* hi2vi — the Feedback frame (job 04, round 02-agenda-and-pages: canvas/project/frame.css sections 1 to 7, 9 and
+   10, and the set columns of the Stack board's own <style>; frame.md F120 to F145, F340 to F346). Values are the
+   signed ones. The changes, and nothing else:
+   - the whole sheet is scoped like the system's (../README.md): it applies inside a `.ui` root and stops at
+     `[data-ui-legacy]`, the old-page boundary; the tokens' `:root` reads `:scope`; it sits in no cascade layer;
+   - section 8 (F340's pager) is not built: the list uses the Library's pager (`Pager` from `@/hi2vi/library`,
+     ../library/frame.css section P; F325 over F340 where they differ, D239-ev). Section 11 (canvas only) is not
+     built either;
+   - one name per meaning (P58-yw's class names, D238-rm):
+     - the signed `.facts` grid is `.facts.is-grid` (and `.facts.is-grid > .fact > dd`,
+       `.facts.is-grid > .fact.is-wide`): the bare `.facts` is the Workspace's (its F44, content-wide pairs that
+       wrap), the system's since the Workspace's build. `.fact` and `.fact > dt` are the two jobs' one
+       drawing and keep their names; the system declares them (../bundle.css), word for word as signed;
+     - the signed `.badge.is-waiting` with its ink word is `.badge.is-waiting.is-ink`: `.badge.is-waiting` is the
+       dashed badge (the Workspace's F45, one drawing for both jobs, declared by the system in ../bundle.css) and
+       `.badge.is-ink` its ink word, here. The Waiting part draws `badge is-waiting is-ink`;
+     - the list's set columns (F139) and its message's 56ch (F140) are drawn twice on the canvas, as the Stack
+       board's `.stack-*` and the FeedbackList board's `.fl-table`, `.fl-rating`, `.fl-project`, `.fl-product`,
+       `.fl-when`, `.fl-wrap`, with one value each. They are built once, here, under the Stack board's names; the
+       list uses them (`.fl-table` is `.stack-set`, `.fl-rating` `.stack-rating`, and so on).
+   - no other class the system or the Library declares is given a rule here: a pressed toggle is `.seg-item`
+     (underlined, F82), never the Library's `.choice` (filled, F58); no stacking table existed before this sheet
+     (`.facts`, `.fact` and the waiting badge are the system's, above).
+   Its custom properties are restored at the old-page boundary by ./boundary.css.
+   1 layout tokens · 2 rating · 3 tag · 4 absent · 5 raw JSON · 6 facts and kept lines · 7 search and filters ·
+   9 a table that stacks, its set columns · 10 waiting.
+   Every colour, size and gap is a token of the system; the lengths below are this frame's own. */
+@scope (.ui) to ([data-ui-legacy]) {
+/* 1 ── layout tokens ─────────────────────────────────────────────────────── */
+:scope {
+  --measure: 72ch;        /* the Workspace ledger's one text measure (F80) */
+  --fact-min: 12em;       /* a fact's least width before the grid drops a column */
+  --rating-mark: 10px;    /* a rating's triangle: this wide, one --dot tall */
+  --json-lines: 16.5;     /* a raw JSON box shows this many lines; the cut line says there is more */
+  --seg-rule: 2px;        /* the underline of the pressed filter */
+}
+
+/* 2 ── rating: a shape and a word, ink only. Liked points up, Disliked down, Unrated has no mark ── */
+.rating { display: inline-flex; align-items: baseline; gap: var(--space-2); font-weight: 500; white-space: nowrap; }
+.rating::before { content: ""; flex: none; align-self: center; width: var(--rating-mark); height: var(--dot); }
+.rating-liked::before { background: var(--ink); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.rating-disliked::before { background: var(--ink); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.rating-unrated { color: var(--ink-2); font-weight: 400; }
+.rating-unrated::before { display: none; }
+/* in a column of ratings (a table's cell, a row's cell) Unrated keeps the mark's place, so the three words start on one edge */
+.table td > .rating-unrated::before, .row > .rating-unrated::before { display: block; }
+
+/* 3 ── tag: a word the caller sent. Filled with the ground, so it never reads as the system's outlined badge ── */
+.tags { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); min-width: 0; }
+.tag { display: inline-flex; align-items: center; max-width: 100%; min-height: var(--mark-h); padding: 0 var(--mark-pad); border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); color: var(--ink); font-size: var(--fs-meta); line-height: calc(18 / 12); overflow-wrap: anywhere; }
+
+/* 4 ── absent: the dash of F2, with words for a screen reader beside it ──── */
+.absent { color: var(--ink-2); }
+
+/* 5 ── raw JSON: the mono face at the meta step, in a box that scrolls both ways inside itself ── */
+.json { max-height: calc(var(--json-lines) * var(--fs-meta) * var(--lh-head) + 2 * var(--space-3) + 2px); overflow: auto; border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--bg); }
+.json > pre { width: max-content; min-width: 100%; margin: 0; padding: var(--space-3); color: var(--ink); font: 400 var(--fs-meta)/var(--lh-head) var(--font-mono); white-space: pre; word-break: normal; tab-size: 2; }
+
+/* 6 ── facts: label over value, in pairs that wrap (the Workspace ledger's F44); and text that keeps its line breaks ── */
+.facts.is-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--fact-min), 100%), 1fr)); gap: var(--space-4) var(--space-5); }
+.facts.is-grid > .fact > dd { min-width: 0; overflow-wrap: anywhere; }
+.facts.is-grid > .fact.is-wide { grid-column: 1 / -1; }
+.keep-lines { max-width: var(--measure); overflow-wrap: anywhere; white-space: pre-wrap; }
+/* the one text a page is for (a piece of feedback's message): the head step at weight 400 (the Workspace ledger's F80) */
+.lead { font-size: var(--fs-head); line-height: var(--lh-head); }
+
+/* 7 ── search and filters: one row of controls, the first row of the list's panel ── */
+.filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
+.panel > .filterbar { padding: calc((var(--top-h) - var(--control-h)) / 2) var(--space-4); }
+.filterbar-search { display: flex; flex: 999 1 18em; gap: var(--space-2); min-width: 0; }
+.filterbar-search > .input { flex: 1 1 0; min-width: 0; }
+/* a select: the system's input, with the Shell's chevron */
+.select { position: relative; display: flex; flex: 1 1 14em; min-width: 0; }
+.select > .input { appearance: none; padding-right: calc(2 * var(--space-3) + 6px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.select::after { content: ""; position: absolute; top: 50%; right: var(--space-3); width: 6px; height: 6px; margin-top: -5px; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); pointer-events: none; }
+/* a filter of a few values: toggle buttons, the pressed one underlined in ink (the Workspace ledger's F82). The group's labels, not their boxes, sit on its two edges */
+.seg { display: flex; flex: 0 1 auto; flex-wrap: wrap; min-width: 0; margin-inline: calc(-1 * var(--space-2)); }
+.seg-item { position: relative; display: inline-flex; flex: none; align-items: center; height: var(--control-h); margin: 0; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-m); background: transparent; color: var(--ink-2); font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; }
+.seg-item::after { content: ""; position: absolute; right: var(--space-2); bottom: var(--space-2); left: var(--space-2); height: var(--seg-rule); background: transparent; }
+.seg-item:hover { background: var(--hover); color: var(--ink); }
+.seg-item[aria-pressed="true"] { color: var(--ink); }
+.seg-item[aria-pressed="true"]::after { background: var(--ink); }
+/* disabled: the group sinks as a disabled field or button does, the system's --bg fill and --line edge on the toggles' own boxes; the labels stay --ink-2 and in place (F144) */
+.seg-item:disabled { background: transparent; color: var(--ink-2); cursor: not-allowed; }
+.seg-item:disabled[aria-pressed="true"]::after { background: var(--ink-2); }
+.seg:has(> .seg-item:disabled) { border-radius: var(--radius-m); background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* 9 ── a table that stacks: under 48em of its own width a row is its main cell, then its other cells on one line (the Workspace ledger's F79) ── */
+.clamp-2 { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* a row's link that may run to two lines: 12 px over and under its text, so one line is the 44 px target and two lines keep their room */
+.link-strong:has(> .clamp-2) { padding-block: var(--space-3); }
+.table-stack { container: tstack / inline-size; }
+@container tstack (max-width: 48em) {
+  .table-stack .table, .table-stack .table tbody { display: block; }
+  /* the column heads stay for a screen reader; the last two declarations tell the render check this crop is meant, as .sr-only does */
+  .table-stack .table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+  .table-stack .table tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--line); }
+  .table-stack .table td { display: block; min-width: 0; padding: 0; border: 0; color: var(--ink-2); text-align: left; }
+  .table-stack .table td.is-main { flex: 1 0 100%; order: -1; color: var(--ink); }
+  /* a main cell that is the row's link: the link is the row's first 44 px, and the line under it starts 4 px below its text */
+  .table-stack .table tbody tr:has(> td.is-main.has-control) { padding-top: 0; }
+  .table-stack .table td.is-main.has-control > .link-strong { width: 100%; }
+  .table-stack .table td.is-main.has-control { margin-bottom: calc(-1 * var(--space-2)); }
+  .table-stack .table td.to-end { margin-left: auto; }
+  .table-stack .table td > .rating-unrated::before { display: none; }
+}
+/* the list's columns are set, never sized by what the rows hold (F139): Rating and When by their widest value (em of
+   the head's 12 px step), Project and Product a share of the table, Feedback the rest; a name longer than its column
+   goes on to a second line; a message's line stops at about 75 characters (F140). Under 48em the widths do not apply. */
+.stack-set { table-layout: fixed; }
+.stack-set th { box-sizing: border-box; }
+.stack-rating { width: 9em; }
+.stack-project { width: 18%; }
+.stack-product { width: 14%; }
+.stack-when { width: 10em; }
+.stack-wrap { overflow-wrap: anywhere; }
+.stack-set .clamp-2 { max-width: 56ch; }
+
+/* 10 ── waiting: a change the web made that the workspace has not taken yet (the Workspace ledger's F45), its word in ink beside a title (F344) ── */
+.badge.is-ink { color: var(--ink); }
+}

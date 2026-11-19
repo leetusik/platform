@@ -5,12 +5,20 @@
 import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
 import { stepsN } from "@/hi2vi/workspace/frame/steps-model";
+import type { FeedbackValue } from "@/lib/feedback/format";
+import { langAttr } from "@/lib/feedback/lang";
+import { feedbackItemHref } from "@/lib/feedback/place";
+import type { Feedback } from "@/lib/feedback/types";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
 import type { KbCredential, KbOrgLibrary } from "@/lib/knowledge/types";
 import { secondTitleLang } from "@/lib/library/lists";
 import { bookHref, orgSegment, readerHref } from "@/lib/reader-href";
-import { num, plural, type FormatOptions } from "@/lib/format";
-import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
+import { num, plural, when, type FormatOptions } from "@/lib/format";
+import {
+  DEFAULT_TIME_ZONE,
+  viewerTimeZone,
+  type CookieReader,
+} from "@/lib/time-zone";
 import { backlogHref, phaseHref } from "@/lib/workspace/address";
 import { langOf, openJobs } from "@/lib/workspace/model";
 import type { WorkspaceRead } from "@/lib/workspace/read";
@@ -307,6 +315,143 @@ export function newestRows(rows: readonly LibraryRow[]): LibraryRow[] {
 /** The head's count, the project's active total; none at 0 (an empty part drops its count). */
 export function libraryCount(total: number): string | null {
   return total > 0 ? plural(total, PROJECT_HOME.library.one) : null;
+}
+
+// ── Feedback (D247-4x; operator D3) ─────────────────────────────────────────
+
+/** The board's five newest messages. */
+export const FEEDBACK_SHOWN = 5;
+
+/** A half-open window of instants, `start <= ingested_at < end`, as ISO strings in UTC. */
+export interface FeedbackWindow {
+  start: string;
+  end: string;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The zone's offset from UTC at `at`, in ms: its wall clock then, read as if UTC, minus `at`.
+ *
+ * A fresh formatter each call, never one kept per zone: the zone is the viewer's `kb_tz` cookie as
+ * given, and every case, offset or alias spelling of it is a distinct string, so a module cache
+ * keyed by it would grow with each spelling a client sends. A render makes a few dozen calls.
+ */
+function zoneOffset(at: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const wall = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    part("hour"),
+    part("minute"),
+    part("second"),
+  );
+  return wall - Math.floor(at / 1000) * 1000;
+}
+
+/** The wall clock in `timeZone` at `at`, read as if UTC. */
+function wallAt(at: number, timeZone: string): number {
+  return at + zoneOffset(at, timeZone);
+}
+
+/**
+ * The instant the first of `month` (1-based; 13 is next January) starts in `timeZone`: the first
+ * instant whose local date there is the 1st.
+ *
+ * Local midnight is `wall - offset` for whichever offset holds at that instant. A clock change
+ * on the night can make it happen twice (fall back past midnight: the earlier one) or not at all
+ * (spring forward over it: the day starts at the change, found by bisection).
+ */
+function monthStart(year: number, month: number, timeZone: string): number {
+  const wall = Date.UTC(year, month - 1, 1);
+  // Every offset the zone keeps within a day either side: local midnight is under one of them.
+  const offsets = [
+    ...new Set(
+      [-DAY_MS, -DAY_MS / 2, 0, DAY_MS / 2, DAY_MS].map((d) =>
+        zoneOffset(wall + d, timeZone),
+      ),
+    ),
+  ];
+  const midnights = offsets
+    .map((offset) => wall - offset)
+    .filter((at) => wallAt(at, timeZone) === wall);
+  if (midnights.length > 0) return Math.min(...midnights);
+  // Midnight is skipped. Under the larger offset the instant is still the day before; under the
+  // smaller, already the 1st: the change lies between, and the 1st starts there.
+  let before = wall - Math.max(...offsets);
+  let on = wall - Math.min(...offsets);
+  while (on - before > 1) {
+    const mid = Math.floor((before + on) / 2);
+    if (wallAt(mid, timeZone) >= wall) on = mid;
+    else before = mid;
+  }
+  return on;
+}
+
+/**
+ * The current month in the viewer's zone (UTC until it is known: decision 5, D254-wv) as the
+ * half-open window of instants `countFeedback` takes: the first of the month at 00:00 there, to the
+ * first of the next month.
+ */
+export function monthWindow(format: FormatOptions): FeedbackWindow {
+  const timeZone = format.timeZone ?? DEFAULT_TIME_ZONE;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(format.now ?? Date.now());
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  return {
+    start: new Date(monthStart(year, month, timeZone)).toISOString(),
+    end: new Date(monthStart(year, month + 1, timeZone)).toISOString(),
+  };
+}
+
+/** The head's count, `23 this month`; the board draws it with the rows, `0 this month` included. */
+export function feedbackCount(total: number): string {
+  return PROJECT_HOME.feedback.month(num(total));
+}
+
+export interface FeedbackRow {
+  id: string;
+  text: string;
+  /** The message's `lang` when it is not the page's (`ko`); unset for the page's own. */
+  lang: string | undefined;
+  /** The API's `feedback_value`: 1 liked, 2 disliked, null unrated. */
+  rating: FeedbackValue;
+  /** `when()` of the time it arrived. */
+  when: string;
+  /** The message in the project's Shell: `/projects/<id>/feedback/<feedbackId>`. */
+  href: string;
+}
+
+/** The panel's rows: the five newest messages, each with its rating, `lang`, time and address. */
+export function feedbackRows(
+  records: readonly Feedback[],
+  projectId: string,
+  format: FormatOptions,
+): FeedbackRow[] {
+  return records.slice(0, FEEDBACK_SHOWN).map((r) => ({
+    id: r.id,
+    text: r.message,
+    lang: langAttr(r.message),
+    rating: r.feedback_value ?? null,
+    when: when(r.ingested_at, format),
+    href: feedbackItemHref(projectId, r.id),
+  }));
 }
 
 // ── Head: visibility ────────────────────────────────────────────────────────

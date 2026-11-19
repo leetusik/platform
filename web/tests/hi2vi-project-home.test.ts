@@ -38,7 +38,10 @@ vi.mock("@/lib/knowledge/app", () => ({
   getOrgLibrary: vi.fn(),
   getProjectUsage: vi.fn(),
 }));
-vi.mock("@/lib/feedback/app", () => ({ listFeedback: vi.fn() }));
+vi.mock("@/lib/feedback/app", () => ({
+  listFeedbackPage: vi.fn(),
+  countFeedback: vi.fn(),
+}));
 
 const PROJECT = "3f6c2a9e-8b1d-4e7a-9c05-6d2e1f4b7a10";
 
@@ -264,9 +267,11 @@ describe("Project home's reads", () => {
     } as never);
     vi.mocked(app.getDocuments).mockResolvedValue({ total: 0 } as never);
     const feedback = await import("@/lib/feedback/app");
-    vi.mocked(feedback.listFeedback).mockResolvedValue({
+    vi.mocked(feedback.listFeedbackPage).mockResolvedValue({
       records: [],
+      total: 0,
     } as never);
+    vi.mocked(feedback.countFeedback).mockResolvedValue(0);
     const calls: string[] = [];
     vi.stubGlobal(
       "fetch",

@@ -170,19 +170,27 @@ class FeedbackListCursor:
 
 @dataclass(slots=True, kw_only=True)
 class ListFeedbackQuery:
-    """Input for listing stored feedback records."""
+    """Input for listing stored feedback records.
+
+    ``cursor`` pages by keyset; ``page`` (1-based, never with ``cursor``) pages by
+    offset, ``limit`` records a page. ``with_total`` also counts the whole filtered
+    list (the session list's ``total``).
+    """
 
     limit: int
     filters: FeedbackQueryFilters = field(default_factory=FeedbackQueryFilters)
     cursor: FeedbackListCursor | None = None
+    page: int | None = None
+    with_total: bool = False
 
 
 @dataclass(slots=True, kw_only=True)
 class FeedbackListPage:
-    """A cursor-paginated page of stored feedback records."""
+    """A page of stored feedback records; ``total`` only when the query asked."""
 
     records: tuple[FeedbackEventRecord, ...]
     next_cursor: FeedbackListCursor | None = None
+    total: int | None = None
 
 
 @dataclass(slots=True, kw_only=True)
