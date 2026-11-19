@@ -9,7 +9,10 @@ The shapes (the web's Workspace pages draw every field):
 
 - **Workspace** ``{project, linked, version, sync, streams, pointer, phases, deferred,
   docs, retired, agenda}``: lists only, no bodies (a phase row has no intent, notebook
-  or slices; a job no brief; a doc no sections).
+  or slices; a job no brief; a doc no sections). Each slice id it names (a stream's
+  ``slice``, the pointer's ``slice`` and ``next``, a stop's ``slice``, a phase row's
+  ``current``) has a ``…Ref`` sibling ``{id, full, name, status}`` from the stored
+  ``slice.json`` (``name`` and ``status`` ``None`` when there is none), or ``None``.
 - **Phase** ``{id, short, name, objective, status, created, started, completed,
   archived, stream, intent, slices, done, total, current, notebook, gate, review,
   branches, agenda, explain}``; its ``slices`` are slice rows without ``plan`` and
@@ -18,9 +21,18 @@ The shapes (the web's Workspace pages draw every field):
   outcome, plan, result, stop}``.
 - **Deferred job** ``{id, title, lang, status, source, trigger, created, reason, brief,
   promotedTo, dropped, agenda}``.
-- **Doc** ``{id, title, state, version, versioned, from, stale, sections, versions}``.
+- **Doc** ``{id, title, state, version, ordinal, versioned, from, stale, sections,
+  versions}``: ``version`` is the stored id's leading token (``?version=`` takes it or
+  the whole id), ``ordinal`` the version's place in the doc's history, 1 the oldest.
 - **Agenda item** ``{id, title, lang, note, state, created, changed, phases, deferred,
   outcome, reason, sync}``.
+
+A phase's ``branches`` are ``{repo, branch, pr}``, ``pr`` ``{number, state, url}`` or
+``None`` with no URL (:func:`pull_request`).
+
+The web's item routes add ``workspace {version, sync}`` (:meth:`WorkspaceReader.head`)
+to each of these shapes, the same facts the Workspace carries, so an item page makes
+one read.
 
 A word the stored files do not hold is ``None``, never made up (a stop's or a gate's
 own sentence, the words that clear a gate).
@@ -40,7 +52,7 @@ their sha256, so a new head re-reads only what changed. Nothing is persisted.
 **The web's changes.** An agenda change made on the web is an inbox entry until a
 linked engine applies or refuses it (``server/workspace_web_api.py``). The open entries
 are read on every request, outside the memo and its key, and laid over the agenda as
-each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry}``; a pending add is
+each item's ``sync``: ``None``, ``'waiting'`` or ``{refused, entry, kind}``; a pending add is
 its own row and a pending delete hides its item (:meth:`WorkspaceReader._overlay`).
 The Workspace's ``unplaced`` lists every open entry no row carries (its items gone or
 never there, or its refusal behind a newer entry on the same item), so a change that
@@ -97,6 +109,10 @@ AGENDA = "works/agenda/"
 #: The durable docs, in the order a listing gives them, and the six retired ones.
 DOC_TYPES = ("product", "architecture", "operations", "qa", "decisions")
 RETIRED_DOCS = ("experience", "frontend", "backend", "data", "api", "security")
+
+#: The engine's pull request states (``pr-sync``) to the web's: a ready PR reads Open.
+_PR_STATES = {"draft": "draft", "ready": "open", "merged": "merged", "closed": "closed"}
+_PR_NUMBER = re.compile(r"/pull/([0-9]+)/?(?:[?#].*)?$")
 
 #: The derived agenda word back to its state key.
 _AGENDA_SHOWN = {"Open": "open", "In progress": "in_progress", "Deferred": "deferred",
@@ -363,6 +379,41 @@ def parse_result(markdown: str | None) -> dict[str, Any] | None:
     return {"verdict": verdict, "body": body}
 
 
+def pull_request(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """A branch entry's pull request ``{number, state, url}``, or ``None`` with no URL.
+
+    ``state`` is ``draft``, ``open``, ``merged`` or ``closed``: the state ``pr-sync``
+    last recorded (``ready`` reads ``open``); an entry never synced that the engine
+    opened (``opened_at``) is a draft, since the engine opens drafts; anything else is
+    ``None``. ``number`` comes from the URL (``…/pull/38``), ``None`` if it names none.
+    """
+
+    url = _str(entry.get("url"))
+    if not url:
+        return None
+    stored = entry.get("state")
+    if isinstance(stored, str) and stored:
+        state = _PR_STATES.get(stored)
+    else:
+        state = "draft" if _str(entry.get("opened_at")) else None
+    match = _PR_NUMBER.search(url)
+    return {"number": int(match.group(1)) if match else None, "state": state, "url": url}
+
+
+def version_ordinals(versions: Iterable[dict[str, Any]]) -> dict[str, int]:
+    """``{stored id: place}``: each version's place in the doc's stored history, 1 first.
+
+    The history is the index's own list, which the engine appends to as it versions.
+    """
+
+    out: dict[str, int] = {}
+    for k, version in enumerate(versions, start=1):
+        vid = _str(version.get("id"))
+        if vid and vid not in out:
+            out[vid] = k
+    return out
+
+
 def _gate(acceptance: Any) -> dict[str, Any]:
     """The phase's acceptance gate: ``not_required``, ``required``, ``open`` or ``cleared``
     (``None`` when the phase has not declared it)."""
@@ -510,6 +561,11 @@ class WorkspaceReader:
     def linked(self) -> bool:
         return self._snap is not None
 
+    def head(self) -> dict[str, Any]:
+        """``{version, sync}``: this request's sync facts, never part of the memo."""
+
+        return {"version": self.facts.engine_version, "sync": sync_state(self.facts)}
+
     # -- file access ------------------------------------------------------------------
 
     def _paths(self, prefix: str, suffix: str = "", depth: int | None = None) -> list[str]:
@@ -630,6 +686,24 @@ class WorkspaceReader:
                 return str(item.get("id", "")).rpartition(".")[2] or None
         return None
 
+    def _named_slice(self, records: dict[str, dict[str, Any]],
+                     full: str | None) -> dict[str, Any] | None:
+        """``{id, full, name, status}`` of a slice the pointer, a stop or a phase row names.
+
+        Read from the phase records already in the snapshot (no stored read of its own); a
+        slice with no stored ``slice.json`` reads ``name`` and ``status`` ``None``.
+        """
+
+        if not full:
+            return None
+        phase_ref, _, suffix = full.rpartition(".")
+        record = self._find_phase(records, phase_ref) if phase_ref else None
+        data = next((s for s in record["slices"]
+                     if str(s.get("id", "")).rpartition(".")[2] == suffix), None) if record else None
+        data = data or {}
+        return {"id": suffix or full, "full": full,
+                "name": _str(data.get("name")), "status": _str(data.get("status"))}
+
     def _slice_row(self, phase_id: str, data: dict[str, Any]) -> dict[str, Any]:
         full = str(data.get("id") or "")
         pending = data.get("pending") if isinstance(data.get("pending"), dict) else None
@@ -659,6 +733,7 @@ class WorkspaceReader:
         review = data.get("review") if isinstance(data.get("review"), dict) else {}
         pr = data.get("pr") if isinstance(data.get("pr"), dict) else {}
         branches = pr.get("branches") if isinstance(pr.get("branches"), list) else []
+        current = self._current_slice(pid, slices)
         return {
             "id": pid,
             "short": short_phase_id(pid),
@@ -672,12 +747,13 @@ class WorkspaceReader:
             "stream": "default",
             "done": sum(1 for s in slices if s.get("status") == "done"),
             "total": len(slices),
-            "current": self._current_slice(pid, slices),
+            "current": current,
+            "currentRef": self._named_slice({pid: record}, f"{pid}.{current}" if current else None),
             "gate": _gate(data.get("acceptance")),
             "review": {"verdict": _str(review.get("status")), "note": _str(review.get("note"))},
             "branches": [
                 {"repo": _str(b.get("repo")), "branch": _str(b.get("branch")),
-                 "pr": _str(b.get("url"))}
+                 "pr": pull_request(b)}
                 for b in branches if isinstance(b, dict)
             ],
             "agenda": _str(data.get("agenda")) or None,
@@ -865,6 +941,7 @@ class WorkspaceReader:
                            if v.get("id") == version or _version_label(v) == version), None)
             if chosen is None:
                 return None
+        ordinals = version_ordinals(versions)
         retired = doc_id in RETIRED_DOCS
         stale = [] if retired else (await self._stale()).get(doc_id, [])
         body = _front_matter_body(await self.text(_str(chosen.get("path")) or ""))
@@ -873,6 +950,7 @@ class WorkspaceReader:
             "title": _doc_title(body) or doc_id,
             "state": "retired" if retired else ("stale" if stale else "current"),
             "version": _version_label(chosen),
+            "ordinal": ordinals.get(_str(chosen.get("id")) or ""),
             "versioned": _day(chosen.get("created_at")),
             "from": _phase_ids(_str(chosen.get("source")) or ""),
             "stale": stale,
@@ -885,8 +963,8 @@ class WorkspaceReader:
         older = [v for v in versions if v is not chosen]
         older.sort(key=lambda v: str(v.get("created_at") or ""), reverse=True)
         out["versions"] = [
-            {"version": _version_label(v), "date": _day(v.get("created_at")),
-             "summary": _str(v.get("summary"))}
+            {"version": _version_label(v), "ordinal": ordinals.get(_str(v.get("id")) or ""),
+             "date": _day(v.get("created_at")), "summary": _str(v.get("summary"))}
             for v in older
         ]
         return out
@@ -1005,9 +1083,10 @@ class WorkspaceReader:
         """``rows`` with each item's ``sync`` from the open inbox entries naming it.
 
         ``'waiting'`` while the newest open entry naming the item is pending, ``{refused,
-        entry}`` while it is refused (the engine's line, verbatim, and the entry Discard
-        and Try again name). A pending add is its own row, first; a pending delete hides
-        its item. A marked row is a copy: the memoized rows are never changed.
+        entry, kind}`` while it is refused (the engine's line, verbatim, the entry Discard
+        and Try again name, and the change's kind, for Try again's label). A pending add
+        is its own row, first; a pending delete hides its item. A marked row is a copy:
+        the memoized rows are never changed.
         """
 
         if not self._inbox:
@@ -1074,6 +1153,7 @@ class WorkspaceReader:
 
     async def _waiting(self) -> list[dict[str, Any]]:
         records = await self._phase_records()
+        named = self._named_slice
         out = []
         for pid, rec in records.items():
             if rec["archived"]:
@@ -1083,17 +1163,17 @@ class WorkspaceReader:
                 if data.get("status") == "pending" and isinstance(pending, dict):
                     out.append({"type": "stop", "phase": pid, "slice": _str(data.get("id")),
                                 "kind": _str(pending.get("kind")), "what": None,
-                                "words": _str(pending.get("on_words"))})
+                                "words": _str(pending.get("on_words")),
+                                "sliceRef": named(records, _str(data.get("id")))})
             if _gate(rec["data"].get("acceptance"))["state"] == "open":
                 out.append({"type": "gate", "phase": pid, "slice": None, "kind": None,
-                            "what": None, "words": None})
+                            "what": None, "words": None, "sliceRef": None})
         return out
 
     async def workspace(self) -> dict[str, Any]:
         """The Workspace: lists only, no bodies."""
 
-        base = {"project": str(self.project_id), "linked": self.linked,
-                "version": self.facts.engine_version, "sync": sync_state(self.facts)}
+        base = {"project": str(self.project_id), "linked": self.linked, **self.head()}
         if not self.linked:
             return base
 
@@ -1102,11 +1182,15 @@ class WorkspaceReader:
             phase_rows = await self.phase_rows()
             docs, retired = await self.doc_rows()
             current = _str(state.get("current_phase"))
+            records = await self._phase_records()
+            pointed, following = _str(state.get("current_slice")), _str(state.get("next_slice"))
+            pointed_ref = self._named_slice(records, pointed)
             return {
                 "streams": [{"id": "default", "label": None, "branch": None,
-                             "phase": current, "slice": _str(state.get("current_slice"))}],
-                "pointer": {"phase": current, "slice": _str(state.get("current_slice")),
-                            "next": _str(state.get("next_slice")),
+                             "phase": current, "slice": pointed, "sliceRef": pointed_ref}],
+                "pointer": {"phase": current, "slice": pointed, "next": following,
+                            "sliceRef": pointed_ref,
+                            "nextRef": self._named_slice(records, following),
                             "waiting": await self._waiting()},
                 "phases": phase_rows,
                 "deferred": await self.job_rows(),
@@ -1252,7 +1336,7 @@ def _phase_ids(text: str) -> list[str]:
 def _sync_mark(entry: InboxEntry) -> str | dict[str, Any]:
     if entry.state == INBOX_PENDING:
         return "waiting"
-    return {"refused": entry.reason or "", "entry": str(entry.id)}
+    return {"refused": entry.reason or "", "entry": str(entry.id), "kind": entry.kind}
 
 
 def _added_item(entry: InboxEntry, sync: str | dict[str, Any]) -> dict[str, Any]:

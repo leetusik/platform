@@ -155,7 +155,8 @@
 
 /* ── S9: the end of a session (ReviewEndBody.dc.html's own rules; F214, F237). The end takes the card's place and the
    card's form (`.card-page`, above); Continue reading is the Library's next block (library/frame.css `.end-next`).
-   The board's `.facts`, `.facts-in` and `.fact` are read under `.end-cont`: the system has no such part yet, and the
+   The board's `.facts`, `.facts-in` and `.fact` are built as `.end-facts`, `.end-facts-in` and `.end-fact`, under
+   `.end-cont`: the system's `.facts` and `.fact` are the Workspace's label-over-value pairs, another meaning, and the
    job sheet names only its own ─────────────────────────────────────────────────────────────────────────── */
 .end-page:focus { outline: none; }
 .end-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -168,10 +169,10 @@
 .end-cont .end-next-title { font: 500 var(--fs-text)/var(--lh-text) var(--font); }
 /* the signed line breaks only between its facts, the book first, then between the chapter and the share read; each
    fact keeps together, and a separator that would open a line sits in the clipped edge */
-.end-cont .facts { display: block; min-width: 0; overflow: hidden; }
-.end-cont .facts-in { display: flex; flex-wrap: wrap; margin-inline-start: -1.5em; }
-.end-cont .fact { display: flex; min-width: 0; }
-.end-cont .fact::before { content: "·"; content: "·" / ""; flex: none; width: 1.5em; text-align: center; }
+.end-cont .end-facts { display: block; min-width: 0; overflow: hidden; }
+.end-cont .end-facts-in { display: flex; flex-wrap: wrap; margin-inline-start: -1.5em; }
+.end-cont .end-fact { display: flex; min-width: 0; }
+.end-cont .end-fact::before { content: "·"; content: "·" / ""; flex: none; width: 1.5em; text-align: center; }
 
 /* Schedule (F219; Schedule.dc.html's own rules) */
 .schedule { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }

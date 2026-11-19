@@ -3,8 +3,10 @@
 A made-up workspace tree (``tests/fixtures/workspace/tree.json``) is committed through
 the engine's sync API, then read back through ``/app/projects/{id}/workspace/…`` and
 compared field for field with ``tests/fixtures/workspace/expected.json``. Also: every
-read route answers 404 for another tenant's project and for an unknown one, a
-resolved question reads ``resolved``, the memo follows the head, and the sync state
+item route carries the sync line of now, a pull request reads its number and state, a
+doc version its place in the history, every read route answers 404 for another
+tenant's project and for an unknown one, a resolved question reads ``resolved``, the
+memo follows the head, and the sync state
 reads ``unlinked``, ``never``, ``fresh`` and ``behind`` as the store moves.
 
 Like its neighbours this runs only with a disposable Postgres via
@@ -190,13 +192,23 @@ def test_shapes_come_back_field_for_field(store):
     assert sync["state"] == "fresh" and sync["at"].endswith("Z")
     assert ws == expected["workspace"]
 
-    assert _get(client, owner, f"{base}/phases/P8-q4") == expected["phase"]
-    assert _get(client, owner, f"{base}/phases/P8") == expected["phase"]  # by short id
-    assert _get(client, owner, f"{base}/slices/P8-q4.S1") == expected["slice"]
-    assert _get(client, owner, f"{base}/deferred/D20-a3") == expected["job"]
-    assert _get(client, owner, f"{base}/docs/product") == expected["doc"]
-    assert _get(client, owner, f"{base}/docs/product?version=v0001") == expected["doc_v0001"]
-    assert _get(client, owner, f"{base}/agenda/A2-k5") == expected["item"]
+    head = {"version": "v99", "sync": sync}
+
+    def record(url: str) -> dict:
+        body = _get(client, owner, url)
+        assert body.pop("workspace") == head, url
+        return body
+
+    assert record(f"{base}/phases/P8-q4") == expected["phase"]
+    assert record(f"{base}/phases/P8") == expected["phase"]  # by short id
+    assert record(f"{base}/slices/P8-q4.S1") == expected["slice"]
+    assert record(f"{base}/deferred/D20-a3") == expected["job"]
+    assert record(f"{base}/docs/product") == expected["doc"]
+    assert record(f"{base}/docs/product?version=v0001") == expected["doc_v0001"]
+    # the address keeps the stored id; its leading token names the same version
+    assert record(f"{base}/docs/product?version=v0001_bootstrap") == expected["doc_v0001"]
+    assert record(f"{base}/docs/product?version=v2611020550_the_retry_queue") == expected["doc"]
+    assert record(f"{base}/agenda/A2-k5") == expected["item"]
 
     planned = _get(client, owner, f"{base}/phases/P9-r5")
     assert planned["explain"] == {"title": "How export works"}
@@ -207,7 +219,8 @@ def test_shapes_come_back_field_for_field(store):
     assert retired["state"] == "retired" and retired["sections"][0]["title"] == "Journeys"
 
     for missing in ("phases/P99-zz", "slices/P8-q4.S9", "deferred/D1-zz", "docs/nope",
-                    "docs/product?version=v0009", "agenda/A9-zz"):
+                    "docs/product?version=v0009", "docs/product?version=2",
+                    "agenda/A9-zz"):
         res = client.get(f"{base}/{missing}", headers=_session(owner))
         assert res.status_code == 404, (missing, res.text)
 
@@ -257,6 +270,78 @@ def test_the_memo_is_keyed_by_head(store):
     second = _get(client, owner, base)
     assert [p["name"] for p in second["phases"]][1] == "Export to Markdown and HTML"
     assert _get(client, owner, f"{base}/phases/P9-r5")["name"] == "Export to Markdown and HTML"
+
+
+def test_a_renamed_slice_reads_its_new_name_at_the_new_head(store):
+    client, _url, _engine = store
+    owner, project_id, key = _owner_with_key(client)
+    answer = _store_tree(client, project_id, key)
+    base = f"/app/projects/{project_id}/workspace"
+    path = "works/phases/active/P8-q4/slices/P8-q4.S2/slice.json"
+
+    def named(ws: dict) -> list:
+        return [ws["streams"][0]["sliceRef"]["name"], ws["pointer"]["sliceRef"]["name"],
+                ws["phases"][0]["currentRef"]["name"]]
+
+    first = _get(client, owner, base)
+    assert named(first) == ["재시도 버튼을 화면에 연결"] * 3
+    assert first["pointer"]["waiting"][0]["sliceRef"]["name"] == "재시도 버튼을 화면에 연결"
+    assert first["pointer"]["nextRef"] == {"id": "S3", "full": "P8-q4.S3",
+                                           "name": None, "status": None}
+
+    data = json.loads(_tree()["files"][path])
+    data["name"] = "Wire the retry button"
+    data["status"] = "in_progress"
+    _commit(client, project_id, key,
+            [_put(path, json.dumps(data, indent=2) + "\n", answer["revs"][path])])
+
+    second = _get(client, owner, base)
+    assert named(second) == ["Wire the retry button"] * 3
+    assert second["pointer"]["sliceRef"]["status"] == "in_progress"
+    assert second["phases"][0]["currentRef"] == {"id": "S2", "full": "P8-q4.S2",
+                                                 "name": "Wire the retry button",
+                                                 "status": "in_progress"}
+    assert second["pointer"]["waiting"][0]["type"] == "gate"  # no longer a stop
+
+
+def _item_routes(project_id: str) -> list[str]:
+    base = f"/app/projects/{project_id}/workspace"
+    return [f"{base}/phases/P8-q4", f"{base}/slices/P8-q4.S1", f"{base}/deferred/D20-a3",
+            f"{base}/docs/product", f"{base}/docs/product?version=v0001", f"{base}/agenda/A2-k5"]
+
+
+def test_every_item_route_reads_the_sync_line_of_now(store):
+    client, _url, engine = store
+    owner, project_id, key = _owner_with_key(client)
+    answer = _store_tree(client, project_id, key)
+    base = f"/app/projects/{project_id}/workspace"
+
+    def heads() -> list[dict]:
+        ws = _get(client, owner, base)
+        want = {"version": ws["version"], "sync": ws["sync"]}
+        got = [_get(client, owner, url)["workspace"] for url in _item_routes(project_id)]
+        assert got == [want] * len(got)
+        return got
+
+    first = heads()[0]
+    assert first["version"] == "v99" and first["sync"]["state"] == "fresh"
+
+    # the same head, an older last sync: every route reads behind (never the memo's copy)
+    _set_last_sync(engine, project_id, datetime.now(UTC) - timedelta(hours=25))
+    behind = heads()[0]
+    assert behind["sync"]["state"] == "behind" and behind["version"] == "v99"
+
+    # a new batch from a newer engine moves them all
+    path = "works/agenda/A1-h7/agenda.json"
+    data = json.loads(_tree()["files"][path])
+    data["note"] = "다시 느려졌어요."
+    newer = {**key, "X-Hi2vi-Engine": "v100"}
+    _commit(client, project_id, newer,
+            [_put(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                  answer["revs"][path])])
+    moved = heads()[0]
+    assert moved["version"] == "v100" and moved["sync"]["state"] == "fresh"
+    assert moved["sync"]["at"] > behind["sync"]["at"]
 
 
 def _set_last_sync(engine, project_id: str, at: datetime) -> None:
@@ -335,6 +420,80 @@ def test_question_and_result_readers():
     plain = parse_result("- status: done\n- summary: ok\n\nBody text.\n")
     assert plain["verdict"]["status"] == "done" and plain["verdict"]["files"] is None
     assert plain["body"] == "Body text."
+
+
+def test_a_pull_request_reads_its_number_and_state():
+    from server.workspace_read import pull_request
+
+    url = "https://github.com/june/platform/pull/38"
+
+    def entry(**fields) -> dict:
+        return {"repo": "platform", "branch": "feat/retry-queue", "base": "main",
+                "url": url, "recorded_at": "2026-11-11T09:31:00+09:00",
+                "opened_at": "2026-11-15T10:05:00+09:00", **fields}
+
+    def read(**fields) -> dict | None:
+        return pull_request(entry(**fields))
+
+    assert read(state="draft") == {"number": 38, "state": "draft", "url": url}
+    assert read(state="ready")["state"] == "open"
+    assert read(state="merged")["state"] == "merged"
+    assert read(state="closed")["state"] == "closed"
+    assert read()["state"] == "draft"  # unsynced: the engine opens drafts
+    assert read(state=None)["state"] == "draft"
+    assert read(opened_at=None) == {"number": 38, "state": None, "url": url}
+    assert read(state="ready", opened_at=None)["state"] == "open"
+    assert read(state="reopened")["state"] is None  # a word the engine never writes
+    assert read(url=None, opened_at=None) is None
+    assert read(url="") is None
+    assert read(url="https://github.com/june/vocky/pull/1205/")["number"] == 1205
+    assert read(url="https://github.com/june/vocky/pull/12#issuecomment-9")["number"] == 12
+    assert read(url="https://github.com/team42/vocky/pull/12")["number"] == 12
+    assert read(url="https://github.com/june/vocky/pulls")["number"] is None
+
+
+def test_a_refused_change_names_its_kind_on_the_row_and_unplaced():
+    from server.workspace.types import INBOX_KINDS, InboxEntry
+    from server.workspace_read import WorkspaceReader
+
+    at = datetime(2026, 11, 18, 9, 0, tzinfo=UTC)
+    line = "refused, exit 1 (agenda-drop A2-k5): A2-k5 is In progress through P8-q4"
+    for kind in INBOX_KINDS:
+        entry = InboxEntry(
+            id=uuid4(), kind=kind, items=("A2-k5",), fields={}, state="refused",
+            minted_id="A2-k5" if kind == "add" else None, created_at=at, reason=line,
+        )
+        gone = InboxEntry(
+            id=uuid4(), kind=kind, items=("A9-z1",), fields={}, state="refused",
+            minted_id="A9-z1" if kind == "add" else None, created_at=at, reason=line,
+        )
+        reader = WorkspaceReader(None, uuid4(), None, None, inbox=[entry, gone])
+        stored = [{"id": "A2-k5", "sync": None}]
+        shown = reader._overlay(stored)
+        row = next(r for r in shown if r["id"] == "A2-k5")
+        assert row["sync"] == {"refused": line, "entry": str(entry.id), "kind": kind}, kind
+        if kind == "add":
+            continue  # a refused add is its own row: nothing left unplaced
+        (u,) = reader._unplaced(stored, shown)
+        assert u["kind"] == kind
+        assert u["sync"] == {"refused": line, "entry": str(gone.id), "kind": kind}, kind
+    # a pending change still reads waiting, with no kind
+    waiting = InboxEntry(id=uuid4(), kind="drop", items=("A2-k5",), fields={},
+                         state="pending", minted_id=None, created_at=at)
+    reader = WorkspaceReader(None, uuid4(), None, None, inbox=[waiting])
+    assert reader._overlay([{"id": "A2-k5", "sync": None}])[0]["sync"] == "waiting"
+
+
+def test_a_doc_version_reads_its_place_in_the_stored_history():
+    from server.workspace_read import version_ordinals
+
+    versions = [
+        {"id": "v0001_bootstrap", "created_at": "2026-09-01T09:00:00+09:00"},
+        {"id": "v0002_installer_source_tree", "created_at": "2026-09-03T09:00:00+09:00"},
+        {"id": "v2611020550_the_design_round", "created_at": "2026-11-02T05:50:00+09:00"},
+        {"id": "v2611171507_regression_checklist", "created_at": "2026-11-17T15:07:00+09:00"},
+    ]
+    assert [version_ordinals(versions)[v["id"]] for v in versions] == [1, 2, 3, 4]
 
 
 # -- the content cache: each cached text counted once (no database) ------------------

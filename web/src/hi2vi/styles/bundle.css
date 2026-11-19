@@ -18,6 +18,13 @@
    `.meter-row` (signed `.track` / `.track-row`; its 3 px is the Library's `--line-h`), and `.badge.is-wrap` (F239's
    three declarations as a modifier: the system's `.badge` stays one line). `@keyframes say-turn` sits after the scope
    block with `skel`. The job's own Listen and Review classes are in ./listen/listen.css and ./review/review.css.
+   The Workspace's shared names are added the same way (job 02-workspace, rounds 01 and 02: frame.md F37, F39, F44,
+   F45, F51, F80; its frame.css sections 1, 2, 3, 6 and 7), under the system's names (one name per meaning): its seven
+   layout lengths, the status shapes Ready, Waiting on operator (`.status-pending`, signed `.status-wait`), Blocked
+   and Changes requested (the diamond), the slice steps `.steps` (signed `.track`, its `--steps-*` signed
+   `--track-*`), the facts `.facts` / `.fact`, and the waiting badge `.badge.is-waiting`. `.fact`, `.fact > dt` and
+   `.badge.is-waiting` are written byte for byte as the Feedback build (job 04) writes them. The Workspace's own
+   classes are in ./workspace/frame.css and the page sheets beside it.
    The signed file's own header follows. */
 /* hi2vi — the system's stylesheet: the frame of the signed Instrument round, whole.
    Load it after tokens.css. The first rule names the one variable tokens.css spells differently;
@@ -50,6 +57,16 @@
   --ico: 16px;                        /* a mark inside a control: a 16 px square, centred on the label's line */
   --seek-track: 4px;                  /* the seek bar's track: drawn in --edge, so it holds 3:1 (F211) */
   --seek-thumb: 20px;
+}
+/* the Workspace's layout lengths (job 02 frame.css section 1, frame.md F39, F43, F46, F51, F80) */
+:scope {
+  --measure: 72ch;                    /* one measure for text: Markdown, a long value, a sentence under a title, a form */
+  --steps-seg: 72px;                  /* a slice's step in a list of phases */
+  --steps-seg-compact: 16px;          /* a step in a table column or a title's row */
+  --id-w: 5.5em;                      /* a Workspace row's id column, wide enough for a full id */
+  --status-w: 11em;                   /* a Workspace row's status column, so every status starts on one edge */
+  --outline-w: 14em;                  /* Markdown's list of sections beside the text */
+  --code-pad: 3px;                    /* how far inline code's chip hangs left of its text */
 }
 
 /* 2 ── base: put .ui on a board's root ───────────────────────────────────── */
@@ -244,6 +261,8 @@
 .badge { display: inline-flex; flex: none; align-items: center; min-height: var(--mark-h); padding: 0 var(--mark-pad); border: 1px solid var(--edge); border-radius: var(--radius-s); color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: calc(18 / 12); white-space: nowrap; }
 /* a long tag that may shrink and wrap inside its badge (job 07 F239: "Relearning · due 2 days ago" at 320 px and 200% text); its min-height lets it grow */
 .badge.is-wrap { flex: 0 1 auto; min-width: 0; white-space: normal; }
+/* a change made on the web that the workspace takes at its next sync: the badge, dashed (job 02 F45) */
+.badge.is-waiting { border-style: dashed; }
 .count { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: var(--mark-h); min-height: var(--mark-h); padding: 0 var(--mark-pad); border-radius: var(--radius-s); background: var(--accent-tint); color: var(--accent); font-size: var(--fs-meta); font-weight: 600; line-height: calc(20 / 12); }
 .status { display: inline-flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
 .status::before { content: ""; flex: none; align-self: center; width: var(--dot); height: var(--dot); border: 1.5px solid var(--ink); border-radius: 50%; background: var(--ink); }
@@ -252,6 +271,16 @@
 .status-revoked::before { height: 0; border-width: 1px 0; border-color: var(--ink-2); border-radius: 0; background: transparent; }
 .status-live { color: var(--accent); font-weight: 600; }
 .status-live::before { border-color: var(--accent); background: var(--accent); }
+/* the Workspace's four more shapes (job 02 F37). Ready: a ring half filled */
+.status-ready::before { background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+/* Waiting on operator: two bars, in the accent */
+.status-pending { color: var(--accent); font-weight: 600; }
+.status-pending::before { border-width: 0 2.5px; border-color: var(--accent); border-radius: 0; background: transparent; }
+/* Blocked: a square, in danger */
+.status-blocked { color: var(--danger); font-weight: 600; }
+.status-blocked::before { border-color: var(--danger); border-radius: var(--radius-xs); background: var(--danger); }
+/* Changes requested, Stale: a diamond */
+.status-changes::before { width: 6px; height: 6px; margin-inline: 1px; border-radius: 0; transform: rotate(45deg); }
 /* waiting, preparing, loading, buffering (job 07 F204): the ring of .status-idle, turning (still where motion is reduced) */
 .status-busy::before { border-color: var(--edge); border-top-color: var(--ink); background: transparent; animation: say-turn 1s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .status-busy::before { animation: none; } }
@@ -331,6 +360,11 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
   .usage-window .stat:nth-child(3) { grid-column: 1 / -1; }
 }
 
+/* facts: short label-over-value pairs that wrap, each as wide as its content (job 02 F44) */
+.facts { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
+.fact { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.fact > dt { color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: var(--lh-meta); }
+
 /* trend: thirty bars on a baseline (Trend.dc.html draws it) */
 .trend { display: flex; flex-direction: column; gap: var(--space-2); }
 .trend-plot { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: 2px; align-items: end; height: var(--plot-h); border-bottom: 1px solid var(--edge); }
@@ -345,6 +379,32 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
 /* a line with its words: "Audio prepared" before it, the figure after it, all on one centre line */
 .meter-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); width: 100%; min-width: 0; max-width: 60ch; }
 .meter-row > .meter { flex: 1 1 6em; }
+
+/* steps: a phase's slices, one segment each (job 02 F39): done in ink, the one running in the accent, the rest outlined */
+/* a strut: the cell takes the row's baseline and the steps sit on that line's centre */
+.steps-cell { display: flex; flex: 1; align-items: center; min-width: 0; }
+.steps-cell::before { content: "\200b"; }
+/* one segment a slice, the same width in every row of a list: --steps-n is the list's longest phase */
+.steps { display: flex; flex: 1; gap: var(--space-1); min-width: 0; }
+.steps > i { flex: none; width: min(var(--steps-seg), calc((100% - (var(--steps-n, 1) - 1) * var(--space-1)) / var(--steps-n, 1))); height: var(--dot); border: 1px solid var(--edge); border-radius: var(--radius-xs); }
+.steps > i.is-done { border-color: var(--ink); background: var(--ink); }
+.steps > i.is-now { border-color: var(--accent); background: var(--accent); }
+/* compact: 16 px segments, for a table column or a title's row */
+.steps.is-compact { --steps-seg: var(--steps-seg-compact); flex: 0 1 auto; width: calc(var(--steps-n, 1) * (var(--steps-seg) + var(--space-1)) - var(--space-1)); max-width: 100%; }
+/* a phase too long for its lane: where a step would be under 4 px, the steps are one bar, as long as its steps
+   would be, filled to the done share (the drawing is the steps': their height, edge, radius, done and now colours).
+   n * (4px + gap) - gap is the least width the list's steps need; the steps' own width (100%) is compared with it at
+   layout, so the switch follows every lane and layout. Under it each step takes a line of its own, out of sight below
+   the bar; at or over it the bar has no width and the steps are as signed. It declares no custom property, so the
+   boundary has nothing more to restore */
+.steps-cell > .steps { flex-wrap: wrap; height: var(--dot); overflow: clip; }
+.steps-cell > .steps > i { min-width: clamp(0px, calc((var(--steps-n, 1) * (4px + var(--space-1)) - var(--space-1) - 100%) * 100000), 100%); }
+/* 1 px of slack, so steps that fill their line to the pixel never wrap */
+.steps > i:last-child { margin-inline-end: -1px; }
+.steps-bar { position: relative; flex: none; width: calc(100% * var(--steps-own, 1) / var(--steps-n, 1)); max-width: clamp(0px, calc((var(--steps-n, 1) * (4px + var(--space-1)) - var(--space-1) - 100%) * 100000), 100%); height: var(--dot); margin-inline-end: calc(-1 * var(--space-1)); overflow: clip; border-radius: var(--radius-xs); box-shadow: inset 0 0 0 1px var(--edge); }
+.steps-bar::before, .steps-bar::after { content: ""; position: absolute; inset-block: 0; }
+.steps-bar::before { inset-inline-start: 0; width: var(--steps-done); background: var(--ink); }
+.steps-bar::after { inset-inline-start: var(--steps-done); width: var(--steps-now); background: var(--accent); }
 
 /* copy: a read-only value beside its copy button (Copy.dc.html is the button) */
 .copy-field { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

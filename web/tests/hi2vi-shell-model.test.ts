@@ -12,8 +12,8 @@ import {
   showsProjectFilter,
 } from "@/hi2vi/shell/model";
 
-// P58 — the Shell's rules (frame.md F9; the org rail per job 03 round 02, F320; Workspace inert,
-// operator D1). The look is verified live (S11), never here.
+// P58 — the Shell's rules (frame.md F9; the org rail per job 03 round 02, F320; Workspace a link to
+// the Agenda, F74). The look is verified live (S11), never here.
 
 describe("the org switcher", () => {
   it("is a menu only for two or more orgs", () => {
@@ -127,18 +127,38 @@ describe("the rail", () => {
       expect(current(path)).toEqual([]);
   });
 
-  it("never makes Workspace a link", () => {
-    const workspace = railFor("/projects/p1").items.find(
-      (i) => i.key === "workspace",
-    );
-    expect(workspace).toEqual({ key: "workspace", href: null, current: false });
+  it("links Workspace to the project's Agenda, current on every Workspace page and Overview then not", () => {
+    const workspace = (path: string) =>
+      railFor(path).items.find((i) => i.key === "workspace");
+    expect(workspace("/projects/p1")).toEqual({
+      key: "workspace",
+      href: "/projects/p1/workspace",
+      current: false,
+    });
+    for (const path of [
+      "/projects/p1/workspace",
+      "/projects/p1/workspace?deferred=2",
+      "/projects/p1/workspace/agenda/A7-m3",
+      "/projects/p1/workspace/backlog?archived=2",
+      "/projects/p1/workspace/phases/P67-b1",
+      "/projects/p1/workspace/slices/P67-b1.S5",
+      "/projects/p1/workspace/deferred?status=done",
+      "/projects/p1/workspace/deferred/D290-4p",
+      "/projects/p1/workspace/docs",
+      "/projects/p1/workspace/docs/qa?version=v0002_x",
+    ]) {
+      expect(workspace(path)?.href).toBe("/projects/p1/workspace");
+      expect(current(path)).toEqual(["workspace"]);
+    }
+    // a path that only starts with the word is not the Workspace
+    expect(current("/projects/p1/workspaces")).toEqual(["overview"]);
   });
 
   it("links the project form to the project's pages", () => {
     const hrefs = railFor("/projects/p%201").items.map((i) => i.href);
     expect(hrefs).toEqual([
       "/projects/p%201",
-      null,
+      "/projects/p%201/workspace",
       "/projects/p%201/library",
       "/feedback?project=p%201",
     ]);

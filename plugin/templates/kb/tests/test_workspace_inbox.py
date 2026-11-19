@@ -320,9 +320,10 @@ def test_the_overlay_waits_hides_and_shows_a_refusal(store):
         {"id": solved["id"], "state": "refused", "reason": line, "exit": 1},
     ])
     assert res.status_code == 200, res.text
-    assert _sync_of(client, owner, project_id)["A2-k5"] == {"refused": line, "entry": solved["id"]}
+    assert _sync_of(client, owner, project_id)["A2-k5"] == {
+        "refused": line, "entry": solved["id"], "kind": "solve"}
     item = client.get(f"{base}/agenda/A2-k5", headers=_session(owner)).json()
-    assert item["sync"] == {"refused": line, "entry": solved["id"]}
+    assert item["sync"] == {"refused": line, "entry": solved["id"], "kind": "solve"}
 
     path = "works/agenda/A1-h7/agenda.json"
     res = _commit(client, project_id, key,
@@ -347,7 +348,7 @@ def test_try_again_sends_the_refused_change_anew(store):
         {"id": added["entry"]["id"], "state": "refused", "reason": "A3 exists", "exit": 1},
     ])
     assert _agenda(client, owner, project_id)[0]["sync"] == {
-        "refused": "A3 exists", "entry": added["entry"]["id"]}
+        "refused": "A3 exists", "entry": added["entry"]["id"], "kind": "add"}
 
     res = client.post(f"{base}/inbox/{added['entry']['id']}/retry", headers=_session(owner))
     assert res.status_code == 201, res.text
@@ -441,7 +442,8 @@ def test_a_change_whose_item_is_gone_stays_listed_until_discarded(store):
         {"id": edit["id"], "state": "refused", "reason": line, "exit": 1}])
     assert res.status_code == 200, res.text
     [row] = _unplaced(client, owner, project_id)
-    assert row["refused"] == line and row["sync"] == {"refused": line, "entry": edit["id"]}
+    assert row["refused"] == line and row["sync"] == {
+        "refused": line, "entry": edit["id"], "kind": "edit"}
 
     # Try again sends it anew (still listed, waiting); Discard closes it
     again = client.post(f"{base}/inbox/{edit['id']}/retry", headers=_session(owner))
@@ -462,7 +464,8 @@ def test_a_refusal_shown_on_an_item_stays_listed_when_the_item_goes(store):
     line = "refused, exit 1 (agenda-move A1-h7): A1-h7 is already first"
     _commit(client, project_id, key, inbox=[
         {"id": move["id"], "state": "refused", "reason": line, "exit": 1}])
-    assert _sync_of(client, owner, project_id)["A1-h7"] == {"refused": line, "entry": move["id"]}
+    assert _sync_of(client, owner, project_id)["A1-h7"] == {
+        "refused": line, "entry": move["id"], "kind": "move"}
     assert _unplaced(client, owner, project_id) == []  # shown on its item, not twice
 
     _delete_file(client, project_id, key, answer, "A1-h7")

@@ -16,6 +16,9 @@ memoized per head, with the open inbox entries laid over the agenda per request)
   sections, at its latest version or the one named.
 - ``GET …/workspace/agenda/{item}``: an agenda item.
 
+Each item route adds ``workspace {version, sync}``, the Workspace's own sync facts read
+per request, so an item page draws its sync line from one read.
+
 A record that is not in the workspace, or a project with no linked workspace, is a 404.
 
 **Agenda writes.** The web never writes a workspace file: each agenda change is one
@@ -103,10 +106,12 @@ async def _linked(project_id: UUID, ctx: AuthContext) -> WorkspaceReader:
     return reader
 
 
-def _found(value: dict[str, Any] | None, what: str) -> dict[str, Any]:
+def _found(reader: WorkspaceReader, value: dict[str, Any] | None, what: str) -> dict[str, Any]:
+    """The record with this request's sync facts beside it (a copy: the memo's stays)."""
+
     if value is None:
         raise _not_found(what)
-    return value
+    return {**value, "workspace": reader.head()}
 
 
 @router.get("/app/projects/{project_id}/workspace")
@@ -126,7 +131,7 @@ async def get_workspace_phase(
 ) -> dict[str, Any]:
     reader = await _linked(project_id, ctx)
     try:
-        return _found(await reader.phase(phase_id), "phase")
+        return _found(reader, await reader.phase(phase_id), "phase")
     except WorkspaceReadError as exc:
         raise _unavailable() from exc
 
@@ -137,7 +142,7 @@ async def get_workspace_slice(
 ) -> dict[str, Any]:
     reader = await _linked(project_id, ctx)
     try:
-        return _found(await reader.slice(slice_id), "slice")
+        return _found(reader, await reader.slice(slice_id), "slice")
     except WorkspaceReadError as exc:
         raise _unavailable() from exc
 
@@ -148,7 +153,7 @@ async def get_workspace_job(
 ) -> dict[str, Any]:
     reader = await _linked(project_id, ctx)
     try:
-        return _found(await reader.job(job_id), "deferred job")
+        return _found(reader, await reader.job(job_id), "deferred job")
     except WorkspaceReadError as exc:
         raise _unavailable() from exc
 
@@ -162,7 +167,7 @@ async def get_workspace_doc(
 ) -> dict[str, Any]:
     reader = await _linked(project_id, ctx)
     try:
-        return _found(await reader.doc(doc_id, version), "doc")
+        return _found(reader, await reader.doc(doc_id, version), "doc")
     except WorkspaceReadError as exc:
         raise _unavailable() from exc
 
@@ -173,7 +178,7 @@ async def get_workspace_item(
 ) -> dict[str, Any]:
     reader = await _linked(project_id, ctx)
     try:
-        return _found(await reader.item(item_id), "agenda item")
+        return _found(reader, await reader.item(item_id), "agenda item")
     except WorkspaceReadError as exc:
         raise _unavailable() from exc
 

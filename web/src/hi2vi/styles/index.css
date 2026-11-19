@@ -1,7 +1,8 @@
 /* hi2vi — the design system's sheets, in their load order (see ./README.md). Imported once, by the root layout
    (src/app/layout.tsx), after globals.css and outside Tailwind's processing. The Library's sheets follow the
    system's: its frame, then one sheet a part, each owned by one slice; then Listen's and Review's sheets (job 07);
-   then the Library's boundary, last. A page or a component never imports a sheet of its own. */
+   then the Workspace's (job 02): its frame, then one sheet a page; then the Library's boundary, last. A page or a
+   component never imports a sheet of its own. */
 @import "./tokens.css";
 @import "./bundle.css";
 @import "./boundary.css";
@@ -17,4 +18,14 @@
 @import "./library/book-notes.css";
 @import "./listen/listen.css";
 @import "./review/review.css";
+@import "./workspace/frame.css";
+@import "./workspace/md.css";
+@import "./workspace/home.css";
+@import "./workspace/agenda.css";
+@import "./workspace/agenda-item.css";
+@import "./workspace/backlog.css";
+@import "./workspace/phase.css";
+@import "./workspace/slice.css";
+@import "./workspace/deferred.css";
+@import "./workspace/docs.css";
 @import "./library/boundary.css";

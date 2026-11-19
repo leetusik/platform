@@ -3,6 +3,7 @@
 // tested on their own (tests/hi2vi-shell-*.test.ts); `shell.tsx` renders what these return.
 
 import { due as dueText } from "@/lib/format";
+import { workspaceHref } from "@/lib/workspace/address";
 
 /** An org the account belongs to, as the org switcher's row shows it. */
 export interface ShellOrg {
@@ -84,7 +85,7 @@ export type RailKey =
 
 export interface RailItem {
   key: RailKey;
-  /** The link, or `null` for an item that is not a link (Workspace, operator D1). */
+  /** The link, or `null` for an item that is not a link (none in the signed rails today). */
   href: string | null;
   current: boolean;
 }
@@ -107,6 +108,9 @@ const under = (pathname: string, base: string) =>
 
 /** `/projects/<id>/library` and beneath it: a project's library (job 03 round 02, F321). */
 const PROJECT_LIBRARY = /^\/projects\/[^/?#]+\/library(?:[/?#]|$)/;
+
+/** `/projects/<id>/workspace` and beneath it: the project's Workspace (job 02, F41 and F74). */
+const PROJECT_WORKSPACE = /^\/projects\/[^/?#]+\/workspace(?:[/?#]|$)/;
 
 /** The path without its query or hash. */
 const pathOf = (pathname: string) => pathname.split(/[?#]/, 1)[0];
@@ -134,10 +138,13 @@ export function projectSwitchHref(pathname: string, projectId: string): string {
 
 /**
  * The rail a path shows. On `/projects/<id>` and beneath it, the project form: Overview (the project's
- * home), Workspace (signed, inert and marked Coming until it ships, operator D1), Library and Feedback.
+ * home), Workspace (the project's Agenda, where the Workspace opens: job 02, F41 and F74), Library and
+ * Feedback.
  * Elsewhere the org form: Overview (org home), Library, Feedback (F320: no Documents). Then the rule and
  * Review. The current item follows the path; an address the rail does not name has none (F25: `none`).
  *
+ * The project form's Workspace is current on every page under `/projects/<id>/workspace` (the Agenda,
+ * an item, the Backlog, a phase, a slice, Deferred, Docs), Overview then not.
  * The project form's Library is the project's library (`/projects/<id>/library`, job 03 round 02,
  * F321), current there (Overview is then not); its Feedback is `/feedback?project=<id>` (the record
  * names no project-scoped Feedback route, so the nearest page, with its project filter).
@@ -157,11 +164,16 @@ export function railFor(pathname: string, known = true): Rail {
   if (projectId !== null && known) {
     const home = `/projects/${encodeURIComponent(projectId)}`;
     const library = PROJECT_LIBRARY.test(pathOf(pathname));
+    const workspace = PROJECT_WORKSPACE.test(pathOf(pathname));
     return {
       form: "project",
       items: [
-        { key: "overview", href: home, current: !library },
-        { key: "workspace", href: null, current: false },
+        { key: "overview", href: home, current: !library && !workspace },
+        {
+          key: "workspace",
+          href: workspaceHref(projectId),
+          current: workspace,
+        },
         { key: "library", href: `${home}/library`, current: library },
         {
           key: "feedback",
