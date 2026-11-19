@@ -2,36 +2,39 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-import { ReviewFailed } from "@/components/review/end";
-import { ReviewStatic } from "@/components/review/review-static";
+import { ReviewLoading, ReviewRouteFailed } from "@/hi2vi/review/route-states";
+import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
 import { readReaderCookie } from "@/lib/reader-cookie";
 
-// P30.S24 (`08-review` §6) — "Something on our side stopped reading." with Try again and the
-// request's reference, when the page itself could not render. Like the chapter's and the book
-// page's: the skeleton stands in at once and the page reloads (a bare `reset()` only re-renders
-// the same failed server payload). This boundary renders on the client, so the `kb_reader`
-// cookie is read through `useSyncExternalStore` and the frame is keyed on the jar.
+// P64-3y.S7 — Failed in Review's focused frame (job 07 frame.md F221, review FG1), when the page itself could
+// not render: `h1` Review alone, `Error · 500`, "Something on our side stopped reading.", the sentence, Try
+// again and the request's reference. Try again shows Loading, then the page: `boundaryRetry` re-fetches the
+// route; a failure that persists arrives as a new error, which shows Failed again. This boundary renders on the
+// client, so the `kb_reader` cookie is read through `useSyncExternalStore`.
 const subscribe = () => () => {};
 
 export default function ReviewError({
   error,
-}: {
+  ...boundary
+}: BoundaryRetryProps & {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
-  const [retrying, setRetrying] = useState(false);
+  const [retried, setRetried] = useState<Error | null>(null);
   const jar = useSyncExternalStore(
     subscribe,
     () => document.cookie,
     () => "",
   );
-  const retry = () => {
-    setRetrying(true);
-    window.location.reload();
-  };
+  const settings = readReaderCookie(jar);
+  if (retried === error) return <ReviewLoading settings={settings} />;
   return (
-    <ReviewStatic key={jar} settings={readReaderCookie(jar)} loading={retrying}>
-      <ReviewFailed reference={error.digest ?? null} onRetry={retry} />
-    </ReviewStatic>
+    <ReviewRouteFailed
+      settings={settings}
+      reference={error.digest ?? null}
+      onRetry={() => {
+        setRetried(error);
+        boundaryRetry(boundary)();
+      }}
+    />
   );
 }

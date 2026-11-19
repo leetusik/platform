@@ -10,7 +10,10 @@
  * The show-once rule: the minted key's value lives only in `key`, set by `mint-ok` and cleared by
  * every action that leaves `shown`; no other state carries it.
  */
-export type KeyAccess = "full" | "capture";
+import { KEYS } from "@/content/hi2vi-frame";
+
+/** `workspace` links one checkout of a project's workspace; only the project form offers it. */
+export type KeyAccess = "full" | "capture" | "workspace";
 export type KeyStatus = "active" | "idle" | "revoked";
 
 /** A key as the table lists it: its prefix only, never its value. */
@@ -210,6 +213,16 @@ export function shownRows(
       ? { ...r, status: "revoked" }
       : r,
   );
+}
+
+/** The form's Access options in order: the project form adds `workspace` when the page asks. */
+export function accessOptions(workspace: boolean): KeyAccess[] {
+  return workspace ? ["full", "capture", "workspace"] : ["full", "capture"];
+}
+
+/** A key's scope as the table's Access cell reads it. */
+export function accessWord(access: KeyAccess): string {
+  return KEYS.accessWord[access];
 }
 
 /** A key's label in a dialog title and a button's name: its name, else its prefix and an ellipsis. */

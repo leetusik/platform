@@ -32,6 +32,13 @@ vi.mock("next/headers", () => ({
     get: (name: string) =>
       name === "kb_tz" && zone.value ? { value: zone.value } : undefined,
   })),
+  headers: vi.fn(async () => new Headers({ host: "hi2vi.com" })),
+}));
+vi.mock("@/lib/workspace/read", () => ({
+  readWorkspace: vi.fn(async () => ({
+    state: "unlinked",
+    head: { version: null, sync: { state: "unlinked", at: null } },
+  })),
 }));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {

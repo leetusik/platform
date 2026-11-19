@@ -15,9 +15,12 @@ from uuid import UUID
 # ``projects.visibility`` convention). One place each: every write path checks here.
 #: ``tenants.plan``: an org's plan. Only the migration default writes it today.
 TENANT_PLANS: frozenset[str] = frozenset({"free"})
-#: ``project_credentials.scope``: ``full`` reaches every key surface; ``capture``
-#: only the Feedback capture surfaces (``server.api_auth.resolve_api_capture``).
-CREDENTIAL_SCOPES: frozenset[str] = frozenset({"full", "capture"})
+#: ``project_credentials.scope``: ``full`` reaches every Library and capture surface;
+#: ``capture`` only the Feedback capture surfaces (``server.api_auth.resolve_api_capture``);
+#: ``workspace`` only its own project's workspace routes
+#: (``server.api_auth.resolve_api_workspace``), so it is always bound to a project.
+CREDENTIAL_SCOPE_WORKSPACE = "workspace"
+CREDENTIAL_SCOPES: frozenset[str] = frozenset({"full", "capture", CREDENTIAL_SCOPE_WORKSPACE})
 #: ``users.status`` (0010): only an ``approved`` user holds a session. A ``waitlisted``
 #: one (signed up while ``KB_SIGNUP_WAITLIST`` was on) gets no token from sign-up or
 #: sign-in, and every session resolver refuses one until ``python -m server.waitlist
@@ -139,7 +142,9 @@ class CreateProjectCredential:
     credential (introduced by the org-mint path) leaves it ``None``. The caller
     computes ``token_prefix`` (short display prefix) and ``token_hash`` (sha256 hex
     of the plaintext key); the raw key is never stored. ``scope`` is one of
-    ``CREDENTIAL_SCOPES`` (``"full"`` unless the minter asks for ``"capture"``).
+    ``CREDENTIAL_SCOPES`` (``"full"`` unless the minter asks for another). A
+    ``workspace`` credential without a ``project_id`` is a ``ValueError`` here, so an
+    unbound one never reaches the table whichever path builds it.
     """
 
     tenant_id: UUID
@@ -149,13 +154,17 @@ class CreateProjectCredential:
     name: str | None = None
     scope: str = "full"
 
+    def __post_init__(self) -> None:
+        if self.scope == CREDENTIAL_SCOPE_WORKSPACE and self.project_id is None:
+            raise ValueError("a workspace credential must be bound to a project")
+
 
 @dataclass(slots=True, kw_only=True)
 class ProjectCredentialRecord:
     """Stored credential metadata. Never exposes ``token_hash``.
 
     ``project_id`` is ``None`` for an org-level credential (project-bound rows keep
-    it set for attribution). ``scope`` is ``"full"`` or ``"capture"``.
+    it set for attribution). ``scope`` is one of ``CREDENTIAL_SCOPES``.
     """
 
     id: UUID

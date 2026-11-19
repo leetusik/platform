@@ -9,8 +9,8 @@ import { PAGER } from "@/content/library-frame";
  *   the current one with its neighbours and an ellipsis for each gap (`1 2 3 4 5 … 10`,
  *   `1 … 4 5 6 … 10`, `1 … 6 7 8 9 10`), so the ways never move as the page changes.
  * - Previous on the first page and Next on the last are off.
- * - In the build each number, Previous and Next is a link to `?page=n`, the list's other query parts
- *   kept, so a page can be linked and the way back from a document returns to it.
+ * - In the build each number, Previous and Next is a link to `?page=n` (or the list's own key), the
+ *   list's other query parts kept, so a page can be linked and the way back from a document returns to it.
  */
 export type PagerSlot = number | "gap";
 
@@ -48,15 +48,29 @@ export function pagerWays(
 /** A list's query parts other than the page: `view`, `q`, `filter` (frame.md F324). */
 export type PagerQuery = Record<string, string | null | undefined>;
 
-/** The address of page `n`: `?page=n`, after the list's other query parts (empty ones left out). */
-export function pageHref(n: number, query: PagerQuery = {}): string {
+/**
+ * The query key that holds a list's page: the Library's lists and the Deferred jobs list use `page`; the
+ * backlog's Archived phases `archived` and the Agenda's Deferred part `deferred` (job 02 frame.md F300), so a
+ * page that holds a second list keeps both lists' pages in its address.
+ */
+export type PagerKey = "page" | "archived" | "deferred";
+
+/**
+ * The address of page `n`: `?<key>=n` (`?page=n` by default), after the list's other query parts (empty ones
+ * left out).
+ */
+export function pageHref(
+  n: number,
+  query: PagerQuery = {},
+  key: PagerKey = "page",
+): string {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (key === "page" || value === null || value === undefined || value === "")
+  for (const [name, value] of Object.entries(query)) {
+    if (name === key || value === null || value === undefined || value === "")
       continue;
-    params.set(key, value);
+    params.set(name, value);
   }
-  params.set("page", String(n));
+  params.set(key, String(n));
   return `?${params.toString()}`;
 }
 

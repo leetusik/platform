@@ -15,8 +15,12 @@ export function Count({ className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
   return <span {...rest} className={cx("count", className)} />;
 }
 
-/** `active` is the filled dot (`.status`); the others are the bundle's four more shapes. */
-export type StatusState = "active" | "idle" | "live" | "revoked" | "done";
+/**
+ * `active` is the filled dot (`.status`); the others are the bundle's more shapes: `busy` (the turning ring) and
+ * `fail` (the error mark) are Listen and Review's (job 07 F204).
+ */
+export type StatusState =
+  "active" | "idle" | "live" | "revoked" | "done" | "busy" | "fail";
 
 export interface StatusProps extends HTMLAttributes<HTMLSpanElement> {
   state?: StatusState;

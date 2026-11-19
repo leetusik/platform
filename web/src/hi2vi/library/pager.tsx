@@ -8,6 +8,7 @@ import {
   pagerPlace,
   pagerSlots,
   pagerWays,
+  type PagerKey,
   type PagerQuery,
 } from "./pager-model";
 
@@ -19,7 +20,8 @@ import {
  * reader. Previous on the first page and Next on the last are `disabled`. Under 36em of the pager the
  * range takes its own line and the numbers give way to `Page 5 of 10`; under 22em the ways are their
  * chevrons, still named. In the build each number, Previous and Next is a link to `?page=n` (the list's
- * other query parts kept). A list of one page has no pager: the list leaves it out.
+ * other query parts kept; `pageKey` names another key, as the Workspace's lists do, job 02 F300). A list of one
+ * page has no pager: the list leaves it out.
  */
 export interface PagerProps {
   page: number;
@@ -30,6 +32,8 @@ export interface PagerProps {
   label?: string;
   /** The list's query parts other than the page, kept in each link. */
   query?: PagerQuery;
+  /** The query key that holds this list's page: `page` (default), `archived` or `deferred`. */
+  pageKey?: PagerKey;
   /** Where page `n` is, when a list's address is not `?…&page=n`. */
   hrefFor?: (n: number) => string;
   /** Heard on a click of a number, Previous or Next, before the link goes. */
@@ -42,12 +46,14 @@ export function Pager({
   range,
   label = PAGER.label,
   query,
+  pageKey = "page",
   hrefFor,
   onPage,
 }: PagerProps) {
   const { page, pages } = pagerPlace(pageIn, pagesIn);
   const ways = pagerWays(page, pages);
-  const href = (n: number) => (hrefFor ? hrefFor(n) : pageHref(n, query));
+  const href = (n: number) =>
+    hrefFor ? hrefFor(n) : pageHref(n, query, pageKey);
   const link = (n: number) => ({
     href: href(n),
     onClick: onPage

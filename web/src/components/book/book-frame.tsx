@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 
-import { BookDock } from "@/components/book/book-listen";
-import { ListenPlayer } from "@/components/listen/player";
+import { ListenPlayerSheet } from "@/hi2vi/listen/player";
 import { UiRoot } from "@/hi2vi/ui";
-
-import { ListenHost } from "./listen-host";
 
 /**
  * The book page's frame, the Bar's (`Book.dc.html`, frame.md F52): `.ui > .page > .app.bare > Bar +
@@ -12,13 +9,15 @@ import { ListenHost } from "./listen-host";
  * `main` a page. The page, its loading state, Not found and Error all draw it, so the Bar is complete in
  * every state. `nonce` is the request's (the book's address carries the reader routes' nonce CSP).
  *
- * `listenSignInHref`, on the loaded page: Listen's dock and player in their old look (operator decision 3),
- * fixed to the window, outside the column; each renders nothing until a Listen lives.
+ * `own`, on the loaded page: the body brings its own column, inside `.listen-book` with the dock's track (job 07
+ * F208, F234 FG2; `BookBody`). `listenSignInHref`, on the loaded page: Listen's opened player (F211,
+ * `ListenPlayerSheet`), once a page; it renders nothing until a Listen lives.
  */
 export function BookFrame({
   bar,
   children,
   state = false,
+  own = false,
   nonce,
   listenSignInHref,
 }: {
@@ -26,6 +25,8 @@ export function BookFrame({
   children: ReactNode;
   /** A whole-page state: the children bring their own `.column`. */
   state?: boolean;
+  /** The loaded page: the body brings its own `.column` (in `.listen-book`). */
+  own?: boolean;
   nonce?: string;
   listenSignInHref?: string;
 }) {
@@ -35,17 +36,14 @@ export function BookFrame({
         <div className="app bare">
           {bar}
           <main id="main-content" className="app-main">
-            {state ? (
+            {state || own ? (
               children
             ) : (
               <div className="column is-narrow book-col">{children}</div>
             )}
           </main>
           {listenSignInHref ? (
-            <ListenHost>
-              <BookDock signInHref={listenSignInHref} />
-              <ListenPlayer signInHref={listenSignInHref} />
-            </ListenHost>
+            <ListenPlayerSheet signInHref={listenSignInHref} />
           ) : null}
         </div>
       </div>

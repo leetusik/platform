@@ -9,18 +9,18 @@
    - one name per meaning (P58-yw's class names, D238-rm):
      - the signed `.facts` grid is `.facts.is-grid` (and `.facts.is-grid > .fact > dd`,
        `.facts.is-grid > .fact.is-wide`): the bare `.facts` is the Workspace's (its F44, content-wide pairs that
-       wrap), which this sheet leaves to the Workspace's build. `.fact` and `.fact > dt` are the two jobs' one
-       drawing and keep their names;
+       wrap), the system's since the Workspace's build. `.fact` and `.fact > dt` are the two jobs' one
+       drawing and keep their names; the system declares them (../bundle.css), word for word as signed;
      - the signed `.badge.is-waiting` with its ink word is `.badge.is-waiting.is-ink`: `.badge.is-waiting` is the
-       dashed badge (the Workspace's F45, declared here once, word for word, for both jobs) and `.badge.is-ink`
-       its ink word. The Waiting part draws `badge is-waiting is-ink`;
+       dashed badge (the Workspace's F45, one drawing for both jobs, declared by the system in ../bundle.css) and
+       `.badge.is-ink` its ink word, here. The Waiting part draws `badge is-waiting is-ink`;
      - the list's set columns (F139) and its message's 56ch (F140) are drawn twice on the canvas, as the Stack
        board's `.stack-*` and the FeedbackList board's `.fl-table`, `.fl-rating`, `.fl-project`, `.fl-product`,
        `.fl-when`, `.fl-wrap`, with one value each. They are built once, here, under the Stack board's names; the
        list uses them (`.fl-table` is `.stack-set`, `.fl-rating` `.stack-rating`, and so on).
    - no other class the system or the Library declares is given a rule here: a pressed toggle is `.seg-item`
-     (underlined, F82), never the Library's `.choice` (filled, F58); no stacking table, `.facts` or waiting
-     badge existed before this sheet.
+     (underlined, F82), never the Library's `.choice` (filled, F58); no stacking table existed before this sheet
+     (`.facts`, `.fact` and the waiting badge are the system's, above).
    Its custom properties are restored at the old-page boundary by ./boundary.css.
    1 layout tokens · 2 rating · 3 tag · 4 absent · 5 raw JSON · 6 facts and kept lines · 7 search and filters ·
    9 a table that stacks, its set columns · 10 waiting.
@@ -58,8 +58,6 @@
 
 /* 6 ── facts: label over value, in pairs that wrap (the Workspace ledger's F44); and text that keeps its line breaks ── */
 .facts.is-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--fact-min), 100%), 1fr)); gap: var(--space-4) var(--space-5); }
-.fact { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.fact > dt { color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: var(--lh-meta); }
 .facts.is-grid > .fact > dd { min-width: 0; overflow-wrap: anywhere; }
 .facts.is-grid > .fact.is-wide { grid-column: 1 / -1; }
 .keep-lines { max-width: var(--measure); overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -119,6 +117,5 @@
 .stack-set .clamp-2 { max-width: 56ch; }
 
 /* 10 ── waiting: a change the web made that the workspace has not taken yet (the Workspace ledger's F45), its word in ink beside a title (F344) ── */
-.badge.is-waiting { border-style: dashed; }
 .badge.is-ink { color: var(--ink); }
 }

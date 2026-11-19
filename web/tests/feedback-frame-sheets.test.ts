@@ -322,9 +322,19 @@ describe("the frame's rules, as signed", () => {
     expect(declarations(rulesOn(".facts.is-grid")[0].body).display).toBe(
       "grid",
     );
-    expect(declarations(rulesOn(".badge.is-waiting")[0].body)).toEqual({
-      "border-style": "dashed",
-    });
+    // the dashed badge and a fact are one drawing for Feedback and the Workspace, declared once, by the
+    // system (bundle.css, since the Workspace's build); the ink word is Feedback's own
+    expect(rulesOn(".badge.is-waiting")).toEqual([]);
+    expect(rulesOn(".fact")).toEqual([]);
+    const system = styleRules(
+      blocks(read(join(styles, "bundle.css"))).find((b) => b.prelude === SCOPE)!
+        .body,
+    );
+    expect(
+      system
+        .filter((r) => selectors(r.prelude).includes(".badge.is-waiting"))
+        .map((r) => declarations(r.body)),
+    ).toEqual([{ "border-style": "dashed" }]);
     expect(declarations(rulesOn(".badge.is-ink")[0].body)).toEqual({
       color: "var(--ink)",
     });

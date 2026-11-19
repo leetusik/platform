@@ -1,0 +1,36 @@
+import { headers } from "next/headers";
+
+import {
+  AgendaLoading,
+  workspaceHrefs,
+  workspaceProjectId,
+} from "@/hi2vi/workspace/agenda";
+import { WsNav, type WsSyncLine } from "@/hi2vi/workspace/frame";
+import { REQUEST_PATH_HEADER } from "@/lib/next-path";
+
+// The Agenda while it loads (`Agenda.dc.html`, Loading; frame.md F49): the Shell is complete, `WsNav` stands with
+// its sync line as a bar, and the first part keeps its head over five skeleton rows. It reads nothing; the
+// project's id for the four places comes from the request's path (loading gets no params).
+const LOADING_LINE: WsSyncLine = {
+  state: "fresh",
+  text: "",
+  cls: "",
+  version: "",
+};
+
+export default async function AgendaLoadingPage() {
+  const project = workspaceProjectId(
+    (await headers()).get(REQUEST_PATH_HEADER),
+  );
+  return (
+    <div className="column">
+      <WsNav
+        current="agenda"
+        line={LOADING_LINE}
+        hrefs={workspaceHrefs(project ?? "")}
+        loading
+      />
+      <AgendaLoading headId="agenda-loading-open" />
+    </div>
+  );
+}

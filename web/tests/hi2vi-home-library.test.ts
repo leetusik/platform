@@ -28,7 +28,7 @@ vi.mock("next/headers", () => ({
     get: (name: string) =>
       name === "kb_tz" && jar.zone !== null ? { value: jar.zone } : undefined,
   })),
-  headers: vi.fn(),
+  headers: vi.fn(async () => new Headers({ host: "hi2vi.com" })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -53,6 +53,12 @@ vi.mock("@/lib/knowledge/app", () => ({
 vi.mock("@/lib/feedback/app", () => ({
   listFeedbackPage: reads.listFeedbackPage,
   countFeedback: reads.countFeedback,
+}));
+vi.mock("@/lib/workspace/read", () => ({
+  readWorkspace: vi.fn(async () => ({
+    state: "unlinked",
+    head: { version: null, sync: { state: "unlinked", at: null } },
+  })),
 }));
 
 const { default: DashboardPage } = await import("@/app/(app)/dashboard/page");

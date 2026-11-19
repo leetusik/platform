@@ -1,13 +1,13 @@
 import { cookies } from "next/headers";
 
-import { ReviewStatic } from "@/components/review/review-static";
+import { ReviewLoading } from "@/hi2vi/review/route-states";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 
-// P30.S24 (`08-review` §6) — the loading state: the header's counts skeleton and a card-shaped
-// skeleton, under the frame (which stays).
-export default async function ReviewLoading() {
+// P64-3y.S7 — Loading in Review's focused frame (job 07 frame.md F221): the bar whole with an empty line,
+// the head's counts a skeleton and the card's skeleton, in the reader's Display settings (`kb_reader`).
+export default async function ReviewLoadingPage() {
   const settings = parseReaderCookie(
     (await cookies()).get(READER_COOKIE)?.value,
   );
-  return <ReviewStatic settings={settings} loading />;
+  return <ReviewLoading settings={settings} />;
 }

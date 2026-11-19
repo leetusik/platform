@@ -10,6 +10,8 @@ import { setEngine } from "@/lib/listen/store";
  * (`@/lib/listen/engine`). Mounted above the routes (the root layout, through
  * `ListenRoot`), so moving between reader pages on the client never stops a Listen (R3:
  * only a full page load does). It draws nothing: the dock and the note are the reader's.
+ * P64-3y.F1: leaving the Listen pages ends the Listen first (`ListenRoot`, F231); the
+ * engine's `destroy` then finds none.
  */
 export default function ListenHost() {
   const ref = useRef<HTMLAudioElement>(null);

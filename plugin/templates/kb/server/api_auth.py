@@ -24,8 +24,10 @@ Two modes, switched per-call on ``config.database_url()``:
 
 Key scope (C3): every context carries ``scope``. The master bearer and sessions are
 ``"full"``; a ``vk_`` key carries its credential's own. ``resolve_api_read`` and
-``resolve_api_write`` refuse a ``capture`` key with a 403, so every Library key route is
-``full``-only; ``resolve_api_capture`` (the Feedback capture surfaces) accepts both.
+``resolve_api_write`` refuse every scope but ``full`` with a 403, so every Library key
+route is ``full``-only; ``resolve_api_capture`` (the Feedback capture surfaces) accepts
+``full`` and ``capture`` only; ``resolve_api_workspace`` (the workspace routes) accepts
+only a ``workspace`` key, and only for its own project.
 
 S4 only *resolves* the credential to an ``ApiAuthContext``; it does not scope
 storage/queries to the tenant yet — the ``/api/*`` handlers accept ``ctx`` but
@@ -44,6 +46,7 @@ from server import config
 from server.accounts.auth import active_tenant, extract_bearer_token
 from server.accounts.security import sha256_hex
 from server.accounts.service import get_accounts_service
+from server.accounts.types import CREDENTIAL_SCOPE_WORKSPACE
 
 
 @dataclass(slots=True)
@@ -71,7 +74,7 @@ class ApiAuthContext:
     see ``stamp_credential_used`` in ``server/usage/metering.py``.
 
     ``scope`` is ``"full"`` for legacy mode, the master bearer and sessions, and the
-    credential's own scope (``"full"`` or ``"capture"``) for a ``vk_`` key.
+    credential's own scope (``"full"``, ``"capture"`` or ``"workspace"``) for a ``vk_`` key.
     """
 
     tenant_id: UUID | None = None
@@ -210,10 +213,15 @@ async def _resolve_tenant_bearer(
     return None
 
 
-def _capture_only() -> HTTPException:
-    """The 403 a ``capture``-scoped key gets on every Library key route."""
+# The scopes the Feedback capture surfaces admit: an allow-list, so a scope added
+# later reaches capture only by being named here.
+_CAPTURE_SCOPES: frozenset[str] = frozenset({"full", "capture"})
+
+
+def _not_full(scope: str) -> HTTPException:
+    """The 403 a ``capture`` or ``workspace`` key gets on every Library key route."""
     return HTTPException(
-        status_code=403, detail="this key's scope is capture: Library routes need a full key"
+        status_code=403, detail=f"this key's scope is {scope}: Library routes need a full key"
     )
 
 
@@ -254,7 +262,7 @@ async def resolve_api_write(request: Request) -> ApiAuthContext:
     # TENANT: any resolvable full-scope credential (master / vk_ / session) writes.
     ctx = await _resolve_tenant_request(request)
     if ctx.scope != "full":
-        raise _capture_only()
+        raise _not_full(ctx.scope)
     return ctx
 
 
@@ -276,7 +284,7 @@ async def resolve_api_read(request: Request) -> ApiAuthContext:
     # TENANT: reads need a resolvable full-scope credential to know the tenant.
     ctx = await _resolve_tenant_request(request)
     if ctx.scope != "full":
-        raise _capture_only()
+        raise _not_full(ctx.scope)
     return ctx
 
 
@@ -286,8 +294,48 @@ async def resolve_api_capture(request: Request) -> ApiAuthContext:
 
     Accepts everything ``resolve_api_write`` accepts (master bearer, sessions, full
     keys) **plus** a ``capture``-scoped key; ``ctx.scope`` tells the two key kinds
-    apart. Legacy mode is ``resolve_api_write``'s legacy branch, unchanged.
+    apart. Any other scope (a ``workspace`` key) is a 403. Legacy mode is
+    ``resolve_api_write``'s legacy branch, unchanged.
     """
     if not _tenant_mode():
         return _legacy_write(request)
-    return await _resolve_tenant_request(request)
+    ctx = await _resolve_tenant_request(request)
+    if ctx.scope not in _CAPTURE_SCOPES:
+        raise HTTPException(
+            status_code=403,
+            detail=f"this key's scope is {ctx.scope}: Feedback capture needs a full or capture key",
+        )
+    return ctx
+
+
+def _workspace_not_found() -> HTTPException:
+    """The one 404 of the workspace routes: another project's key, legacy mode.
+
+    The same words as ``app_api._load_scoped_project``'s, so a workspace key cannot
+    tell a project it may not reach from one that does not exist."""
+
+    return HTTPException(status_code=404, detail="project not found")
+
+
+async def resolve_api_workspace(request: Request, project_id: UUID) -> ApiAuthContext:
+    """Guard/resolver for the workspace routes (``/api/workspace/{project_id}/…``).
+
+    Only a ``workspace`` key bound to ``project_id`` passes. Another project's
+    workspace key is a **404**, never a 403, so a key cannot probe which projects
+    exist. Every other caller that resolves (a ``full`` or ``capture`` key, the
+    master bearer, a session) is a **403** naming its scope. No bearer, an unknown
+    one or a revoked key is the usual 401. Legacy mode (no accounts plane) has no
+    workspace store, so every workspace route answers 404 there.
+    """
+
+    if not _tenant_mode():
+        raise _workspace_not_found()
+    ctx = await _resolve_tenant_request(request)
+    if ctx.scope != CREDENTIAL_SCOPE_WORKSPACE:
+        raise HTTPException(
+            status_code=403,
+            detail=f"this key's scope is {ctx.scope}: workspace routes need a workspace key",
+        )
+    if ctx.project_id is None or ctx.project_id != project_id:
+        raise _workspace_not_found()
+    return ctx

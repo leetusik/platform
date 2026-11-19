@@ -3,8 +3,9 @@
 Ported from vocky's accounts/tenancy tables (the first six here) plus the P11
 ``usage_events`` table (the 7th), the seven P30.S8 reader-state tables (JSONB for
 a reader's anchors, quotes, snapshots and quiz responses), the five P41-sr.B1
-Listen tables (units, parts, jobs, runners and listening positions), and vocky's
-three Feedback tables (events, comments, attachments; revision ``0009``).
+Listen tables (units, parts, jobs, runners and listening positions), vocky's
+three Feedback tables (events, comments, attachments; revision ``0009``), and the
+eight workspace-store tables (revision ``0011``).
 """
 
 from __future__ import annotations
@@ -22,8 +23,10 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     Text,
     UniqueConstraint,
     event,
@@ -907,3 +910,235 @@ class FeedbackAttachmentModel(Base):
         default=utc_now,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+# -- the workspace store ----------------------------------------------------------
+#
+# A linked project's workspace (its backlog, phases, slices, deferred jobs, docs and
+# agenda) held as the files the workflow engine writes, created by
+# ``alembic/versions/0011_workspace_store.py``. One row in ``workspaces`` per linked
+# project holds the project's one revision counter, ``head``; the engine's sync
+# batches take that row ``FOR UPDATE``, so a project's writes are serialized and a
+# batch lands all or nothing (``server.workspace.service``).
+#
+# - ``workspace_files`` is the head: one row per path with the revision at which it
+#   last changed. A ``file`` record's content is the blob ``blob_sha256``; an
+#   ``append`` record's (``works/events.jsonl``, the loop logs) is its base blob, if
+#   any, followed by its ``workspace_events`` lines after ``base_seq``, so an append
+#   never rewrites the whole file. A deleted record keeps its row (``deleted``), so
+#   the deletion has a revision the manifest can report.
+# - ``workspace_blobs`` holds content once per ``(project, sha256)``.
+# - ``workspace_revisions`` is the history: one row per applied op, who (a key or a
+#   web user), when, which command; a move's row names ``from_path``, so a moved
+#   file's history follows it.
+# - ``workspace_batches`` keeps each batch's first answer by ``batch_id``, so a
+#   resent batch is answered again and applied once.
+# - ``workspace_derived`` holds the engine-rendered ``works/state.json`` and
+#   ``works/index.json``, latest only, tagged with the head they were rendered at.
+# - ``workspace_inbox`` holds the web's agenda changes until a linked engine applies
+#   or refuses them.
+#
+# Every table cascades from ``projects``. Value checks (op names, kinds, states) are
+# app-layer, the repo's convention.
+
+
+class WorkspaceModel(Base):
+    """One linked project's workspace: its head and its sync facts."""
+
+    __tablename__ = "workspaces"
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    tenant_id: Mapped[UUID] = _uuid_fk("tenants.id")
+    head: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    linked_at: Mapped[datetime] = _ts()
+    last_sync_at: Mapped[datetime | None] = _ts(nullable=True)
+    engine_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceBlobModel(Base):
+    """One content, stored once per project and sha256."""
+
+    __tablename__ = "workspace_blobs"
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    sha256: Mapped[str] = mapped_column(Text, primary_key=True)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceFileModel(Base):
+    """One path at the head: its revision, content hash and kind."""
+
+    __tablename__ = "workspace_files"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "blob_sha256"],
+            ["workspace_blobs.project_id", "workspace_blobs.sha256"],
+            name="fk_workspace_files_blob_workspace_blobs",
+        ),
+        Index("ix_workspace_files_project_id_rev", "project_id", "rev"),
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    path: Mapped[str] = mapped_column(Text, primary_key=True)
+    rev: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False, default="file")
+    deleted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    blob_sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
+    base_seq: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceRevisionModel(Base):
+    """One applied op: what changed, who, when and with which command."""
+
+    __tablename__ = "workspace_revisions"
+    __table_args__ = (
+        Index("ix_workspace_revisions_project_id_path", "project_id", "path"),
+        Index("ix_workspace_revisions_project_id_from_path", "project_id", "from_path"),
+        Index("ix_workspace_revisions_project_id_rev", "project_id", "rev"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[UUID] = _uuid_fk("projects.id")
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    rev: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    op: Mapped[str] = mapped_column(Text, nullable=False)
+    from_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    credential_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("project_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    user_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    checkout: Mapped[str | None] = mapped_column(Text, nullable=True)
+    command: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceBatchModel(Base):
+    """A batch's first answer, kept by its ``batch_id`` for an exact replay."""
+
+    __tablename__ = "workspace_batches"
+    __table_args__ = (
+        Index("ix_workspace_batches_project_id_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[UUID] = _uuid_fk("projects.id")
+    head: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    status: Mapped[int] = mapped_column(Integer, nullable=False)
+    command: Mapped[str | None] = mapped_column(Text, nullable=True)
+    checkout: Mapped[str | None] = mapped_column(Text, nullable=True)
+    engine_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    credential_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("project_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    response: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceEventModel(Base):
+    """One line appended to an append-only file, in the project's sequence."""
+
+    __tablename__ = "workspace_events"
+    __table_args__ = (
+        Index("ix_workspace_events_project_id_path_seq", "project_id", "path", "seq"),
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    seq: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    line: Mapped[str] = mapped_column(Text, nullable=False)
+    batch_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceDerivedModel(Base):
+    """An engine-rendered projection (``works/state.json``, ``works/index.json``)."""
+
+    __tablename__ = "workspace_derived"
+
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    path: Mapped[str] = mapped_column(Text, primary_key=True)
+    head: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = _ts()
+
+
+class WorkspaceInboxModel(Base):
+    """One web agenda change waiting for a linked engine to apply or refuse it.
+
+    ``state`` is ``pending`` | ``applied`` | ``refused`` | ``discarded``; ``items`` are
+    full agenda ids and ``fields`` the change's fields; ``minted_id`` is the id the web
+    minted for an add.
+    """
+
+    __tablename__ = "workspace_inbox"
+    __table_args__ = (
+        Index(
+            "ix_workspace_inbox_project_id_state_created_at",
+            "project_id", "state", "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    project_id: Mapped[UUID] = _uuid_fk("projects.id")
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    items: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    fields: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    minted_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    state: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pending", server_default=text("'pending'")
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    batch_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = _ts()
+    resolved_at: Mapped[datetime | None] = _ts(nullable=True)

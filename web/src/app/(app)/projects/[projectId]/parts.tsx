@@ -3,7 +3,7 @@
 // client island (`library-retry.tsx`, `feedback-retry.tsx`).
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { PROJECT_HOME } from "@/content/project";
 import {
@@ -15,9 +15,10 @@ import {
   Skeleton,
 } from "@/hi2vi/ui";
 import { Rating } from "@/hi2vi/feedback";
+import { Steps, WsStatus } from "@/hi2vi/workspace/frame";
 import { date, type FormatOptions } from "@/lib/format";
 
-import type { FeedbackRow, LibraryRow } from "./model";
+import type { FeedbackRow, LibraryRow, WorkspacePart } from "./model";
 import { workspaceWords } from "./model";
 
 /** Three skeleton rows of a row's height (F24), the second bar `tail` wide. */
@@ -38,30 +39,92 @@ export function WaitRows({ tail }: { tail: string }) {
 }
 
 /**
- * Workspace, as operator D1 has it until the sync phase: the panel's head with the `Coming` badge (the
- * landing's composition: `cluster baseline gap-3` around the `h2` and the badge) and the signed empty
- * state. The board drops an empty part's count and foot, so "See all in Workspace" is not drawn.
+ * Workspace (`ProjectHomeWorkspace.dc.html`, on the Workspace's own frame parts): `Workspace` and the
+ * open jobs' count (`12 deferred`) in the head; one row a phase, at most five, newest first: the id,
+ * the name as a link to the phase with its current slice under it, the status (F37), the count and
+ * the steps (F39); the foot **See all in Workspace**. Not linked or never synced: the signed sentence,
+ * `No workspace linked yet. Run <link command> in the project’s repo.`, the command built from the
+ * page's `origin` and the `projectId`, with no count and no foot. Loading: three skeleton rows.
  */
-export function WorkspacePanel() {
-  const w = workspaceWords();
+export function WorkspacePanel({
+  part,
+  origin,
+  projectId,
+}: {
+  part: WorkspacePart;
+  origin: string | null;
+  projectId: string | null;
+}) {
+  const w = workspaceWords({ origin, projectId });
   return (
-    <Panel className="ph-part" aria-label={w.heading}>
+    <Panel
+      className="ph-part"
+      aria-label={w.heading}
+      aria-busy={part.kind === "loading" ? "true" : undefined}
+    >
       <PanelHead>
-        <div className="cluster baseline gap-3">
-          <h2>{w.heading}</h2>
-          <Badge>{w.badge}</Badge>
-        </div>
+        <h2>{w.heading}</h2>
+        {part.kind === "phases" ? (
+          <p className="meta">{part.deferred}</p>
+        ) : null}
       </PanelHead>
-      <Block className="panel-body has-rule">
-        {/*
-          HELD BACK (operator D1, 2026-11-16; D244-h0): the signed sentence continues
-          `Run [LINK COMMAND] in the project’s repo.` The sync phase restores it here, with the real
-          command, in `PROJECT_HOME.workspace.empty`; the phase rows, the `N deferred` count, the
-          "See all in Workspace" foot and the loading rows (`ProjectHomeWorkspace.dc.html`) go in
-          this panel once there is workspace data.
-        */}
-        <BlockText>{w.empty}</BlockText>
-      </Block>
+      {part.kind === "phases" ? (
+        <>
+          <ul
+            className="ph-list"
+            style={{ "--steps-n": part.longest } as CSSProperties}
+          >
+            {part.phases.map((ph) => (
+              <li key={ph.key} className="row ph-phase">
+                <span className="dim ph-id">{ph.id}</span>
+                <Link href={ph.href} className="link-strong ph-open ph-name">
+                  <span className="row-stack">
+                    <span className="ph-name-text" lang={ph.lang}>
+                      {ph.name}
+                    </span>
+                    {ph.slice !== null ? (
+                      <span
+                        className="meta ph-sub"
+                        lang={ph.sliceLang ?? undefined}
+                      >
+                        {ph.slice}
+                      </span>
+                    ) : null}
+                  </span>
+                </Link>
+                <WsStatus kind="phase" value={ph.status} className="ph-state" />
+                <Steps
+                  done={ph.done}
+                  total={ph.total}
+                  live={ph.live}
+                  className="ph-progress"
+                />
+              </li>
+            ))}
+          </ul>
+          <div className="panel-foot">
+            <Link href={part.all} className="link link-row">
+              {PROJECT_HOME.workspace.all}
+            </Link>
+          </div>
+        </>
+      ) : null}
+      {part.kind === "link" ? (
+        <Block className="panel-body has-rule">
+          <BlockText>
+            {w.empty}
+            {w.run ? (
+              <>
+                {" "}
+                {w.run.before}
+                <code className="mono ph-cmd">{w.run.command}</code>
+                {w.run.after}
+              </>
+            ) : null}
+          </BlockText>
+        </Block>
+      ) : null}
+      {part.kind === "loading" ? <WaitRows tail="6em" /> : null}
     </Panel>
   );
 }

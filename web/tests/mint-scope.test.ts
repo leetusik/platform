@@ -11,8 +11,8 @@ import {
 import { mintOrgCredentialAction } from "@/app/(app)/dashboard/actions";
 import { mintCredentialAction } from "@/app/(app)/projects/[projectId]/actions";
 
-// A key's scope is chosen at mint: both actions send only `full` or `capture`, and
-// `full` when the form carries no choice. The session guard and Next's cache are
+// A key's scope is chosen at mint: both actions send `full` or `capture`, and `full`
+// when the form carries no choice; only the project action also sends `workspace`. The session guard and Next's cache are
 // mocked; the API is a stubbed fetch whose request body is read back.
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -72,6 +72,26 @@ describe.each([
 
   it("refuses any other value before the API sees it", async () => {
     const state = await mint({ scope: "admin" });
+    expect(state.error).not.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("workspace scope", () => {
+  it("the project action sends it", async () => {
+    const state = await mintCredentialAction(
+      { error: null },
+      form({ projectId: PROJECT, scope: "workspace" }),
+    );
+    expect(state.error).toBeNull();
+    expect(sentBody()).toEqual({ scope: "workspace" });
+  });
+
+  it("the org action refuses it before the API sees it", async () => {
+    const state = await mintOrgCredentialAction(
+      { error: null },
+      form({ scope: "workspace" }),
+    );
     expect(state.error).not.toBeNull();
     expect(fetch).not.toHaveBeenCalled();
   });

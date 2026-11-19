@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import {
+  documentListen,
   firstOf,
   missTitle,
   renderDocument,
@@ -42,8 +43,12 @@ import type { KbDocument } from "@/lib/knowledge/types";
 //
 // P63-fk.S12 — a native or md document reads in the Library's reader (`renderDocument`, job 03 Library
 // round 02, § Page: document), as on its pretty address: the way back by `?from=`, `?v=n` (a version that
-// does not exist is Document not found), the marks by format (OQ14). The signed document draws no Listen,
-// so P41-sr.W2's Listen seed is no longer read here. Loading, Not found and Error are the document's own.
+// does not exist is Document not found), the marks by format (OQ14). Loading, Not found and Error are the
+// document's own.
+//
+// P64-3y.S6 — job 07 draws Listen on a document: a member on the newest version of a Markdown or native
+// document reads its Listen state once after the load (`documentListen`, by the document's write key), and the
+// reader mounts it in its head. A visitor, an older version and the html original read none.
 const getDocumentOnce = cache(
   (token: string | undefined, id: number): Promise<KbDocument> =>
     getDocument(token, id),
@@ -142,18 +147,24 @@ function versionOf(raw: string | string[] | undefined): number | null {
   return v && /^\d{1,6}$/.test(v) ? Number(v) : null;
 }
 
-/** The page as it renders: the reader, or the legacy reader (`renderDocument`). */
+/** The page as it renders: the reader, or the legacy reader (`renderDocument`); a member's reader with its Listen. */
 async function render(
   loaded: ReaderLoad,
   query: Record<string, string | string[] | undefined>,
+  token?: string,
 ) {
-  const [nonce, jar] = await Promise.all([requestNonce(), cookies()]);
+  const [nonce, jar, listen] = await Promise.all([
+    requestNonce(),
+    cookies(),
+    documentListen(loaded, token),
+  ]);
   const org = loaded.kind === "reader" ? orgOf(loaded.reader.view) : null;
   return renderDocument(loaded, {
     from: firstOf(query[FROM_PARAM]),
     org,
     nonce,
     timeZone: viewerTimeZone(jar),
+    listen,
   });
 }
 
@@ -190,7 +201,7 @@ export default async function DocumentPage({
     // Temporary (307), like the pretty-URL redirect below; the browser keeps `#section`.
     const chapter = chapterRedirectHref(doc, { v, lang: langOf(query.lang) });
     if (chapter) redirect(chapter);
-    return render(await loadOnce(ctx.token, id, v, cookie), query);
+    return render(await loadOnce(ctx.token, id, v, cookie), query, ctx.token);
   }
 
   // ── Anonymous branch — public-only read, no token. A miss bounces to /login. ─

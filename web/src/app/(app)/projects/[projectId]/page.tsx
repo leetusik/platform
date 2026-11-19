@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { PROJECT } from "@/content";
@@ -17,6 +17,7 @@ import {
 import { ApiError } from "@/lib/knowledge/client";
 import type { KbIdentity, KbProjectUsage } from "@/lib/knowledge/types";
 import { orgSegment, projectLibraryHref } from "@/lib/reader-href";
+import { readWorkspace } from "@/lib/workspace/read";
 
 import { FeedbackFailed } from "./feedback-retry";
 import { LibraryFailed } from "./library-retry";
@@ -30,8 +31,10 @@ import {
   libraryRows,
   monthWindow,
   projectHomeFormat,
+  requestOrigin,
   todayIn,
   type FeedbackRow,
+  workspacePart,
   type LibraryRow,
 } from "./model";
 import { FeedbackPanel, LibraryPanel, WorkspacePanel } from "./parts";
@@ -50,6 +53,8 @@ import "./project-home.css";
 // - the Library's rows: the org library listing (`getOrgLibrary`), this project's books and documents;
 // - Feedback: page 1 of `listFeedbackPage({project_id, limit: 5})`, and `countFeedback` over the
 //   viewer's month for `N this month` (D247-4x); either failing is the panel's failed form.
+// - Workspace: the project's Workspace (`readWorkspace`, one read: its phases and deferred jobs); for a
+//   project not linked or never synced, the link command from the request's origin (`headers()`).
 // Every date is in the viewer's zone (the `kb_tz` cookie), UTC until it is known (decision 5).
 //
 // The <title> stays the static `PROJECT.title`: a `generateMetadata` title would cost a second uncached read.
@@ -141,12 +146,14 @@ export default async function ProjectHomePage({
 
   const usage = await loadProject(token, projectId);
   const { project } = usage;
-  const [documents, rows, feedback] = await Promise.all([
+  const [documents, rows, feedback, workspace] = await Promise.all([
     getDocuments(token, { project: project.id, limit: 1 }),
     loadLibraryRows(token, identity, project.name),
     loadFeedback(token, project.id, format),
+    readWorkspace(token, project.id),
   ]);
   const count = libraryCount(documents.total);
+  const origin = requestOrigin(await headers());
   const series = usage.daily_counts.map((d) => d.searches);
   const lastDay = usage.daily_counts.at(-1)?.day ?? todayIn(format);
 
@@ -159,7 +166,11 @@ export default async function ProjectHomePage({
         created={date(project.created_at, format)}
         visibility={project.visibility}
       />
-      <WorkspacePanel />
+      <WorkspacePanel
+        part={workspacePart(workspace, project.id)}
+        origin={origin}
+        projectId={project.id}
+      />
       <Grid min="26em">
         {rows === null ? (
           <LibraryFailed count={count} />

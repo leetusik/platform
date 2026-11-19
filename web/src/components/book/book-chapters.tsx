@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BOOK_PAGE } from "@/content/book-page";
+import type { RowAudio } from "@/hi2vi/listen";
 import { Badge, Skeleton, Status } from "@/hi2vi/ui";
 import type { RowView } from "@/lib/book/view";
 
@@ -20,8 +21,11 @@ export function BookChapters({
   open = null,
   loading = false,
   onVersions,
+  audio = null,
 }: {
   rows: readonly RowView[];
+  /** Job 07 F209: each row's audio line, and Playing or Paused on the one being heard (`bookRowsOf`). */
+  audio?: Readonly<Record<string, RowAudio>> | null;
   open?: string | null;
   loading?: boolean;
   onVersions?: (key: string | null) => void;
@@ -74,6 +78,22 @@ export function BookChapters({
                 <Status state={row.state.status} className="chapter-state">
                   {row.state.word}
                 </Status>
+              ) : null}
+              {audio?.[row.key] ? (
+                <span className="row-audio">
+                  {audio[row.key].line ? (
+                    <span>{audio[row.key].line}</span>
+                  ) : null}
+                  {audio[row.key].play ? (
+                    <Status
+                      state={
+                        audio[row.key].play === "Playing" ? "live" : "active"
+                      }
+                    >
+                      {audio[row.key].play}
+                    </Status>
+                  ) : null}
+                </span>
               ) : null}
               {hasVars ? (
                 <div className="book-vars">

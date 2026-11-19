@@ -5,7 +5,8 @@
 // Display, Versions, ReaderChapters, Save) are `@/hi2vi/library`'s.
 //
 // The text is `ChapterBody` (`./body/body`, P63-fk.S9, imported by its path: it renders server-only parts);
-// `OldRoot` holds the old parts still mounted beside it (Listen, the Notes host, the layers) until S10 and S11.
+// `OldRoot` (`./old-root`) is the old reader's root around what in the body still reads the old sheet: the print
+// masthead and colophon, and the body's islands (`./body/island`).
 export { ChapterReader, type ChapterReaderProps } from "./chapter-reader";
 export { ReaderHead, type ReaderHeadProps } from "./reader-head";
 export { ReaderEnd, type ReaderEndProps } from "./reader-end";

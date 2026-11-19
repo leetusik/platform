@@ -27,6 +27,9 @@ export {
   PanelHead,
   type PanelBodyProps,
 } from "./panel";
+export { Ico, type IcoName, type IcoProps } from "./ico";
+export { Say, type SayProps } from "./say";
+export { Meter, meterPercent, type MeterProps } from "./meter";
 export { Section, SectionHead } from "./section";
 export { Table, type TableProps } from "./table";
 export {

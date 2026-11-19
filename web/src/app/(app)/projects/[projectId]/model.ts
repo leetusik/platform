@@ -4,6 +4,7 @@
 
 import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
 import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
+import { stepsN } from "@/hi2vi/workspace/frame/steps-model";
 import type { FeedbackValue } from "@/lib/feedback/format";
 import { langAttr } from "@/lib/feedback/lang";
 import { feedbackItemHref } from "@/lib/feedback/place";
@@ -18,6 +19,9 @@ import {
   viewerTimeZone,
   type CookieReader,
 } from "@/lib/time-zone";
+import { backlogHref, phaseHref } from "@/lib/workspace/address";
+import { langOf, openJobs } from "@/lib/workspace/model";
+import type { WorkspaceRead } from "@/lib/workspace/read";
 
 import type {
   MintCredentialState,
@@ -59,20 +63,147 @@ export function isMissingProjectStatus(status: number): boolean {
   return status === 404 || status === 400 || status === 422;
 }
 
-// ── Workspace (operator D1) ─────────────────────────────────────────────────
+// ── Workspace ───────────────────────────────────────────────────────────────
+
+/** The link command's second sentence, split so the panel sets the command as code. */
+export interface WorkspaceRun {
+  before: string;
+  command: string;
+  after: string;
+}
 
 /**
- * The Workspace panel as it ships until the sync phase: the signed empty state's first sentence and
- * the `Coming` badge on its head. No rows, no count, no foot (the board drops a part's count and foot
- * when it is empty), no loading form: there is no workspace data yet.
+ * The Workspace panel's signed sentence for a project whose workspace is not linked or has never
+ * synced: its first sentence, then `Run <command> in the project’s repo.`. Without an origin or a
+ * project id the second sentence is left out rather than drawn with a guessed address.
  */
-export function workspaceWords(): {
+export function workspaceWords(
+  link: { origin: string | null; projectId: string | null } | null = null,
+): {
   heading: string;
-  badge: string;
   empty: string;
+  run: WorkspaceRun | null;
 } {
   const w = PROJECT_HOME.workspace;
-  return { heading: w.heading, badge: w.coming, empty: w.empty };
+  const run =
+    link?.origin && link.projectId
+      ? {
+          before: w.run.before,
+          command: w.run.command(link.origin, link.projectId),
+          after: w.run.after,
+        }
+      : null;
+  return { heading: w.heading, empty: w.empty, run };
+}
+
+/** The board's five newest phases. */
+export const PHASES_SHOWN = 5;
+
+/** A phase as the panel's row draws it (`ProjectHomeWorkspace.dc.html`). */
+export interface HomePhase {
+  /** The full id, the row's key. */
+  key: string;
+  /** The short id the row shows (`P57`, job 01's figure: the read model's `short`). */
+  id: string;
+  /** The name, or the full id when the phase has none. */
+  name: string;
+  lang: "en" | "ko";
+  /** The phase's page. No `?from=`: project home is not a Workspace list (its way back is the Backlog). */
+  href: string;
+  /**
+   * The current slice under the name while the phase is not done, else `null`: `S5 Project home and the rail`
+   * from the read's stored name, its short id alone when the read has none.
+   */
+  slice: string | null;
+  /** `ko` when the current slice's name is Korean, else `null`. */
+  sliceLang: "ko" | null;
+  status: string | null;
+  done: number;
+  total: number;
+  /** One step runs while the phase is in progress with slices left. */
+  live: boolean;
+}
+
+/** The panel's three forms: the phases, the link sentence, and loading. */
+export type WorkspacePart =
+  | {
+      kind: "phases";
+      /** `12 deferred`: the open jobs (deferred or ready, F42). */
+      deferred: string;
+      phases: HomePhase[];
+      /** `--steps-n`: the longest phase shown, so every row's step is one width. */
+      longest: number;
+      /** See all in Workspace: the Backlog, where the phases are. */
+      all: string;
+    }
+  | { kind: "link" }
+  | { kind: "loading" };
+
+/**
+ * The panel from the page's one Workspace read: a synced workspace's five newest phases (the read
+ * lists them newest first, the pointer's phase leading, as the board does) and its open jobs; the
+ * signed link sentence for a project not linked, never synced, or with no workspace the read can
+ * find. A failed read is not a form the board draws: the page throws it (the Feedback panel's rule).
+ */
+export function workspacePart(
+  read: WorkspaceRead,
+  projectId: string,
+): WorkspacePart {
+  if (read.state === "error") {
+    throw new Error(
+      `The workspace did not load (${read.status ?? "no answer"}).`,
+    );
+  }
+  if (read.state !== "ready") return { kind: "link" };
+  const ws = read.value;
+  const phases = ws.phases.slice(0, PHASES_SHOWN).map((p): HomePhase => {
+    const name = p.name?.trim() || p.id;
+    const current = p.status !== "done" && p.current ? p.current : null;
+    const sliceName =
+      current && p.currentRef?.id === current
+        ? p.currentRef.name?.trim() || null
+        : null;
+    return {
+      key: p.id,
+      id: p.short || p.id,
+      name,
+      lang: langOf(name),
+      href: phaseHref(projectId, p.id),
+      slice: current && sliceName ? `${current} ${sliceName}` : current,
+      sliceLang: langOf(sliceName) === "ko" ? "ko" : null,
+      status: p.status,
+      done: p.done,
+      total: p.total,
+      live: p.status === "in_progress" && p.done < p.total,
+    };
+  });
+  return {
+    kind: "phases",
+    deferred: PROJECT_HOME.workspace.deferred(num(openJobs(ws.deferred))),
+    phases,
+    longest: stepsN(phases.map((p) => p.total)),
+    all: backlogHref(projectId),
+  };
+}
+
+/** The request headers the origin is read from (`next/headers`' `headers()` satisfies it). */
+export interface HeaderReader {
+  get(name: string): string | null;
+}
+
+/**
+ * The origin the viewer reached the page at: the proxy's forwarded host and scheme when present (the
+ * production nginx sets `Host` and `X-Forwarded-Proto`), else the request's own `Host` over http.
+ * `null` when the request names no host.
+ */
+export function requestOrigin(headers: HeaderReader): string | null {
+  const first = (v: string | null): string =>
+    (v ?? "").split(",")[0]?.trim() ?? "";
+  const host =
+    first(headers.get("x-forwarded-host")) || first(headers.get("host"));
+  if (!host) return null;
+  const proto = first(headers.get("x-forwarded-proto")) || "http";
+  return `${proto}://${host}`;
 }
 
 // ── Library ─────────────────────────────────────────────────────────────────
@@ -399,7 +530,7 @@ export function keyRowOf(c: KbCredential): KeyRow {
     id: c.id,
     name: c.name,
     prefix: c.token_prefix,
-    access: c.scope === "capture" ? "capture" : "full",
+    access: c.scope === "capture" || c.scope === "workspace" ? c.scope : "full",
     status: credentialStatus(c),
     created: c.created_at,
     lastUsed: c.last_used_at,

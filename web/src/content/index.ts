@@ -59,13 +59,9 @@ export { CHAPTER } from "./chapter";
 // chapter bar, the Contents and Display sheets, Sign in to save and the states.
 export { READER } from "./reader";
 
-// The library's title (the way back's label) and the chapter count Listen's book row reads.
+// The library's title (the way back's label). `BOOK` and `LISTEN` left the barrel with the old Listen views
+// (P64-3y.S10): job 07's Listen (`hi2vi/listen/**`) imports `@/content/book` and `@/content/listen` directly.
 export { LIBRARY } from "./library";
-export { BOOK } from "./book";
-
-// Listen (P41-sr.W1) — the `11-listen` round's words: the Listen control, the dock's short
-// forms and live region, the note's state words and sentences (F1, F6, F7, F10).
-export { LISTEN } from "./listen";
 
 // hi2vi's own feedback control (job 08, round 01-landing-diagram-feedback, `## Build` §2 and §5): the
 // trigger, the dialog, its states and the check's sentences, on the landing and on org home.

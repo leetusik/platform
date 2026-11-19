@@ -13,9 +13,9 @@ import "./project-home.css";
 
 // Project home while it loads (`ProjectHome.dc.html`, Loading): every part keeps its head. The back
 // link reads the org (the session read is per-request cached; the layout already made it); the `h1`
-// holds a 7em skeleton; Workspace is its signed empty form (operator D1: no workspace data, so no
-// loading form); Library and Feedback are their first load (no count: the Feedback board's loading form
-// draws none); Usage, Trend and the keys load.
+// holds a 7em skeleton; Workspace is its loading form (no count, three skeleton rows); Library and
+// Feedback are their first load (no count: the Feedback board's loading form draws none); Usage, Trend
+// and the keys load.
 export default async function ProjectHomeLoading() {
   const { identity } = await requireIdentity();
   const org = identity.tenant?.name ?? "—";
@@ -23,7 +23,11 @@ export default async function ProjectHomeLoading() {
   return (
     <div className="column">
       <ProjectHeadLoading org={org} />
-      <WorkspacePanel />
+      <WorkspacePanel
+        part={{ kind: "loading" }}
+        origin={null}
+        projectId={null}
+      />
       <Grid min="26em">
         <LibraryPanel count={null} state={{ kind: "first-load" }} />
         <FeedbackPanel count={null} state={{ kind: "first-load" }} />

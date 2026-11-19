@@ -240,7 +240,11 @@ export interface ContChapter {
 
 /**
  * BookContinue (the board's table): the title, the facts, the lede in `next` and `start`, the button.
- * `section` is where a `continue` was left (a heading), `lede` the named chapter's lede.
+ * `section` is where a `continue` was left (a heading), `lede` the named chapter's lede. Continue reading opens the
+ * chapter at its kept place (job 07 F242), which is the saved block inside that section: the address is the
+ * chapter's own, with no `#`, so the reader resumes there as it does from the Library's and the review end's
+ * Continue reading. A `#<section>` would win over the resume (`landingFor`), land on the heading and save the
+ * heading as the new place.
  */
 export function contOf(
   plan: ContPlan,

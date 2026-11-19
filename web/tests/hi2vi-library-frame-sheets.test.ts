@@ -117,6 +117,13 @@ const LIBRARY_PARTS = [
   "/hi2vi/library/",
   "/components/book/",
   "/hi2vi/reader/",
+  // Listen's and Review's heads (job 07): their boards draw `button.link-row` (Listen's Start over, F207;
+  // Review's head), and they mount only on the reading pages and Review, never on a page from before the Library.
+  "/hi2vi/listen/",
+  "/hi2vi/review/",
+  // The Workspace's agenda (job 02): its board draws `button.link link-row` (the ended part's Show all),
+  // and it mounts only under a project's Workspace, never on a page from before the Library.
+  "/hi2vi/workspace/",
 ];
 
 describe("the Library's sheets", () => {
@@ -231,10 +238,11 @@ describe("the Library's sheets", () => {
       "./boundary.css",
       "./library/frame.css",
     ]);
-    // the Library's sheets are one run, its boundary last; a later job's sheets follow it
+    // the Library's parts are one run, its boundary last; Listen's, Review's and the Workspace's sheets
+    // sit between them, and a later job's sheets (Feedback's) follow the boundary
     const own = imports.filter((i) => i.startsWith("./library/"));
     const at = imports.indexOf("./library/frame.css");
-    expect(imports.slice(at, at + own.length)).toEqual(own);
+    expect(imports.slice(at, at + own.length - 1)).toEqual(own.slice(0, -1));
     expect(own.at(-1)).toBe("./library/boundary.css");
     expect(new Set(imports).size).toBe(imports.length);
     expect(
