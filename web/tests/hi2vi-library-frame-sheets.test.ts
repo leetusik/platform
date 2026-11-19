@@ -117,6 +117,10 @@ const LIBRARY_PARTS = [
   "/hi2vi/library/",
   "/components/book/",
   "/hi2vi/reader/",
+  // Listen's and Review's heads (job 07): their boards draw `button.link-row` (Listen's Start over, F207;
+  // Review's head), and they mount only on the reading pages and Review, never on a page from before the Library.
+  "/hi2vi/listen/",
+  "/hi2vi/review/",
 ];
 
 describe("the Library's sheets", () => {

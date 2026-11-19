@@ -19,16 +19,16 @@ import "@/app/reader.css";
 
 /**
  * THE BRIDGE (P63-fk.S8, until the reader chain rebuilds the body): the old body of a text inside the
- * new reader's frame. The text (`ChapterView`), its blocks, terms, quiz, highlights and notes, and the
- * Listen slot and player are still the old components (S9, S10 and S11 rebuild them; Listen keeps its old
- * look, operator decision 3). They read the old reader's root around them, so here they get one:
+ * new reader's frame. The text (`ChapterView`), its blocks, terms, quiz, highlights and notes were the old
+ * components (S9, S10 and S11 rebuilt most of them); what still sits in it (the print masthead and colophon, the
+ * body's islands) reads `app/reader.css`, so the import stays. The old Listen slot and player left in P64-3y.
+ * What it holds reads the old reader's root around it, so here it gets one:
  *
  *   Legacy ([data-ui-legacy]: no rule of the system reaches in)
  *     > div.rd-root.rd-size-N[data-md-color-scheme] (the old tokens, the text sizes and the schemes
  *       of `app/reader.css`, from the same `kb_reader` settings as the frame; `math-layer` and
  *       `scroll-box` watch its class; the annotation layer left it in P63-fk.S11)
- *       > the old body, then `after` (the Listen slot and the player: `position: fixed`, placed against
- *         the window, since no ancestor of this root has a transform or layout containment).
+ *       > the old body
  *
  * Two inline declarations undo what the old root does to a whole page and must not do inside the
  * frame's column: `min-height: 100dvh` and its background (the frame paints the reader's ground).
@@ -36,10 +36,12 @@ import "@/app/reader.css";
  */
 export interface OldBodyValue {
   settings: ReaderSettings;
-  /** A Listen is docked (the store's), so the old slot lifts what it holds above the dock. */
-  docked: boolean;
-  /** Rendered after the body, inside the old root: the Listen slot and the player. */
-  after?: ReactNode;
+  /**
+   * P64-3y.F4 — the reader's top bar's real height in px (`./frame-measure` `useReaderTopBar`; null until measured).
+   * The old sheet lands an island's `[id]` under its own bar's height (`--rd-top-h`, one row: 3.5rem); the frame's
+   * `--reader-top-h` stops at the old-page boundary, so the root is given the measured height as that name.
+   */
+  topH?: number | null;
 }
 
 export const OldBodyContext = createContext<OldBodyValue | null>(null);
@@ -55,35 +57,29 @@ const STILL: CSSProperties = { ...UNDO_PAGE, display: "contents" };
 const NO_BOX: CSSProperties = { display: "contents" };
 
 export function OldRoot({
-  slot = true,
   still = false,
   children,
 }: {
-  /** Render the frame's `after` (the Listen slot and the player) after the children; once a page. */
-  slot?: boolean;
   /** No box of its own (`display: contents`): see `STILL`. */
   still?: boolean;
   children: ReactNode;
 }) {
   const value = useContext(OldBodyContext);
   const settings = value?.settings ?? DEFAULT_READER_SETTINGS;
-  const className = [
-    "rd-root",
-    `rd-size-${settings.size}`,
-    value?.docked ? "lx-docked" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const className = `rd-root rd-size-${settings.size}`;
+  const base = still ? STILL : UNDO_PAGE;
+  const style: CSSProperties = value?.topH
+    ? ({ ...base, "--rd-top-h": `${value.topH}px` } as CSSProperties)
+    : base;
   return (
     <Legacy style={still ? NO_BOX : undefined}>
       <div
         className={className}
         data-md-color-scheme={schemeFor(settings.theme)}
         data-theme-choice={settings.theme}
-        style={still ? STILL : UNDO_PAGE}
+        style={style}
       >
         {children}
-        {slot ? value?.after : null}
       </div>
     </Legacy>
   );

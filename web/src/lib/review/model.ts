@@ -1,8 +1,8 @@
 /**
  * P30.S24 — the review surface's rules (`08-review` round 01), as pure functions: no React and
- * no network. The island (`components/review/`) calls them to word a preview, reuse a
- * `review_id`, land a rating's reply on the local queue and say which end state the queue is in;
- * the tests pin the ones the product cannot afford to get wrong (the idempotent retry, the
+ * no network. Review's views (`hi2vi/review/`, and the undrawn-form card, `components/review/card.tsx`) call
+ * them to word a preview, reuse a `review_id`, land a rating's reply on the local queue and say which end state
+ * the queue is in; the tests pin the ones the product cannot afford to get wrong (the idempotent retry, the
  * interval words).
  */
 import { REVIEW } from "@/content/review";
@@ -153,14 +153,18 @@ export function dayDiff(a: string, b: string, tz: string): number {
   );
 }
 
-/** "today at 15:10", "tomorrow at 07:15" or "on 23 Oct at 07:15": `iso` in `tz`, 24-hour. */
+/**
+ * "today at 15:10", "tomorrow at 07:15" or "on Oct 23 at 07:15": `iso` in `tz`, 24-hour, the date month first
+ * (job 07's end of a session, F227; P58-yw's dates).
+ */
 export function whenText(iso: string, nowIso: string, tz: string): string {
   const at = localParts(iso, tz);
   const hhmm = `${pad(at.h)}:${pad(at.mi)}`;
   const diff = dayDiff(nowIso, iso, tz);
   if (diff <= 0) return `today at ${hhmm}`;
   if (diff === 1) return `tomorrow at ${hhmm}`;
-  return `on ${at.d} ${MONTHS[at.mo - 1] ?? ""} at ${hhmm}`;
+  const month = MONTHS[at.mo - 1] ?? "";
+  return `on ${month} ${at.d} at ${hhmm}`;
 }
 
 /** "HH:00": the hour a review day starts. */

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { chapterN } from "./book";
+import { keepsPlace } from "./leave";
 import type { Listen, ListenKept, ListenSeed } from "./types";
 
 // P41-sr.W1 — the one Listen of the page (`11-listen` F19, F33): a module store read with
@@ -65,6 +66,11 @@ export interface ListenEngine {
   setFollow(follow: boolean): void;
   /** P41-sr.W2: Stop listening (F17, F33): save the place as kept, end the Listen. */
   stop(): void;
+  /**
+   * P64-3y.F1: leaving the Listen pages with no place to keep (F231: still preparing, finished, at 0:00): the
+   * Listen ends keeping nothing; the place a page load would leave is saved as it is today (no `kept`).
+   */
+  end(): void;
 }
 
 let engine: ListenEngine | null = null;
@@ -191,6 +197,29 @@ export const listenActions = {
     const place = keptOf(l);
     run((e) => e.stop());
     setKept(place);
+  },
+  /**
+   * P64-3y.F1 — leaving the Listen pages (F231, `./leave`): a Listen with a place ends exactly as Stop listening
+   * does (kept); any other ends keeping nothing (`none`: the unit offers no place, as a load after it would not).
+   * A press still waiting for the player goes with the page.
+   */
+  leave: () => {
+    const l = getListen();
+    if (!l) {
+      queued = null;
+      return;
+    }
+    if (keepsPlace(l)) {
+      listenActions.stop();
+      return;
+    }
+    const nothing: ListenKept = { ...keptOf(l), pos: 0, none: true };
+    if (engine) engine.end();
+    else {
+      queued = null;
+      setListen(null);
+    }
+    setKept(nothing);
   },
   openPlayer: () => openPlayerImpl(),
 };

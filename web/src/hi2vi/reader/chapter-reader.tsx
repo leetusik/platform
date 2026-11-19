@@ -12,15 +12,6 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  ListenHead,
-  ListenPageContext,
-  ListenSlot,
-  unitOfSeed,
-  useFollowAlong,
-  type ListenPageValue,
-} from "@/components/listen/listen-page";
-import { ListenPlayer } from "@/components/listen/player";
 import { NotesBridgeContext } from "@/components/reader/reader-notes";
 import {
   ReaderProgressContext,
@@ -38,9 +29,17 @@ import {
   Versions,
   type BarTool,
 } from "@/hi2vi/library";
+import {
+  ListenHeadSlot,
+  ListenPlayerSheet,
+  listenShown,
+  ListenTrack,
+  useFollow,
+} from "@/hi2vi/listen";
 import { UiRoot } from "@/hi2vi/ui";
 import { date } from "@/lib/format";
 import { withFrom, type ListOrigin } from "@/lib/library/from";
+import { unitOfKey } from "@/lib/listen/book";
 import { useListen } from "@/lib/listen/store";
 import type { ListenSeed } from "@/lib/listen/types";
 import {
@@ -73,10 +72,12 @@ import {
   showBars,
   versionItems,
 } from "./model";
-import { OldBodyContext, OldRoot, type OldBodyValue } from "./old-root";
+import { useLayerHolder, useReaderTopBar, useSlotLift } from "./frame-measure";
+import { OldBodyContext, type OldBodyValue } from "./old-root";
 import { ReaderEnd } from "./reader-end";
 import { ReaderFoot } from "./reader-foot";
 import { ReaderHead } from "./reader-head";
+import { slotOf, slotWants } from "./slot";
 
 /**
  * The reader's frame on a chapter (job 03, Library round 02: `## Build` § The frame, § Page: chapter;
@@ -153,6 +154,8 @@ export function ChapterReader({
     bars.current = quietBars(bars.current, Date.now(), QUIET_MS);
   }, []);
 
+  // P64-3y.F4: the top bar's real height (`--reader-top-h`), written before the page's landings run.
+  const topH = useReaderTopBar(rootRef);
   // The top bar, for the reader's memory: its bottom edge is the line a place is sampled at. Set before
   // `useReading`'s own effects run (a layout effect runs first).
   useLayoutEffect(() => {
@@ -413,29 +416,34 @@ export function ChapterReader({
     }),
     [sheet, notesHost, closeSheet, pill, notesBookHref, slotHost, hidden],
   );
-  const docked = useListen() !== null;
-  const listenUnit = listen ? unitOfSeed(listen) : null;
-  const listenPage = useMemo<ListenPageValue | null>(
-    () =>
-      listen && listenUnit
-        ? { seed: listen, unit: listenUnit, setHead: setListenHead }
-        : null,
-    [listen, listenUnit, setListenHead],
-  );
-  useFollowAlong(rootRef, listenUnit, listen?.chapter ?? null);
-  const listenPill = !!listen && past && !hidden && sheet === null && !pill;
-  const oldBody = useMemo<OldBodyValue>(
-    () => ({
-      settings,
-      docked,
-      after: (
-        <>
-          <ListenSlot chapter pill={listenPill} signInHref={signIn} />
-          <ListenPlayer signInHref={signIn} />
-        </>
-      ),
+  // The frame re-renders when the Listen store changes (a Listen docking or leaving), so `useSlotLift` below
+  // measures the dock coming and going after that render; nothing else here reads the store.
+  useListen();
+  const listenUnit = listen ? unitOfKey(listen.key) : null;
+  useFollow(rootRef, listenUnit, listen?.chapter ?? null);
+  // F206: no Listen for a visitor or an older version of the text.
+  const audioOn = listenShown({
+    member,
+    version: view.version,
+    newest: view.newest,
+    seed: listen,
+  });
+  // The one slot above the foot bar (F93, F207; P64-3y.F4, `./slot`): one holder at a time, in its order (the
+  // layer's undo line and Sign in to save, the reader's resume pill or the layer's place bar, then Listen's pill,
+  // which wants the head's control under the top bar and no sheet open). The holder stands on the dock while
+  // a Listen is under way (F208).
+  const layerHolder = useLayerHolder(slotHost);
+  const holder = slotOf(
+    slotWants({
+      layer: layerHolder,
+      resume: pill,
+      listen: audioOn && past && sheet === null,
     }),
-    [settings, docked, listenPill, signIn],
+  );
+  useSlotLift(rootRef);
+  const oldBody = useMemo<OldBodyValue>(
+    () => ({ settings, topH }),
+    [settings, topH],
   );
 
   // ---- the parts -----------------------------------------------------------------------------------
@@ -495,116 +503,123 @@ export function ChapterReader({
           />
           <ReaderProgressContext.Provider value={progressValue}>
             <NotesBridgeContext.Provider value={notesBridge}>
-              <ListenPageContext.Provider value={listenPage}>
-                <OldBodyContext.Provider value={oldBody}>
-                  <div className="reader-frame">
-                    <main
-                      className="reader-main"
-                      id="main-content"
-                      onClick={onTap}
-                    >
-                      <article className="reader-col">
-                        <ReaderHead
-                          noun="chapter"
-                          title={view.title}
-                          lede={view.summary}
-                          lang={view.lang}
-                          where={
-                            book
-                              ? READER_FRAME.head.chapterOf(book.n, book.total)
-                              : ""
-                          }
-                          version={view.version}
-                          newest={view.newest}
-                          published={date(view.published || view.date, fmt)}
-                          translation={
-                            src
-                              ? {
-                                  source: src.label,
-                                  from: src.from,
-                                  newest: src.newest,
-                                }
-                              : null
-                          }
-                          sections={sections}
-                          listen={
-                            listen ? (
-                              <OldRoot slot={false}>
-                                <ListenHead />
-                              </OldRoot>
-                            ) : null
-                          }
-                          onVersions={() => openSheet("versions")}
-                          onNewest={() =>
-                            go(
-                              carry(
-                                readerHref(target, {
-                                  lang: hasLangs ? view.lang : null,
-                                }),
-                              ),
-                            )
-                          }
-                          onSource={() =>
-                            src &&
-                            go(carry(readerHref(target, { lang: src.lang })))
-                          }
-                          onSection={toSection}
-                        />
-                        <div className="read-flow">{children}</div>
-                        <ReaderEnd
-                          kind="chapter"
-                          state={state}
-                          asking={asking}
-                          next={
-                            next
-                              ? {
-                                  n: next.n ?? (book?.n ?? 0) + 1,
-                                  total,
-                                  title: next.title,
-                                  lede: next.summary,
-                                  lang: next.lang,
-                                }
-                              : null
-                          }
-                          last={last}
-                          rows={
-                            endRowsShown({
-                              total,
-                              finished: rd.reading.finished,
-                              last,
-                            })
-                              ? items
-                              : undefined
-                          }
-                          current={currentKey}
-                          progress={
-                            member && finishedCount !== null
-                              ? READER_FRAME.end.finished(finishedCount, total)
-                              : READER_FRAME.end.chapters(total)
-                          }
-                          signInHref={signIn}
-                          onFinish={() => void rd.mark(true)}
-                          onUnread={() => void rd.mark(false)}
-                          onNext={() => next && go(carry(next.href))}
-                          onBook={() => go(bookHrefNow)}
-                          onOpen={openChapter}
-                          onAsk={() => setAsking(true)}
-                          onDismiss={() => setAsking(false)}
-                        />
-                      </article>
-                    </main>
-                  </div>
-                  {notes ? (
-                    <div
-                      className="marks-slot"
-                      data-an-ui=""
-                      ref={setSlotHost}
-                    />
-                  ) : null}
-                </OldBodyContext.Provider>
-              </ListenPageContext.Provider>
+              <OldBodyContext.Provider value={oldBody}>
+                <div className="reader-frame">
+                  <main
+                    className="reader-main"
+                    id="main-content"
+                    onClick={onTap}
+                  >
+                    <article className="reader-col">
+                      <ReaderHead
+                        noun="chapter"
+                        title={view.title}
+                        lede={view.summary}
+                        lang={view.lang}
+                        where={
+                          book
+                            ? READER_FRAME.head.chapterOf(book.n, book.total)
+                            : ""
+                        }
+                        version={view.version}
+                        newest={view.newest}
+                        published={date(view.published || view.date, fmt)}
+                        translation={
+                          src
+                            ? {
+                                source: src.label,
+                                from: src.from,
+                                newest: src.newest,
+                              }
+                            : null
+                        }
+                        sections={sections}
+                        audio={
+                          audioOn && listen ? (
+                            <ListenHeadSlot
+                              seed={listen}
+                              signInHref={signIn}
+                              onHead={setListenHead}
+                            />
+                          ) : null
+                        }
+                        onVersions={() => openSheet("versions")}
+                        onNewest={() =>
+                          go(
+                            carry(
+                              readerHref(target, {
+                                lang: hasLangs ? view.lang : null,
+                              }),
+                            ),
+                          )
+                        }
+                        onSource={() =>
+                          src &&
+                          go(carry(readerHref(target, { lang: src.lang })))
+                        }
+                        onSection={toSection}
+                      />
+                      <div className="read-flow">{children}</div>
+                      <ReaderEnd
+                        kind="chapter"
+                        state={state}
+                        asking={asking}
+                        next={
+                          next
+                            ? {
+                                n: next.n ?? (book?.n ?? 0) + 1,
+                                total,
+                                title: next.title,
+                                lede: next.summary,
+                                lang: next.lang,
+                              }
+                            : null
+                        }
+                        last={last}
+                        rows={
+                          endRowsShown({
+                            total,
+                            finished: rd.reading.finished,
+                            last,
+                          })
+                            ? items
+                            : undefined
+                        }
+                        current={currentKey}
+                        progress={
+                          member && finishedCount !== null
+                            ? READER_FRAME.end.finished(finishedCount, total)
+                            : READER_FRAME.end.chapters(total)
+                        }
+                        signInHref={signIn}
+                        onFinish={() => void rd.mark(true)}
+                        onUnread={() => void rd.mark(false)}
+                        onNext={() => next && go(carry(next.href))}
+                        onBook={() => go(bookHrefNow)}
+                        onOpen={openChapter}
+                        onAsk={() => setAsking(true)}
+                        onDismiss={() => setAsking(false)}
+                      />
+                    </article>
+                  </main>
+                </div>
+                {notes ? (
+                  <div className="marks-slot" data-an-ui="" ref={setSlotHost} />
+                ) : null}
+                {/* The opened player (F211): the reader's sheet from the end side, opened by the dock. */}
+                <ListenPlayerSheet signInHref={signIn} />
+              </OldBodyContext.Provider>
             </NotesBridgeContext.Provider>
           </ReaderProgressContext.Provider>
+          {/* The dock's track (F208, listen:FG1): in the flow before ReaderFoot, sticky to the window's foot. */}
+          <ListenTrack
+            seed={audioOn ? listen : null}
+            shown={audioOn}
+            pill={holder === "listen"}
+            chapter={!!book}
+            hidden={chrome.foot.hidden}
+            signInHref={signIn}
+          />
           {book ? (
             <ReaderFoot
               n={book.n}
@@ -613,7 +628,7 @@ export function ChapterReader({
               prev={prev?.title ?? null}
               next={next?.title ?? null}
               hidden={chrome.foot.hidden}
-              pill={chrome.foot.pill}
+              pill={chrome.foot.pill && holder === "resume"}
               onPrev={() => prev && go(carry(prev.href))}
               onNext={() => next && go(carry(next.href))}
               onContents={() => openSheet("contents")}

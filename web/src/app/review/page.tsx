@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import { ReviewApp } from "@/components/review/review-app";
 import { REVIEW } from "@/content/review";
+import { ReviewFrame } from "@/hi2vi/review";
+import { accountOf } from "@/hi2vi/review/saved-line";
 import { requireIdentity } from "@/lib/auth-guards";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 import { loadReviewContinue, loadReviewQueue } from "@/lib/review/actions";
 import { endKind } from "@/lib/review/model";
 
-// P30.S24 — `/review` (`08-review` round 01): the signed-in reader's spaced-review queue, in a
-// focused frame of the reader's family (no app shell). Signed in only (`require_user`): a
-// signed-out visitor is redirected to `/login?next=/review` BEFORE any review data is read or
-// rendered (`layout.tsx` guards the segment above its loading shell; the page asks again, which is cached), and review state is private: noindex, never shared.
+// P30.S24 — `/review`: the signed-in reader's spaced-review queue; since P64-3y.S7 in Review's focused frame
+// (job 07-listen-review, round 01, frame.md F201: `ReviewFrame`), in the reader's family, outside the Shell.
+// Signed in only (`require_user`): a signed-out visitor is redirected to `/login?next=/review` BEFORE any
+// review data is read or rendered (`layout.tsx` guards the segment above its loading shell; the page asks
+// again, which is cached), and review state is private: noindex, never shared.
 //
 // The first queue is read here, so the first paint already holds the cards; the island rates,
 // suspends and re-reads through server actions. A fault reading it is the designed "failed"
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ReviewPage() {
-  await requireIdentity();
+  const { identity } = await requireIdentity();
   const settings = parseReaderCookie(
     (await cookies()).get(READER_COOKIE)?.value,
   );
@@ -41,5 +43,12 @@ export default async function ReviewPage() {
     kind !== null && kind !== "card" && kind !== "empty"
       ? await loadReviewContinue()
       : null;
-  return <ReviewApp initial={initial} settings={settings} initialNext={next} />;
+  return (
+    <ReviewFrame
+      initial={initial}
+      settings={settings}
+      initialNext={next}
+      account={accountOf(identity)}
+    />
+  );
 }

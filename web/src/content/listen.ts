@@ -15,8 +15,6 @@ export const LISTEN = {
     starting: "Starting…",
     continue: "Continue listening",
     startOver: "Start over",
-    /** The pill's qualifier: "▶ Listen · 42 min", "▶ Continue listening · 18:05". */
-    pillQ: (q: string): string => `· ${q}`,
     /** Left part-way: "18:05 of 42:10". */
     resumeQ: (pos: string, len: string): string => `${pos} of ${len}`,
     /** P41-sr.W2 — a chapter's scope (F6, OQ1): "Chapters 2–5", "· about 3 h 30 min" once all are made. */
@@ -172,12 +170,19 @@ export const LISTEN = {
     next: "Next chapter",
     back: "Back 15 seconds",
     fwd: "Forward 15 seconds",
+    /** P64-3y.S4 — job 07's transport (frame.md F211, `ListenPlayer.dc.html`): its group, the skips' faces
+     * and the chapter buttons' words (their names stay `Previous chapter` / `Next chapter`). */
+    transport: "Playback",
+    backFace: "−15",
+    fwdFace: "+15",
+    previousShort: "Previous",
+    nextShort: "Next",
+    /** The Chapters list's name (`ListenPlayer.dc.html`). */
+    chapterList: "Chapters to listen to",
     play: "Play",
     pause: "Pause",
     startOver: "Start over",
     tryAgain: "Try again",
-    /** The round button on the resume offer (player-G3). */
-    continue: "Continue listening",
     speed: "Speed",
     /** F2: the multiplication sign, no space. */
     speedValue: (v: number): string => `${v}×`,
@@ -196,8 +201,6 @@ export const LISTEN = {
     /** The trio words for the four live states (player-G2). */
     playing: "Playing",
     paused: "Paused",
-    loading: "Loading…",
-    buffering: "Buffering…",
   },
   /** P41-sr.W2 — the book landing's audio (F31, book-G3): a row's own meta item, led by "Audio". */
   book: {
@@ -205,7 +208,6 @@ export const LISTEN = {
     audioPreparing: (part: string | null): string =>
       `Audio preparing…${part ? ` · ${part}` : ""}`,
     audioNone: "Audio not prepared yet",
-    audioHeld: "Audio held by the daily limit",
     playing: "Playing",
     paused: "Paused",
   },

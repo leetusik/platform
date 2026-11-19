@@ -6,6 +6,9 @@ import { DocumentOriginal, DocumentReader } from "@/hi2vi/reader/document";
 import { documentMarks, type DocMark } from "@/hi2vi/reader/document/model";
 import { ChapterBody } from "@/hi2vi/reader/body/body";
 import { ApiError } from "@/lib/knowledge/client";
+import { docSeed, readListenState } from "@/lib/listen/seed";
+import type { ListenSeed } from "@/lib/listen/types";
+import { readerHref } from "@/lib/reader-href";
 import type { LoadedReader, ReaderLoad } from "@/lib/reader/load";
 
 /**
@@ -19,6 +22,10 @@ import type { LoadedReader, ReaderLoad } from "@/lib/reader/load";
  *    body (`ChapterBody`). Its marks follow its format (OQ14, `documentMarks`): a Markdown document's Notes
  *    sheet is DocumentNotes (bookmarks only), so the text is handed over with no annotation layer; a native one
  *    keeps the layer, whose own Notes body fills the sheet.
+ *
+ * P64-3y.S6 (job 07, round 01: `## Build` › Listen, F206): a Markdown or native document has Listen, its seed read
+ * by the page (`documentListen`) and mounted by the reader in ReaderHead's slot. The html original never has
+ * Listen (P63-fk OQ22): it is handed no seed, whatever the page passes.
  */
 export function renderDocument(
   loaded: ReaderLoad,
@@ -27,6 +34,8 @@ export function renderDocument(
     org: string | null;
     nonce?: string;
     timeZone?: string;
+    /** The document's Listen seed (`documentListen`); the reader's only. */
+    listen?: ListenSeed | null;
   },
 ) {
   if (loaded.kind === "legacy") {
@@ -76,10 +85,30 @@ export function renderDocument(
       orgName={reader.orgName ?? null}
       nonce={p.nonce}
       timeZone={p.timeZone}
+      listen={p.listen ?? null}
     >
       <ChapterBody reader={body} />
     </DocumentReader>
   );
+}
+
+/**
+ * The document's Listen seed, in one read (`GET /app/listen/state` by the document's write key), after the load: only for a member (Listen's routes are session-only), on the reader (never the html original), on the
+ * newest version (an older version's text is not the audio's; F206 draws no Listen there), with a key to read by
+ * (a tenant with no org slug has none). The server decides what can be read aloud: a document it reports
+ * `unavailable`, and any miss or fault, is no Listen (`readListenState`), so the page never fails over it.
+ */
+export async function documentListen(
+  loaded: ReaderLoad,
+  token: string | undefined,
+): Promise<ListenSeed | null> {
+  if (!token || loaded.kind !== "reader") return null;
+  const view = loaded.reader.view;
+  const write = view.write;
+  if (!view.member || !write || view.version < view.newest) return null;
+  const key = { org: write.org, project: write.project, doc: write.doc };
+  const state = await readListenState(token, key);
+  return docSeed(view, state, key, readerHref(view.target));
 }
 
 /** `notFound()`'s throw (Next marks it with this digest). */

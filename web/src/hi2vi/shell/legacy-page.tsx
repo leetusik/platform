@@ -14,8 +14,8 @@ import { Legacy } from "@/hi2vi/ui/boundary";
  *
  * The box does not contain the page's `position: fixed` parts: they are placed against the window, over
  * the Shell's bar and rail (a size container, `.kb-app`'s `container-type`, is no containing block for
- * them). So no old page with screen-fixed parts goes inside the Shell: `/review` (its reader bar, sheets,
- * scrim and toast) renders without it until its own phase rebuilds it (`app/review/layout.tsx`).
+ * them). So no old page with screen-fixed parts goes inside the Shell. (`/review` is outside the Shell for
+ * good: its route sits outside the `(app)` group and renders Review's own focused frame, `ReviewFrame`.)
  *
  * A route switches to system markup by not rendering this: an `(app)` route folder's `layout.tsx`
  * wraps its pages in it; delete that file and the page renders straight into `main.app-main`.

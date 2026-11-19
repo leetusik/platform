@@ -22,9 +22,19 @@ import { useReading } from "@/components/reader/use-reading";
 import { READER_DOCUMENT } from "@/content/reader-document";
 import { READER_FRAME } from "@/content/reader-frame";
 import { Bar, Display, nextSheet, Sheet, Versions } from "@/hi2vi/library";
+import {
+  ListenHeadSlot,
+  ListenPlayerSheet,
+  listenShown,
+  ListenTrack,
+  useFollow,
+} from "@/hi2vi/listen";
 import { UiRoot } from "@/hi2vi/ui";
 import { date } from "@/lib/format";
 import { withFrom } from "@/lib/library/from";
+import { unitOfKey } from "@/lib/listen/book";
+import { useListen } from "@/lib/listen/store";
+import type { ListenSeed } from "@/lib/listen/types";
 import {
   readerCookieString,
   type ReaderSettings,
@@ -51,10 +61,12 @@ import {
   showBars,
   versionItems,
 } from "../model";
+import { useLayerHolder, useReaderTopBar, useSlotLift } from "../frame-measure";
 import { OldBodyContext, type OldBodyValue } from "../old-root";
 import { ReaderEnd } from "../reader-end";
 import { ReaderFoot } from "../reader-foot";
 import { ReaderHead } from "../reader-head";
+import { slotOf, slotWants } from "../slot";
 import { DocumentBookmarks } from "./document-notes";
 import {
   documentBack,
@@ -74,7 +86,14 @@ import {
  *       past six), .read-flow (the text), ReaderEnd kind="document"
  *     + ReaderFoot bar={false} (the pill alone) + one sheet at a time (Notes, Version history, Display)
  *
- * No Listen (the signed head draws none on a document) and no `aside.reader-side` (Ask waits for P68-jf).
+ * Listen (P64-3y.S6; job 07 round 01, `## Build` › Listen, F206 to F211, listen:FG1, FG8): AudioHead in
+ * ReaderHead's slot (`ListenHeadSlot`, the document's three tallest notes held: preparing stopped, the daily limit,
+ * offline stopped), follow along, the dock's track before ReaderFoot (16 px from the foot: a document has no foot
+ * bar), Listen's pill once the head's control is under the top bar, and the player's document form (no
+ * Previous/Next, no Chapters, the head's `Document in <project>`). A member on the newest version only, with the
+ * page's seed (`documentListen`); the html original is another frame and has none.
+ *
+ * No `aside.reader-side` (Ask waits for P68-jf).
  * The marks follow the document's format (OQ14, `./model` `documentMarks`): a Markdown document's Notes
  * sheet is `DocumentBookmarks` (bookmarks only); a native one's is the annotation layer's own body, mounted by
  * the text (`ChapterBody`) through the notes bridge, as a chapter's is.
@@ -98,6 +117,8 @@ export interface DocumentReaderProps {
   nonce?: string;
   /** The viewer's zone, for dates (decision 5). */
   timeZone?: string;
+  /** The document's Listen seed, read by the page (`documentListen`); null: no Listen here. */
+  listen?: ListenSeed | null;
   // The text (`ChapterBody`).
   children?: ReactNode;
 }
@@ -111,6 +132,7 @@ export function DocumentReader({
   orgName = null,
   nonce,
   timeZone,
+  listen = null,
   children,
 }: DocumentReaderProps) {
   const router = useRouter();
@@ -129,16 +151,23 @@ export function DocumentReader({
   const [showTitle, setShowTitle] = useState(false);
   const [notesHost, setNotesHost] = useState<HTMLElement | null>(null);
   const [slotHost, setSlotHost] = useState<HTMLElement | null>(null);
+  const [past, setPast] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLElement | null>(null);
   const bars = useRef(readerBars(0));
   const sheetRef = useRef<SheetName | null>(null);
+  const listenHeadRef = useRef<HTMLDivElement | null>(null);
+  const setListenHead = useCallback((el: HTMLDivElement | null) => {
+    listenHeadRef.current = el;
+  }, []);
 
   const quiet = useCallback(() => {
     bars.current = quietBars(bars.current, Date.now(), QUIET_MS);
   }, []);
 
+  // P64-3y.F4: the top bar's real height (`--reader-top-h`), written before the page's landings run.
+  const topH = useReaderTopBar(rootRef);
   useLayoutEffect(() => {
     topRef.current =
       rootRef.current?.querySelector<HTMLElement>(".bar-wrap > .bar") ?? null;
@@ -210,6 +239,12 @@ export function DocumentReader({
       const head = rootRef.current?.querySelector<HTMLElement>(".read-head");
       const gone = head ? head.getBoundingClientRect().bottom <= bottom : false;
       setShowTitle((prev) => (prev === gone ? prev : gone));
+      // Listen's pill (F207): once the head's control is under the top bar.
+      const slot = listenHeadRef.current;
+      const isPast = slot
+        ? slot.getBoundingClientRect().bottom <= bottom
+        : false;
+      setPast((prev) => (prev === isPast ? prev : isPast));
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(measure);
@@ -325,10 +360,34 @@ export function DocumentReader({
     }),
     [sheet, layer, notesHost, closeSheet, pill, slotHost, hidden],
   );
+  // The frame re-renders when the Listen store changes (a Listen docking or leaving), so `useSlotLift` below
+  // measures the dock coming and going after that render; nothing else here reads the store.
+  useListen();
   const oldBody = useMemo<OldBodyValue>(
-    () => ({ settings, docked: false, after: null }),
-    [settings],
+    () => ({ settings, topH }),
+    [settings, topH],
   );
+  useFollow(rootRef, listen ? unitOfKey(listen.key) : null, null);
+  // F206: no Listen for a visitor or an older version of the text.
+  const audioOn = listenShown({
+    member,
+    version: view.version,
+    newest: view.newest,
+    seed: listen,
+  });
+  // The one slot above the foot (F93, F207; P64-3y.F4, `../slot`): one holder at a time, in its order (the layer's
+  // undo line and Sign in to save, the reader's resume pill or the layer's place bar, then Listen's pill, which
+  // wants the head's control under the top bar and no sheet open). The holder stands on the dock while a Listen
+  // is under way (F208).
+  const layerHolder = useLayerHolder(slotHost);
+  const holder = slotOf(
+    slotWants({
+      layer: layerHolder,
+      resume: pill,
+      listen: audioOn && past && sheet === null,
+    }),
+  );
+  useSlotLift(rootRef);
 
   // ---- the parts ------------------------------------------------------------------------------------------
   const chrome = chromeOf({ hidden, pct, pill });
@@ -400,6 +459,15 @@ export function DocumentReader({
                         newest={view.newest}
                         published={date(view.published || view.date, fmt)}
                         sections={folded.shown}
+                        audio={
+                          audioOn && listen ? (
+                            <ListenHeadSlot
+                              seed={listen}
+                              signInHref={signIn}
+                              onHead={setListenHead}
+                            />
+                          ) : null
+                        }
                         fold={
                           folded.fold
                             ? {
@@ -433,13 +501,24 @@ export function DocumentReader({
                 {layer ? (
                   <div className="marks-slot" data-an-ui="" ref={setSlotHost} />
                 ) : null}
+                {/* The opened player (F211, listen:FG8): a document's form, its meta line the head's. */}
+                <ListenPlayerSheet signInHref={signIn} docWhere={where} />
               </OldBodyContext.Provider>
             </NotesBridgeContext.Provider>
           </ReaderProgressContext.Provider>
+          {/* The dock's track (F208, listen:FG1): before ReaderFoot, 16 px from the foot (no foot bar). */}
+          <ListenTrack
+            seed={audioOn ? listen : null}
+            shown={audioOn}
+            pill={holder === "listen"}
+            chapter={false}
+            hidden={chrome.foot.hidden}
+            signInHref={signIn}
+          />
           <ReaderFoot
             bar={false}
             hidden={chrome.foot.hidden}
-            pill={chrome.foot.pill}
+            pill={chrome.foot.pill && holder === "resume"}
             onTop={fromTop}
           />
           <Sheet

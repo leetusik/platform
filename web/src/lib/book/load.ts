@@ -446,7 +446,10 @@ async function datesOf(
   };
 }
 
-/** The heading the saved place is under, in the variant's current text. */
+/**
+ * The title of the heading the saved place is under, in the variant's current text: the book's "Left off at …".
+ * Only the name: Continue reading resumes the saved place itself (F242), never the heading.
+ */
 async function sectionOf(
   token: string | undefined,
   variant: KbBookVariant,

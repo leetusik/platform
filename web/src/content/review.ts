@@ -1,14 +1,22 @@
 // P30.S24 — the review surface's own words, from `08-review` round 01's *Every string written
 // for review* (English only; D36 (4)). The quiz's and the annotations' own strings are used
-// unchanged, from `lib/reader/quiz.ts` and `READER`. Pure functions for the plural forms, so the
-// page, the skeleton and the tests read one source.
+// unchanged, from `lib/reader/quiz.ts` and `READER`. Pure functions for the plural forms. The two words only the old
+// views used (the settings form's Close, the old sheet's Close panel) left with them (P64-3y.S10).
 
-export const plural = (n: number, one: string, many: string): string =>
+const plural = (n: number, one: string, many: string): string =>
   `${n} ${n === 1 ? one : many}`;
 
 export const REVIEW = {
   metaTitle: "Review",
-  top: { library: "Library", settings: "Settings", display: "Display" },
+  top: {
+    library: "Library",
+    settings: "Settings",
+    display: "Display",
+    /** The 3 px line's name and reading (job 07 `Focus.dc.html`, F201). */
+    progressLabel: "Today’s reviews",
+    progressText: (pct: number): string => `${pct}% of today’s cards done`,
+    progressLoading: "Loading",
+  },
   head: {
     title: "Review",
     due: "due",
@@ -58,6 +66,25 @@ export const REVIEW = {
     loose: (project: string): string => `${project} · Document`,
     drift:
       "This question changed since your last review, so its card starts over. Your history is kept.",
+    /** The quiz item, re-asked as job 07 draws it (`ReviewCard.dc.html`, the Library's quiz words). */
+    hints: {
+      choice: "Choose one answer.",
+      cloze:
+        "Fill in the blank. Capitals and spaces around the answer don’t count.",
+      recall: "Answer it in your head, then show the answer.",
+    },
+    answers: "Answers",
+    optionTags: {
+      right: "Your answer, correct",
+      wrong: "Your answer, incorrect",
+      answer: "Correct answer",
+    },
+    blank: (n: number, total: number): string => `Blank ${n} of ${total}`,
+    answer: "Answer",
+    showAnswer: "Show answer",
+    /** `You wrote “<b>…</b>”. Accepted: <b>…</b>.` */
+    wrote: ["You wrote “", "”. Accepted: ", "."] as const,
+    answerShown: "Answer shown. Did you get it?",
   },
   foot: {
     check: "Check",
@@ -70,6 +97,10 @@ export const REVIEW = {
     rates: (rating: "good" | "again", ivl: string): string =>
       `Next rates it ${rating === "good" ? "Good" : "Again"} · in ${ivl}`,
     notSaved: "Not saved · check your connection",
+    /** The failed line as job 07 draws it: the state word, then its rest (F217, FG6). */
+    notSavedWord: "Not saved",
+    notSavedRest: "· check your connection",
+    incorrect: "Incorrect",
     recall: { ask: "Did you get it?", good: "I got it", again: "I missed it" },
     highlight: {
       ask: "Did it stay with you?",
@@ -127,6 +158,10 @@ export const REVIEW = {
     continue: {
       label: "Continue reading",
       go: "Continue reading →",
+      /** The Continue line's facts after the book (job 07 F214: `{book} · Chapter n of N · p% read`). */
+      chapter: (n: number, total: number): string => `Chapter ${n} of ${total}`,
+      read: (pct: number): string => `${pct}% read`,
+      document: "Document",
     },
     emptyTitle: "No review cards yet",
     emptyBody:
@@ -141,7 +176,6 @@ export const REVIEW = {
   },
   settings: {
     title: "Review settings",
-    close: "Close",
     lead: "These apply to all your cards, on every device.",
     timeZone: "Time zone",
     timeZoneHint:
@@ -161,7 +195,6 @@ export const REVIEW = {
     cancel: "Cancel",
     notSaved: "Not saved · check your connection",
   },
-  closePanel: "Close panel",
   intervals: {
     minute: ["minute", "minutes"],
     hour: ["hour", "hours"],

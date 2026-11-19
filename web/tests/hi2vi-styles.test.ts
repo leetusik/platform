@@ -73,7 +73,9 @@ describe("the hi2vi sheets", () => {
       expect(
         other.map((b) => b.prelude),
         name,
-      ).toEqual(name === "bundle.css" ? ["@keyframes skel"] : []);
+      ).toEqual(
+        name === "bundle.css" ? ["@keyframes skel", "@keyframes say-turn"] : [],
+      );
     }
   });
 

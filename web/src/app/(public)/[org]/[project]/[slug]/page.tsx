@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import {
+  documentListen,
   firstOf,
   missTitle,
   renderDocument,
@@ -49,9 +50,13 @@ import { viewerTimeZone } from "@/lib/time-zone";
 // P63-fk.S12 — a native or md document reads in the Library's reader (`@/hi2vi/reader/document`, job 03
 // Library round 02, § Page: document; `renderDocument`): the way back by `?from=` (F328), an earlier version
 // at `?v=n` (one that does not exist is Document not found), Version history, the marks by format (OQ14).
-// The signed document draws no Listen, so the page reads no Listen seed any more (P41-sr.W1's, retired).
+// Library round 02 drew no Listen on a document (job 07 draws it; P64-3y.S6 below).
 // Loading, Not found and Error are the document's own, fed by this folder's layout. An unknown
 // three-segment address (`/nope/x/y`) reaches the same Document not found (D249-7z).
+//
+// P64-3y.S6 — job 07 draws Listen on a document: a member on the newest version of a Markdown or native
+// document reads its Listen state once after the load (`documentListen`, by the document's write key), and the
+// reader mounts it in its head. A visitor, an older version and the html original read none.
 //
 // The <title> is the document's title (P30.S15), through `generateMetadata`. The
 // knowledge client is `cache: "no-store"`, so the page and the metadata share ONE
@@ -210,11 +215,13 @@ export default async function PrettyDocumentPage({
     requestNonce(),
     cookies(),
   ]);
+  const listen = await documentListen(loaded, ctx?.token);
   return renderDocument(loaded, {
     from: firstOf(query[FROM_PARAM]),
     org: orgSlug,
     nonce,
     timeZone: viewerTimeZone(jar),
+    listen,
   });
 }
 

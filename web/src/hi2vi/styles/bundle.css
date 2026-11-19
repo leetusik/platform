@@ -11,6 +11,13 @@
    - `@keyframes skel` sits after the scope block: a keyframes rule matches no element.
    - `.dlg:modal { margin: auto }` is added: the app's preflight zeroes every margin, which pins a modal dialog to the
      viewport's top-left corner; the canvas had the browser's own `margin: auto`, which centres it.
+   Listen and Review's shared frame parts are added, each beside its family (job 07-listen-review, round 01: frame.md
+   F202 to F205, F218, F239; its frame.css sections 1 to 5), with the signed declarations under the system's names
+   (P58-yw class-names): the five layout tokens, `.hold`, the marks `.ico` / `.ico-*` / `.btn-ico`, the state word
+   `.say` / `.say-rest` with `.status-busy` (signed `.status-wait`) and `.status-fail`, the thin line `.meter` /
+   `.meter-row` (signed `.track` / `.track-row`; its 3 px is the Library's `--line-h`), and `.badge.is-wrap` (F239's
+   three declarations as a modifier: the system's `.badge` stays one line). `@keyframes say-turn` sits after the scope
+   block with `skel`. The job's own Listen and Review classes are in ./listen/listen.css and ./review/review.css.
    The signed file's own header follows. */
 /* hi2vi — the system's stylesheet: the frame of the signed Instrument round, whole.
    Load it after tokens.css. The first rule names the one variable tokens.css spells differently;
@@ -35,6 +42,14 @@
   --plot-h: 120px;
   --gutter: var(--space-6);
   --gutter-narrow: var(--space-4);
+}
+/* Listen and Review's layout tokens (job 07 frame.css section 1) */
+:scope {
+  --focus-w: 36rem;                   /* Review's one column (F201) */
+  --dock-w: 34rem;                    /* the dock's widest, on the book page's column (F208) */
+  --ico: 16px;                        /* a mark inside a control: a 16 px square, centred on the label's line */
+  --seek-track: 4px;                  /* the seek bar's track: drawn in --edge, so it holds 3:1 (F211) */
+  --seek-thumb: 20px;
 }
 
 /* 2 ── base: put .ui on a board's root ───────────────────────────────────── */
@@ -189,6 +204,34 @@
 .swap > * { grid-area: 1 / 1; }
 .swap > :last-child, [data-busy="true"] > .swap > :first-child, [data-swap="true"] > .swap > :first-child { visibility: hidden; }
 [data-busy="true"] > .swap > :last-child, [data-swap="true"] > .swap > :last-child { visibility: visible; }
+/* a part that changes in place keeps the height of its tallest form: every form in one grid cell, the others hidden (job 07 F218) */
+.hold { display: grid; min-width: 0; }
+.hold > * { grid-area: 1 / 1; min-width: 0; }
+.hold > .is-held { visibility: hidden; }
+
+/* marks inside controls (job 07 F202): CSS shapes on a 16 px square, never SVG artwork */
+.ico { position: relative; display: inline-block; flex: none; width: var(--ico); height: var(--ico); }
+.ico::before, .ico::after { content: ""; position: absolute; }
+/* play: a triangle */
+.ico-play::before { top: 2px; left: 4px; border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent currentColor; }
+/* pause: two bars */
+.ico-pause::before, .ico-pause::after { top: 2px; width: 4px; height: 12px; border-radius: 1px; background: currentColor; }
+.ico-pause::before { left: 3px; }
+.ico-pause::after { right: 3px; }
+/* previous and next chapter: a bar and a triangle */
+.ico-prev::before, .ico-next::before { top: 2px; width: 2px; height: 12px; background: currentColor; }
+.ico-prev::after, .ico-next::after { top: 2px; border-style: solid; border-color: transparent; }
+.ico-prev::before { left: 3px; }
+.ico-prev::after { left: 5px; border-width: 6px 8px 6px 0; border-right-color: currentColor; }
+.ico-next::before { right: 3px; }
+.ico-next::after { right: 5px; border-width: 6px 0 6px 8px; border-left-color: currentColor; }
+/* start over: a ring with a gap and its head */
+.ico-again::before { inset: 2px; border: 1.5px solid currentColor; border-top-color: transparent; border-radius: 50%; }
+.ico-again::after { top: 1px; left: 8px; border-style: solid; border-width: 3.5px 0 3.5px 5px; border-color: transparent transparent transparent currentColor; }
+/* open: a chevron pointing up (the dock opens the player above it) */
+.ico-up::before { top: 6px; left: 4px; width: 7px; height: 7px; border-top: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(45deg); }
+/* a control that holds only a mark: a 44 px square, named by aria-label */
+.btn-ico { width: var(--control-h); padding: 0; }
 
 .link { padding: 0; border: 0; background: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .link:hover { text-decoration-thickness: 2px; }
@@ -199,6 +242,8 @@
 
 /* badge, count, status */
 .badge { display: inline-flex; flex: none; align-items: center; min-height: var(--mark-h); padding: 0 var(--mark-pad); border: 1px solid var(--edge); border-radius: var(--radius-s); color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: calc(18 / 12); white-space: nowrap; }
+/* a long tag that may shrink and wrap inside its badge (job 07 F239: "Relearning · due 2 days ago" at 320 px and 200% text); its min-height lets it grow */
+.badge.is-wrap { flex: 0 1 auto; min-width: 0; white-space: normal; }
 .count { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: var(--mark-h); min-height: var(--mark-h); padding: 0 var(--mark-pad); border-radius: var(--radius-s); background: var(--accent-tint); color: var(--accent); font-size: var(--fs-meta); font-weight: 600; line-height: calc(20 / 12); }
 .status { display: inline-flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
 .status::before { content: ""; flex: none; align-self: center; width: var(--dot); height: var(--dot); border: 1.5px solid var(--ink); border-radius: 50%; background: var(--ink); }
@@ -207,6 +252,15 @@
 .status-revoked::before { height: 0; border-width: 1px 0; border-color: var(--ink-2); border-radius: 0; background: transparent; }
 .status-live { color: var(--accent); font-weight: 600; }
 .status-live::before { border-color: var(--accent); background: var(--accent); }
+/* waiting, preparing, loading, buffering (job 07 F204): the ring of .status-idle, turning (still where motion is reduced) */
+.status-busy::before { border-color: var(--edge); border-top-color: var(--ink); background: transparent; animation: say-turn 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .status-busy::before { animation: none; } }
+/* a failure (job 07 F204): the system's error mark (the field error's "!"), on the word's centre line; the word stays --ink */
+.status-fail::before { content: "!"; display: flex; align-items: center; justify-content: center; width: var(--space-4); height: var(--space-4); border: 0; background: var(--danger); color: var(--on-accent); font-size: var(--fs-meta); font-weight: 600; line-height: 1; }
+/* the state word and its rest (job 07 F203): the word in a status shape, then its rest, which wraps under it before anything is cut */
+.say { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); min-width: 0; }
+.say > .status { font-weight: 500; }
+.say-rest { min-width: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 
 /* panel and section */
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
@@ -285,6 +339,13 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
 .trend-axis { display: flex; justify-content: space-between; gap: var(--space-4); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
 .trend-empty { display: flex; align-items: center; height: var(--plot-h); border-bottom: 1px solid var(--edge); color: var(--ink-2); }
 
+/* the thin line (job 07 F205): 3 px, the reader's progress line, for how much is made and where the audio is */
+.meter { display: block; flex: none; min-width: 4em; height: var(--line-h); overflow: hidden; border-radius: var(--radius-xs); background: var(--line); }
+.meter > i { display: block; height: 100%; background: var(--accent); }
+/* a line with its words: "Audio prepared" before it, the figure after it, all on one centre line */
+.meter-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); width: 100%; min-width: 0; max-width: 60ch; }
+.meter-row > .meter { flex: 1 1 6em; }
+
 /* copy: a read-only value beside its copy button (Copy.dc.html is the button) */
 .copy-field { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .copy-value { display: flex; flex: 1 1 12em; align-items: center; min-width: 0; min-height: var(--control-h); padding: calc(var(--space-3) - 1px) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--bg); overflow-wrap: anywhere; }
@@ -324,3 +385,4 @@ textarea.input { height: auto; min-height: calc(2 * var(--control-h)); padding-b
 }
 
 @keyframes skel { 50% { opacity: 0.5; } }
+@keyframes say-turn { to { transform: rotate(360deg); } }

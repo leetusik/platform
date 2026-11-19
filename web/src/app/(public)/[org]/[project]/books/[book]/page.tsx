@@ -22,9 +22,9 @@ import { requestNonce } from "@/hi2vi/shell/data";
 // F328): the Bar's way back, carried on by every chapter link. The tab title is the book's, through the
 // site's template; the page and its metadata share one load per request (`loadBookOnce`).
 //
-// Listen (operator decision 3): a signed-in reader gets the head's Listen in its old look, seeded as before
-// (the book from its first chapter, and the place left part-way); any miss is "no Listen here", never a
-// failed page.
+// Listen (job 07, round 01: F206, F209, F234): a signed-in reader gets the head's Listen, the rows' audio and the
+// dock's track, seeded as before (the book from its first chapter, and the place left part-way); any miss is "no
+// Listen here", never a failed page.
 
 function safeDecode(value: string): string {
   try {
@@ -104,6 +104,7 @@ export default async function BookRoute({
       : null;
   return (
     <BookFrame
+      own
       nonce={nonce}
       listenSignInHref={view.signInHref}
       bar={
@@ -121,6 +122,7 @@ export default async function BookRoute({
         key={`${view.org}/${view.project}/${view.slug}`}
         view={view}
         listen={listen}
+        signInHref={view.signInHref}
       />
     </BookFrame>
   );

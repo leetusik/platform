@@ -242,7 +242,7 @@ describe("ReaderHead without a tag renders as before (a guard)", () => {
       '<header class="read-head"><h1 class="read-title" lang="en">Deploy</h1><div class="read-facts"><span>Document in platform</span><span>v2, published Nov 6</span><button type="button" class="link-row">Version history</button></div><div class="notice read-notice" role="status"><p><strong>Older version.</strong> You’re reading v2 of this document. The current version is v5.</p><button type="button" class="btn">Read v5</button></div></header>',
     );
   });
-  it("a chapter with a lede, Listen, a translation and folded sections", () => {
+  it("a chapter with a lede, a translation and folded sections", () => {
     expect(
       renderToStaticMarkup(
         createElement(ReaderHead, {
@@ -257,11 +257,10 @@ describe("ReaderHead without a tag renders as before (a guard)", () => {
             { id: "b", title: "Two", lang: "ko" },
           ],
           fold: { total: 9, open: false, onToggle: () => {} },
-          listen: createElement("span", null, "L"),
         }),
       ),
     ).toBe(
-      '<header class="read-head"><h1 class="read-title" lang="en">Deploy</h1><p class="read-lede" lang="en">A lede.</p><div class="read-facts"><span>Document in platform</span><span>v3, published Nov 6</span><button type="button" class="link-row">Version history</button><div class="read-listen"><span>L</span></div></div><div class="notice read-notice" role="status"><p><strong>Older translation.</strong> Translated from English v2. English is now at v3.</p><button type="button" class="btn">Read English v3</button></div><nav class="read-toc" aria-label="In this chapter"><h2>In this chapter</h2><ol><li><button type="button" class="toc-link" lang="en">One</button></li><li><button type="button" class="toc-link" lang="ko">Two</button></li></ol><div class="cluster read-toc-more"><button type="button" class="link-row" aria-expanded="false" data-swap="false"><span class="swap"><span>Show all 9 sections</span><span>Show fewer</span></span></button></div></nav></header>',
+      '<header class="read-head"><h1 class="read-title" lang="en">Deploy</h1><p class="read-lede" lang="en">A lede.</p><div class="read-facts"><span>Document in platform</span><span>v3, published Nov 6</span><button type="button" class="link-row">Version history</button></div><div class="notice read-notice" role="status"><p><strong>Older translation.</strong> Translated from English v2. English is now at v3.</p><button type="button" class="btn">Read English v3</button></div><nav class="read-toc" aria-label="In this chapter"><h2>In this chapter</h2><ol><li><button type="button" class="toc-link" lang="en">One</button></li><li><button type="button" class="toc-link" lang="ko">Two</button></li></ol><div class="cluster read-toc-more"><button type="button" class="link-row" aria-expanded="false" data-swap="false"><span class="swap"><span>Show all 9 sections</span><span>Show fewer</span></span></button></div></nav></header>',
     );
   });
 });
