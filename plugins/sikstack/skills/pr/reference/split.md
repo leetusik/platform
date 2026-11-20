@@ -4,7 +4,7 @@ Size never splits a phase, and there is no default limit. When the team sets one
 
 **Within one repo, a GitHub-native stack**, cut at slice-commit boundaries:
 
-1. For each part 1..k-1 at its last commit `<sha>` (the orchestrator runs these): `git branch <b>-<n> <sha>`, `git switch <b>-<n>`, `python3 scripts/workflow.py pr branch <P> --name <b>-<n> --base <part n-1, or the default branch>` (a branch name; a sha or tag is refused), switch back to `<b>`.
+1. For each part 1..k-1 at its last commit `<sha>` (the orchestrator runs these): `git branch <b>-<n> <sha>`, `git switch <b>-<n>`, `sikstack pr branch <P> --name <b>-<n> --base <part n-1, or the default branch>` (a branch name; a sha or tag is refused), switch back to `<b>`.
 2. The phase branch stays the top part: `pr branch <P> --name <b> --base <b>-<k-1>`.
 3. Each part gets its own body and `pr check --branch <b>-<n>`, with `> Part n/k of <feature> · merges after <repo>#<n-1>`.
 4. Open them bottom-up; use `gh stack` only if installed, else the operator clicks GitHub's "Create stack" banner. Without a native stack, each part follows its `pr_stack=` steps (`stack.md`) after its parent merges.

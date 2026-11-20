@@ -2,9 +2,9 @@
 
 ## Drafting and the inner loop
 
-**Dispatch the drafter.** Resolve once per round with `adapter.py route --drafter --phase <P>`, and
+**Dispatch the drafter.** Resolve once per round with `sikstack-adapter route --drafter --phase <P>`, and
 pass its `model` / `effort` on every Agent call (`subagent_type` = its `subagent_type=` line;
-`subagent_type: design-drafter` in a plain install). The phase's `Drafter:` line under `## Design
+`subagent_type: sikstack:design-drafter` in a plain install). The phase's `Drafter:` line under `## Design
 Style` (`intent.md`) picks the model, `fable` or `opus`, its effort staying the design row's; no line
 is the design row (Fable @ high by default). Every pass of a round runs on that one model; when the
 operator names another drafter in their own words, edit the line and it applies from the next round.
@@ -73,7 +73,7 @@ cross-page critic never does, so the two scopes catch different defects.
 
 **Inside each scope, before the operator sees anything:** one critic pass, then at most one drafter answer pass. There is no second critic pass.
 
-1. **The page critics** (`adapter.py route --critic`; its `model` / `effort` per call), one per page,
+1. **The page critics** (`sikstack-adapter route --critic`; its `model` / `effort` per call), one per page,
    each dispatched as soon as its page drafter returns `done`, so they run at once. The prompt:
    `slice:`, `mode: critic`, `scope: page <slug>`, the round address, `pass: 01` and a scratch
    directory outside the design root. It judges that page against the handoff's page section, the bar
@@ -94,7 +94,7 @@ cross-page critic never does, so the two scopes catch different defects.
    - **under `critic`**, no judge exists, so **nothing is held**: the drafter answers a listed
      must-fix like any other finding, and the operator still sees every listed item marked
      **unsure**, with its reasons, beside the drafter's answer;
-   - **under `critic+judge`** (`adapter.py route --judge`; its `model` / `effort` per call), dispatch
+   - **under `critic+judge`** (`sikstack-adapter route --judge`; its `model` / `effort` per call), dispatch
      the judge **beside the drafter's answer pass** that holds those ids, a page's or the joiner's.
      The judge's prompt: `mode: judge`, the same `scope:` line, the round, `pass: 01`, the critique
      path, the escalated ids, and the critic's `--out` path so it reuses the render. It writes
@@ -145,9 +145,9 @@ At seven pages that is about 3× a one-drafter round (about $39) and slower in w
 and the join add serial stages the parallel pages do not win back. The passes buy quality per page
 and cross-page consistency, not speed or cost. Span-minutes of parallel spans sum past wall clock,
 so read the adapter's `meter` means with the slice's window. The critic's model and effort are the
-`[claude.critic]` row's and the judge's the `[claude.judge]` row's (`adapter.py route --critic` and
+`[claude.critic]` row's and the judge's the `[claude.judge]` row's (`sikstack-adapter route --critic` and
 `--judge` print what this install resolves; `max` is the step up): the operator tunes them in
-`executors.toml`, never in a prompt. (For the record, on an earlier whole-round critic: a critic
+`.sikstack/config.toml`, never in a prompt. (For the record, on an earlier whole-round critic: a critic
 pass took 25–36 minutes on a flow-board job, and the judge about 2 minutes per item.)
 
 **Every span's prompt starts with its `slice: <id>` line** — drafter, critic and judge alike: the
@@ -157,8 +157,8 @@ by the adapter's `meter`; never record one by hand.
 
 ## Never — dispatching
 
-- Dispatch anything but these spans: the drafting passes to `design-drafter`, every round; the
-  critique and the judging to `design-critic`, when the job's level says so; and the mockup build to
-  `slice-executor` on the high row, only when the operator asked for one.
+- Dispatch anything but these spans: the drafting passes to `sikstack:design-drafter`, every round; the
+  critique and the judging to `sikstack:design-critic`, when the job's level says so; and the mockup build to
+  `sikstack:slice-executor` on the high row, only when the operator asked for one.
 - Publish a page draft, or anything before the join.
 - Dispatch the join before every page's loop (its pass, its critic, its answer) is done.

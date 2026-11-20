@@ -14,7 +14,7 @@ Each slice's **set** is in its `## <slice id>` block of `topics/breakdown.md`: i
 
 ## Start
 
-- **Every ready slice starts; there is no cap.** Plan each (a spending slice still plans at the gate), then for each: `adapter.py route`, pin `## Dispatch`, `slice start`, and dispatch them all in one message, in the background, each prompt starting `slice: <id>`.
+- **Every ready slice starts; there is no cap.** Plan each (a spending slice still plans at the gate), then for each: `sikstack-adapter route`, pin `## Dispatch`, `slice start`, and dispatch them all in one message, in the background, each prompt starting `slice: <id>`.
 - **Each wave slice's `plan.md` carries `## Wave`, before `## Dispatch`:** its set (plus any path an answer added), the slices beside it with their sets, each `done` slice whose commit still waits with its set, the join-rebuilt artifact or `none`, and its set-scoped checks. Write it afresh at every dispatch. A slice dispatched while nothing else runs, starts, is stopped or waits to commit gets none and commits all its changes.
 - **Rolling starts.** After each return, start every newly ready slice. **A shared file waits for its commit:** a slice whose set overlaps a waiting commit's set starts once that commit is in. A stopped slice's re-dispatch is not a start.
 - While executors run you write only the wave's state commands, a starting slice's `plan.md`, an answered set change, and a returned slice's notebook entries and commit.

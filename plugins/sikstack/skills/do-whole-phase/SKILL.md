@@ -1,7 +1,7 @@
 ---
 name: do-whole-phase
 description: Finish the active phase end-to-end, including the review and any fix slices.
-allowed-tools: Bash(python3 scripts/workflow.py:*), Read, Edit, Write, Glob, Grep, Bash, Agent, EnterPlanMode, ExitPlanMode
+allowed-tools: Bash(sikstack:*), Read, Edit, Write, Glob, Grep, Bash, Agent, EnterPlanMode, ExitPlanMode
 disable-model-invocation: true
 ---
 
@@ -9,9 +9,9 @@ disable-model-invocation: true
 
 A playbook: how a phase usually runs. Leave a step when the work needs it and say why in your report; the contract's four invariants never move.
 
-**Read just in time.** `python3 scripts/workflow.py next` for the pointer (never `works/state.json` or `works/backlog.md`: `next` prints the pointer), `CLAUDE.md`, then the phase's `phase.md`, the **bounded phase notebook**, only through `section` (`section <P>` lists it, `<P> Now` first), never with `Read`, `Edit` or `Write`; `intent.md` when unsure what was asked; `docs/current/` sections only as the work needs them. `next` sees this stream only (`worktree status` shows every stream).
+**Read just in time.** `sikstack next` for the pointer (never `.sikstack/works/state.json` or `.sikstack/backlog.md`: `next` prints the pointer), the contract (`${CLAUDE_PLUGIN_ROOT}/contract.md`), then the phase's `phase.md`, the **bounded phase notebook**, only through `section` (`section <P>` lists it, `<P> Now` first), never with `Read`, `Edit` or `Write`; `intent.md` when unsure what was asked; `.sikstack/docs/current/` sections only as the work needs them. `next` sees this stream only (`worktree status` shows every stream).
 
-**You are the orchestrator.** You plan, dispatch, finish, commit, move state and talk to the operator; every slice runs on `slice-executor`. **One exception, `kind: co-work`:** a design slice runs inline: the round's lifecycle and the operator's words stay inline, the drafting is dispatched to `design-drafter`, the critique to `design-critic` when the job asks, and the mockup build is the one span dispatched to a slice executor, only when the operator asked for one (`reference/co-work.md`, with the `design-cowork` skill). A co-work slice stops `pending` once per round.
+**You are the orchestrator.** You plan, dispatch, finish, commit, move state and talk to the operator; every slice runs on `sikstack:slice-executor`. **One exception, `kind: co-work`:** a design slice runs inline: the round's lifecycle and the operator's words stay inline, the drafting is dispatched to `sikstack:design-drafter`, the critique to `sikstack:design-critic` when the job asks, and the mockup build is the one span dispatched to a slice executor, only when the operator asked for one (`reference/co-work.md`, with the `design-cowork` skill). A co-work slice stops `pending` once per round.
 
 ## The loop, slice by slice
 
@@ -20,7 +20,7 @@ A playbook: how a phase usually runs. Leave a step when the work needs it and sa
 3. **Read the verdict** and the head of `result.md`, then act on it (`reference/verdicts.md`): `done` → `slice finish <slice_id> --outcome "<its summary>"`, `check`, commit; `needs_operator` → a typed `pending` stop; `blocked` → STOP; a mid `escalate` or a failed mid return → once more on the high row; a failed high return → STOP.
 4. Then `section <P> Now` and only the sections the next plan needs.
 
-While an executor runs you may prepare the **next** slice only, read-only (an `Explore` lookup, inline reads, notes in the session scratchpad), and drop it on any verdict but `done`; never write to the repo or move state meanwhile. Declared slices (`next` prints `ready_slices=` with more than one id) run together by `reference/wave.md`, whose *Resume* runs first at every session start and after every compaction in a declared phase.
+While an executor runs you may prepare the **next** slice only, read-only (a `sikstack:Explore` lookup, inline reads, notes in the session scratchpad), and drop it on any verdict but `done`; never write to the repo or move state meanwhile. Declared slices (`next` prints `ready_slices=` with more than one id) run together by `reference/wave.md`, whose *Resume* runs first at every session start and after every compaction in a declared phase.
 
 ## Modes
 

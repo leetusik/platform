@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""The Claude Code adapter: `python3 <this file> <route|sync-agents|meter|compact-resume> ...`.
+"""The Claude Code adapter: `sikstack-adapter <route|meter|compact-resume> ...` (the plugin's bin/).
 
-- route: the executor route table (the engine defaults overlaid by the workspace's executors.toml) and one
-  dispatch's row, model, effort and agent file;
-- sync-agents: writes the rows that own an agent file into its frontmatter;
+- route: the executor route table (the adapter's defaults overlaid by the workspace's `.sikstack/config.toml`) and
+  one dispatch's row, model, effort and plugin agent (`sikstack:<agent>`);
 - meter: what a phase cost, metered from Claude Code's transcripts, and each slice's verdict read from its
   result.md (its `status:` line) or slice.json;
 - compact-resume: the SessionStart hook (matcher compact), which prints the engine's resume card with the
   session's running spans.
 
-It reads the workspace through the engine beside it (../../scripts/: workflow.py and its modules), imported
+It reads the workspace through the plugin's engine (../../scripts/: workflow.py and its modules), imported
 in-process, and runs every command through workflow.run (the id normalising and, in a linked checkout, the
 cloud boundary). The engine never imports this folder."""
 from __future__ import annotations
@@ -19,9 +18,7 @@ import bisect
 import json
 import os
 import re
-import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -31,35 +28,17 @@ ADAPTER = Path(__file__).resolve()
 sys.path.insert(0, str(ADAPTER.parents[2] / "scripts"))
 import workflow  # noqa: E402 -- the engine: it finds the workspace (or exits 2 with one line) and binds its seams
 from wf_store import (  # noqa: E402
-    _meter_ts, _one_line, _walk_to_state, ACTIVE, all_events, append_event, ARCHIVED,
-    archived_phase_ids, cmd_next, ENGINE, HOST_ROOT, id_sort_key, MAIN_HOST, NESTED, PHASE_ID_PATTERN,
-    PHASE_ID_RE, read_json, require_phase, require_slice, resume_card, ROOT, shown, SLICE_SUFFIX_PATTERN,
-    write_text,
+    _meter_ts, _one_line, ACTIVE, all_events, ARCHIVED,
+    archived_phase_ids, cmd_next, HOST_ROOT, id_sort_key, PHASE_ID_PATTERN,
+    PHASE_ID_RE, read_json, require_phase, require_slice, resume_card, ROOT, SLICE_SUFFIX_PATTERN,
 )
 from wf_design import (  # noqa: E402
     DESIGN_ROOT_REL,
 )
 
-ADAPTER_REL = "adapters/claude_code/adapter.py"  # where the installer emits this file, under the workspace
-# The executor agent files Claude Code loads: the main host checkout's `.claude/agents` when nested (Claude Code
-# finds agents walking up from the session's cwd, the host root; a phase worktree pair has none of its own), the
-# workspace's otherwise. executors.toml stays at ROOT either way.
-CLAUDE_AGENTS = (MAIN_HOST or HOST_ROOT or ROOT) / ".claude" / "agents"
-
-
-def _adapter_cmd() -> str:
-    """The command this adapter's printed hints use: `python3 <this file>` relative to the host (nested) or the
-    workspace, as the engine's WORKFLOW_CMD is; absolute when this file sits outside both."""
-    for base in (HOST_ROOT, ROOT):
-        if base is not None:
-            try:
-                return f"python3 {ADAPTER.relative_to(Path(base).resolve()).as_posix()}"
-            except ValueError:
-                continue
-    return f"python3 {ADAPTER}"
-
-
-ADAPTER_CMD = _adapter_cmd()
+ADAPTER_CMD = "sikstack-adapter"  # the plugin's bin/ command for this file
+CONFIG_NAME = "config.toml"  # .sikstack/config.toml: the [claude.<row>] tables are this adapter's
+PLUGIN_NAME = "sikstack"  # Claude Code namespaces every plugin agent: subagent_type is `sikstack:<agent>`
 
 
 RETIRED_EXECUTOR_TIERS = ("low",)  # [claude.low]: dropped in workspace v23, still refused with its migration
@@ -68,9 +47,8 @@ RETIRED_EXECUTOR_TIERS = ("low",)  # [claude.low]: dropped in workspace v23, sti
 RETIRED_ROUTES = ("cheap",)
 # The executor route table (workspace v53): ONE table, owned here, that the orchestrator dispatches
 # from. A row is a (model, effort) pair the dispatch passes per call; `route` prints the
-# resolved row for a slice and `sync-agents` writes the rows that own an agent file into that
-# file's frontmatter, which is only the fallback. Each row is overridable, key by key, under
-# [claude.<row>] in the repo-root executors.toml. There is no Haiku slice row: v83 retired `cheap`
+# resolved row for a slice; the plugin agent's frontmatter is only the fallback. Each row is overridable, key by
+# key, under [claude.<row>] in .sikstack/config.toml. There is no Haiku slice row: v83 retired `cheap`
 # (docs and qa rated low ran on Haiku); every slice rated low runs on the mid row.
 # `explore` is the read-only lookup agent (.claude/agents/Explore.md), not a slice route.
 # `design` is the design subagent's own row (.claude/agents/design-drafter.md, workspace v60): never
@@ -92,13 +70,10 @@ RETIRED_ROUTES = ("cheap",)
 # executor tiers of v23-v65 (slice-executor-mid / -high, split because the Agent tool could not set
 # effort per dispatch before Claude Code 2.1.292) are retired, and so is the `tier` they carried:
 # a dispatch names its row (`route=`), and the verdict records it (`route:`).
-# Only the rows that own their file (FILE_ROWS: mid, design, critic, reader, code, explore) are written into
-# frontmatter, so only they accept a full model id or "inherit"; every other row (high, research,
-# judge) runs a file another row owns with its model passed per call, and the Agent tool's
-# `model` is an enum, so those rows take an alias only.
-# effort = "" is the escape hatch for a model that rejects the parameter: no effort line in the
-# agent file and no per-dispatch effort. The named modes of v29-v52 (a top-level
-# `mode` key) are retired; read_executors_toml refuses one.
+# Every row takes an Agent-tool alias only: the model is passed per dispatch (sync-agents, which wrote a row into an
+# agent file's frontmatter, retired with the installer: a plugin agent takes the per-dispatch override, R1).
+# effort = "" is the escape hatch for a model that rejects the parameter: no per-dispatch effort. The named modes of
+# v29-v52 (a top-level `mode` key) are retired; read_config_routes refuses one.
 # The defaults are the operator's own routes (workspace v80, v83): every opus row at high, mid on opus at
 # medium, haiku at xhigh for explore only.
 EXECUTOR_ROUTES = ("high", "research", "design", "critic", "judge", "reader", "code", "mid", "explore")  # print order
@@ -118,8 +93,7 @@ ROUTE_DEFAULTS = {
     "mid": {"model": "opus", "effort": "medium"},
     "explore": {"model": "haiku", "effort": "xhigh"},
 }
-# The agent file each row dispatches to (canonical name; `installed_agent_name` applies a nested
-# rename). The design row owns design-drafter and follows no other row, so one [claude.design]
+# The plugin agent each row dispatches to (`plugin_agent` adds the namespace). The design row owns design-drafter and follows no other row, so one [claude.design]
 # override governs it alone (before v60 it followed the high row). The critic row owns
 # design-critic; the judge row runs that same file in judge mode. The reader row owns pr-reader, the
 # code row code-reader.
@@ -127,21 +101,9 @@ SLICE_AGENT = "slice-executor"
 ROUTE_AGENT = {"high": SLICE_AGENT, "research": SLICE_AGENT, "design": "design-drafter", "critic": "design-critic",
                "judge": "design-critic", "reader": "pr-reader", "code": "code-reader", "mid": SLICE_AGENT,
                "explore": "Explore"}
-# The rows that own their agent file: sync-agents writes each one's resolved model/effort into its
-# frontmatter, so only these accept a full model id or "inherit".
-FILE_ROWS = ("mid", "design", "critic", "reader", "code", "explore")
 # The executor pair v66 retired (last shipped in v65): old transcripts still name them, so the meter
 # keeps reading them (`_meter_route`, `_meter_collect`'s canon map).
 RETIRED_AGENTS = ("slice-executor-high", "slice-executor-mid")
-# (label, canonical agent name, row) for the six agent files sync-agents manages, in print order.
-MANAGED_AGENT_FILES = (
-    ("slice-executor", ROUTE_AGENT["mid"], "mid"),
-    ("design-drafter", ROUTE_AGENT["design"], "design"),
-    ("design-critic", ROUTE_AGENT["critic"], "critic"),
-    ("pr-reader", ROUTE_AGENT["reader"], "reader"),
-    ("code-reader", ROUTE_AGENT["code"], "code"),
-    ("Explore", ROUTE_AGENT["explore"], "explore"),
-)
 AGENT_MODEL_ALIASES = ("opus", "sonnet", "haiku", "fable")  # the Agent tool's `model` enum
 EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")  # the Agent tool's `effort` enum
 # Commit attribution follows the model a slice actually ran on; anything else prints verbatim.
@@ -174,32 +136,41 @@ DRAFTER_CHOICES = ("opus", "fable")
 DRAFTER_LINE_RE = re.compile(r"drafter(?:\s+model)?\s*[:=|]\s*(.*)$", re.IGNORECASE)
 
 
-def read_executors_toml() -> dict:
-    """{(row, key): value} from the repo-root executors.toml: the per-row overrides of the route table.
+def read_config_routes() -> dict:
+    """{(row, key): value} from `.sikstack/config.toml`'s [claude.<row>] tables: the per-row overrides of the route
+    table.
 
-    Strict subset of TOML -- [claude.<row>] tables (a row of EXECUTOR_ROUTES) holding model/effort
-    keys with double-quoted string values; '#' comments and blanks ignored. Anything else is an
-    error naming its line, so a typo surfaces instead of silently keeping a default. A retired shape
-    (the v29-v52 `mode` key, [claude.low], [codex.*]) is refused with its migration."""
-    path = ROOT / "executors.toml"
+    Strict subset of TOML inside those tables -- a row of EXECUTOR_ROUTES holding model/effort keys with
+    double-quoted string values; '#' comments and blanks ignored. Anything else there is an error naming its line, so
+    a typo surfaces instead of silently keeping a default. Any other table ([cloud], ...) belongs to another part of
+    sikstack and is skipped whole. A retired shape (the v29-v52 `mode` key, [claude.low], [codex.*]) is refused with
+    its migration."""
+    path = ROOT / CONFIG_NAME
     values: dict = {}
     if not path.exists():
         return values
     section = None
+    foreign = False  # inside a table that is not [claude.<row>]: not ours to read
     rows = ", ".join(sorted(EXECUTOR_ROUTES))
     for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        if line.startswith("[") and not re.match(r"^\[\s*(claude|codex)\s*\.", line):
+            foreign, section = True, None
+            continue
+        if foreign and not line.startswith("["):
+            continue
+        foreign = False
         if re.match(r"^mode\s*=", line):
             raise SystemExit(
-                f"executors.toml line {n}: the economy/flex presets were retired in workspace v53 — delete this line; "
+                f"config.toml line {n}: the economy/flex presets were retired in workspace v53 — delete this line; "
                 "the route table replaces them (flex was xhigh on both executor rows: set effort = \"xhigh\" under [claude.mid] "
                 f"and [claude.high] to keep it); run: {ADAPTER_CMD} route"
             )
         if re.match(r"^\[\s*codex\s*\.\s*[^\]]*\]\s*(?:#.*)?$", line):
             raise SystemExit(
-                f"executors.toml line {n}: Codex support was removed in workspace v31 — "
+                f"config.toml line {n}: Codex support was removed in workspace v31 — "
                 "this workspace ships Claude Code only, so drop this section"
             )
         m = re.match(r"^\[\s*claude\s*\.\s*([^\]\s]*)\s*\]\s*(?:#.*)?$", line)
@@ -207,63 +178,56 @@ def read_executors_toml() -> dict:
             name = m.group(1)
             if name in RETIRED_ROUTES:
                 raise SystemExit(
-                    f"executors.toml line {n}: the {name} row was retired in workspace v83 — docs and qa slices "
+                    f"config.toml line {n}: the {name} row was retired in workspace v83 — docs and qa slices "
                     "rated low now run on the mid row; drop this section (to change their model, set [claude.mid])"
                 )
             if name in RETIRED_EXECUTOR_TIERS:
                 raise SystemExit(
-                    f"executors.toml line {n}: the {name} executor tier was retired in workspace v23 — "
+                    f"config.toml line {n}: the {name} executor tier was retired in workspace v23 — "
                     "drop this section or move its settings to [claude.mid]"
                 )
             if name not in EXECUTOR_ROUTES:
-                raise SystemExit(f"executors.toml line {n}: unknown route {name} (valid: {rows})")
+                raise SystemExit(f"config.toml line {n}: unknown route {name} (valid: {rows})")
             section = name
             continue
         m = re.match(r'^(model|effort)\s*=\s*"([^"]*)"\s*(?:#.*)?$', line)
         if m:
             key, value = m.group(1), m.group(2)
             if section is None:
-                raise SystemExit(f"executors.toml line {n}: key outside a section — put it under [claude.<row>] ({rows})")
+                raise SystemExit(f"config.toml line {n}: key outside a section — put it under [claude.<row>] ({rows})")
             if (section, key) in values:
-                raise SystemExit(f"executors.toml line {n}: duplicate {key} for [claude.{section}]")
+                raise SystemExit(f"config.toml line {n}: duplicate {key} for [claude.{section}]")
             if key == "model" and not value:
-                raise SystemExit(f"executors.toml line {n}: [claude.{section}] model must not be empty (efforts may be empty; models may not)")
+                raise SystemExit(f"config.toml line {n}: [claude.{section}] model must not be empty (efforts may be empty; models may not)")
             if key == "effort" and value and value not in EFFORT_LEVELS:
                 raise SystemExit(
-                    f"executors.toml line {n}: [claude.{section}] effort must be one of {', '.join(EFFORT_LEVELS)} "
+                    f"config.toml line {n}: [claude.{section}] effort must be one of {', '.join(EFFORT_LEVELS)} "
                     f"— or \"\" to write no effort line (got {value!r})"
                 )
-            if key == "model" and section == "high" and value not in AGENT_MODEL_ALIASES:
+            if key == "model" and value not in AGENT_MODEL_ALIASES:
                 raise SystemExit(
-                    f"executors.toml line {n}: [claude.high] model {value!r}: since v66 one executor file carries the mid row; "
-                    f"the high row is passed per dispatch, so use an alias ({', '.join(AGENT_MODEL_ALIASES)}); "
-                    "a full model id or inherit belongs under [claude.mid], which slice-executor.md carries"
-                )
-            if key == "model" and section not in FILE_ROWS and value not in AGENT_MODEL_ALIASES:
-                raise SystemExit(
-                    f"executors.toml line {n}: [claude.{section}] model {value!r}: route {section} dispatches to another row's "
-                    f"agent file, so its model must be an Agent-tool alias ({', '.join(AGENT_MODEL_ALIASES)}); a full model id "
-                    f"or inherit works only on {', '.join(r for r in EXECUTOR_ROUTES if r in FILE_ROWS)}, whose agent files carry it"
+                    f"config.toml line {n}: [claude.{section}] model {value!r}: every row's model is passed per dispatch, "
+                    f"so it must be an Agent-tool alias ({', '.join(AGENT_MODEL_ALIASES)})"
                 )
             values[(section, key)] = value
             continue
         if re.match(r"^(model|effort)\s*=", line):
-            raise SystemExit(f'executors.toml line {n}: values must be double-quoted TOML strings, e.g. model = "sonnet" under [claude.<row>]')
-        raise SystemExit(f"executors.toml line {n}: cannot parse {line!r} (expected [claude.<row>] with row one of {rows}, or model/effort = \"...\")")
+            raise SystemExit(f'config.toml line {n}: values must be double-quoted TOML strings, e.g. model = "sonnet" under [claude.<row>]')
+        raise SystemExit(f"config.toml line {n}: cannot parse {line!r} (expected [claude.<row>] with row one of {rows}, or model/effort = \"...\")")
     return values
 
 
 def resolve_routes(overrides=None) -> dict:
     """{row: {model, effort, model_source, effort_source}} in EXECUTOR_ROUTES order: the engine
-    defaults overlaid key by key with executors.toml. A source is `default` or `executors.toml`."""
+    defaults overlaid key by key with config.toml. A source is `default` or `config.toml`."""
     if overrides is None:
-        overrides = read_executors_toml()
+        overrides = read_config_routes()
     resolved: dict = {}
     for row in EXECUTOR_ROUTES:
         entry: dict = {}
         for key in ("model", "effort"):
             if (row, key) in overrides:
-                entry[key], entry[f"{key}_source"] = overrides[(row, key)], "executors.toml"
+                entry[key], entry[f"{key}_source"] = overrides[(row, key)], CONFIG_NAME
             else:
                 entry[key], entry[f"{key}_source"] = ROUTE_DEFAULTS[row][key], "default"
         resolved[row] = entry
@@ -271,15 +235,14 @@ def resolve_routes(overrides=None) -> dict:
 
 
 def route_overrides(routes: dict) -> list:
-    """`override=` lines for the rows executors.toml sets: what each pins against the engine default,
-    or that it repeats the default (and so would stop following a later one). /update-workspace shows
-    them to the operator, who decides whether to drop each [claude.<row>] table."""
+    """`override=` lines for the rows config.toml sets: what each pins against the default, or that it repeats the
+    default (and so would stop following a later one); the operator decides whether to drop each [claude.<row>]."""
     def pair(model, effort):
         return f"{model}@{effort or '(no effort)'}"
     lines = []
     for row in EXECUTOR_ROUTES:
         entry, default = routes[row], ROUTE_DEFAULTS[row]
-        if "executors.toml" not in (entry["model_source"], entry["effort_source"]):
+        if CONFIG_NAME not in (entry["model_source"], entry["effort_source"]):
             continue
         if (entry["model"], entry["effort"]) == (default["model"], default["effort"]):
             lines.append(f"override={row} {pair(entry['model'], entry['effort'])} same as the default "
@@ -297,105 +260,10 @@ def route_source(entry: dict) -> str:
     return f"model {entry['model_source']} / effort {entry['effort_source']}"
 
 
-def _patched_agent_md(text: str, model: str, effort: str) -> str:
-    """Rewrite only the model:/effort: frontmatter lines of a .claude agent file. Every other line
-    is kept verbatim -- `name:` included, which for a renamed agent in a nested install is its
-    installed name (the `subagent_type`), so sync-agents never undoes a rename."""
-    if not text.startswith("---\n"):
-        raise SystemExit("agent file has no frontmatter")
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        raise SystemExit("agent file frontmatter is unterminated")
-    lines = [l for l in text[4:end].split("\n") if not l.startswith("model:") and not l.startswith("effort:")]
-    insert_at = next((i for i, l in enumerate(lines) if l.startswith("permissionMode:")), len(lines))
-    lines[insert_at:insert_at] = [f"model: {model}"] + ([f"effort: {effort}"] if effort else [])
-    return "---\n" + "\n".join(lines) + text[end:]
-
-
-def installed_agent_name(name: str) -> str:
-    """The name a managed agent is installed under: its canonical name, or -- in a nested install
-    whose host already has an agent of that name -- the rename the installer recorded in
-    `.agentic-nested.json` `renames.agents`. The installed file is `<installed name>.md` and its `name:`
-    frontmatter (the `subagent_type`) is the installed name too; the installer writes both."""
-    if NESTED is None:
-        return name
-    renames = NESTED.get("renames")
-    table = renames.get("agents") if isinstance(renames, dict) else None
-    installed = table.get(name) if isinstance(table, dict) else None
-    return installed if isinstance(installed, str) and installed else name
-
-
-def executor_agent_files(routes: dict) -> list:
-    """(label, path, model, effort) for the 6 managed agent files (MANAGED_AGENT_FILES): slice-executor
-    from the mid row (the default route; high and research pass their model and effort per
-    dispatch), design-drafter from its own design row, design-critic from the critic row, pr-reader
-    from the reader row, code-reader from the code row and Explore
-    from the explore row. high, research and judge own no file. Labels stay canonical;
-    paths resolve through the nested rename map (`installed_agent_name`)."""
-    return [
-        (label, CLAUDE_AGENTS / f"{installed_agent_name(agent)}.md", routes[row]["model"], routes[row]["effort"])
-        for label, agent, row in MANAGED_AGENT_FILES
-    ]
-
-
-def executor_agent_drift(routes: dict) -> tuple:
-    """([(path, desired text)] for agent files that disagree with the routes, [missing paths]); writes nothing."""
-    changed, missing = [], []
-    for _label, path, model, effort in executor_agent_files(routes):
-        if not path.exists():
-            missing.append(path)
-            continue
-        current = path.read_text(encoding="utf-8")
-        desired = _patched_agent_md(current, model, effort)
-        if desired != current:
-            changed.append((path, desired))
-    return changed, missing
-
-
-def sync_agents(args: argparse.Namespace) -> None:
-    """Write the resolved route table into the six managed agent files' model/effort frontmatter:
-    slice-executor from the mid row (high and research run it with their model and effort
-    passed per dispatch), design-drafter from the design row, design-critic
-    from the critic row (the judge row borrows that file, its model passed per call), pr-reader from
-    the reader row, code-reader from the code row, Explore from
-    the explore row (--check: report drift, write nothing, exit 1 when out of sync)."""
-    overrides = read_executors_toml()
-    routes = resolve_routes(overrides)
-    config_present = (ROOT / "executors.toml").exists()
-    legacy_env = ROOT / ".env"
-    if legacy_env.exists() and "SLICE_EXECUTOR" in legacy_env.read_text(encoding="utf-8"):
-        print("warning: .env holds SLICE_EXECUTOR_* keys, but executor config moved to executors.toml in v8 — .env is no longer read")
-    drift, missing_paths = executor_agent_drift(routes)
-    if not args.check:
-        for path, desired in drift:
-            write_text(path, desired)
-    # Agent files live in the host when nested, so they are named from there (identical at root).
-    changed = [shown(path) for path, _ in drift]
-    missing = [shown(path) for path in missing_paths]
-    for row in EXECUTOR_ROUTES:
-        entry = routes[row]
-        value = f"{entry['model']} @ {entry['effort'] or '(no effort line)'}"
-        print(f"{row:<9} {value:<16} ({route_source(entry)})")
-    print(f"config source: {f'executors.toml ({len(overrides)} override(s))' if config_present else 'defaults (no executors.toml)'}")
-    for m in missing:
-        print(f"missing agent file: {m}")
-    if args.check:
-        if changed or missing:
-            print("out of sync with executors.toml/defaults:")
-            for c in changed:
-                print(f"- {c}")
-            raise SystemExit(1)
-        print("agent files in sync with executors.toml/defaults")
-        return
-    if changed:
-        append_event("agents_synced", changed=changed, config_present=config_present)
-        print("updated:")
-        for c in changed:
-            print(f"- {c}")
-    else:
-        print("already in sync; nothing written")
-    if missing:
-        raise SystemExit(1)
+def plugin_agent(name: str) -> str:
+    """The `subagent_type` a dispatch names: the plugin's namespace, then the agent (`sikstack:slice-executor`). A bare
+    name would reach a built-in agent of that name (`Explore`) or none."""
+    return f"{PLUGIN_NAME}:{name}"
 
 
 def _loopback_base_url():
@@ -529,7 +397,7 @@ def cmd_executor_route(args: argparse.Namespace) -> None:
     --judge on a Fable override prints
     `skip=yes reason=…` and exits 0: unlike a `fallback=` line, which names a substitute model to
     dispatch, `skip=` means dispatch nothing.
-    Reads executors.toml (a malformed one errors here) and writes nothing."""
+    Reads config.toml (a malformed one errors here) and writes nothing."""
     forms = [f for f, on in (("<slice_id>", args.slice is not None), ("--drafter", args.drafter), ("--critic", args.critic),
                              ("--judge", args.judge), ("--reader", args.reader), ("--code", args.code),
                              ("--explore", args.explore)) if on]
@@ -558,7 +426,7 @@ def cmd_executor_route(args: argparse.Namespace) -> None:
         print(f"attempt={attempt}")
         print(f"route={row}")
         print(f"reason={reason}")
-        print(f"subagent_type={installed_agent_name(ROUTE_AGENT[row])}")
+        print(f"subagent_type={plugin_agent(ROUTE_AGENT[row])}")
         print("\n".join(lines))
         extra = [fallback] if fallback else []
     elif args.drafter or args.critic or args.judge or args.reader or args.code or args.explore:
@@ -571,25 +439,19 @@ def cmd_executor_route(args: argparse.Namespace) -> None:
         print(f"route={row}")
         if args.drafter:
             print(f"drafter_source={'phase ' + args.phase + ' Drafter: ' + drafter if drafter else 'design row'}")
-        print(f"subagent_type={installed_agent_name(agent)}")
+        print(f"subagent_type={plugin_agent(agent)}")
         print("\n".join(lines))
         extra = [fallback] if fallback else []
         if skip:
             extra.append(skip)
     else:
         table = [("route", "agent", "model", "effort", "source")] + [
-            (row, ROUTE_AGENT[row], routes[row]["model"], routes[row]["effort"] or "(no effort line)", route_source(routes[row]))
+            (row, plugin_agent(ROUTE_AGENT[row]), routes[row]["model"], routes[row]["effort"] or "(no effort line)", route_source(routes[row]))
             for row in EXECUTOR_ROUTES
         ]
         widths = [max(len(r[i]) for r in table) for i in range(4)]
         for r in table:
             print("  ".join(c.ljust(w) for c, w in zip(r, widths)) + "  " + r[4])
-        drift, missing = executor_agent_drift(routes)
-        stale = [shown(path) for path, _ in drift] + [f"{shown(path)} (missing)" for path in missing]
-        if stale:
-            print(f"agent files: out of sync: {', '.join(stale)} (run: {ADAPTER_CMD} sync-agents)")
-        else:
-            print("agent files: in sync")
         extra = route_overrides(routes) + [f for f in (_route_fallback(row, routes, proxy)[2] for row in EXECUTOR_ROUTES) if f]
         judge_skip = _judge_proxy_skip(routes, proxy)
         if judge_skip:
@@ -991,7 +853,7 @@ def _meter_attribute(prompt: str, start, known: dict, windows: _MeterWindows) ->
 
 def _meter_slice_families() -> tuple:
     """(high row's model family, mid row's, high row's effort, mid row's) from the resolved route
-    table, for reading `slice-executor` spans; the engine defaults when executors.toml cannot be read."""
+    table, for reading `slice-executor` spans; the defaults when config.toml cannot be read."""
     try:
         routes = resolve_routes()
     except (SystemExit, Exception):  # noqa: BLE001 - the meter reads history; a bad toml must not stop it
@@ -1058,7 +920,8 @@ def _meter_verdict(agent: str, final) -> str:
 def _meter_collect(dirs: list, known: dict, windows: "_MeterWindows", selected, lo, hi) -> dict:
     """Read the sessions overlapping [lo, hi] (None = unbounded) and meter them. `selected(slice)` says
     whether a slice is in the report; everything else is `before`, `after` or `other`."""
-    canon = {installed_agent_name(a): a for a in (*ROUTE_AGENT.values(), *RETIRED_AGENTS)}
+    canon = {a: a for a in (*ROUTE_AGENT.values(), *RETIRED_AGENTS)}
+    canon.update({plugin_agent(a): a for a in ROUTE_AGENT.values()})  # a plugin span names its agent sikstack:<agent>
     canon.update({f"wf-{a}": a for a in RETIRED_AGENTS})  # a nested rename the marker no longer records
     families = _meter_slice_families()
     res = {"sessions": [], "main": {}, "spans": [], "outside": {}, "found": 0, "windows": windows, "kinds": known}
@@ -1456,82 +1319,14 @@ def _meter_slice_order(windows: "_MeterWindows"):
     return key
 
 
-# The hook follows the session (P35): `$CLAUDE_PROJECT_DIR` stays at the main checkout after EnterWorktree, but
-# the hook's stdin `cwd` follows the session into the worktree. So the hook first walks up from that `cwd` to the
-# workspace that owns it, by the engine's state finder (`_walk_to_state`), and, when that is not this adapter's
-# workspace, re-runs the program that answers there with the same stdin and relays its output: that workspace's
-# own adapter; else its own engine (an older install, or a worktree cut before the update: no adapter folder), its
-# `compact-resume` when it has one, else its `next --card`; else this adapter pointed at it, when this one's
-# engine is not pinned to its own workspace. The env var is the recursion guard; every failure, and a cwd in no
-# workspace, falls back to answering here.
-HOOK_REDIRECT_ENV = "AGENTIC_HOOK_REDIRECTED"
-HOOK_REDIRECT_TIMEOUT = 12  # the hook's own timeout is 15 s; the tries of one redirect share it
-ENGINE_REL = "scripts/workflow.py"  # a workspace's own engine, under its state folder
-HOOK_ENGINE_FALLBACK = ("next", "--card")  # an engine with no compact-resume: one whose hook is its adapter
-
-
-def _hook_owning_program(cwd: str):
-    """(program, tries, run_dir, state) for the workspace that owns `cwd` (itself included), found by the state
-    finder's walk -- or None. `program` is that workspace's own adapter (tries: the subcommand); else its own
-    engine (tries: the subcommand, then `next --card`); else this adapter, when its engine is not pinned to its own
-    workspace (an installed engine reads only its own workspace: it cannot answer there). A try of None is the
-    hook's own subcommand."""
-    start = Path(cwd).resolve()
-    if not start.is_dir():
-        return None
-    found = _walk_to_state(start)
-    if found is None:
-        return None
-    state, run_dir = found
-    if (state / ADAPTER_REL).is_file():
-        return state / ADAPTER_REL, (None,), run_dir, state
-    if (state / ENGINE_REL).is_file():
-        return state / ENGINE_REL, (None, HOOK_ENGINE_FALLBACK), run_dir, state
-    if ENGINE.parent.parent == ROOT:
-        return None
-    return ADAPTER, (None,), run_dir, state
-
-
-def _hook_stdin_or_redirect(subcommand: str):
-    """Read the hook's stdin once. Return its text for this adapter to handle, or None when the program that
-    answers for the workspace owning the hook's `cwd` is another copy and already answered (its stdout/stderr
-    relayed unchanged; a fallback `next --card` under this hook's own first line). Never raises: a missing or bad
-    `cwd`, no workspace, this workspace, the guard set, a timeout, an error or a non-zero exit of every try all
-    return the text, and the caller carries on as before."""
+def _hook_stdin() -> str:
+    """The hook's stdin, read once; never raises. The plugin's hook script (hooks/compact_resume.py) has already
+    rooted this run in the `.sikstack/` that owns the session's `cwd` (it follows the session into a worktree), and
+    stays silent outside any workspace."""
     try:
-        raw = sys.stdin.read()
+        return sys.stdin.read()
     except Exception:  # noqa: BLE001 - the hook never fails
         return ""
-    try:
-        if os.environ.get(HOOK_REDIRECT_ENV):
-            return raw
-        hook = json.loads(raw or "null")
-        cwd = hook.get("cwd") if isinstance(hook, dict) else None
-        if not isinstance(cwd, str) or not cwd.strip():
-            return raw
-        found = _hook_owning_program(cwd)
-        if found is None or found[3].resolve() == ROOT.resolve():
-            return raw
-        program, tries, run_dir, state = found
-        deadline = time.monotonic() + HOOK_REDIRECT_TIMEOUT
-        for args in tries:
-            proc = subprocess.run([sys.executable, str(program), *(args or (subcommand,))], input=raw,
-                                  capture_output=True, text=True, cwd=str(run_dir),
-                                  env={**os.environ, HOOK_REDIRECT_ENV: "1", "WORKFLOW_ROOT": str(state)},
-                                  timeout=max(deadline - time.monotonic(), 0.1))
-            if proc.returncode == 0:
-                break
-        else:
-            return raw
-        if args:  # the fallback card: the first line compact-resume would have printed
-            sys.stdout.write("compaction=done source=compact\n")
-        sys.stdout.write(proc.stdout)
-        sys.stderr.write(proc.stderr)
-        sys.stdout.flush()
-        sys.stderr.flush()
-        return None
-    except Exception:  # noqa: BLE001 - fail open: this adapter answers instead
-        return raw
 
 
 def _card_session_dir(transcript_path=None):
@@ -1574,9 +1369,7 @@ def _card_running_spans(session_dir):
 def cmd_compact_resume(args: argparse.Namespace) -> None:
     """SessionStart hook (source `compact`): print the engine's resume card with the session's running spans; on
     any error, the plain pointer. Exit 0."""
-    raw = _hook_stdin_or_redirect("compact-resume")
-    if raw is None:  # the adapter of the workspace that owns the session's cwd answered
-        return
+    raw = _hook_stdin()
     print("compaction=done source=compact")
     try:
         try:
@@ -1599,14 +1392,10 @@ def cmd_compact_resume(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """The adapter's four commands."""
-    parser = argparse.ArgumentParser(prog="adapter.py", description="The Claude Code adapter of the workflow engine.")
+    """The adapter's three commands."""
+    parser = argparse.ArgumentParser(prog="sikstack-adapter", description="The Claude Code adapter of the sikstack engine.")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("sync-agents", help="Write the route table's rows (engine defaults overlaid by the repo-root executors.toml) into the model/effort frontmatter of the six managed agent files: slice-executor (the mid row; high and research run it with their model and effort passed per dispatch), design-drafter (its own design row), design-critic (the critic row; the judge row runs it with its model passed per call), pr-reader (the reader row), code-reader (the code row) and Explore (the explore row)")
-    p.add_argument("--check", action="store_true", help="Report drift without writing; exit 1 if out of sync")
-    p.set_defaults(func=sync_agents)
-
-    p = sub.add_parser("route", help="Print the executor routing decision, one key=value per line, writing nothing: bare, the resolved route table (high, research, design, critic, judge, reader, code, mid, explore), the agent files' sync state and an override= line per row executors.toml sets (its value against the default); with a slice id, the route, subagent_type (slice-executor for every slice row), model, effort and attribution its dispatch uses (kind first, then risk, then attempt); --drafter / --critic / --judge / --reader / --code / --explore, a non-slice agent's dispatch; plus fallback=, skip= and warning= lines for the environment. The critic and the judge may share the design row's model (v75)")
+    p = sub.add_parser("route", help="Print the executor routing decision, one key=value per line, writing nothing: bare, the resolved route table (high, research, design, critic, judge, reader, code, mid, explore) and an override= line per row .sikstack/config.toml sets (its value against the default); with a slice id, the route, subagent_type (sikstack:slice-executor for every slice row), model, effort and attribution its dispatch uses (kind first, then risk, then attempt); --drafter / --critic / --judge / --reader / --code / --explore, a non-slice agent's dispatch; plus fallback=, skip= and warning= lines for the environment. The critic and the judge may share the design row's model (v75)")
     p.add_argument("slice", nargs="?", help="the slice to route; omit for the table")
     p.add_argument("--retry", action="store_true", help="the slice's second attempt (an escalation, a failed or empty return, a fix of mid-row work): always the high row")
     p.add_argument("--drafter", action="store_true", help="the design-drafter's dispatch (its own design row, [claude.design]; not a slice route)")

@@ -3,7 +3,7 @@
 ## Shape — three styles
 
 - **The design slice:** `--kind co-work --risk high`. It runs inline; its dispatched spans run on
-  their own rows: the drafting on the design row or the phase's `Drafter:` model (`adapter.py route --drafter --phase <P>`), the critique on the
+  their own rows: the drafting on the design row or the phase's `Drafter:` model (`sikstack-adapter route --drafter --phase <P>`), the critique on the
   critic and judge rows (`--critic`, `--judge`), and the mockup, when requested, on the high row.
 - **A design slice writes no *product* implementation code.** It ends at SIGNOFF, and **the real
   implementation is always its own slice.** The only code inside it is a mockup: throwaway, stubbed,
@@ -21,7 +21,7 @@
   `phase.md`, the build inventory in `topics/breakdown.md`, and each signed round's `## Build` (`result.md`): **backing/backend work first, then the design
   implementation**, then any fidelity fix. Otherwise it is an ordinary decomposition slice, rewriting
   `topics/breakdown.md` in place with one more `Breakdown (DECOMP2): …` gist line in `## Decisions`.
-- `P<N>.DECOMP2` has a second origin, after a `research` slice (see `CLAUDE.md`); nothing here depends
+- `P<N>.DECOMP2` has a second origin, after a `research` slice (see the contract, `${CLAUDE_PLUGIN_ROOT}/contract.md`); nothing here depends
   on it.
 - **Choose it when** the whole design should land before any of it is built, and the build fits in
   the same phase.

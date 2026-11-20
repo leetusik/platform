@@ -5,9 +5,9 @@ the round procedure**, and you read each one when its moment comes. This file ke
 adds.
 
 - **Who runs what.** The round's lifecycle and the operator's words stay inline; the **drafting is
-  dispatched to `design-drafter`** every round, the **critique to `design-critic`** when a job's level
+  dispatched to `sikstack:design-drafter`** every round, the **critique to `sikstack:design-critic`** when a job's level
   asks for it, and the **mockup build is the one span dispatched to a slice executor**
-  (`slice-executor` on the high row, like any code slice), only when the operator asked for one. Each round runs in passes, once per round: a `co-work`
+  (`sikstack:slice-executor` on the high row, like any code slice), only when the operator asked for one. Each round runs in passes, once per round: a `co-work`
   slice designs one job, its frame drafter first, then its page drafters at once (each page's critic as
   its drafter returns), then the join and the cross-page critic. The slice is a barrier that never shares
   a slice wave; its own spans run in parallel inside it.
@@ -20,7 +20,7 @@ adds.
   (`reference/publish.md`); the operator's return: edits, comments, feedback, signing
   (`reference/operator.md`); a requested mockup (`reference/mockup.md`).
 - **The stops.** STOP the loop at **PENDING #1**, once per round:
-  `python3 scripts/workflow.py slice status <slice_id> pending --stop-kind wave --on-words "<what their words will do>"`.
+  `sikstack slice status <slice_id> pending --stop-kind wave --on-words "<what their words will do>"`.
   With a mockup requested, STOP again at **PENDING #2**, the mockup gate (`--stop-kind mockup`).
   **PENDING #2 exists only when a mockup was requested** (`Mockup: requested` in `intent.md`, or the
   operator asked in their own words before the round closed).

@@ -120,11 +120,11 @@ Two ways to stand this knowledge base back up:
 
 ## Agentic workflow
 
-This repo is developed with
-[bootstrap_agentic_workspace.sh](https://github.com/leetusik/bootstrap_agentic_workspace.sh),
-a portable harness that drives coding agents through phases → slices → phase
-reviews, with operator-approved plans and versioned docs as the durable record.
-Its workflow state and docs live outside this repo. The records of the
-workspace that built the repo up to November 2026 (phases, versioned docs,
-design records) are frozen, read-only, under
-[`archive/workspace/`](archive/workspace/README.md).
+This repo is developed with sikstack, the workflow plugin in
+[`plugins/sikstack/`](plugins/sikstack/) (its engine's history came over from
+bootstrap_agentic_workspace.sh), which drives coding agents through phases →
+slices → phase reviews, with operator-approved plans as the durable record.
+Its workflow state lives outside this repo. The records of the workspace that
+built the repo up to November 2026 (phases, versioned docs, design records)
+left the tree; they are in the history at commit `ee61f98c`
+(`git show ee61f98c:archive/workspace/README.md`).

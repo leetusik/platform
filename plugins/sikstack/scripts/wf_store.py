@@ -36,39 +36,51 @@ SEAMS = {
     ),
 }
 
-# Where the state is. The engine's modules sit flat beside its entry, ENGINE. ROOT is the workspace this run reads
-# and writes, found once, in order: (1) the engine's own parent when it sits inside a workspace (its parent holds
-# works/: every installed copy, nested or at root); (2) the folder WORKFLOW_ROOT names (its workflow/ when that is a
-# nested host); (3) the first folder up from the current directory that holds workflow/.agentic-nested.json (a
-# nested host: its workflow/) or works/phases/ (an at-root workspace). None of them: one line, exit 2. So an engine
-# outside any workspace (a plugin's folder) never writes into its own folder.
+# Where the state is. The engine's modules sit flat beside its entry, ENGINE, inside the sikstack plugin. ROOT is the
+# workspace this run reads and writes: a repo's `.sikstack/` folder (its own git repo), found once, the way git finds
+# `.git/`: (1) the folder SIKSTACK_ROOT names (the `.sikstack/` itself, or the folder that holds one); else (2) the
+# nearest `.sikstack/` walking up from the current directory. None: one line naming `sikstack init`, exit 2, nothing
+# written. The engine's own folder is never a candidate (the plugin ships `templates/`, never a `.sikstack/`), and an
+# old `workflow/.agentic-nested.json` install met on the way up gets one line pointing at `sikstack migrate`; nothing
+# else of the old layout is read.
 ENGINE = Path(__file__).resolve().parent / "workflow.py"
-NO_WORKSPACE = "no workspace found from {cwd}; run from inside one or set WORKFLOW_ROOT"
+PLUGIN_ROOT = ENGINE.parent.parent
+STATE_DIR = ".sikstack"
+ROOT_ENV = "SIKSTACK_ROOT"
+OLD_MARKER = Path("workflow") / ".agentic-nested.json"  # the pre-plugin nested install's marker: never read here
+NO_WORKSPACE = "no sikstack workspace found from {cwd}: run `sikstack init` in the repo (or set SIKSTACK_ROOT)"
+OLD_WORKSPACE = ("{where} holds an old workflow/ install, which sikstack does not read: run `sikstack migrate` there "
+                 "to move it into .sikstack/")
 
 
 def _walk_to_state(start: Path):
-    """(state, folder) for the first folder from `start` up that holds `workflow/.agentic-nested.json` (nested,
-    checked first at each level: the state is its `workflow/`) or `works/phases/` (at root: the folder), or None."""
+    """(state, folder) for the nearest folder from `start` up that holds a `.sikstack/` directory -- the state is
+    that `.sikstack/`, the folder the repo (or multi-repo host) it belongs to -- or None. A folder met first that holds
+    only an old `workflow/.agentic-nested.json` returns ("old", folder)."""
     for d in (start, *start.parents):
-        if (d / "workflow" / ".agentic-nested.json").is_file():  # == NESTED_MARKER
-            return d / "workflow", d
-        if (d / "works" / "phases").is_dir():
-            return d, d
+        if (d / STATE_DIR).is_dir():
+            return d / STATE_DIR, d
+        if (d / OLD_MARKER).is_file():
+            return "old", d
     return None
 
 
 def find_root() -> Path:
-    own = ENGINE.parent.parent
-    if (own / "works").is_dir():
-        return own
-    named = os.environ.get("WORKFLOW_ROOT", "").strip()
+    named = os.environ.get(ROOT_ENV, "").strip()
     if named:
         folder = Path(named).expanduser().resolve()
-        return folder / "workflow" if (folder / "workflow" / ".agentic-nested.json").is_file() else folder
+        state = folder if folder.name == STATE_DIR else folder / STATE_DIR
+        if not state.is_dir():
+            print(f"{ROOT_ENV}={named} names no {STATE_DIR}/ folder; run `sikstack init` there", file=sys.stderr)
+            raise SystemExit(2)
+        return state
     cwd = Path.cwd().resolve()
     found = _walk_to_state(cwd)
     if found is None:
         print(NO_WORKSPACE.format(cwd=cwd), file=sys.stderr)
+        raise SystemExit(2)
+    if found[0] == "old":
+        print(OLD_WORKSPACE.format(where=found[1]), file=sys.stderr)
         raise SystemExit(2)
     return found[0]
 
@@ -336,12 +348,12 @@ def _bare_installed_name(name) -> bool:
 
 
 def _load_nested() -> tuple:
-    """(marker, problems): (None, []) when ROOT holds no `.agentic-nested.json` -- at-root mode, the only
-    case that touches nothing. A marker that cannot be read or parsed comes back as `{}` with its
-    problem, so it still counts as nested (never silently at-root)."""
+    """(marker, problems). A `.sikstack/` is always nested in its repo (or multi-repo host): `sikstack init` writes
+    the marker. A missing marker, or one that cannot be read or parsed, comes back as `{}` with its problem, so it
+    still counts as nested (never silently at-root) and every command but check refuses."""
     path = ROOT / NESTED_MARKER
     if not os.path.lexists(path):
-        return None, []
+        return {}, [f"missing (run `sikstack init` in {ROOT.parent} to write it)"]
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -353,21 +365,9 @@ NESTED, NESTED_PROBLEMS = _load_nested()
 HOST_ROOT = None
 if NESTED is not None and isinstance(NESTED.get("host_root"), str) and NESTED["host_root"].strip() and not os.path.isabs(NESTED["host_root"]):
     HOST_ROOT = (ROOT / NESTED["host_root"]).resolve()
-# The command prefix every printed hint uses: WORKFLOW_CMD from the environment when set (a plugin names its own);
-# for an engine outside the workspace, its own path from the host root (the workspace root at root); else from
-# the host root when nested (cwd = <host>), from the workspace root otherwise -- so at root it is exactly the
-# literal the hints always printed. A nested marker too broken to name its host gets the absolute path, right
-# from any cwd.
-if os.environ.get("WORKFLOW_CMD", "").strip():
-    WORKFLOW_CMD = os.environ["WORKFLOW_CMD"].strip()
-elif ENGINE.parent.parent != ROOT:
-    WORKFLOW_CMD = f"python3 {Path(os.path.relpath(ENGINE, HOST_ROOT or ROOT)).as_posix()}"
-elif HOST_ROOT is not None:
-    WORKFLOW_CMD = f"python3 {Path(os.path.relpath(ROOT, HOST_ROOT)).as_posix()}/scripts/workflow.py"
-elif NESTED is not None:
-    WORKFLOW_CMD = f"python3 {ROOT / 'scripts' / 'workflow.py'}"
-else:
-    WORKFLOW_CMD = "python3 scripts/workflow.py"
+# The command prefix every printed hint uses: the plugin's bare `sikstack` command (its bin/ is on the Bash tool's
+# PATH), or WORKFLOW_CMD from the environment when a caller names another.
+WORKFLOW_CMD = os.environ.get("WORKFLOW_CMD", "").strip() or "sikstack"
 # Appended to every printed `worktree start <P>` hint: a nested install's start needs the host branch
 # (P35), which the operator names; at root it is empty, so the hints print exactly as before.
 NESTED_HOST_BRANCH_ARG = " --host-branch <name>" if NESTED is not None else ""
@@ -513,7 +513,7 @@ PINNED_MODE = "default"
 WORKTREES_DIR = ".claude/worktrees"
 # What the stamp commit carries besides the phase folder: the generated works/ files that
 # `rebuild_index_and_state` rewrites, plus the event log. Nothing else on the tree enters it.
-STAMP_WORKS_FILES = ("works/state.json", "works/index.json", "works/backlog.md", "works/deferred.md", "works/agenda.md",
+STAMP_WORKS_FILES = ("works/state.json", "works/index.json", "backlog.md", "works/deferred.md", "works/agenda.md",
                      "works/events.jsonl")
 # A default-stream phase in any of these states means main is mid-flight, so a phase
 # branch may not be merged into it yet (the quiet-point gate, `worktree gate`).
@@ -538,7 +538,7 @@ EXPLAIN_UNITS = ("document", "book", "chapter")
 EXPLAIN_UNIT_DEFAULT = "book"
 # Regenerated from works/phases/** by `worktree merge-finish`; never merged by hand (see .gitattributes).
 # docs/current/*.md are plain files agents edit, so they are not among them.
-GENERATED_FILES = ("works/state.json", "works/index.json", "works/backlog.md", "works/deferred.md", "works/agenda.md")
+GENERATED_FILES = ("works/state.json", "works/index.json", "backlog.md", "works/deferred.md", "works/agenda.md")
 
 
 def _main_host_checkout(host: Path) -> Path:
@@ -1803,9 +1803,7 @@ def parallel_plan_lines(phase: dict) -> list:
 
 SLICES_BEGIN = "<!-- slices:begin -->"
 SLICES_END = "<!-- slices:end -->"
-# WORKFLOW_CMD is the literal `python3 scripts/workflow.py` at root (so this line stays byte-identical to
-# works/templates/phase.md); a nested install's template is installed with the host-relative prefix, so
-# its regenerated line carries the same one.
+# WORKFLOW_CMD is `sikstack`, so this line stays byte-identical to the plugin's templates/works/phase.md.
 SLICES_GUIDANCE = f"_Generated by `{WORKFLOW_CMD} check` from each slice's `slice.json`; never hand-edit this block._"
 
 
@@ -2773,20 +2771,19 @@ def _default_checkout_root():
 
 
 def refresh_default_checkout() -> None:
-    """Rerun the default checkout's OWN engine `check` from a parallel stream (workspace v67), so
-    its `works/backlog.md` follows this phase whether or not anything runs there. Its rebuild reads
+    """Rerun `check` on the default checkout's workspace from a parallel stream (workspace v67), with this same
+    engine pointed there by SIKSTACK_ROOT, so its `backlog.md` follows this phase whether or not anything runs there. Its rebuild reads
     this phase from this worktree's files (`streams_section`); the files it rewrites are generated
     and stay uncommitted there. Best effort and silent: a missing engine, a failure or a timeout
     never blocks this stream, and the env guard stops a refresh from refreshing again."""
     if os.environ.get(DEFAULT_REFRESH_ENV):
         return
     root = _default_checkout_root()
-    engine = root / "scripts" / "workflow.py" if root is not None else None
-    if engine is None or not engine.is_file():
+    if root is None or not (root / NESTED_MARKER).is_file():
         return
     try:
-        subprocess.run([sys.executable, str(engine), "check"], cwd=str(root), capture_output=True, text=True,
-                       timeout=60, env={**os.environ, DEFAULT_REFRESH_ENV: "1"})
+        subprocess.run([sys.executable, str(ENGINE), "check"], cwd=str(root.parent), capture_output=True, text=True,
+                       timeout=60, env={**os.environ, DEFAULT_REFRESH_ENV: "1", ROOT_ENV: str(root)})
     except Exception:  # noqa: BLE001 - never block the stream on the default checkout's dashboards
         pass
 
@@ -2816,7 +2813,7 @@ def _phase_progress(phase_like: dict, slices: list) -> tuple:
 
 
 def streams_section(phases: list, state: dict, live=None) -> list:
-    """The `## Streams` table for `works/backlog.md` (P35.S7): the default stream plus every stamped
+    """The `## Streams` table for `backlog.md` (P35.S7): the default stream plus every stamped
     phase still in flight, each read live from where its slices actually advance.
 
     A parallel phase's slice progress lives on its own branch, so this checkout's copy of it stands
@@ -2921,12 +2918,12 @@ def streams_section(phases: list, state: dict, live=None) -> list:
 
 
 def installed_workspace_version():
-    """The installer's marker version (`works/.workspace-version.json`), or None when missing, unreadable or not an int."""
+    """The plugin's version (`.claude-plugin/plugin.json`), or None when it cannot be read."""
     try:
-        version = read_json(WORKS / ".workspace-version.json").get("workspace_version")
+        version = read_json(PLUGIN_ROOT / ".claude-plugin" / "plugin.json").get("version")
     except (OSError, ValueError, AttributeError):
         return None
-    return version if isinstance(version, int) and not isinstance(version, bool) else None
+    return version if isinstance(version, str) and version.strip() else None
 
 
 def rebuild_backlog(phases: list, state: dict, index: dict) -> None:
@@ -2946,7 +2943,7 @@ def rebuild_backlog(phases: list, state: dict, index: dict) -> None:
     lines += [
         f"- Open deferred jobs: `{index.get('deferred_open_count', 0)}`",
         f"- Open agenda items: `{sum((index.get('agenda_counts') or {}).get(key, 0) for key in ('open', 'in_progress'))}`",
-        f"- Workspace version: `{'unknown' if version is None else f'v{version}'}`", "",
+        f"- sikstack version: `{'unknown' if version is None else version}`", "",
         *streams_section(phases, state, live),
         "## Active Phases", "", "| Phase | Status | Review | Name | Current Slice | Path |", "|---|---|---|---|---|---|",
     ]
@@ -2978,7 +2975,7 @@ def rebuild_backlog(phases: list, state: dict, index: dict) -> None:
             rows.append(f"| [{checkbox}] `{s['id']}` | `{s['status']}` | {name} | `{clean_cell(s.get('kind', ''))}` | `{path}` |")
         lines.extend(rows)
     lines.append("")
-    write_text(WORKS / "backlog.md", "\n".join(lines))
+    write_text(ROOT / "backlog.md", "\n".join(lines))  # .sikstack/backlog.md: the rendered view
 
 
 def validate() -> int:
@@ -3196,7 +3193,10 @@ def require_slice(slice_id: str) -> Path:
 
 
 def load_template(name: str) -> str:
-    return (WORKS / "templates" / name).read_text(encoding="utf-8")
+    """A phase or deferred seed: the workspace's own `works/templates/<name>` when it keeps one (an operator's edit, a
+    migrated install), else the plugin's `templates/works/<name>`, which updates with the plugin."""
+    own = WORKS / "templates" / name
+    return (own if own.is_file() else PLUGIN_ROOT / "templates" / "works" / name).read_text(encoding="utf-8")
 
 
 def render_template(text: str, **values: str) -> str:
@@ -3205,47 +3205,9 @@ def render_template(text: str, **values: str) -> str:
     return text
 
 
-# Byte-identical to works/templates/phase.md, which is the live seed. The copy exists so
-# `phase new` still works on a tree that predates the template (an adopter yet to update);
-# tests/retrofit_smoke.sh asserts the two stay identical.
-PHASE_MD_TEMPLATE_FALLBACK = """# Phase __PHASE_ID__: __NAME__
-
-_Intent: see [intent.md](intent.md)._
-
-## Objective
-
-__OBJECTIVE__
-
-## Slices
-
-<!-- slices:begin -->
-_Generated by `python3 scripts/workflow.py check` from each slice's `slice.json`; never hand-edit this block._
-<!-- slices:end -->
-
-## Decisions
-
-_Durable cross-slice decisions, one gist line each. Replace a superseded line (`--entry K --replace`); never stack versions. Long detail goes to `topics/<slug>.md` behind its gist line (`--to-topic` moves one); a breakdown lives in `topics/breakdown.md`._
-
-## Operator Questions
-
-_Questions only the operator can answer, one entry each: `- **OQ<n> (<slice>):** <question>`. Append only (`section <P> "Operator Questions" --append`); an answered entry collapses with `section <P> --resolve OQ<n> --pointer <ref>`, never deleted. Every entry is routed at the review — folded into the acceptance walkthrough, filed with `defer-job`, or resolved. An unrouted entry is a review finding._
-
-## Notes for later slices
-
-_Gotchas and constraints the next slices need, each tagged `**(from <slice>, for <slice>)**`. A slice that consumes a note removes it (`--entry K --remove`); the detail stays in that slice's `result.md`. This file is an index read and written only through `section <P>`, never whole; keep it under 40 KB._
-
-## Now
-
-_≤ 15 lines, rewritten by every slice at its end: what is done, what the next slice must know, what is open. Last on purpose._
-"""
-
-
 def phase_md_template() -> str:
-    """The phase-notebook seed: the shipped template when present, else the embedded copy."""
-    try:
-        return load_template("phase.md")
-    except OSError:
-        return PHASE_MD_TEMPLATE_FALLBACK
+    """The phase-notebook seed (`load_template`; the plugin always ships one)."""
+    return load_template("phase.md")
 
 
 def require_slice_kind(kind: str) -> str:

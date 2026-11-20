@@ -1,0 +1,4 @@
+#!/bin/sh
+# The Claude Code adapter (route, meter, compact-resume) as a bare command, kept apart from the engine.
+here=$(cd "$(dirname "$0")" && pwd -P)
+exec python3 "$here/../adapters/claude_code/adapter.py" "$@"

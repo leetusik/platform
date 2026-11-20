@@ -13,7 +13,7 @@ The Library and Feedback at <https://hi2vi.com>: a document API, a web app, a CL
 - `docs/`: the library's content root (the box writes tenant #1's projects under `docs/<project>/`), plus the MkDocs site sources the scaffold ships (`index.md`, `tags.md`, `graph.md`, `assets/`, `javascripts/`, `stylesheets/`, `mkdocs.yml`).
 - `scripts/`: the parity guards, the smokes and the book migration.
 - `skills/vocky-feedback/SKILL.md`: the Feedback capture skill, served at `/feedback/SKILL.md`.
-- `archive/workspace/`: the frozen records of the workspace that built this repo up to 2026-11-13.
+- `plugins/sikstack/`: the sikstack plugin, the workflow engine's source (`scripts/`, the Claude Code adapter in `adapters/claude_code/`, `skills/`, `agents/`, `hooks/`, `bin/`, `templates/`, `tests/`); listed first in `.claude-plugin/marketplace.json`. Its history came over from bootstrap_agentic_workspace.
 
 ## Commands
 
@@ -21,6 +21,7 @@ The Library and Feedback at <https://hi2vi.com>: a document API, a web app, a CL
 - Web: `pnpm --dir web typecheck`, `lint`, `test`, `dev` (`http://127.0.0.1:3030`). Run `pnpm --dir web build` in a scratch copy of `web/`, never in a checkout whose dev server is running: the build rewrites `web/.next`.
 - Verify in a browser: `bash .claude/skills/hi2vi-verify/run.sh doctor | up | signin | feature <name> | down` runs the whole stack on loopback, outside the checkout, and drives it with `playwright-cli`; the steps and the feature map are in `.claude/skills/hi2vi-verify/` (`SKILL.md`, `features/`).
 - Parity: `python3 scripts/skills_parity.py` and `python3 scripts/plugin_parity.py` (CI runs both, `.github/workflows/plugin-ci.yml`).
+- sikstack: `bash plugins/sikstack/tests/smoke.sh`, alone in its shell call (CI: `.github/workflows/sikstack-ci.yml`, on changes under `plugins/sikstack/**`).
 
 ## Rules
 
@@ -35,10 +36,12 @@ The Library and Feedback at <https://hi2vi.com>: a document API, a web app, a CL
 
 Users install `knowledge@knowledge` from `.claude-plugin/marketplace.json` and pull an update only when `plugin/.claude-plugin/plugin.json`'s `version` changes, so any change under `plugin/**` ships with a version bump. The release checklist (parity, `claude plugin validate`, the scaffold rehearsal) is in `plugin/README.md`.
 
+The same holds for `sikstack@sikstack`: any change under `plugins/sikstack/**` bumps `plugins/sikstack/.claude-plugin/plugin.json`'s semver `version` and adds its entry to `plugins/sikstack/CHANGELOG.md`, in the same PR (CI checks the bump).
+
 ## Deploy
 
 Production is the box's checkout at `/opt/knowledge`, deployed only by dispatching the `Production Deploy` workflow from `main` (`.github/workflows/deploy-production.yml` → `deploy/oracle-production-deploy-remote.sh`). It reconciles the checkout with `origin/main`, rebuilds, migrates and health-gates the services. Never change code or containers on the box by hand: the deploy refuses a dirty tracked tree. The Listen runner on the Mac is installed by `tools/listen-runner/install.sh`, not by the deploy.
 
 ## Where the workspace lives
 
-Phases, plans, durable docs and the operator's decisions live in the hi2vi host's `workflow/`, outside this repo. `archive/workspace/` is the frozen record of the old in-repo workspace: read it, never edit it, and run no workflow engine in this repo.
+Phases, plans, durable docs and the operator's decisions live in the host's workflow state, outside this repo. The engine's source lives here, in `plugins/sikstack/`: its checks run from `plugins/sikstack/tests/` against scratch repos made with `sikstack init`, never against this checkout. Keep no `.sikstack/` workspace in this repo. The old in-repo workspace's frozen records left the tree; read them in the history at commit `ee61f98c` (`git show ee61f98c:archive/workspace/README.md`).

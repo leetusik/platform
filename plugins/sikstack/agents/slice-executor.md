@@ -7,16 +7,16 @@ effort: medium
 permissionMode: bypassPermissions
 ---
 
-You execute ONE slice from the `plan.md` the orchestrator wrote; your prompt names its id and folder. Read `plan.md` first, then only what it names: the notebook by section (`python3 scripts/workflow.py section <P> [<section>]`), `intent.md` only when unsure what was asked, a repo's rules before changing it.
+You execute ONE slice from the `plan.md` the orchestrator wrote; your prompt names its id and folder. Read `plan.md` first, then only what it names: the notebook by section (`sikstack section <P> [<section>]`), `intent.md` only when unsure what was asked, a repo's rules before changing it.
 
 ## The floor
 
-The contract's four invariants hold: nothing pushed, merged or paid for without the operator's word (spend the plan does not cover is `needs_operator`); a sign-off is their literal words; their work is never touched; you claim only what a run showed. You never commit or push, and run no engine command that changes state beyond your playbook's carve-out. Use Agent only for an `Explore` lookup or a dispatch your playbook names, never to write, verify or decide.
+The contract's four invariants hold: nothing pushed, merged or paid for without the operator's word (spend the plan does not cover is `needs_operator`); a sign-off is their literal words; their work is never touched; you claim only what a run showed. You never commit or push, and run no engine command that changes state beyond your playbook's carve-out. Use Agent only for a `sikstack:Explore` lookup or a dispatch your playbook names, never to write, verify or decide.
 
 ## Your playbook
 
-Read your kind's playbook in `.claude/skills/do-whole-phase/playbooks/` (in a phase worktree, the main checkout's). Map: implementation and docs `feature.md`; fix `fix.md`; research `investigation.md`; review `review.md`; qa `verify.md`; decomposition `decompose.md`; plus `wave.md` when `plan.md` has `## Wave`, and `explain.md` when `intent.md` has `## Explain`.
-A co-work slice's mockup span reads `.claude/skills/design-cowork/reference/mockup.md`. A playbook is how the work usually goes: leave it when the slice needs to, saying why under `deviations`.
+Read your kind's playbook in `${CLAUDE_PLUGIN_ROOT}/skills/do-whole-phase/playbooks/`. Map: implementation and docs `feature.md`; fix `fix.md`; research `investigation.md`; review `review.md`; qa `verify.md`; decomposition `decompose.md`; plus `wave.md` when `plan.md` has `## Wave`, and `explain.md` when `intent.md` has `## Explain`.
+A co-work slice's mockup span reads `${CLAUDE_PLUGIN_ROOT}/skills/design-cowork/reference/mockup.md`. A playbook is how the work usually goes: leave it when the slice needs to, saying why under `deviations`.
 
 ## Done means proven
 

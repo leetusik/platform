@@ -7,7 +7,7 @@ published: the operator sees the joined canvas, critiqued at the level the job a
 
 **Read back the job yourself; a `done` is a claim, not your check:**
 
-1. **`python3 scripts/workflow.py design-check <job>`.** **Never rest on the drafter's own
+1. **`sikstack design-check <job>`.** **Never rest on the drafter's own
    `design_check` line.** Exit 1 goes back to the drafter on the same open round with exactly the
    named problems; if they survive that pass, report them and hold the job.
 2. **Read only the verdict blocks and `## Summary`:** the drafter's verdict, the round `result.md`'s

@@ -1,18 +1,40 @@
 # Changelog
 
-Workspace versions for the agentic-workspace cornerstone. One `## v<N>` section per
-integer `WORKSPACE_VERSION`, newest first. `/update-workspace` reads this file from
-the upstream clone to show adopting repos what a sync brings — so each entry states
-what changed and, when a sync needs manual steps, a **Migration notes** line.
+The sikstack plugin's releases, newest first. A version is semver, in `.claude-plugin/plugin.json`; any change under
+`plugins/sikstack/**` bumps it in the same pull request (CI checks it), and a user pulls an update only when it moves.
+Each entry says what changed and, when an install needs a manual step, a **Migration notes** line.
 
-Sections are stamped when work lands on `main`, never written on a branch: a branch leaves its
-notes in a `changelog.d/<slug>.md` fragment (see `changelog.d/README.md`), and
-`python3 installer/build.py --release` folds the pending fragments into the next `## v<N>`
-section and sets `WORKSPACE_VERSION` to match.
+Before 1.0.0 the same engine shipped as the agentic workspace's installer (`bootstrap_agentic_workspace.sh`), one
+integer version per release, `## v<N>` below; that history continues here.
 
-Everything before v1 is **pre-versioning**: those workspaces carry no
-`workspace_version` in `works/.workspace-version.json`; consult `git log` for that
-history.
+## 1.0.0 — 2026-11-21
+
+- **The workspace is a Claude Code plugin.** Install it with `claude plugin marketplace add leetusik/sikstack` and
+  `claude plugin install sikstack@sikstack`. The skills and agents load from the plugin, namespaced
+  (`/sikstack:sik-mode`, `sikstack:slice-executor`, `sikstack:Explore`); the installer, its built `.sh`, `--update`,
+  `--release`, `changelog.d/`, the adopter CI seed and `sync-agents` are retired, and so are the `update-workspace` and
+  `retrofit` skills.
+- **State lives in `.sikstack/`.** `sikstack init` makes it in the repo (or a multi-repo host folder): `works/`,
+  `docs/current/`, `config.toml` (the executor route rows, which `executors.toml` held), `backlog.md` (the rendered
+  view, was `works/backlog.md`), its own git repo, and a `/.sikstack/` line in `.git/info/exclude`. The engine finds it
+  the way git finds `.git/`: the nearest `.sikstack/` above the current folder, or the folder `SIKSTACK_ROOT` names.
+  With none it prints one line naming `sikstack init` and exits 2, writing nothing; it never roots in the plugin's
+  own folder. An old `workflow/` install above gets one line pointing at `sikstack migrate`.
+- **Bare commands.** The plugin's `bin/` puts `sikstack` (the engine) and `sikstack-adapter` (route, meter,
+  compact-resume) on the Bash tool's PATH. Skills, agents and the contract say `sikstack …` and name agents with the
+  `sikstack:` prefix; every route row takes an Agent-tool alias and is passed per dispatch.
+- **The guard is a hook.** A PreToolUse hook denies a force push (`--force`, `-f`, `--force-with-lease`, a `+refspec`)
+  and `rm -rf`, each with a one-line reason, and allows `playwright-cli`; the compact-resume SessionStart hook moves into
+  the plugin too. A plugin's settings permissions are ignored by Claude Code, so nothing is merged into settings.
+- **`/sikstack:sik-mode`** is the entry: it reads `sikstack next` and offers `init`, starts a phase, runs the one in
+  flight, or relays a waiting stop or an open gate.
+- **The checks moved with the source.** `tests/smoke.sh` (was `tests/retrofit_smoke.sh`) builds every workspace with
+  `sikstack init` in a scratch repo; the installer's tests are cut (the list is in its header), the text pins live in
+  `tests/static_pins.py`, and a new test covers the finder, `init`, both hooks and the shipped text. Platform CI
+  (`.github/workflows/sikstack-ci.yml`) runs it on every change under `plugins/sikstack/**` and fails one that leaves
+  this version unmoved.
+- **Migration notes.** An existing `workflow/` install keeps running its own engine until `sikstack migrate` (next
+  release) moves it into `.sikstack/`; nothing reads the old layout meanwhile.
 
 ## v102 — 2026-11-20
 

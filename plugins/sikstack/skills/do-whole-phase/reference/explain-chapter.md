@@ -6,7 +6,7 @@ An explain phase's write slices come in two shapes, by `next`'s `explain_unit=`:
 
 Either is **multi-span**, like a co-work critique step: the executor writes and checks, **you** dispatch the
 knowledge plugin's critic on a second model, and the executor revises once. The executor is the plugin's
-writer: it reads the code and the phases' records itself and dispatches no agent (`slice-executor`'s explain
+writer: it reads the code and the phases' records itself and dispatches no agent (`sikstack:slice-executor`'s explain
 carve-out), never the critic. The evidence and writing rules are the knowledge plugin's
 `skills/explain/SKILL.md`, cited by section number and heading and never copied here. This file keeps only
 what the loop adds.
@@ -16,7 +16,7 @@ what the loop adds.
 The executor writes chapter `<k>` by §9.3 *A chapter: its evidence, then the draft*.
 
 - **Where things live.** The slice folder holds only `plan.md` and `result.md`. Everything else is in the
-  phase folder `works/phases/active/P<N>/`, for chapter `<k>` (its position) and `<key>`:
+  phase folder `.sikstack/works/phases/active/P<N>/`, for chapter `<k>` (its position) and `<key>`:
   - the draft: `book/<key>.md`, the body only (it stands in for the skill's `<tmp>/body.md`);
   - images it attaches: `book/assets/<key>/<NAME>.<ext>`, so the review's publish can re-attach them;
   - the critique: `book/critique/<key>.md`, written once by the critic;
@@ -82,11 +82,11 @@ The executor writes chapter `<k>` by §9.3 *A chapter: its evidence, then the dr
    ```
    slice: <P>.S<k>
    mode: critique · kind: chapter
-   draft: works/phases/active/P<N>/book/<key>.md · critique: works/phases/active/P<N>/book/critique/<key>.md · dossier: works/phases/active/P<N>/book/research
+   draft: .sikstack/works/phases/active/P<N>/book/<key>.md · critique: .sikstack/works/phases/active/P<N>/book/critique/<key>.md · dossier: .sikstack/works/phases/active/P<N>/book/research
    skill: <the skill path plan.md names>
    writer_model: <the model= line span 1 ran on>
    title: <the chapter title plan.md names>[ · kept][ · book: <the book's title>]
-   chapter: slice: <P>.S<k> · phase: P<N> · key: <key> · plan: works/phases/active/P<N>/slices/<P>.S<k>/plan.md
+   chapter: slice: <P>.S<k> · phase: P<N> · key: <key> · plan: .sikstack/works/phases/active/P<N>/slices/<P>.S<k>/plan.md
    ```
 
    The `title:` value is the outline's chapter title in `plan.md`; `· book:` goes only on a new book's
@@ -150,7 +150,7 @@ evidence, and the phase review decides it, beside the book.
 It is the exact command that exited 0, **minus its target**, so that the review can turn it into the
 publish by changing one word:
 - start it `knowledge check <draft> …`, with the draft path and every `--asset NAME=PATH` relative to the
-  **repo root** (`works/phases/active/P<N>/book/<key>.md`, or `works/phases/active/P<N>/doc/body.md`),
+  **repo root** (`.sikstack/works/phases/active/P<N>/book/<key>.md`, or `.sikstack/works/phases/active/P<N>/doc/body.md`),
   because the review runs from there;
 - leave out `--base-url`, the token and `--json`, and put no environment variable in front. Whoever runs
   it adds the global `--base-url <KB_API_BASE_URL>` before the subcommand, from §2 *Resolve the knowledge
@@ -187,7 +187,7 @@ route table and no file in this workspace. The plugin ships it, and you apply th
   the run (`reference/verdicts.md`).
 - Only after the last span returns `done`: `slice finish`, then **one commit** carrying the draft, its
   assets, the critique, the chapter's record files, `result.md` and `phase.md`. **Check the freeze
-  first:** `git status --short` (nested: `git -C workflow status --short`):
+  first:** `git status --short` (nested: `git -C .sikstack status --short`):
   - a book's chapter may show, under `book/research/`, only files named for this chapter
     (`evidence-ch<k>.md`, `outline-ch<k>.md`, `trace-<key>.md`, `answers-<key>.md`). A change to
     `brief.md`, `evidence.md`, another chapter's file or `book/outline.md` breaks the freeze;
@@ -207,7 +207,7 @@ route table and no file in this workspace. The plugin ships it, and you apply th
 `doc/evidence.md`), and dispatches no agent. With `outline sign-off: on` it starts only after the
 operator's `accept`.
 
-- **Where things live:** the phase's dossier `works/phases/active/P<N>/doc/`, the plugin's `<DOSSIER>`, so
+- **Where things live:** the phase's dossier `.sikstack/works/phases/active/P<N>/doc/`, the plugin's `<DOSSIER>`, so
   the paths of §4 *Write the chapter — native Markdown* and §5 *Publish via the KB document API* need no
   translation (`<tmp>` is `<DOSSIER>`, as §2 *Resolve the knowledge base configuration* says): the draft
   `doc/body.md`, its trace `doc/trace.md`, images `doc/assets/<NAME>.<ext>`, the critique `doc/critique.md`,
@@ -229,7 +229,7 @@ operator's `accept`.
   ```
   slice: <P>.S1
   mode: critique · kind: document
-  draft: works/phases/active/P<N>/doc/body.md · critique: works/phases/active/P<N>/doc/critique.md · dossier: works/phases/active/P<N>/doc
+  draft: .sikstack/works/phases/active/P<N>/doc/body.md · critique: .sikstack/works/phases/active/P<N>/doc/critique.md · dossier: .sikstack/works/phases/active/P<N>/doc
   skill: <the skill path plan.md names>
   writer_model: <the model= line span 1 ran on>
   title: <the --title of S1's ## Publish>[ · kept]

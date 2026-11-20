@@ -15,7 +15,7 @@ You run in one of two modes, named by the dispatch:
 
 Either mode may run on the drafter's model; the operator's route table decides.
 
-Everything here is relative to the install root (`workflow/` when the workspace is nested). The design lives under `docs/reference/design/`; a job is `jobs/<job>/`, its canvas tree `jobs/<job>/canvas/project/`, and its rounds `jobs/<job>/rounds/<round>/`.
+Paths here start at the repo root. The design lives under `.sikstack/docs/reference/design/`; under it, a job is `jobs/<job>/`, its canvas tree `jobs/<job>/canvas/project/`, and its rounds `jobs/<job>/rounds/<round>/`.
 
 ## Inputs
 
@@ -58,8 +58,8 @@ Everything here is relative to the install root (`workflow/` when the workspace 
    - never its `## Critique pass NN` answers: there is no second critic pass to read them.
 
    **Never read its render log**, the drafter's account of its own self-check (what it saw, what it fixed): you judge the work, not its author's opinion of it. Find the section headings with `Grep` and `Read` only the ranges you need.
-5. **The craft standard** is the `## Craft: the standard you are held to` section of the installed drafter file, and **the bar's recipe** is its `## The working canvas` section with its `### The state bar`. Find the file with `Glob` on `.claude/agents/*design-drafter.md` (a nested install may rename it, e.g. `wf-design-drafter.md`). Read those sections and the AI-slop list. They are the drafter's contract and your yardstick: cite their lines, never restate or extend them. If no file matches, say so in the verdict, and mark every 2a finding at most `medium` confidence.
-6. `CLAUDE.md`, when there is one: honor every repo-specific safety rule there.
+5. **The craft standard** is the `## Craft: the standard you are held to` section of the installed drafter file, and **the bar's recipe** is its `## The working canvas` section with its `### The state bar`. It is `${CLAUDE_PLUGIN_ROOT}/agents/design-drafter.md`. Read those sections and the AI-slop list. They are the drafter's contract and your yardstick: cite their lines, never restate or extend them. If no file matches, say so in the verdict, and mark every 2a finding at most `medium` confidence.
+6. The repo's own `CLAUDE.md` or `AGENTS.md`, when there is one: honor every repo-specific safety rule there.
 
 ### By scope
 
@@ -77,7 +77,7 @@ A paged round is drafted in passes (the frame, each page alone, then the join), 
 
 ## Read the drafter's render; re-render only states
 
-You judge rendered work, never markup alone, but **you do not render again what the drafter rendered**. Its final self-check left the render in `docs/reference/design/.preview/<job>/<round>/`. Read it in this order, from the directory the session starts in:
+You judge rendered work, never markup alone, but **you do not render again what the drafter rendered**. Its final self-check left the render in `.sikstack/docs/reference/design/.preview/<job>/<round>/`. Read it in this order, from the directory the session starts in:
 1. the drafter's verdict block and `## Summary` (above);
 2. **the pictures first: one contact sheet per board** (`<stem>.sheet.png`: every view and state of the board tiled in one picture, about 2.6k tokens for a 51-shot board against about 86k shot by shot). Judge focal point, hierarchy, rhythm, type, copy and consistency from them, and write those 2a and 2b calls down **before you read a measured line**: a measured list read first anchors the eye on what it names and away from what it cannot see (Impeccable's critique holds the same order);
 3. **then `<out>/preview.json`**: `self_check` (`pass`, or `fail` with its blocking checks) and the `issues`, plus each board's `measured` and `interaction` findings and its `links`, the click graph. Fold its lines in as facts beside your calls;
@@ -87,9 +87,9 @@ You judge rendered work, never markup alone, but **you do not render again what 
 
 If `preview.json` is missing or is older than the canvas, say so under **Not seen** and run one `design-preview <job> --runtime <the runtime path> --contact-sheet` (no `--out`).
 
-**Re-render only the interaction states** the drafter's pass does not show (a hovered, focused or pressed look, a transient state): `python3 scripts/workflow.py design-preview <job> --runtime <the runtime path> --states-only [--board B]`, no `--out` (the result merges into the same `preview.json`). `design-preview --help` ends each check with a "Not seen" note; what it says the machine cannot see is what still needs your eyes.
+**Re-render only the interaction states** the drafter's pass does not show (a hovered, focused or pressed look, a transient state): `sikstack design-preview <job> --runtime <the runtime path> --states-only [--board B]`, no `--out` (the result merges into the same `preview.json`). `design-preview --help` ends each check with a "Not seen" note; what it says the machine cannot see is what still needs your eyes.
 
-Run `python3 scripts/workflow.py design-check <job>` (a page scope: `design-check <job> --page <slug>`). A problem there is a Part 1 finding, and so is each `check=leaves-canvas` or `check=same-target-list` warning; in the cross scope, each `check=pending-link` and `check=unlinked-page` line too. A style-lint warning (`check=token-drift`, `transition-all`, `outline-none`, `zoom-disabled`) is answered like an advisory line: neither fixed nor logged with a reason is a 2a must-fix.
+Run `sikstack design-check <job>` (a page scope: `design-check <job> --page <slug>`). A problem there is a Part 1 finding, and so is each `check=leaves-canvas` or `check=same-target-list` warning; in the cross scope, each `check=pending-link` and `check=unlinked-page` line too. A style-lint warning (`check=token-drift`, `transition-all`, `outline-none`, `zoom-disabled`) is answered like an advisory line: neither fixed nor logged with a reason is a 2a must-fix.
 
 **The interaction pass is yours where it needs judgment.** The drafter's render already tried the presets and every control and measured `layout-shift`, `same-target`, `hover-contrast` and `page-clip`. **What it still cannot do**, you must, with a short harness of your own when a finding depends on it:
 - show a hovered, focused or pressed look (it measures contrast on hover, it never screenshots it);
@@ -98,11 +98,11 @@ Run `python3 scripts/workflow.py design-check <job>` (a page scope: `design-chec
 - hold a transient state ("Sending…") for a screenshot;
 - judge that a list header is the same in every filter and search state.
 
-The harness, run from the directory the session starts in (the engine is import-safe):
+The harness, run from the directory the session starts in (the engine is import-safe; `${CLAUDE_PLUGIN_ROOT}` is the plugin's folder, filled in when this file loads):
 
 ```python
 import base64, os, sys, tempfile
-sys.path.insert(0, "workflow/scripts" if os.path.isfile("workflow/scripts/workflow.py") else "scripts"); import workflow, wf_design as w  # the engine first: it binds the modules' seams
+sys.path.insert(0, "${CLAUDE_PLUGIN_ROOT}/scripts"); import workflow, wf_design as w  # the plugin's engine first: it binds the seams and finds .sikstack/ from the cwd
 project = w.design_root() / "jobs" / "<job>" / "canvas" / "project"
 server = w.design_preview_server(project, open("<runtime path>", "rb").read(), [])
 page = w.DesignBrowser(w.design_preview_browser(None), tempfile.mkdtemp())

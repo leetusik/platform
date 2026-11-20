@@ -1,7 +1,7 @@
 ---
 name: parallel-phase
 description: "Run a phase in its own git worktree when the operator asks for one: start it, add a repo, see every stream; it integrates back by the pr skill's close."
-allowed-tools: Bash(python3 scripts/workflow.py:*), Read, Edit, Write, Glob, Grep, Bash
+allowed-tools: Bash(sikstack:*), Read, Edit, Write, Glob, Grep, Bash
 disable-model-invocation: true
 ---
 
@@ -15,26 +15,26 @@ A phase can run on its own branch in its own git worktree, driven from the sessi
 
 A linked checkout (`next` prints `store=cloud`) refuses `worktree start` and the other stream commands: run its phases on the default stream.
 
-**One exception: an explain phase (v86).** `create-phase`'s explain route starts every explain phase in its own worktree unless its `## Explain` says `worktree: no`; its one confirmation is the word. Its branch touches only its phase folder and `works/`, so it merges back by itself after its pass (below).
+**One exception: an explain phase (v86).** `create-phase`'s explain route starts every explain phase in its own worktree unless its `## Explain` says `worktree: no`; its one confirmation is the word. Its branch touches only its phase folder and `.sikstack/works/`, so it merges back by itself after its pass (below).
 
-The unit of worktree parallelism is the **phase**; slices inside it run one at a time, or together as `do-whole-phase`'s wave in the phase's own checkout. This skill covers start, adding a repo and status; **integration is the close's, stated once in `.claude/skills/pr/reference/close.md`** (`close <P>`'s `merge` and `teardown` steps).
+The unit of worktree parallelism is the **phase**; slices inside it run one at a time, or together as `do-whole-phase`'s wave in the phase's own checkout. This skill covers start, adding a repo and status; **integration is the close's, stated once in `${CLAUDE_PLUGIN_ROOT}/skills/pr/reference/close.md`** (`close <P>`'s `merge` and `teardown` steps).
 
 ## 1. Worktree rules
 
 1. **When — only when asked**. `do-next-slice` / `do-whole-phase` run `worktree start <P>` when told to, never on their own initiative; `create-phase` never does (bar its explain route). A phase already stamped is entered without asking again.
-2. **Where.** `<repo>/.claude/worktrees/P<N>-<slug>` on branch `phase/P<N>-<slug>` (`--worktree`, `--slug` override); the engine puts `.claude/worktrees/` in `.git/info/exclude`, never `.gitignore`. **Nested:** a pair, the host worktree at that path on the operator-confirmed host branch (an explain: detached at the host base), with the nested worktree at its `workflow/` on `phase/P<N>-<slug>`.
-3. **The stamp commit.** The engine's commit `chore(works): opt <P> into parallel execution`, holds exactly the phase folder and the six generated `works/` files (`git commit --only -- <paths>`), stamping `execution: {mode: "parallel", branch, worktree}`; the branch is cut from it so both sides carry the stamp.
+2. **Where.** `<repo>/.claude/worktrees/P<N>-<slug>` on branch `phase/P<N>-<slug>` (`--worktree`, `--slug` override); the engine puts `.claude/worktrees/` in `.git/info/exclude`, never `.gitignore`. **Nested:** a pair, the host worktree at that path on the operator-confirmed host branch (an explain: detached at the host base), with the workflow-state worktree at its `.sikstack/` on `phase/P<N>-<slug>`.
+3. **The stamp commit.** The engine's commit `chore(works): opt <P> into parallel execution`, holds exactly the phase folder and the six generated `.sikstack/works/` files (`git commit --only -- <paths>`), stamping `execution: {mode: "parallel", branch, worktree}`; the branch is cut from it so both sides carry the stamp.
 4. **A dirty tree does not block it.** Everything else stays uncommitted in the default checkout; the worktree starts from the stamp commit.
 5. **What refuses**, before any write: not `planned`; an `execution` block; no git; a parallel stream; a merge or rebase in progress; the branch or path taken. Nested, also: no `--host-branch` on a non-explain phase, the host branch checked out elsewhere, an unresolvable host base.
 6. **Enter.** `EnterWorktree` with the printed path (nested: the host worktree), re-run `next` (`stream=phase/…`), work there. Membership is the current branch against the stamped `execution.branch`. Skills, agents and settings read through from the main checkout (never create `<host-wt>/.claude/`), and Claude Code reads the main checkout's `.claude/settings.local.json` from a worktree session, so its allow rules apply there.
-7. **The merge** is the close's integration (`.claude/skills/pr/reference/close.md`), after `worktree gate <P>` opens.
+7. **The merge** is the close's integration (`${CLAUDE_PLUGIN_ROOT}/skills/pr/reference/close.md`), after `worktree gate <P>` opens.
 8. **Staying on `main` needs nothing.** `phase new --on-main` is a **retired no-op** (v43) that writes nothing. A phase still pinned with v42's `execution: {"mode": "default"}` keeps it, and `worktree start` refuses it; delete the block by hand to un-pin.
 
 **The two hints.** `phase new` (another phase `in_progress` here) and `next` (a later phase `planned` behind the current one) may print `hint: … worktree start <P>`. **Relay a hint to the operator; never act on it.** When `next` prints one, the do-* skills relay it and run nothing.
 
 ## 2. Start
 
-Run `python3 scripts/workflow.py worktree start <P>` from the default stream, before the phase's first `slice start`, on the operator's word, then enter the printed path.
+Run `sikstack worktree start <P>` from the default stream, before the phase's first `slice start`, on the operator's word, then enter the printed path.
 
 **Nested:** read `repo convention`; propose a host branch name in that custom with no phase or slice IDs (the `Branches:` line `create-phase` confirmed, when there is one); the operator confirms it; it is the phase's PR branch (`pr branch` records it at `DECOMP`'s end). The base defaults to the host's default branch (`--host-base <ref>` to stack); `git fetch` first when the custom says fresh main (the engine never fetches). Then `worktree start <P> --host-branch <name> [--host-base <ref>]`.
 
@@ -44,7 +44,7 @@ Run `python3 scripts/workflow.py worktree start <P>` from the default stream, be
 
 Slice work is unchanged. `worktree status` shows every stream and writes nothing; `next` covers only this checkout's stream, and a `pending` stop halts only its own. A worktree's state changes rerun the default checkout's `check` (v67), leaving those files uncommitted there.
 
-**A worktree isolates files only:** containers, ports, databases and caches stay shared, so coordinate them. Do not merge or rebase against `main` mid-phase unless asked. Nested: product commits go to the host branch in the host's convention, workflow commits `git -C workflow …`. Generated files are **regenerated, not merged**; in `phase.md` only the `## Slices` block is (take a side, `check`), and every other section and `topics/*.md` merge by hand, entry by entry.
+**A worktree isolates files only:** containers, ports, databases and caches stay shared, so coordinate them. Do not merge or rebase against `main` mid-phase unless asked. Nested: product commits go to the host branch in the host's convention, workflow commits `git -C .sikstack …`. Generated files are **regenerated, not merged**; in `phase.md` only the `## Slices` block is (take a side, `check`), and every other section and `topics/*.md` merge by hand, entry by entry.
 
 ## 4. Review on the branch
 
@@ -52,7 +52,7 @@ The review runs as `review-phase` says. A branch review edits no doc: the sectio
 
 ## 5. Integrate
 
-By the close alone: `close <P>`'s `merge` and `teardown` steps (`.claude/skills/pr/reference/close.md`). Run in the worktree, the close first commits the pass on the branch itself (`commit-pass`, `--only` the phase folder and the generated `works/` files), so the gate reads it. `worktree gate <P>` is advice that exits 0: `GATE OPEN`, or `GATE CLOSED reason=…` (the branch not `done` with a `pass`, or a busy default stream unless `exemption=phase-folder-only (<n> paths)`); a closed gate is never merged past.
+By the close alone: `close <P>`'s `merge` and `teardown` steps (`${CLAUDE_PLUGIN_ROOT}/skills/pr/reference/close.md`). Run in the worktree, the close first commits the pass on the branch itself (`commit-pass`, `--only` the phase folder and the generated `.sikstack/works/` files), so the gate reads it. `worktree gate <P>` is advice that exits 0: `GATE OPEN`, or `GATE CLOSED reason=…` (the branch not `done` with a `pass`, or a busy default stream unless `exemption=phase-folder-only (<n> paths)`); a closed gate is never merged past.
 
 ### An explain phase merges back by itself
 
@@ -60,11 +60,11 @@ Right after its pass, with no stop, the close's `merge` and `teardown` steps (no
 
 ### A reopened phase — a change request on its open PR
 
-On the operator's word (also the worktree word), by `.claude/skills/pr/reference/reopen.md`: `phase reopen <P> --note "team-reported: <what>"` or `--note "operator-reported: <what>"`. **Nested:** `git -C <host> switch <default>`, `pr sync <P>`, `phase reopen` (a pair on the existing PR branch); run the fix round and re-review there; the teardown keeps the host branch for its open PR. **At root:** in place, on the PR branch (stay, `git switch <branch>` at a slice boundary, or `git worktree add <sibling> <branch>`). Then `pr sync <P>` there (the default branch's record is stale), then `phase reopen`: no worktree, nothing to integrate; commit the reopen with the fix round's first commit.
+On the operator's word (also the worktree word), by `${CLAUDE_PLUGIN_ROOT}/skills/pr/reference/reopen.md`: `phase reopen <P> --note "team-reported: <what>"` or `--note "operator-reported: <what>"`. **Nested:** `git -C <host> switch <default>`, `pr sync <P>`, `phase reopen` (a pair on the existing PR branch); run the fix round and re-review there; the teardown keeps the host branch for its open PR. **At root:** in place, on the PR branch (stay, `git switch <branch>` at a slice boundary, or `git worktree add <sibling> <branch>`). Then `pr sync <P>` there (the default branch's record is stale), then `phase reopen`: no worktree, nothing to integrate; commit the reopen with the fix round's first commit.
 
 ## 6. A multi-repo host: a set
 
-When `repo list` lists repos, a phase worktree is a **set**: the host worktree, the nested worktree at its `workflow/`, and one worktree per repo the phase changes at `<host worktree>/<repo>/`. Each repo follows its own custom; the engine never fetches, pushes or merges into a repo's default branch.
+When `repo list` lists repos, a phase worktree is a **set**: the host worktree, the workflow-state worktree at its `.sikstack/`, and one worktree per repo the phase changes at `<host worktree>/<repo>/`. Each repo follows its own custom; the engine never fetches, pushes or merges into a repo's default branch.
 
 - **Start:** per repo, read `repo convention --repo <name>`, propose a branch name (no IDs), the operator confirms; the base is the registry's `default_branch` (local; `--repo-base <name>=<ref>` to stack; fetch first if the custom says so). `worktree start <P> --host-branch <name> --repo <name>=<branch> [--repo-base <name>=<ref>] ...`. An existing branch checked out nowhere is reused; one checked out anywhere is refused.
 - **Add a repo** later, from inside the set: `worktree add-repo <P> --repo <name>=<branch> [--repo-base <ref>]` (never re-run `worktree start`); `--adopt` stamps a repo worktree already at `<host worktree>/<repo>/`.

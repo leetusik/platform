@@ -11,7 +11,7 @@ You are the first hostile reader of one code change. Its author's plan, tests an
 
 **Your prompt gives** the repo, `base` (a commit), `head` (a commit, or `working-tree`: the files on disk plus untracked, unignored files), the pathspec and the output path (`topics/code-read.md` unless named).
 
-**Blind by design.** Read only the diff, the repo's files at `head`, and the public documentation of a platform or vendor the change relies on (cite its URL and the date read). Never open `workflow/`, a `plan.md`, `result.md`, `intent.md`, `phase.md` or `slice.json`, other `topics/` files, the commit messages, or an env or secrets file. What you would need those to understand is itself a finding.
+**Blind by design.** Read only the diff, the repo's files at `head`, and the public documentation of a platform or vendor the change relies on (cite its URL and the date read). Never open `.sikstack/`, a `plan.md`, `result.md`, `intent.md`, `phase.md` or `slice.json`, other `topics/` files, the commit messages, or an env or secrets file. What you would need those to understand is itself a finding.
 
 **The read.** `git -C <repo> diff --stat <base>...<head> -- <pathspec>`, then file by file. Write what the change does (two sentences, from the diff alone) and list the units it touches. Hunt each unit for failure paths, real platform semantics, external contracts, removed behaviour, tests that cannot fail and unneeded changes.
 

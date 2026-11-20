@@ -1,0 +1,44 @@
+name: sikstack
+
+# The sikstack plugin (plugins/sikstack/): its smoke suite, run against scratch repos made with
+# `sikstack init`, and the release rule: a change under plugins/sikstack/** moves the plugin's
+# version (installs pull an update only when plugin.json's version changes).
+
+on:
+  push:
+    branches: [main]
+    paths: ['plugins/sikstack/**']
+  pull_request:
+    paths: ['plugins/sikstack/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: the plugin version moved
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          f=plugins/sikstack/.claude-plugin/plugin.json
+          ver() { python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["version"])'; }
+          if ! git cat-file -e "$BASE:$f" 2>/dev/null; then
+            echo "no plugin.json at the base ($BASE): a new plugin, nothing to compare"; exit 0
+          fi
+          old=$(git show "$BASE:$f" | ver); new=$(ver < "$f")
+          echo "plugin.json version: base $old, head $new"
+          if [ "$old" = "$new" ]; then
+            echo "plugins/sikstack/** changed but plugin.json's version is still $old: bump it (semver) and add its CHANGELOG.md entry" >&2
+            exit 1
+          fi
+
+      - name: smoke suite
+        run: bash plugins/sikstack/tests/smoke.sh

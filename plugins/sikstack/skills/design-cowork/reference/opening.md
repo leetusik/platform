@@ -25,7 +25,7 @@ one round open at a time:
 4. **Preview prep**, per round, into the design root's **`.type/` folder** (git-ignored: `design-open`
    writes its `.gitignore`), so the brief names every path repo-relatively:
    - **The runtime:** `read` the canvas's `artifact-type/dc-runtime.js` with `out_dir`
-     `docs/reference/design/.type`. It is the type's current runtime: refresh it every round, never
+     `.sikstack/docs/reference/design/.type`. It is the type's current runtime: refresh it every round, never
      vendor it.
    - **The type references:** `read` the canvas's `SKILL.md` and
      `artifact-type/reference/{format,craft,design-system-components,view-state}.md` the same way.
@@ -78,8 +78,8 @@ keeps its old name; the engine checks the path).
 - **One direction unless the operator asked for options.** Ask for Direction boards or variants only
   when the operator asked for them, and then quote their words; otherwise the drafter builds one
   direction and logs its open questions.
-- **The three paths:** the runtime (`docs/reference/design/.type/artifact-type/dc-runtime.js`), the
-  type-reference folder (`docs/reference/design/.type/`), and the system namespace `<ns>` (its cache at
+- **The three paths:** the runtime (`.sikstack/docs/reference/design/.type/artifact-type/dc-runtime.js`), the
+  type-reference folder (`.sikstack/docs/reference/design/.type/`), and the system namespace `<ns>` (its cache at
   `jobs/<job>/canvas/project/ds/<ns>/`).
 
 **Each round's `handoff.md`, a short delta** in the round folder:

@@ -60,8 +60,8 @@ default, or the Chrome for Testing it installs), never the operator's profile, s
 read their mail, spend from saved cards or authenticate as them. The executor **picks each next
 action itself**: `open <url>`, `snapshot` (an accessibility tree with `e<n>` refs, written to a file;
 read only what you need, or `find "<text>"`), `click e5`, `fill e4 "text"`, `press`, `resize`,
-`screenshot --filename=<abs path>`, `console`, `close`. `design-drafter`, `design-critic` and
-`Explore` drive no browser (`design-preview` is a headless render self-check, not verification).
+`screenshot --filename=<abs path>`, `console`, `close`. `sikstack:design-drafter`, `sikstack:design-critic` and
+`sikstack:Explore` drive no browser (`design-preview` is a headless render self-check, not verification).
 
 **The browser is never a blocker: the agent runs it whole.** No operator step and no permission
 prompt for any of it (the shipped settings allow `Bash(playwright-cli:*)` and exactly the pinned
@@ -99,7 +99,7 @@ Name the instrument you used in `result.md`, and never report a browser run you 
 
 **Re-run the lines inside the boundary.** A fidelity slice re-runs the `## Regression Checklist`
 lines inside its phase's boundary: this phase's surfaces plus every earlier line whose surface a file
-the phase changed feeds (`python3 scripts/workflow.py phase scope <P>` prints the files; shared chrome
+the phase changed feeds (`sikstack phase scope <P>` prints the files; shared chrome
 widens the boundary; a line you cannot place is inside). It records the lines outside by count, with
 the diff as proof. Never the whole list: the product-wide sweep is an operator-created QA phase. The
 review appends this phase's headline lines (`- [ ] <surface>: <one observable behaviour> (P<N>)`).

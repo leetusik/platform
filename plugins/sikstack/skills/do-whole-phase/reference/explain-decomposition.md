@@ -4,7 +4,7 @@ An explain phase is one whose `intent.md` carries an `## Explain` section, writt
 - **a book:** the evidence `DECOMP` reads over the whole subject before it outlines, what it cuts, the outline stop after it, and how each chapter's `plan.md` is later drawn from the outline (*A book*, below);
 - **a document or a chapter:** the book's shape with one chapter. `DECOMP` writes the unit's brief, its evidence and its reader's path into `doc/`, then always cuts exactly one write slice `S1` (*A document or a chapter*, below).
 
-**There is no research run.** An explain tells what this repository's code does, from what its phases recorded: the `DECOMP` executor is the knowledge plugin's writer for the stages before the draft, and it reads the code at one commit and the records of the phases on `## Explain`'s `phases:` line **itself, alone**, and nothing else (no web search, no research agent, no other repository). It dispatches no agent at all (`slice-executor`'s explain carve-out). The evidence and writing rules are the knowledge plugin's `skills/explain/SKILL.md`, cited by section number **and** heading (so a renumbering cannot silently point a phase at the wrong rule), and never copied here.
+**There is no research run.** An explain tells what this repository's code does, from what its phases recorded: the `DECOMP` executor is the knowledge plugin's writer for the stages before the draft, and it reads the code at one commit and the records of the phases on `## Explain`'s `phases:` line **itself, alone**, and nothing else (no web search, no research agent, no other repository). It dispatches no agent at all (`sikstack:slice-executor`'s explain carve-out). The evidence and writing rules are the knowledge plugin's `skills/explain/SKILL.md`, cited by section number **and** heading (so a renumbering cannot silently point a phase at the wrong rule), and never copied here.
 
 ## Before you plan it
 
@@ -23,12 +23,12 @@ An explain phase is one whose `intent.md` carries an `## Explain` section, writt
 The `DECOMP` executor writes the book's brief, reads its whole subject and outlines it (§9.2 *The evidence for a book (an explain phase)*, *The whole book*), alone: it dispatches no agent, and it writes the dossier and the outline itself.
 
 1. **Read the skill** at the path the plan names: its card (*The run, in one card*), §2 *Resolve the knowledge base configuration* (its *The run's dossier*), §3 *Gather the evidence* through §3.4 *D1: the evidence*, §9.2 *The evidence for a book (an explain phase)*, and B9 *The dossier: files, ids and entries*.
-2. **Write the brief and read the evidence** by items 1–2 of §9.2 *The evidence for a book (an explain phase)*, into the dossier `book/research/` in the phase folder (`works/phases/active/P<N>/book/research/`):
+2. **Write the brief and read the evidence** by items 1–2 of §9.2 *The evidence for a book (an explain phase)*, into the dossier `book/research/` in the phase folder (`.sikstack/works/phases/active/P<N>/book/research/`):
    - **first**, write `book/research/pages/.gitignore`, two lines, `*` then `!.gitignore`: `pages/` stays out of git (it holds at most the payload builder's fallback copy, §2 *Resolve the knowledge base configuration*), and the rest of the dossier is committed with the slice;
    - the run id is `<KB_NOW>-<book slug>`. The dossier is the run's state: a span stopped by a usage limit is re-dispatched from disk and goes on at the first stage whose file is missing or unfinished (§3.3 *The record, and resuming a run*), never from scratch;
    - **D0, the brief** (§3.1 *D0: the brief, and the prior version*) comes from `## Explain` (subject, phases, reader, depth, must-cover, leave-out, trusted sources and `lang`), placement `book <slug>`, the commit (`HEAD` at D0), and the chapter list signed at the confirmation, recorded under `intent.md`'s *Original Input (verbatim)*;
-   - **D1, the evidence** (§3.4 *D1: the evidence*): every covering phase's records and the code at the commit, into `book/research/evidence.md`, each entry naming the chapters it serves, with its `## Gaps` and `## Open`, closed by its counts line. A phase's records are its `intent.md`, its notebook by section (through `section <P>`, with the `topics/` a gist links) and the `result.md` heads of the slices that built the subject; `python3 scripts/workflow.py phase scope <P>` gives a phase's commit range and files. The explain phase's own folder is never a record.
-3. **Write `book/outline.md`** in the phase folder (`works/phases/active/P<N>/book/`), by item 3 of §9.2 *The evidence for a book (an explain phase)*, drawn from `evidence.md`. The operator signs this file, each chapter's `plan.md` is drawn from it, and the critic checks every chapter against it. It states:
+   - **D1, the evidence** (§3.4 *D1: the evidence*): every covering phase's records and the code at the commit, into `book/research/evidence.md`, each entry naming the chapters it serves, with its `## Gaps` and `## Open`, closed by its counts line. A phase's records are its `intent.md`, its notebook by section (through `section <P>`, with the `topics/` a gist links) and the `result.md` heads of the slices that built the subject; `sikstack phase scope <P>` gives a phase's commit range and files. The explain phase's own folder is never a record.
+3. **Write `book/outline.md`** in the phase folder (`.sikstack/works/phases/active/P<N>/book/`), by item 3 of §9.2 *The evidence for a book (an explain phase)*, drawn from `evidence.md`. The operator signs this file, each chapter's `plan.md` is drawn from it, and the critic checks every chapter against it. It states:
    - **the book:** slug, title and kind `codebase` (§1 *Resolve the topic, the mode and the placement*); the private project; `lang`; the explain skill's path and version; the dossier, its run id and the commit;
    - **the reader:** who they are, what they already know, what they are new to, and what they can do after the book (§1's *The reader*);
    - **the brief:** must-cover, leave-out and trusted sources, as `## Explain` gives them;
@@ -58,7 +58,7 @@ The `DECOMP` executor writes the book's brief, reads its whole subject and outli
 4. **Cut one bare chapter slice per chapter**, in reading order:
 
    ```sh
-   python3 scripts/workflow.py slice new --phase P<N> --slice P<N>.S<k> --name "<key>: <title>" \
+   sikstack slice new --phase P<N> --slice P<N>.S<k> --name "<key>: <title>" \
      --kind implementation --risk high --order <10k>
    ```
 
@@ -76,11 +76,11 @@ The `DECOMP` executor writes the book's brief, reads its whole subject and outli
 
 Right after `slice finish <P>.DECOMP`, in the same commit (the dossier rides in it; git ignores `pages/`):
 
-1. **Declare the gate:** `python3 scripts/workflow.py gate <P> require`. The operator accepts a book by reading it in the real reader; a book never waives.
+1. **Declare the gate:** `sikstack gate <P> require`. The operator accepts a book by reading it in the real reader; a book never waives.
 2. **Stop the first chapter slice in order** (normally `<P>.S1`; after a re-cut, whichever comes first):
 
    ```sh
-   python3 scripts/workflow.py slice status <P>.S1 pending --stop-kind decision \
+   sikstack slice status <P>.S1 pending --stop-kind decision \
      --on-words "'accept' signs the outline and the chapters run; feedback re-runs DECOMP"
    ```
 3. **Validate, commit, report and STOP.** The report follows the contract's stop rules:
@@ -130,7 +130,7 @@ P<N> (unit: document | chapter)
 ### What the plan asks the executor to do
 
 1. **Read the skill** at the path the plan names: its card (*The run, in one card*), §2 *Resolve the knowledge base configuration* (its *The run's dossier*), §3 *Gather the evidence* through §3.10 *D6: the final outline, the reader's path*, and B9 *The dossier: files, ids and entries*.
-2. **Write the brief, the evidence and the reader's path** into the dossier `doc/` in the phase folder (`works/phases/active/P<N>/doc/`). It **is** the plugin's `<DOSSIER>` (§2 *Resolve the knowledge base configuration*; its files are B9 *The dossier: files, ids and entries*): `brief.md`, `evidence.md`, `outline.md`, then the write slice's `body.md`, `trace.md`, `critique.md`, `answers.md` and `assets/`. Never name it `explain/`: the installer treats a path with an `explain` component as the plugin's.
+2. **Write the brief, the evidence and the reader's path** into the dossier `doc/` in the phase folder (`.sikstack/works/phases/active/P<N>/doc/`). It **is** the plugin's `<DOSSIER>` (§2 *Resolve the knowledge base configuration*; its files are B9 *The dossier: files, ids and entries*): `brief.md`, `evidence.md`, `outline.md`, then the write slice's `body.md`, `trace.md`, `critique.md`, `answers.md` and `assets/`. Never name it `explain/`: a path with an `explain` component reads as the explain plugin's own.
    - **first**, write `doc/pages/.gitignore`, two lines, `*` then `!.gitignore`; the rest of the dossier is committed with the slice;
    - the run id is `<KB_NOW>-<slug>`; a stopped span goes on at the first stage whose file is missing or unfinished (§3.3 *The record, and resuming a run*);
    - **D0, the brief** (§3.1 *D0: the brief, and the prior version*) comes from `## Explain`: subject, phases, reader, must-cover, leave-out, trusted sources, `lang`; placement `loose` for a document, `<book>/<key>` for a chapter; the commit (`HEAD` at D0); and the signed sections, from the confirmation recorded under `intent.md`'s *Original Input (verbatim)* (§3.1's *The signed sections*);
@@ -142,7 +142,7 @@ P<N> (unit: document | chapter)
 4. **Cut exactly one write slice:**
 
    ```sh
-   python3 scripts/workflow.py slice new --phase P<N> --slice P<N>.S1 --name "<the unit's title>" \
+   sikstack slice new --phase P<N> --slice P<N>.S1 --name "<the unit's title>" \
      --kind implementation --risk high --order 10
    ```
 
@@ -158,7 +158,7 @@ Right after `slice finish <P>.DECOMP`, in the same commit (the dossier rides in 
 2. **The outline sign-off is off** unless `## Explain` says `outline sign-off: on`: then S1 runs at once (`reference/explain-chapter.md`, *A document or a chapter: its one write slice*). With `on`, stop S1 before its first span:
 
    ```sh
-   python3 scripts/workflow.py slice status <P>.S1 pending --stop-kind decision \
+   sikstack slice status <P>.S1 pending --stop-kind decision \
      --on-words "'accept' signs the outline and S1 runs; feedback re-runs DECOMP from the dossier"
    ```
 

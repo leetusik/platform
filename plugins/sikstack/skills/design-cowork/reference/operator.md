@@ -18,13 +18,13 @@
    "approved" signs nothing: confirm it in the session.
 3. **Their words decide the job:**
    - **Literal approval, no mockup requested** ("accept", "moveon", "approved", "ship it", or words
-     to that effect): **`python3 scripts/workflow.py design-sign --slice <S> --words "<their literal
+     to that effect): **`sikstack design-sign --slice <S> --words "<their literal
      words>"`** signs the job presented at the stop (in a pre-change multi-job slice, every job
      presented in one call, or none: below). When their words sign only one job of such a slice,
      sign it alone:
-     `python3 scripts/workflow.py design-close <job>/<round> --words "<their literal words>"`.
+     `sikstack design-close <job>/<round> --words "<their literal words>"`.
    - **Feedback, anything but literal approval:** their words go verbatim into `feedback.md`; run
-     `python3 scripts/workflow.py design-close <job>/<round> --superseded`, then `design-open --slug
+     `sikstack design-close <job>/<round> --superseded`, then `design-open --slug
      <s> --slice <S> --job <job>`, write the new round's handoff, and dispatch **one scoped revise pass**: one drafter
      (`pass: join`, the owner of the joined canvas) edits the canvas in place, with no frame and no
      page passes. Only when the feedback adds a page does the round run a page pass for it

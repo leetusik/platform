@@ -2,12 +2,12 @@
 
 ## The design record — the on-disk contract (schema 2)
 
-The design lives **in the repo, as plain files**, under **`docs/reference/design/`**: one fixed root,
-durable and outside `works/`, so an apply phase reads it long after the design phase archives. The
+The design lives **in the repo, as plain files**, under **`.sikstack/docs/reference/design/`**: one fixed root,
+durable and outside `.sikstack/works/`, so an apply phase reads it long after the design phase archives. The
 engine's `design-*` commands write the machine-readable parts, and `design-check` enforces the rest.
 
 ```
-docs/reference/design/
+.sikstack/docs/reference/design/
 ├── design.json                    # the project and its Design System record   design-init / design-system
 ├── bar.md                         # the operator's standing design rules         you
 ├── .type/                         # the canvas type's runtime and references: local only, git-ignored
@@ -92,7 +92,7 @@ docs/reference/design/
   `job.json`, `round.json`, an operator's in-app edits copied in (`design-readback --apply`),
   `SIGNOFF.md` and the snapshots. The mockup span and the build slices only read the record.
 
-**The commands** (`python3 scripts/workflow.py <command> --help` has the detail):
+**The commands** (`sikstack <command> --help` has the detail):
 
 | command | what it does |
 |---|---|

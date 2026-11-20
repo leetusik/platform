@@ -1578,7 +1578,7 @@ def parallel_gate(args: argparse.Namespace) -> None:
 def parallel_merge_finish(args: argparse.Namespace) -> None:
     """Run on the default stream right after a phase branch's merge: regenerate, then report what is left.
 
-    The generated files (`works/state.json`, `works/index.json`, `works/backlog.md`,
+    The generated files (`works/state.json`, `works/index.json`, `backlog.md`,
     `works/deferred.md`, `works/agenda.md`) are derived, never authored, so a merge conflict in
     them is resolved by taking either side and regenerating here -- which is why parallel mode
     needs no custom git merge driver (a driver would need per-clone `git config` and would not
@@ -1651,7 +1651,7 @@ def parallel_status(args: argparse.Namespace) -> None:
     """Read-only cross-stream view: this checkout's pointer plus every parallel phase's real state.
 
     A parallel phase's slice progress lives on its own branch, so the default stream's copy of it
-    stands still until the merge (`works/backlog.md` reads it from the branch too). This reads each phase's truth straight out of
+    stands still until the merge (`backlog.md` reads it from the branch too). This reads each phase's truth straight out of
     its branch with `git show` / `git ls-tree` -- no checkout switching, no fetching, and (unlike
     every other command here) no rebuild: nothing on disk is written.
     """
@@ -4862,7 +4862,7 @@ def nested_repo_checks(errors: list, warnings: list) -> None:
             continue
         ignored = _repo_git(host, "check-ignore", "-q", f"{rel}/")
         if ignored is not None and ignored.returncode == 1:
-            errors.append(f"nested install: repo {name} ({rel}/) is visible to the host's git -- run the installer's --update to write its exclude line")
+            errors.append(f"nested install: repo {name} ({rel}/) is visible to the host's git -- run `sikstack init` on the host to write its exclude line")
         tracked = _repo_git(path, "ls-files", "-z", "--", *workspace)
         if tracked is not None and tracked.returncode == 0:
             files = [f for f in tracked.stdout.split("\0") if f]
@@ -4982,7 +4982,7 @@ def cmd_nested_repos(args: argparse.Namespace) -> None:
         print(f"repo: added {name} ({rel}/){' -- this install is now multi-repo' if not current else ''} -- written to {shown(path)}")
         ignored = _repo_git(host, "check-ignore", "-q", f"{rel}/")
         visible = ignored is not None and ignored.returncode == 1
-        print(f"next: run the installer's --update on this host: it writes the /{rel}/ exclude line and the multi-repo CLAUDE.local.md block"
+        print(f"next: run `sikstack init` on this host: it writes the /{rel}/ exclude line"
               + (f"; until then check reports {name} as visible to the host's git" if visible else ""))
     elif args.remove is not None:
         name = args.remove

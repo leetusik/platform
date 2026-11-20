@@ -1,8 +1,8 @@
-# CLAUDE.md
+# The sikstack contract
 
 ## Agent Contract
 
-You work this workspace for its operator. Four invariants always hold; everything else is a playbook you may leave with a stated reason.
+You work this repo's sikstack workspace (`.sikstack/`) for its operator. Four invariants always hold; everything else is a playbook you may leave with a stated reason.
 
 1. **Nothing is pushed, merged or paid for without the operator's word.**
 2. **A sign-off is the operator's literal words**, never your reading of them.
@@ -28,19 +28,19 @@ You work this workspace for its operator. Four invariants always hold; everythin
 | A phase the operator can see passes after they walk it | `review --verdict pass` refuses until `gate <P> clear` |
 | Sign-offs carry literal words | `gate clear`, `design-close`, `design-sign` refuse an empty `--words`; `close` refuses a gate cleared without them |
 | A pending stop halts the run | `next` prints `WAITING ON OPERATOR`; `slice status` refuses a stop without `--stop-kind` and `--on-words` |
-| No force-push, no `rm -rf` | `settings.json` deny rules; its one allowed push deletes a merged branch |
+| No force-push, no `rm -rf` | the plugin's guard hook denies them, with its reason; a plain push, and one that deletes a merged branch, pass |
 | A branch switch never carries the operator's edits | `pr branch` refuses uncommitted tracked changes |
 | A linked checkout runs no streams | `worktree` commands (bar `status`) and `phase reopen` are refused in cloud mode |
-| Workflow state stays valid | `check` exits 1 on an invalid record; the CI seed runs `check --no-rebuild` |
+| Workflow state stays valid | `check` exits 1 on an invalid record; `check --no-rebuild` only reads |
 | This file fits one screen | smoke: the contract is at most 4,096 B |
-| Real-browser checks run on `playwright-cli`, the agent's own headless browser. Missing: install it yourself, `npm install -g @playwright/cli@0.1.25`, then `playwright-cli install-browser chrome-for-testing` if it finds no browser. Run it plainly (no pipes or chains) outside repos: it writes `.playwright-cli/` there. Claude in Chrome is used only when the operator asks an agent to use their own browser. | `settings.json` allows `Bash(playwright-cli:*)` and that exact install; smoke pins this one line |
+| Real-browser checks run on `playwright-cli`, the agent's own headless browser. Missing: install it yourself, `npm install -g @playwright/cli@0.1.25`, then `playwright-cli install-browser chrome-for-testing` if it finds no browser. Run it plainly (no pipes or chains) outside repos: it writes `.playwright-cli/` there. Claude in Chrome is used only when the operator asks an agent to use their own browser. | the guard hook allows `playwright-cli` and that exact install; smoke pins this one line |
 
 ## Where things live
 
-- Commands, IDs and statuses: `python3 scripts/workflow.py --help`; start with `next`.
-- Claude Code's side (executor routes, `sync-agents`, the meter, the resume hook): `python3 adapters/claude_code/adapter.py --help`.
-- Playbooks: `.claude/skills/` and the executor card, `.claude/agents/slice-executor.md` (beside `code-reader`).
-- Asked to make a phase, use `create-phase`; product visual design follows `design-cowork`; commits follow `commit` (`type(scope): summary`).
+- Commands, IDs and statuses: `sikstack --help`; start with `next`.
+- Claude Code's side (executor routes, the meter, the resume hook): `sikstack-adapter --help`; the routes are `.sikstack/config.toml`'s.
+- Playbooks: the plugin's `skills/` and the executor card, its `agents/slice-executor.md` (beside `code-reader.md`); dispatch agents by their prefixed names (`sikstack:slice-executor`, `sikstack:Explore`).
+- `/sikstack:sik-mode` is the entry. Asked to make a phase, use `/sikstack:create-phase`; product visual design follows `design-cowork`; commits follow `commit` (`type(scope): summary`).
 
 ## Compact Instructions
 

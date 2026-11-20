@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The workflow engine: `python3 <this file> <command> ...`. This file is the entry: the parser and the dispatch.
+"""The sikstack engine: `sikstack <command> ...` (the plugin's bin/ runs this file). This file is the entry: the parser
+and the dispatch. `init` runs first, before the state is looked for (wf_init.py, which imports nothing below).
 
 The engine is flat modules beside this file, each importing only the ones listed above it:
 - wf_store.py: where the state is (the finder), paths, ids, events, phases, slices, the notebook, next, review,
@@ -7,8 +8,8 @@ The engine is flat modules beside this file, each importing only the ones listed
 - wf_git.py: pull requests, the parallel worktrees, the repo registry and phase scope;
 - wf_design.py, wf_agenda.py (agenda and deferred jobs), wf_cloud.py: the named parts, each its own file.
 wf_store imports none of the others: it calls them through its SEAMS, bound at the end of this file. The Claude
-Code side (executor routes, sync-agents, the meter, the compaction hook) is not here: it is the adapter folder,
-adapters/claude_code/, which imports this file and calls run(); nothing here imports it."""
+Code side (executor routes, the meter, the compaction hook) is not here: it is the adapter folder,
+adapters/claude_code/ (`sikstack-adapter`), which imports this file and calls run(); nothing here imports it."""
 from __future__ import annotations
 
 import argparse
@@ -21,6 +22,10 @@ sys.dont_write_bytecode = True
 _HERE = str(Path(__file__).resolve().parent)
 if sys.path[:1] != [_HERE]:
     sys.path.insert(0, _HERE)  # the modules sit beside this file, however it was started (a path, runpy, importlib)
+
+if __name__ == "__main__" and sys.argv[1:2] == ["init"]:  # before the finder: there is no workspace yet
+    import wf_init  # noqa: E402
+    raise SystemExit(wf_init.init_main(sys.argv[2:]))
 
 import wf_store  # noqa: E402 -- first: it finds the workspace, or exits 2 with one line
 import wf_git  # noqa: E402
@@ -53,13 +58,16 @@ from wf_cloud import (  # noqa: E402
 def build_parser() -> argparse.ArgumentParser:
     """Every command's parser. main() parses its argv with it; the agenda inbox applier (cloud mode) parses each
     entry's command with a fresh one, in-process, without main()'s boundary."""
-    parser = argparse.ArgumentParser(description="Manage the agentic workflow state.")
+    parser = argparse.ArgumentParser(prog="sikstack", description="Manage a repo's sikstack workflow state (.sikstack/).")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("init", help="Make this repo's (or multi-repo host's) .sikstack/ workspace: works/, docs/current/, config.toml, "
+                   "its own git repo and a /.sikstack/ line in .git/info/exclude; a second run repairs what is missing and "
+                   "changes nothing else. Runs before any workspace exists, so it is handled ahead of this parser")
 
     def verbs(name: str, help: str):  # a verb's sub-verbs: main() names the command `<verb> <sub-verb>`
         return sub.add_parser(name, help=help).add_subparsers(dest="verb", required=True).add_parser
 
-    p = sub.add_parser("check", help="Rebuild the generated files (works/backlog.md, state.json, index.json, the dashboards, each phase.md's ## Slices block), then validate the workflow state; exit 1 on an invalid record. --no-rebuild validates only (CI, read-only callers)")
+    p = sub.add_parser("check", help="Rebuild the generated files (backlog.md, works/state.json, index.json, the dashboards, each phase.md's ## Slices block), then validate the workflow state; exit 1 on an invalid record. --no-rebuild validates only (CI, read-only callers)")
     p.add_argument("--no-rebuild", action="store_true", dest="no_rebuild", help="validate only: write nothing")
     p.set_defaults(func=cmd_check)
 

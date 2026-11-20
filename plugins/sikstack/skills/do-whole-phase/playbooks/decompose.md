@@ -8,7 +8,7 @@
 - Write `topics/breakdown.md` whole: `## Passes`, `## Estimate` (time from the adapter's `meter` `means`, never session-$), a join-rebuilt artifact with its rebuild command if any, and one `## <slice id>` block each (goal, set, risk and trigger, `spends money: no` or `yes, ~$X via <service>`, depends on). Add one `Breakdown (<pass>): …` gist line to `## Decisions`.
 - A design phase runs in the plan's style (`build-after`, `design-only`, `paired`): record the build inventory and each co-work slice's one job with its critique level (`off | critic | critic+judge`); a `co-work` slice is `--kind co-work --risk high` and never carries product code.
 
-**What done proves.** `check` passes and `python3 scripts/workflow.py phase rounds <P>` prints the rounds.
+**What done proves.** `check` passes and `sikstack phase rounds <P>` prints the rounds.
 
 **Carve-out.** `slice new` and `slice deps`, for this phase only.
 

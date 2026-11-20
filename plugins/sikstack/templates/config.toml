@@ -1,0 +1,67 @@
+# sikstack settings for this workspace (.sikstack/config.toml). It holds no secrets.
+#
+# [claude.<row>]: the executor route table's per-row overrides. The adapter owns the defaults; this file
+# overrides them row by row, and the orchestrator passes each dispatch the row's model and effort
+# (the plugin agents' frontmatter is only the fallback). Show the resolved table, or the routing
+# decision for one slice, with
+#
+#   sikstack-adapter route [<slice_id> [--retry]]
+#
+# The rows (default; what each serves). high, research and mid all run the one
+# slice executor (sikstack:slice-executor); the others run their own agent.
+#   high      opus @ high    review, decomposition, the co-work mockup span,
+#                            any risk but low, every second attempt
+#   research  opus @ high    research slices, by kind
+#   design    fable @ high   sikstack:design-drafter; not a slice route:
+#                            route --drafter --phase <P>. A phase's
+#                            `Drafter: opus` line (intent.md, under
+#                            ## Design Style) picks the model for that phase
+#                            alone, at this row's effort
+#   critic    opus @ high    sikstack:design-critic, judging each drafted
+#                            round: route --critic
+#   judge     opus @ high    sikstack:design-critic in judge mode, ruling on
+#                            the items the critic escalates: --judge
+#   reader    opus @ high    sikstack:pr-reader, the fresh-eyes PR reader
+#   code      opus @ high    sikstack:code-reader, the blind code reader
+#   mid       opus @ medium  implementation, fix, docs and qa rated low (the
+#                            default)
+#   explore   haiku @ xhigh  read-only lookups (sikstack:Explore)
+#
+# Grammar: [claude.<row>] tables holding model = "..." and effort = "...",
+# double-quoted. model is an Agent-tool alias (opus, sonnet, haiku, fable);
+# effort is low, medium, high, xhigh or max, or "" to pass no effort (for a
+# model that rejects the parameter). Other tables in this file belong to other
+# parts of sikstack and are not read here.
+#
+# This file is yours: `sikstack init` seeds it once and plugin updates never
+# touch it.
+
+# Every row at its default: uncomment and edit to override. A row you set stops
+# following later defaults; bare `route` prints an override= line for each.
+# [claude.high]
+# model = "opus"    # e.g. "fable"
+# effort = "high"
+# [claude.research]
+# model = "opus"
+# effort = "high"
+# [claude.design]
+# model = "fable"   # design-drafter's own row
+# effort = "high"
+# [claude.critic]
+# model = "opus"    # design-critic; may share the design row's model
+# effort = "high"
+# [claude.judge]
+# model = "opus"    # alias only
+# effort = "high"
+# [claude.reader]
+# model = "opus"    # pr-reader, the fresh-eyes PR reader
+# effort = "high"
+# [claude.code]
+# model = "opus"    # code-reader, the blind code reader
+# effort = "high"
+# [claude.mid]
+# model = "opus"
+# effort = "medium"
+# [claude.explore]
+# model = "haiku"
+# effort = "xhigh"
