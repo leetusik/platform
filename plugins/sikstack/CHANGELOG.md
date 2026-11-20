@@ -1,0 +1,3650 @@
+# Changelog
+
+Workspace versions for the agentic-workspace cornerstone. One `## v<N>` section per
+integer `WORKSPACE_VERSION`, newest first. `/update-workspace` reads this file from
+the upstream clone to show adopting repos what a sync brings — so each entry states
+what changed and, when a sync needs manual steps, a **Migration notes** line.
+
+Sections are stamped when work lands on `main`, never written on a branch: a branch leaves its
+notes in a `changelog.d/<slug>.md` fragment (see `changelog.d/README.md`), and
+`python3 installer/build.py --release` folds the pending fragments into the next `## v<N>`
+section and sets `WORKSPACE_VERSION` to match.
+
+Everything before v1 is **pre-versioning**: those workspaces carry no
+`workspace_version` in `works/.workspace-version.json`; consult `git log` for that
+history.
+
+## v102 — 2026-11-20
+
+- **The core flow is pinned.** A new smoke test drives a toy phase through the commands that stay (the phase and slice lifecycle, a section read and append, a typed stop, the acceptance gate, `pr branch`'s dirty-tree refusal, `check --no-rebuild` on a broken slice, the pass and the archive), so the renames that follow keep that behaviour.
+- **The docs subsystem is retired.** `docs`, `rebuild-docs`, `doc-new-version`, `docs-debt`, `docs-consolidated` and `parallel-consolidated` are gone, with the consolidation debt behind them: a passing review stamps nothing, `worktree start` stamps no `consolidation`, `next` and `check` print no `consolidation_owed=`, `stale_docs=` or oversized-section line, `phase new --consolidates` is gone, and archiving never holds a phase for doc debt. `docs/current/*.md` are plain files that agents edit in place; a fresh install seeds the five bodies with no frontmatter, no `docs/index.json` and no versions. The `doc-new-version` skill is retired (`--update` flags an unchanged copy stale), and the phase notebook template drops `## Doc impact` (`section` still reads and appends to it in older notebooks).
+- **`phase rotate` only archives.** Its result is `rotate=archive` (or `rotate=refused` on a parallel stream); the docs-phase proposals and the stops that guarded them are gone.
+- **`run-phases` and `parallel-skip` are retired.** `next` is the one pointer; the resume card drops its parked-run line.
+- **Loop phases are retired.** The twelve `loop-*` commands, `phase new --loop`, the `run-loop` skill, the `cycle` slice kind and its playbook, the charter template, the `screen` route row and the loop's `.gitattributes` union lines are gone, with their hooks in the core: the per-loop event files, the hidden loop REVIEW, the loop guard on a pass, the checkpoint merge in `worktree gate` and `next`'s checkpoint `merge_ready=`. The contract drops its loop rows. A `phase.json` that still carries a `loop` block reads as an ordinary phase.
+- **The engine is flat modules.** `scripts/workflow.py` is now the entry (the parser and the dispatch) beside `wf_store.py` (where the state is, paths, ids, events, phases, slices, the notebook, `next`, review, the gate, `check`, archive), `wf_git.py` (PRs, the parallel worktrees, the repo registry, `phase scope`), and the parts moved as they were: `wf_design.py`, `wf_agenda.py` (agenda and deferred jobs) and `wf_cloud.py`. `wf_store` imports none of the others; what it calls in them is listed in its `SEAMS` and bound by the entry. The split itself changed no command, flag or output. The engine sets `sys.dont_write_bytecode`, so no `scripts/__pycache__/` appears beside it on any Python.
+- **The engine finds its workspace from anywhere.** In order: its own parent when that holds `works/` (every installed copy, as before); the folder `WORKFLOW_ROOT` names (a nested host's `workflow/` when it names the host); the first folder up from the current directory holding `workflow/.agentic-nested.json` or `works/phases/`. With none it exits 2 with one line, `no workspace found from <cwd>; run from inside one or set WORKFLOW_ROOT`, and never writes into its own folder (an older engine copied outside a workspace wrote `works/` there). `WORKFLOW_CMD` overrides the command the hints print; an engine outside the workspace prints its own path from the host. The compaction hook's walk to the session's workspace follows the same rule.
+- **The installer ships every engine module.** Fresh installs, `--into-existing` and `--update` write every `scripts/*.py` the build embeds (`--update` adds the new ones); a retrofit aborts on a foreign file at any of those paths, as it did for `scripts/workflow.py`.
+- **The core verbs.** Sixteen commands become four verbs, and `next` stays: `phase new|status|archive|rotate|reopen|scope|rounds` (was `new-phase`, `set-phase-status`, `archive-phase`/`archive-all` as `phase archive <P>`/`phase archive --all`, `rotate-backlog`, `reopen-phase`, `phase-scope`, `parallel-plan`), `slice new|start|finish|status|deps` (was `new-slice`, `start-slice`, `finish-slice`, `set-slice-status`, `set-slice-deps`), `section` (was `phase-section`) and `check` (was `rebuild` then `validate`; `check --no-rebuild` validates only). Arguments and outputs are unchanged; an old name exits 2 with argparse's usage error. `--help` lists 56 commands (was 68).
+- **Four refusals are advice now.** `slice new` makes an unknown `--kind` with one `advice:` line naming the set (it routes on the high row); `slice finish` on a decomposition that leaves a middle slice undeclared finishes and prints one `advice:` line per slice (it runs alone); `section ... --replace` on Operator Questions (or an older Doc impact), and `--entry K --replace|--remove` there or a `--remove` in Decisions, write and print one `advice:` line; the notebook budget's step reads `advice: move long entries ...` (the moves are no longer required). `promote-deferred` still refuses an unknown kind before it mints a phase.
+- **A pending stop must be typed.** `slice status <S> pending` without both `--stop-kind` and `--on-words` is refused, nothing written (it used to write an untyped stop with a warning).
+- **`section` takes any heading.** A write to a heading the notebook lacks (`section <P> Walkthrough --append`) creates it at the end, before `## Now`; before, it exited 1 with `unknown section`. A read of a missing heading still exits 1.
+- **`check`, in the installer and the CI seed.** Install and `--update` end with `check`; a fresh CI seed runs `check --no-rebuild` in a job named `check`; a worktree stream refreshes the default checkout with its `check`. The contract drops the kind, dependency and append-only rows and points the typed-stop and state rows at `slice status` and `check`. The `rebuild-workflow` skill is retired (its two lines are `check`): 18 skills. The generated `## Slices` line now names `check`, so the first rebuild after the update rewrites that one line in every active notebook.
+- **The decompose playbook names the smoke cadence:** a slice runs the repo's fast check (the tests its change touches); the full check runs once per phase, before the PR or in the background on a slice's commit; each repo names both commands in its rules or verification skill.
+- **`review`, `gate` and `pr`.** `review-phase` is `review`; `accept-gate <P> --require|--waive|--open|--clear` is `gate <P> require|waive|open|clear` (bare `gate <P>` shows it); `pr-branch`, `pr-record`, `pr-sync`, `pr-team`, `pr-check` and `pr-rules-decide` are `pr branch|record|sync|team|check|rules`, their arguments unchanged. `--help` lists 52 commands (56 before).
+- **`gate clear` needs the operator's words.** `gate <P> clear --words "<their literal words>"` records them in `phase.json` beside `cleared_at` (and in the event); without `--words` it is refused, nothing written. A clear from before has no words and still reads as cleared.
+- **The draft PR before a pass is advice.** A pass with a recorded branch unopened, or with no branch while `phase scope` lists product files, records and prints `advice: pr_draft=due ...`; the gate before a pass is still a refusal. `phase archive <P>` archives a phase whose PR is still open with one `advice:` line (`phase rotate`'s sweep still leaves it active).
+- **The draft's state is recorded.** `pr record --url` reads the draft with `gh pr view --json headRefOid,updatedAt,comments` (read-only) and stores `head`, `updated_at` and `comments` on its branch entry (gh missing or failing records the URL alone, with advice); re-run it on the same URL after a fix round's push. `pr sync` also reads `updatedAt` and `comments` and prints `unchanged_since_draft=yes|no|unknown pr=<label>`.
+- **`close <P>`, the close in one verb.** At the operator's accept it walks gate, reread, pass, ready, ci, land, sync, merge, teardown, check and commit: one `step=<name> state=done|due|skipped|stop` line each, then `stop=<name> do=<what>` or `close=done`. It reads the PRs read-only (`gh pr view`, `gh pr checks`) and records what it read (state, and `ci=green|red|pending|none|unknown`), records the pass after an unchanged re-read, and runs `worktree merge-finish`, `worktree teardown` and `check` itself; it never pushes, merges, flips a PR Ready or writes to GitHub. It refuses a required gate not cleared with words, and a waived or legacy gate's phase with no pass. `--dry-run` writes nothing. The `pr` skill's `reference/close.md` now stands on it; its hand-written re-read and Ready/land checklist are gone.
+  - *A worktree phase.* Run in its worktree, `close` adds `commit-pass` before `merge`: it commits the pass on the phase branch itself (`chore(works): record <P>'s pass on its branch`, `git commit --only` the phase folder and the generated `works/` files, nothing else; no commit when nothing changed), so `worktree gate`, which reads the branch, sees the pass.
+- **`worktree` and `repo`.** `parallel-start`, `parallel-add-repo`, `parallel-status`, `parallel-gate`, `parallel-merge-finish` and `parallel-teardown` are `worktree start|add-repo|status|gate|merge-finish|teardown`, their arguments unchanged; `nested-repos` is `repo` (bare, or `repo list`, prints the registry; `--add <path>`, `--remove`, `--rules <name> --set`, `--detect-rules` and `--map-anchors` are `repo add <path>`, `repo remove`, `repo rules <name> --set`, `repo detect-rules` and `repo map-anchors`), and `nested-convention` is `repo convention`. Every old name exits 2; `--help` lists 46 commands (52 before).
+- **The quiet-point gate is advice.** `worktree gate <P>` prints `GATE OPEN` or `GATE CLOSED reason=<reasons>` and exits 0 either way (it exited 1 on a closed gate). The shipped CI seed's `parallel-gate` job is gone (its `check` job stays), and the contract drops the quiet-point row.
+- **Teardown clears the record.** `worktree teardown` removes the phase's whole `execution` block (the `phase_parallel_torndown` event keeps it), so `worktree status` and the `## Streams` view stop listing a torn-down phase.
+- **`--update` warns about an old CI seed.** The CI file is seed-once, so `--update` never rewrites it; when it still names `validate` or `parallel-gate` it prints one `warning:` line saying what to change.
+- **The Claude Code adapter is a folder.** Routing, the meter and the resume hook leave the engine for `adapters/claude_code/adapter.py` (`workflow/adapters/claude_code/` nested): `route` (was `executor-route`), `sync-agents`, `meter` (was `dispatch-summary`) and `compact-resume`. It imports the engine and runs each command through the engine's `run` (ids, the cloud boundary); the engine imports nothing from it, and its `--help` lists 41 commands: the eleven verbs (`next`, `phase`, `slice`, `section`, `review`, `gate`, `pr`, `worktree`, `repo`, `close`, `check`) and the design, agenda and cloud parts' own. `next --card` prints the resume card without the running spans (the engine reads no transcript); the adapter's hook prints it with them, keeps its fail-open path in a linked checkout and its 15 s budget. For a session in another workspace it runs that workspace's own adapter, else (an older install, or a worktree cut before the update: no adapter folder) that workspace's own engine, its `compact-resume` or else its `next --card`; a session in no workspace gets this workspace's card. The `executors.toml` seed's source moved with it; the installed `executors.toml` stays at the root. `check` no longer reads the route table: the agent-file drift it warned about is named by the adapter's bare `route` (`agent files: out of sync: ...`).
+- **`record-dispatch` is retired.** A slice's verdict is its `result.md` (the verdict block's `status:` line) or its `slice.json`; the meter's verdict table reads them, per kind, and `meter --slice` prints one slice's. Old `executor_dispatched` events stay in `works/events.jsonl`, unread.
+- **Migration notes.** Run `--update` (or `/update-workspace`), then act on each group.
+  - *Every install, the commands.* There are no aliases: an old name exits 2, so your own scripts, hooks and notes move to the verbs. `new-phase` → `phase new`; `set-phase-status` → `phase status`; `archive-phase`/`archive-all` → `phase archive <P>`/`phase archive --all`; `rotate-backlog` → `phase rotate`; `reopen-phase` → `phase reopen`; `phase-scope` → `phase scope`; `parallel-plan` → `phase rounds`; `new-slice`, `start-slice`, `finish-slice`, `set-slice-status`, `set-slice-deps` → `slice new|start|finish|status|deps`; `phase-section` → `section`; `review-phase` → `review`; `accept-gate <P> --require|--waive|--open|--clear` → `gate <P> require|waive|open|clear`; `pr-branch|pr-record|pr-sync|pr-team|pr-check|pr-rules-decide` → `pr branch|record|sync|team|check|rules`; `parallel-start|-add-repo|-status|-gate|-merge-finish|-teardown` → `worktree start|add-repo|status|gate|merge-finish|teardown`; `nested-repos` → `repo` (`repo list|add|remove|rules|detect-rules|map-anchors`); `nested-convention` → `repo convention`; `rebuild` → `check`; `validate` → `check --no-rebuild`. Retired with nothing in their place: the twelve `loop-*` commands and `phase new --loop`, `docs`, `rebuild-docs`, `doc-new-version`, `docs-debt`, `docs-consolidated`, `parallel-consolidated`, `run-phases`, `parallel-skip` and `record-dispatch`.
+  - *Every install, the adapter.* `executor-route`, `sync-agents` and `dispatch-summary` are `python3 adapters/claude_code/adapter.py route|sync-agents|meter` (nested: `python3 workflow/adapters/claude_code/adapter.py ...`); re-run its `sync-agents` after the update, as before. `--update` adds the folder, swaps the `SessionStart` hook from `workflow.py compact-resume` to the adapter's (its report prints `removed: ... hooks.SessionStart compact-resume (moved to the adapter: ...)`; `.claude/settings.json` at root, the host's `.claude/settings.local.json` nested) and adds the adapter's allow rule. Your `executors.toml` is kept byte for byte; its comments may still name `workflow.py executor-route` (the new seed's text is the upstream's `payload/adapters/claude_code/executors.toml`). A `[claude.screen]` section is now an unknown route: delete it. A script that loaded `workflow.py` with `importlib` patches the part's module now (`sys.modules["wf_cloud"]`, `wf_agenda`, ...), and the engine is the whole `scripts/` folder: copy it, never `workflow.py` alone.
+  - *Every install, the stale files.* `--update` flags as stale (ours, unchanged) the `run-loop`, `doc-new-version` and `rebuild-workflow` skills, `do-whole-phase/playbooks/cycle.md` and an at-root `works/templates/charter.md`: delete them. A nested install's leftover `workflow/works/templates/charter.md` is not flagged (the nested pass reads no template): delete it by hand. The loop's `works/phases/**/loop/*.jsonl merge=union` lines in `.gitattributes`, and the `linguist-generated` lines for `docs/versions/**` and `docs/index.json`, stay and are harmless.
+  - *The behaviour that moved.* `gate <P> clear` needs `--words "<the operator's words>"`; `slice status <S> pending` needs `--stop-kind` and `--on-words`; an unknown kind, an undeclared middle slice, a `--replace` on Operator Questions, `worktree gate` while the default stream is busy, a pass with no draft PR and an over-budget notebook print advice and exit 0. `phase archive` archives a phase whose PR is open, with advice. A phase drafted before this version has no recorded draft state, so its first `close <P>` stops at the re-read: read the PR once, then `pr record <P> --branch <b> --url <url>`. The hand-written `topics/pr-draft*.md` are no longer read. A phase torn down before this version keeps its nulled `execution` block (`worktree status` lists it until you delete the block).
+  - *An at-root install's CI seed.* `.github/workflows/workspace-ci.yml` is seed-once, so it still runs `python3 scripts/workflow.py validate` and the `parallel-gate` job, and both now fail with exit 2: change `validate` to `check --no-rebuild` and delete the gate job. `--update` prints one `warning:` line while either is there.
+  - *The docs.* `docs/current/*.md` are plain files you edit. An existing `docs/index.json` and `docs/versions/` stay on disk, unread, and a phase's `consolidation`/`consolidates` fields are ignored. On a linked (cloud) checkout `docs/current/*.md` become truth files, so the first `sync` after the update pushes them. They are no longer `linguist-generated`: `--update` removes `docs/current/** linguist-generated=true` from our generated block of `.gitattributes` and reports it (`removed: .gitattributes docs/current/** linguist-generated=true (...)`; nested `workflow/.gitattributes`), keeps a copy you wrote elsewhere, and a PR shows and `pr check` counts their edits; a merge conflict in them is resolved by hand, never by taking a side.
+  - *A worktree stream and an older default checkout.* A stream refreshes the default checkout's backlog by running that checkout's `check`; a default checkout still on v101 has no `check`, so its backlog stops following the stream until it updates (nothing else breaks).
+  - *The docs-debt phases.* A done phase that waited only on doc consolidation now archives: run `phase archive <P>` (or `phase rotate`) for each phase the old `docs-debt` listed.
+
+## v101 — 2026-11-20
+
+- **The agent's browser is `playwright-cli`, driven from the shell.** Every real-browser check (verification, the review's walkthrough, design fidelity, a PR body's screenshots) runs on `@playwright/cli` 0.1.25: headless, on a throwaway profile, never the operator's. The agent installs it (`npm install -g @playwright/cli@0.1.25`, then `playwright-cli install-browser chrome-for-testing` when no browser is found), starts, restarts (`kill-all`) and closes it itself; the shipped settings allow `Bash(playwright-cli:*)` and exactly the pinned install, `Bash(npm install -g @playwright/cli@0.1.25)` and `Bash(npm i -g @playwright/cli@0.1.25)` (another version, or a second package on the same line, still asks), so no prompt stops it. The contract's browser row says so to every session, an ad-hoc one included: install it yourself when it is missing, and run it plainly (no pipes or chains) outside repos, since it writes `.playwright-cli/` where it runs. A saved sign-in is a `state-save` file the operator makes once, named in `## Operator Runtime`'s new `Saved sign-in:` line; only a credential, a sign-in or a paid account stops a run. The dedicated Chrome profile, its recorded id, the select-first step and the "third halt" are retired, and `slice-executor` no longer carries the Claude in Chrome tools: Claude in Chrome is used only when you ask an agent to use your own browser. The procedure lives in `design-cowork`'s `reference/build.md`.
+- **The contract fits one screen.** `CLAUDE.md` drops from 12 KB to under 4 KB (≤ 60 lines): the four invariants you signed (nothing is pushed, merged or paid for without your word; a sign-off is your literal words; your own work is never touched; reports are truthful), seven named principles to steer by (prove it works, subtract before you add, settle by a run, finish line first, stop what you start, take your own recommendation, ask don't archive), the correction ladder (product code, then a type or lint, then a test or check, a rule file last), and a rule table whose every row names what enforces it: an engine refusal, a settings rule, a CI step or a smoke check (the smoke suite now holds the contract to 4,096 B). The read order, the canonical-state list, the status lists, the design, review and parallel procedures and the doc-consolidation duty left it: the skills, the executor card and `workflow.py --help` carry them. A multi-repo host's `CLAUDE.local.md` block is trimmed to what a host needs, points a bare host session at each repo's verification skill (`<repo>/.claude/skills/`), and points at the `parallel-phase` skill for worktree mechanics.
+- **The slice executor is a card; each kind of work has its playbook.** `slice-executor.md` drops from 50 KB to under 3 KB: the four invariants, a map from the slice's kind to its playbook, done means proven (each claim seen failing, then passing; stop what you started), how to write the notebook, and the verdict block. How each kind usually goes lives in one 1–3 KB playbook, read only for that kind, in `.claude/skills/do-whole-phase/playbooks/`: `feature` (implementation, docs, a refactor), `fix` (the whole problem class), `investigation` (research), `review`, `verify` (qa), `decompose` (the walkthrough first, few big self-verifying slices, no QA slice by default), `cycle` (a loop's cycle and checkpoint), plus `wave` and `explain` when a slice runs in a wave or an explain phase; a co-work mockup span reads `design-cowork`'s `reference/mockup.md`. An executor may leave a playbook with a stated reason. The review's executor now dispatches the blind code reader itself (repo, base, head and pathspec only) and rules on its findings in the same span. `code-reader` is a 3 KB card, and `pr-reader` a 2 KB card that runs only when you ask or for a team repo with PR rules. The smoke suite holds the card to 3,072 B and each playbook it names to 1–3 KB.
+- **The phase-flow skills are short playbooks.** `do-whole-phase`, `do-next-slice`, `create-phase`, `review-phase`, `read-code`, `executor-route` and `commit` drop from 267 KB to under 80 KB (the smoke suite caps each folder and holds the set to 85,000 B). `do-whole-phase` is the loop in one page: plan, dispatch, read the verdict, finish, validate, commit; its modes (`auto`, `gate`, `plan only`) and the stop rules (at most about five decisions, the rest "decided as drawn", about 2k characters, one word signs) now live there, and its references are the orchestrator's side only: dispatch, verdicts and the commit, the wave, the decomposition gate and PR branches, the worktree, the review. `do-next-slice` is one slice of that loop and reads `do-whole-phase`'s references by path, so no reference ships twice. `review-phase` is the one source for the review: one review per phase; its executor dispatches the blind code reader itself and triages it in the same span, runs the walkthrough line by line with evidence, routes every operator question, and stops whatever the phase left running. It no longer verifies a `## Doc impact` list; on a pass it updates only the `## Regression Checklist` and `## Operator Runtime` sections the phase made untrue (in a worktree, their text goes in its `result.md` for the merge). `commit` carries the commit convention the contract dropped (`type(scope): summary`, the types, `merge(P<N>): <name>`, attribution to the model that did the work, the product repo first in a nested host). `/read-code` is for changes made outside a phase.
+- **One close checklist, and the workflow cleans up before a phase finishes.** The `pr` skill's `reference/close.md` is now the one ordered list for closing a phase (`parallel-phase` and `do-whole-phase` point at it): open the drafts when the review passes and **read each PR's CI before the gate opens** (a red run becomes a fix before your walk, never after your `accept`; pending CI is waited on while you walk); put **screenshots of each changed user surface in the body**, pushed to an orphan `pr-assets` branch of the same repo (one folder per PR) and linked pinned to their commit, so no image enters the product tree; at `accept`, re-read the PR **only if it changed** since the draft (one `gh pr view --json headRefOid,updatedAt,comments` call against what the draft recorded), flip it Ready and land it by the repo's custom, with no pre-push local smoke and no post-landing `gh run watch` when the head's CI was green; integrate a worktree phase (gate, merge, merge-finish, teardown with `--discard-ignored` where caches live); then **stop every process the phase started and remove its containers with their volumes** (by the names and ports its slices recorded), **delete each merged head branch, local and remote**, once no open PR targets it, and end with one `validate` and one workflow commit. Accepting a phase stacked on an unmerged base defers its close. The draft's push needs no extra word: your run of the phase is it; Ready and the merge still wait for `accept`. The `pr-reader` now runs only when you ask, or for a team repo with PR rules.
+- **The PR, parallel, loop and housekeeping skills are short playbooks.** `pr`, `parallel-phase`, `run-loop`, `update-workspace`, `rotate-backlog`, `archive-phase`, `retrofit`, `doc-new-version` and the agenda and deferred-job skills drop from 154 KB to under 70 KB; with the rest, every shipped skill and agent (the design files and explain references aside) totals under 160 KB on a fresh install, and the smoke suite holds both. `rotate-backlog` archives what owes nothing and creates or runs no phase (its docs-phase route is gone); `update-workspace` acts on the CHANGELOG's Migration notes instead of restating every old version's; `doc-new-version` is run by the slice whose change the code cannot say. A worktree review's gate sections go in its `result.md` under `## Gate sections (written at merge)`.
+- **CI runs once per PR push.** This repo's CI and the adopter seed `workspace-ci.yml` run on `push` to the default branch (`main`; the seed also takes `master`) plus `pull_request`, no longer on every branch push.
+- **Migration notes.** The playbooks ship inside the `do-whole-phase` skill directory, so `--update` installs them and a nested install's exclude block already hides them; nothing to add. Run `npm install -g @playwright/cli@0.1.25` once per machine (the `update-workspace` skill now does it); `--update` adds `Bash(playwright-cli:*)`, `Bash(npm install -g @playwright/cli@0.1.25)` and `Bash(npm i -g @playwright/cli@0.1.25)` to your allow list, and a later CLI version needs those two rules moved with it. In your operations doc's `## Operator Runtime`, retire the `Agent's Chrome deviceId:` line, set `Browser instrument for the agent:` to playwright-cli and add `Saved sign-in:` (the seed's shape in `installer/payloads/doc_bodies/operations.md`), with `doc-new-version`. Claude in Chrome (the extension, `/chrome`, the agent profile) is no longer needed for agents. `--update` replaces the contract (`CLAUDE.md`, or `workflow/CLAUDE.workspace.md` in a nested install) and the managed `CLAUDE.local.md` block; if your own rules quoted the old contract's sections (Hard Rules, Canonical State, Commit Convention), point them at the skills instead: commits follow the `commit` skill (`type(scope): summary`). The contract and the playbooks ask for no `## Doc impact` note or docs phase any more, but the phase template's `## Doc impact` prose and the engine's consolidation debt stay until a later release: a phase that records a note there owes consolidation and cannot be archived until a docs phase pays it (`docs-consolidated <P>`). `/do-next-slice` works as before but ships no `reference/` folder: it reads `.claude/skills/do-whole-phase/reference/`; `--update` lists the old copies (and `do-whole-phase`'s retired `reference/modes.md` and `reference/prep.md`) as stale, ours and unchanged, for you to delete. `create-phase`'s docs-phase route is gone (doc consolidation is retired); its QA-sweep route stays. **The close's cleanup commands are pre-allowed:** `--update` adds `Bash(docker rm -fv:*)`, `Bash(docker volume rm:*)`, `Bash(lsof -ti:*)`, `Bash(kill:*)`, `Bash(git branch -d:*)` and `Bash(git push origin --delete:*)` to your settings' allow list, keeping your own entries; a nested host's `git -C <repo> branch -d` and `git -C <repo> push origin --delete` are not pre-allowed (a `*` before the subcommand would approve any git option there, and Claude Code warns at startup on such a rule), so each asks once per repo; the close scopes them to the phase's own containers, processes and merged branches (never `-D`, never a prune), and the contract's force-push row now says the one allowed `git push` is a merged branch's deletion. Remove any you do not want. **CI:** an installed `workspace-ci.yml` is yours and is never rewritten; to stop double runs, change its `on.push` to `branches: [<your default branch>]` by hand. **The `pr-reader`** no longer reads every draft: ask for it, or it runs by itself only for a team repo with PR rules.
+
+## v100 — 2026-11-19
+
+- **Cloud mode at the command boundary.** A checkout is linked exactly when `.hi2vi/link.json` exists beside `works/` (server, org and project id; never a key). Without it every command runs exactly as before: nothing is read, no socket is opened. With it, each engine command first pulls what changed in hi2vi since `.hi2vi/base.json`'s head (a fast-forward; the generated files are rebuilt after a pull), runs unchanged against the disk, then sends every truth-file difference in all-or-nothing batches sent in order (a change over 8,000,000 B splits into several) and records the new revisions in `base.json`.
+- **The truth set** is `works/**` and `docs/**` minus the generated files, `works/templates/`, the version marker, folders whose `.gitignore` is `*` and temp files. Files written outside the engine (an agent's `plan.md`, `result.md`, topics) ride the next command's batch marked `carried`; the command's own changes are marked `command`. Equal content sends nothing. `works/events.jsonl` and a loop's union logs go as appended lines, never as revisions; a folder move (archive, a deferred job's drop or promote) goes as moves paired by content, so a file's history follows it. Every batch also carries the freshly rendered `works/state.json` and `works/index.json`.
+- **The client** is the standard library only: `https://` required (plain `http://` only to `localhost`, `127.0.0.1`, `::1` and `*.localhost`), a request that moves no byte for 10 s fails, redirects never followed, the workspace key read from `$XDG_CONFIG_HOME/hi2vi/workspace-keys.json` and sent only as a Bearer header.
+- **One command at a time per checkout.** A linked checkout's whole boundary (pull, command, push) runs under `fcntl.flock` on `.hi2vi/lock`, so an orchestrator and its executors running engine commands at once are serialized; a second command waits up to 120 s, then refuses with one line (the session hook waits 5 s). The lock is re-entrant within one process.
+- **A journal names every interrupted state.** `.hi2vi/journal.json` reads `running` from the begin step until the commit step clears it: a command that died midway (killed, or crashed with an exception) leaves it, and the next command refuses with one line naming `sync`. Before a push it reads `pushing` with the batch ids, their bodies kept in `.hi2vi/outbox/`: a lost answer or a batch never sent is resent with the same `batch_id` at the next command, so hi2vi applies it once. A pull killed midway needs no journal: a revisioned file it wrote equals hi2vi's and reads as the same, and an append-only file it merged around lines not yet sent (the event log, a loop's ledger and checkpoints) has the merge's result saved in `.hi2vi/base.json` before the write, settled against the disk at the next command, so hi2vi's own lines are never sent back to it (each line lands once, and a loop's spend is counted once).
+- **Refusals that change nothing.** With hi2vi unreachable a command is refused before it runs (`hi2vi is not reachable at <server> (<why>): in cloud mode nothing runs offline, and nothing was changed.`, exit 1, the tree untouched); a file changed on both sides refuses with `<n> files differ between this checkout and hi2vi: run sync to see them`. A push answered 409 writes nothing of its own batch in hi2vi (earlier batches of the same change have landed) and keeps the disk: the command exits 1 with `this change is on disk but not in hi2vi (<n> conflict(s)): run sync`, even when it succeeded. `compact-resume` (the SessionStart hook) never fails on the cloud: offline, behind a held lock or after an interrupted command it runs on the disk and prints the line as a note, exit 0.
+- **Every failure at the boundary is one line.** In a linked checkout a failure inside a command's boundary (the requests and the pull before the command, the push after it, `link`, `unlink`, `sync` and its `--keep`) ends in one line and exit 1, never a traceback or a false success: an answer cut mid-body or malformed (`http.client`'s `IncompleteRead`, a bad status line, an over-long header) reads like any unreachable server, a fetched file that does not decode stops the pull before anything is written, and a write error during a pull names the path, records in `.hi2vi/base.json` what landed before it and leaves the next command to resume the pull. A request fails when it stalls, never while this machine sees its bytes move. The connect is one wait of at most 10 s (the session hook's, at most to its deadline), since nothing moves while it waits; when a name resolves to several addresses, the first gets that whole wait and each later one only what is left of it, so a first address that drops packets can leave the others none. Every later wait (an `HTTPS_PROXY` tunnel, the TLS handshake, each send and each read) is a wait on the TCP socket of at most 1 s, after which its progress is read there: the bytes in and out (TLS bytes as they cross the socket, never a 16 KiB record at a time) and an upload still draining from the socket's send queue (Linux `SIOCOUTQ`, macOS `SO_NWRITE`). It fails after 10 s with no byte moving (a server that thinks in silence is judged by that alone), or when a floor window moved under 1,024 bytes (about 100 B/s). A request's first window opens at its start. While the connection is set up only the bytes the peer sends count toward the floor: this checkout's own (a CONNECT line, or a ClientHello of 200 B to over 1,500 B by the TLS library) do not. A window is judged at the first step after its 10 s, at every step while the connection is set up and after that at the next byte that moves; one that moved 1,024 bytes or more gives way to a new window there. The window starts once more at the answer's first byte, over TLS its first decrypted byte, so the raw bytes of a first TLS record count in the window before it. So a peer that drips under the floor, in the set-up or in the answer, ends a command within about a minute of when it starts to drip, and a steady drip sooner. A transfer moving faster goes on however long it takes, so a multi-MB file on a slow link is pulled or pushed whole. Where the bytes move out of this machine's sight, only the 10 s idle limit judges the request, which fails although the far link may still be moving them: a box that splits the TCP connection and takes an upload at once (a local proxy, a satellite or carrier accelerator, macOS's own loopback), any platform other than Linux and macOS (no send-queue probe), and a server that thinks over 10 s before it answers. Resolving a name (hi2vi's, or the proxy's) has no bound. An HTTP error answer whose body stalls or is cut is no answer (a 409 never reads as one with no conflicts: the batch is kept and resent). `compact-resume` holds its whole cloud time, the lock wait and every wait of every request included (a slow or dripping proxy too; a name lookup excepted), to 9 s, inside the SessionStart hook's 15 s; any of these is the hook's note, exit 0. `sync --keep local|cloud` takes only a file present here or in hi2vi: a folder or a path on neither side is refused with one line, nothing sent or written (it said `hi2vi holds it now`, or crashed on a folder), and `sync --diff` refuses a folder too. A key in the key file that holds a space or a control character is refused, never quoted in an error line.
+- **Typed ids read the pulled tree.** In a linked checkout a command's brief ids (a phase `7`, a slice `7.S1`, a deferred job `7`, an agenda item `7` or `A7`, and every other form the engine accepts) are resolved after the begin step's pull, so a record another checkout made since the last pull is named on the first try, and a number two records share once the pull lands is refused with the list (`'7' names 2 phases numbered 7: … -- type the tail`). An id refusal is a refusal like any other: one line, exit 1, and the commit step still runs. An unlinked install resolves its ids exactly as before.
+- **Batches stay under the server's limit.** A change bigger than 8,000,000 bytes as sent goes as several batches in order, each with its own `batch_id`; one file too big for any batch is refused with one line naming it, before anything is sent.
+- **`link <server>/projects/<project-id>`** makes hi2vi the truth for a checkout in one step. The workspace key is pasted at a prompt (`getpass`; one stdin line when stdin is not a terminal), never on the command line, checked against hi2vi's head, and kept in `$XDG_CONFIG_HOME/hi2vi/workspace-keys.json` (folder 0700, file 0600 from its first byte); `.hi2vi/link.json` holds the server, org and project only. An empty project gets the whole truth set (in batches under 8,000,000 bytes); a project that already holds files is joined only from an unused install (whose seed files give way) or an equal set, else the differing paths are listed and nothing is written. It refuses, with one line and nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree of the workflow repo, with uncommitted changes there, when already linked, `http://` to a non-local host, a key hi2vi does not take, and a key file or folder that group or others can read (the `chmod` fix printed, never the key; every linked command checks this too).
+- **`unlink`** pulls to hi2vi's head (refused on a mismatch), pushes what is here, removes `.hi2vi/` and prints the one commit to make in the workflow repo; the key stays in user config. **`unlink --from-disk`** is the one command that runs offline: it keeps the disk as it is and says that hi2vi's changes after the last synced head are not on it.
+- **`sync`** pulls hi2vi's clean changes, pushes the clean local ones, then lists what remains, one line per path (`differs`, `here only`, `cloud only`, `deleted here`, `deleted in hi2vi`, `interrupted`) with both sides' facts, exit 1 while anything differs; it never resolves a mismatch by itself. `sync --diff <path>` shows hi2vi's copy against the disk; `sync --keep local|cloud <path>...` resolves only the named paths (never without one: local pushes the disk's copy over hi2vi's current revision, an append-only log as its new lines; cloud writes hi2vi's copy over the disk); `sync --status` prints one line. After a command that stopped midway, `sync` lists its files as `interrupted` and pushes none of them until `--keep`. Fetches follow hi2vi's paged answers (`rest`).
+- **`next` prints `store=cloud server=… project=…`** in a linked checkout, and every head request names the head the checkout last synced (`X-Hi2vi-Base`).
+- **No streams in cloud mode.** `parallel-start`, `parallel-add-repo`, `parallel-gate`, `parallel-merge-finish`, `parallel-consolidated`, `parallel-teardown`, `reopen-phase` and `loop-checkpoint --landed` are refused in a linked checkout with one line, before anything is read or written; `parallel-plan`, `parallel-status` and `parallel-skip` (read-only or a no-op) still run.
+- **The web's agenda changes are applied by a linked engine.** The web never writes a workspace file: each agenda change there is a pending inbox entry in hi2vi. `sync`, `next` and `run-phases` (after their pull, before the command reads the disk) apply the pending entries oldest first, each as its own agenda command run in-process (`agenda-add --id <minted>`, `agenda-edit`, `agenda-move`, `agenda-defer|solve|drop|reopen|delete`), and print one line per entry. Exit 0 is applied; exit 1 (a refusal) or 2 (a usage error) is refused, with the command's one line sent as the reason word for word. Each entry's result travels in a batch of its own with exactly the files its command wrote, so a delete's cleared links land with it. An entry whose ids are not all full agenda ids (`A7-m3`) is refused with exit 2 before anything runs. An entry another checkout applied first comes back as a 409: this checkout's change is dropped and hi2vi's copy pulled, so no entry is ever applied twice. A command that crashes leaves its entry pending, and the files it wrote are put back as they were. The inbox waits while a push is unsent or an interrupted command's files are unresolved.
+- **The installer hides `.hi2vi/`** in a nested install's workflow repo (`info/exclude`), on a fresh install and on `--update`; `link` adds the line too when it is missing.
+- **The contract and the skills say so.** The shipped `CLAUDE.md` gains a *Cloud mode* line under Canonical State (its other wording tightened to stay inside the 12,288 B cap, no rule removed); every skill step that commits workflow state skips that commit in a linked checkout (hi2vi's revisions are the workflow's history; product commits are unchanged); `parallel-phase` says a linked checkout refuses the stream commands; `agenda` says how the web's changes arrive; `run-phases --help` and `next --help` say they first apply the web's pending agenda changes in a linked checkout.
+- **A linked checkout's waiting-commit record.** In local mode a `done` slice whose `slice.json` the workflow repo has not committed is a commit that waits; a linked checkout never commits workflow state, so there the record is explicit. `mark-committed <slice>...` (a linked checkout only; refused in local mode, and for a slice not done, with nothing written) writes `committed_at` into each slice's `slice.json`, which syncs like any truth file: run it after the slice's product commit, or right after its finish when it changed no product file. `next` and `run-phases` print `commits_waiting=<ids|none>` in a linked checkout: the done slices finished since the link without `committed_at`, in finish order. A slice leaving `done` loses the record; a second finish keeps it; `review-phase --verdict pass` records the REVIEW's itself (a review changes no product file). The do-* skills' wave and resume rules, `/commit`, `/rotate-backlog` and `/run-loop` read that line in a linked checkout.
+- **`update-workspace` and the installer in a linked checkout.** `works/` and `docs/` always show changes there and are never committed, so the clean check and the nested commit name only the update's own paths (`git -C workflow add -A -- . ':(exclude)works' ':(exclude)docs'`, then `works/templates` and `works/.workspace-version.json`), never `add -A` of the whole repo; `--update` prints those commands on a `linked to hi2vi:` line in place of its `add -A` next step. `--update` itself never refused a dirty nested repo, and still does not. `--to-multi-repo` refuses a linked install (its workflow repo cannot be the conversion's backup): unlink, convert, link again.
+- **A loop's rollup keeps its folders in a linked checkout.** It removed only folders git held unchanged, which never holds where workflow state is not committed, and a removed folder could only be read back from hi2vi's revisions, which no command reads yet: the close prints one `rollup of <P>: skipped in a linked checkout` line instead of a `commit it` warning per folder.
+- **Migration notes.** Nothing changes for an unlinked install: without `.hi2vi/link.json` every command runs as before, and `--update` only adds `/.hi2vi/` to the workflow repo's `.git/info/exclude`. To link a nested install, make a workspace key on the project's page in hi2vi (Access: *Workspace sync*), commit the workflow repo clean, then run `python3 workflow/scripts/workflow.py link <hi2vi>/projects/<project-id>` and paste the key at the prompt. At-root installs cannot link yet. A linked checkout refuses the stream commands (`parallel-start` and the rest): run its phases on the default stream. In a linked checkout, record each slice's commit with `mark-committed <slice>` (the skills say when; `next`'s `commits_waiting=` lists what waits), and commit an update with the paths its report prints, never `git -C workflow add -A`.
+
+## v99 — 2026-11-19
+
+- **Why.** Review rounds did not converge. One phase ran 14 review rounds, 19 code reads and 22 fix slices, and 85% of its cost went to them: each fix added code, and the next read found new failure paths in that code. The design critic asked for a revision on almost every verdict, before the operator had seen the direction.
+- **One review, one fix pass, a closing run.** The review gives each finding one of three outcomes against `intent.md`: `fix now` (the intent fails, something that worked breaks, data is lost or exposed, or the operator would meet it on the walkthrough), `note` (real, filed at the pass) or `drop` (one line with the reason). Only a `fix now` finding makes the verdict `changes_requested`. After the fix slices run once, the review's second dispatch is a **closing run**: each fix against its acceptance matrix and its own commands, the validation suite and the pass-only work. It hunts for nothing new. A fix that does not hold (`fix did not hold: finding <k>`), or a new `fix now` finding at the closing run, stops for the operator: no second fix pass starts without their word.
+- **A `fix now` finding names the run that shows it**: the command and what it printed, or the walkthrough step where the operator meets it. A finding nobody ran is a `note` at most; a problem the base already had is one line, never a finding; no findings is a valid result.
+- **The engine counts the fix passes.** `review-phase --verdict changes_requested` keeps `review.fix_passes` in `phase.json` and, from the second one of a cycle on, prints `fix_passes=<n>` with the stop command in place of the fix-slice hint. It refuses nothing: the operator's own failure report is recorded the same way. A pass ends the cycle and clears the count; a reopen is itself a change request and starts it at one.
+- **A stop names the premise.** When a fix does not hold, the report to the operator names the premise the fix was built on and what the closing run showed about it.
+- **A run settles what a run can settle.** At `DECOMP`, a question a throwaway probe can answer is answered by running it; the operator is asked only for a product or preference call, money, or what cannot be undone.
+- **The plan's bar is the whole bar.** An executor adds no check, gate or review round above `plan.md`'s; a problem the base already had is one line in `result.md`.
+- **The code reader reads once per phase.** No re-read after a fix pass; a second read happens only on the operator's word (`/read-code`).
+- **The budget stop.** Before the review and before a fix pass the orchestrator compares `dispatch-summary --phase <P>` with `topics/breakdown.md`'s `## Estimate`. Past about one and a half times the estimate it stops and asks.
+- **The design critic is off unless the operator asks.** `DECOMP` no longer turns it on for a kind of surface.
+- **The drafter's default is Fable @ high** (the `design` row). `Drafter: opus` under `## Design Style` picks Opus for one phase. Fable lists at about twice Opus per token.
+- **One session per phase; `/do-whole-phases` is retired.** A long session carries every earlier phase in its context. The engine's `run-phases` command stays for now.
+- **Migration notes.** `--update` lists `.claude/skills/do-whole-phases/` as stale (ours, unchanged): delete the folder; an `executors.toml` that sets `[claude.design]` keeps its own model; a phase whose `intent.md` names no `Drafter:` now drafts on Fable (write `Drafter: opus` to keep Opus).
+
+## v98 — 2026-11-18
+
+- **The agenda.** Each item is one folder, `works/agenda/<AID>/agenda.json`, that never moves. An item is stored Open, Deferred, Solved or Dropped; an Open item reads In progress while a phase linked to it is not done (derived, never stored or set), and a Deferred, Solved or Dropped one never does. Open items keep an order: a new item goes first, a reopened one last. Item ids are `A<n>-<tail>` (`A7-m3`), numbered apart from phases and deferred jobs; `7` and `A7` name it while only one item holds that number.
+- **The commands.** `agenda` (`--json` for each item's stored fields and links), `agenda-add`, `agenda-edit`, `agenda-move`, `agenda-defer`, `agenda-solve` (`--outcome`), `agenda-drop` (`--reason`), `agenda-reopen` (clears both), `agenda-delete`, `agenda-link` and `agenda-unlink`. A command on several items changes all of them or none, and a refusal is one line.
+- **Links.** A phase or a deferred job holds at most one item: `new-phase --agenda <item>` and `defer-job --agenda <item>` link what they create, `/create-phase <item id>` passes it through, and `promote-deferred --create-phase` gives the new phase its job's link. `agenda-delete` clears an item's links, except one on another stream's phase, which it leaves and names; when it cannot tell whose a linked phase is, it refuses the whole delete and writes nothing. The phases and jobs stay.
+- **Generated views.** `works/agenda.md` is regenerated on every rebuild, even with no item, and is never hand-edited. `works/backlog.md` gains an `Open agenda items` line (Open plus In progress), and `works/index.json` gains `agenda_counts` and `agenda`. A malformed item never stops `rebuild` or `next`; `validate` fails naming its folder, and warns of a link to an item that no longer exists.
+- **The `/agenda` skill** shows the agenda or runs one agenda command. The workspace now ships 22 skills.
+- **Worktrees.** A phase branch that only adds agenda items (or deferred jobs) keeps `parallel-gate`'s exemption on a busy default stream; editing or deleting an existing item does not. Links are written only into the writing checkout's own phases. In a phase worktree, or a clone of its branch, a phase is its own when it carries that branch's stamp or was created on that branch after the commit that cut it; a phase that was there at the cut, or arrived by a merge commit, is another stream's, whatever the default side has done with it since. A rebase, a fast-forward or a squash of another branch into the phase branch makes no merge commit, so a phase it brings reads as created on the branch; every merge of another branch into a phase branch that the workspace's skills make or its engine prints is a `--no-ff` merge commit (a loop's worktree takes the default branch back with `git merge --no-ff <default>`). A phase created on a phase branch is also the default checkout's own once a landing has carried it there while that branch's worktree, or a clone of it, lives on (a loop's checkpoints land this way, and so does a merged branch not yet torn down): link or unlink it from one side only, since two different writes from the two sides conflict on its `phase.json` at the next landing and taking either side keeps one. Link or unlink another stream's phase from its own checkout: the refusal names the command and the checkout, or says there is nothing to run when the phase was there at the cut and the default side has since archived or removed it; for a phase that came in by a merge commit from another branch it says so, and that the command applies in the checkout of the branch that created it, or in the default checkout once that branch has landed; for a phase first committed inside a merge commit on this branch it says so, and that the command applies in the default checkout once this branch has landed. A history that does not reach the cut (a shallow clone) cannot tell, so link, unlink and delete refuse and write nothing.
+- **Migration notes.** `--update` creates `works/agenda/`, and its rebuild writes `works/agenda.md`: commit both. A worktree's stamp commit now carries six generated files (`works/agenda.md` joins). Nothing existing is imported into the agenda. A session started before the update sees `/agenda` after a restart. An agenda item never affects `next`.
+
+## v97 — 2026-11-13
+
+- **The conversion maps the PR records.** A per-repo nested install records each PR branch with `repo: null` (its one repo); a multi-repo host's `validate` wants a registered repo's name. Before, `--to-multi-repo` moved `workflow/` up a level and then halted at the `--update`'s closing validate on any phase with a recorded PR branch (every adopter on v92 or later that opened a PR), leaving a rollback to run. Now `nested-repos --map-anchors <repo>` also names `<repo>` in every `pr.branches[].repo` that is null, in active and archived phases alike, and the conversion runs it inside its `--update`, before that validate. It changes only the null `repo` (every other field, and a record that already names a repo, stay as they are), only when the marker's `converted_from` names `<repo>`, says per phase what it mapped and what it skipped, and a second run maps nothing. The engine cannot record a PR branch without a repo on a host (`pr-branch` needs `--repo` there), so nothing recorded after the conversion is claimed.
+- **The old repo's PR ownership and team-rule decisions stay its own.** `pr-team --record` and `pr-rules-decide` write `repo: null` on a per-repo install, meaning that repo; on a host, null means every repo the record does not name. Before, a converted repo recorded `solo` made every other repo in the folder read `solo` too, so the `pr` skill's close would merge a team repo's PR itself. Now the conversion names the old repo in each of those records as it writes the host's marker, and nothing else changes: the old repo answers as before, a repo nobody recorded reads `recorded=none`, and a host that was never converted, or a host-wide decision written on the host later, keeps its meaning.
+- **The dry run** lists the PR branches and the PR rules records it will name, beside the anchors.
+- **Clearer conversion messages.** The refusal for a parent folder inside another repo's work tree names the cheap fix, `git init <parent>`, when that repo tracks nothing under the parent; when it does track a file there, the conversion refuses (also once the parent is a repo of its own), since that repo would list the host's private files, and says to untrack them or use a folder outside every repo. The closing block says the old repo's `.claude/settings.local.json` keeps your own entries and that a session at the host reads the host's file instead. The rollback's `--update` line names the installer by its absolute path when it is a kept file, and says any copy of the same installer version does when the one that ran sits in a temp directory; it names the parent's `.git` when you made it yourself (`git init`) for the conversion, not only when the conversion did.
+- **Migration notes.** None beyond `--update`. A host converted on v96 or earlier may still hold the old repo's `pr_rules` records with no repo, which now apply to every repo: `pr-rules-decide` (bare) lists the decisions as `every repo: …`, and `pr-team --repo <another repo>` reads the old repo's mode. An ownership record: `pr-team --record solo|team --repo <old repo> --evidence "<…>"` names the old repo, then remove the null entry from the marker's `pr_rules.ownership` if it no longer stands for every repo. A team-rule decision with no repo: `pr-rules-decide --rule "<the same rule>" --choice team|ours --repo <old repo>` records it for the old repo, then remove the repo-less entry from the marker's `pr_rules.decided` unless it should still govern every repo. Run `validate` after a hand edit.
+
+## v96 — 2026-11-11
+
+- **The drafter's model is chosen per phase.** `/create-phase` asks it with the design style and the mockup question (with `DECOMP`'s style question when the style is asked there), suggesting **`fable`** when the design sets a look (a new face, a redesign, brand, a landing or hero surface) and **`opus`** when it applies a signed system to more pages, with the reason and the cost (Fable lists at about twice Opus per token). The answer is a `Drafter: fable` or `Drafter: opus` line under `intent.md`'s `## Design Style`.
+- **`executor-route --drafter --phase <P>`** dispatches every drafter pass of that phase on the line's model at the design row's effort (Opus @ high stays the default, and an absent line is the design row), printing `drafter_source=`. The engine reads no markdown structure: any line of `intent.md` that starts with the label counts (list, quote, bold and table forms, `Drafter model:`, `=`), so a hand-written choice is never dropped for its form. A value other than exactly `fable` or `opus` (an unfilled `fable | opus` included) and two lines that disagree are refused, and `--phase` goes with `--drafter` only. Every pass of a round runs on one model; a change the operator asks for applies from the next round.
+- **Behind a loopback proxy (ocx/Kiro, no Fable)** a Fable drafter, from the phase's line or a `[claude.design]` override, falls back to Opus with a `fallback=` line. The judge's existing skip is unchanged.
+- **Fable 5.2:** commits attribute `fable` to Claude Fable 5.2 (was 5.1), and `dispatch-summary` prices `claude-fable-5-2` ($8 / $40 per MTok, cache read $0.20) instead of showing it unpriced.
+- **Migration notes.** None beyond `--update`. A design phase created earlier has no `Drafter:` line and keeps drafting on the design row; add `Drafter: fable` under its `## Design Style` to move its next round to Fable.
+
+## v95 — 2026-11-10
+
+- **The `code-reader` agent.** A new managed agent file, `.claude/agents/code-reader.md`, reads one code change cold: the diff over the product pathspec and the files at head, never the workspace's records (`intent.md`, `phase.md`, plans, results). It reproduces what it suspects and writes one findings file (`topics/code-read.md`; `topics/code-read-<repo>.md` per repo on a multi-repo host), each finding `C<nn> · lens · severity · confirmed|suspected`, with a coverage list of what it probed, read and did not read. It runs on a new route row, `code` (opus @ high), dispatched from `executor-route --code` and overridable as `[claude.code]` in `executors.toml`; `sync-agents` now writes six managed agent files.
+- **The phase review rules on the reader first.** A phase whose `phase-scope` lists product files gets the code reader before its review is dispatched, unless you say skip, and the review's plan names the findings file. Only your own words skip it, for that one review round or push, and the skip is recorded: the review's plan says `code reader: skipped (operator: "<their words>")` and the review says the code was not blind-read. The review re-runs each `confirmed` finding's reproduction, probes or routes each `suspected` one, and records one ruling per finding in `result.md` under `## Code reader` (upheld → a finding whose cases become the fix slice's acceptance matrix, or rejected with the reason). It may not pass with a finding it has not ruled on, and returns a new `code_read` field in one of three forms (the findings file, then counts upheld / rejected / routed; `n/a (0 product files)`; or `skipped (operator: "<their words>")`). A re-review round rules the same way on the reader's re-read, `topics/code-read-r<n>.md`.
+- **Plans list their claims and contracts.** An implementation or fix slice's `plan.md` carries `## Claims and contracts`: each never / always / at-most / only / refuses / cap / guard claim the slice makes, and each external contract it relies on with its source (or `unread`). The executor proves each claim with a check seen failing first in the real runtime and reports it in a new verdict field, `claims` (the claim, how it was seen failing, the command that passes). The review treats a listed claim with no failing-first check, or one proven by argument, as a finding.
+- **`/read-code`.** A new skill, the 21st: blind-read a product change made outside a phase before it is pushed. With no argument it reads the current branch's change plus its uncommitted work from the fork point nearer `HEAD` (the upstream's while nothing from the default branch came in since your last push, else the default branch's: what the pull request shows), shows you the base and the commits first, and asks when a commit is not yours; `<base>..<head>` or one ref names another range. It dispatches the `code-reader` on the product pathspec, writes the findings outside the repo, and reports them for you to decide on. The shipped contract gains the rule that goes with it: a blind `code-reader` reads each product change before it ships, unless you say skip (a phase's diff before its review, any other change before its push).
+- **`phase-scope` prints its pathspec.** `phase-scope <P>` now prints the git pathspec it read the product files with as a `pathspec=` line (a `pathspec` key in `--json`; on a multi-repo host one `repo=<name> pathspec=` line per repo and the host's), quoted to paste after `--` in a POSIX shell, and `phase-scope --pathspec` prints the same with no phase. The reader dispatches and `/read-code` pass that value instead of writing one by hand.
+- **Migration notes.** Run `--update`: Claude Code uses the new `code-reader` agent file at the next delegation, with no restart, except in a session started before `.claude/agents/` existed (a first install) or with `--disable-slash-commands`, which needs one restart. Its `permissionMode: bypassPermissions` takes effect only in a session already in bypass mode; outside bypass and auto mode its reproduction commands ask for permission (in `dontAsk` mode they are denied). `[claude.code]` is a new, optional `executors.toml` row; an updated install keeps its existing `executors.toml` untouched, so it gains no commented example table, and the `code` row runs on the engine default (opus @ high) until you add one. Slices planned before the update carry no `## Claims and contracts` and are not held to it. Nothing else beyond `--update`.
+
+## v94 — 2026-11-06
+
+- **Explain phases read the phases, not the web.** An explain phase now runs the knowledge plugin's 0.10.0 flow: one writer reads this repository's code at one commit and the records of the phases that built the subject (their intent, decisions, notes, slice results and research findings), traces every sentence to them, and a critic on a second model checks the draft against them before the private publish. There is no research run: no web search, no research agents, no verifier, no gap rounds, no evidence gate, no preflight. A subject with no code behind it is declined; the knowledge base keeps the subject books and documents already published.
+- **The `## Explain` section has sixteen lines.** `create-phase`'s explain route writes `phases:` (the covering phases, or `none` to explain from the code alone) and no longer writes `run:` or `mode:`. Its own confirmation takes the plugin's shape (a plain summary, a concrete reader, the sections as the reader's questions, other shapes, the phases that built it, and the cost line "one writer and one critic on a second model"). A proposal from a plugin older than 0.10.0 is refused with the update to make, and nothing is created.
+- **A research phase first, when no phase covers the subject.** The new *The research route* in `create-phase` takes the plugin's "research first" reply and its `Research: <subject>` block: an ordinary phase of `research` slices that read only this repository and record findings, cited by path and line, in the phase's notebook and `topics/`, its gate waived. Its `intent.md` names the subject's paths, so a later explain's coverage lookup finds it. The explain follows only when you ask again.
+- **The explain references, rewritten.** A document's or a chapter's `DECOMP` writes `doc/brief.md`, `doc/evidence.md` and `doc/outline.md`; a book's writes `book/research/evidence.md` and a `book/outline.md` that names the phases each chapter draws from (`## Drawn from`, `## Gaps`), and the outline's signature freezes the book's `brief.md` and `evidence.md`. A chapter reads its phases closer into `evidence-ch<k>.md` and answers the critique in `answers-<key>.md` (a document: `doc/answers.md`). The review reads the gaps from `evidence.md`'s `## Gaps` and allows a write slice's appended evidence entries. Gone: `run.md`, `summary.md`, the top-up, the chapter gate, the optional sources chapter, `run: quick` and `no-research`. Publishing, the privacy proof and the reader check are unchanged.
+- **The critic runs on the other model family.** The orchestrator names the critic's model on the call, `sonnet` for an Opus writer and `opus` otherwise, and never sends `same-model: accepted`; this replaces v75's opus-for-every-chapter rule. The dispatch block drops `scratch:`.
+- **An explain executor dispatches no agent.** The slice executor's explain carve-out now makes it the plugin's writer, which reads the code and the records itself: no research agents, no probes, no `Explore` lookup.
+- **Migration notes.** `/update-workspace` brings it. Explain phases need the knowledge plugin **0.10.0 or later**: run `/plugin marketplace update knowledge`, then update `knowledge@knowledge` from the `/plugin` panel. An explain phase that already ran its `DECOMP` on an older plugin (its dossier has `run.md` or `ledger.md` and no `evidence.md`) cannot continue on 0.10.0: finish it before updating the plugin, or close it and ask for the explain again. An older `## Explain` section is read as it is: `run:` is ignored, `mode: general` stops its `DECOMP` for your decision, and a missing `phases:` line is found by the `DECOMP`. In manual permission mode, the old preflight's web rules are no longer needed; the writer's rules are the ones the plugin's §3.2 *Permissions, and the payload builder* prints.
+
+## v93 — 2026-11-06
+
+- **The close.** The operator's `accept` (or `close`, for a waived-gate draft) now closes the phase's PR. Before the pass, the orchestrator re-reads the draft: `pr-sync`, the live title and body, new commits, comments and reviews. A change request found there becomes a fix round on the same branch, never a second PR. After the pass it flips the PR Ready (`gh pr ready`). In a solo repo it then merges it once CI is green, by the repo's own landing custom (a stated custom wins; otherwise `gh pr merge` with the repo's only allowed method, else `--merge`), never `--delete-branch`, `--admin` or a force-push. A team repo's PR is left Ready for the team's merge. The procedure is the `pr` skill's new `reference/close.md`. The contract's "Ready and merge are the operator's" is gone.
+- **Solo or team.** `pr-team [--repo <name>]` reads, read-only, whether a repo is one person's or a team's: the collaborators API where it answers (bots dropped), and the distinct authors on the default branch. It prints `pr_team=<label> recorded=<…|none> detected=solo|team|unknown evidence="…"`. `pr-team --record solo|team --evidence "…"` records the operator's answer in the PR rules record's new `ownership` list; a re-record replaces it. The review's walkthrough draws the detection, and `unknown` (or nothing signed) asks before merging.
+- **`pr-sync` and the lifecycle fields.** `pr-sync <P> [--repo] [--branch]` is the engine's first `gh` call, read-only: `gh pr view --json …` per recorded URL, all or nothing (any failure exits 1 and writes nothing, naming the fix: install `gh`, `gh auth login`, the network). It writes the optional `state` (`draft|ready|merged|closed`), `synced_at`, `ready_at` (stamped once) and `merged_at` on each `pr` branch entry, and prints `pr_sync=<label> state=… base=… head=… review=… merged_at=…`. An entry with a URL and no `state` (a P51-era record) reads `unsynced`.
+- **`pr_open=` and the archive hold.** `next` (every path) and the resume card print one `pr_open=<P> <label> state=<s> url=<u> -- <hint>` per PR not yet merged, done phases included: the close is due, waiting on the team's merge, the solo merge is due, or closed without merging. A phase with an open PR is held out of archiving (`archive-phase`, `archive-all`, `/rotate-backlog`) until `pr-sync` reads it merged; `archive-phase <P> --force` is the way out for a PR closed unmerged. The hold never hides a phase's doc debt: `/rotate-backlog` still proposes its docs phase, and now runs `pr-sync` for every `pr_open=` phase first.
+- **Stacking.** A phase may build on another phase's open PR: `create-phase` asks inside the branch confirmation, records the base on the `Branches:` line, and `DECOMP` runs `pr-branch <P> --name <b> --base <that branch>`. `pr-branch --base` on an already-recorded branch now re-records its base in place (no switch, no dirty-tree check, lifecycle fields kept). When the lower PR merges (by ancestry or by its `state=merged` record, active or archived), vanishes or moves, `next` and the card print `pr_stack=<P> <label> base=<lower> lower=merged|gone|moved -- <steps>`: merge the default (or the moved lower) branch in, never a rebase; push, never `--force`; then `gh pr edit --base` and the re-record. It reads local refs and the phase records only, never the network. The `pr` skill's new `reference/stack.md` walks it.
+- **`reopen-phase`.** Any change request after the pass, the team's on a done phase's open PR or the operator's at the close (a waived gate's `close`, a red CI, a request after Ready), reopens the phase: `reopen-phase <P> --note "team-reported: <what>"` or `--note "operator-reported: <what>"`. It records `changes_requested`, re-opens a required gate and keeps `completed_at`, the `pr` block and the doc-consolidation state; its `next:` line says what to read by the note (the team's review comments, or the operator's request). On a nested install it cuts the phase's own worktree pair on the existing PR branch (one stamp commit; a stale phase branch gets `-reopen<k>`; a multi-repo host needs `--host-branch` once and reuses each repo's open PR branch). At root it runs in place, in the checkout that holds the PR branch (run `pr-sync` there too, and commit the reopen with the fix round's first commit), and names `git switch` or a sibling `git worktree add` when this checkout is elsewhere. It refuses, writing nothing, an empty note, a phase not done or archived, a phase whose every PR reads merged, a PR branch held by the host's main checkout, a run from a parallel stream, and a pair still stamped. `review-phase --verdict changes_requested` now refuses a done phase with an open PR and points at `reopen-phase`. The fix round pushes to the same branch and replaces the body (`gh pr edit --body-file`), never a second PR (`reference/reopen.md`).
+- **D120: no `pr_draft=due` while the `REVIEW` is `pending`.** A review stopped for the operator no longer reads as a draft waiting to open. It still prints while the review is `in_progress` or `in_review`.
+- **Fixed: root `phase-scope` after a second pass.** At root, a phase reviewed twice (a reopen's fix round) read its boundary up to the first passing review and missed the fix. It now ends at the first commit of the last passing run. A phase passed once reads as before.
+- **Migration notes.** Run `--update`; no new agent ships, so no session restart is needed for one. Refresh the shipped `CLAUDE.md` contract: the close now runs on your `accept` (or `close` on a waived gate). It flips the PR Ready and, in a solo repo, merges it after green CI by the repo's own custom; a team repo's PR is left Ready for the team. Drafts open by themselves when the review passes; `pr-record <P> --waive --note "…"` is the only opt-out. A blanket `Bash(git push:*)` deny in your settings makes the draft opening stop as an `operator-action`: delete it by hand (keep `Bash(git push --force:*)`). A PR recorded before this version (a URL, no lifecycle state) reads `unsynced` and holds its phase out of archiving until `pr-sync <P>` reads it merged. `/do-whole-phases` now halts the run when the close's re-read of a gate cleared mid-run finds a change request. `create-phase` asks, inside the branch confirmation, whether a new phase builds on an open PR.
+
+## v92 — 2026-11-05
+
+- **The PR rule.** A phase is one branch per repo it changes and one draft PR each. `DECOMP`'s end records the branches (`pr-branch <P> --name <b> [--repo <name>] [--base <ref>]`, which cuts the branch or records the checked-out one); `new-phase` stamps an empty `pr` block in `phase.json`. The review writes each PR body as a review lens and returns `pr_bodies`; a new fifth agent, `pr-reader` (route row `reader`, opus @ high, `executor-route --reader`), reads the diff and the body cold, as a teammate would, and its findings get one body revision. Then the drafts open, with no stop and no word: the orchestrator follows the new `pr` skill (explicit-invocation only, `/pr`; the workflow reads it by path), pushes each branch (never `--force`), opens each draft, which names people without `@` and requests no reviewers, and records each URL (`pr-record <P> --url <url>`). On a required gate the gate opens next: the operator reads the draft on GitHub, and one `accept` clears it and the pass is recorded; failures they report become a fix round that updates the open draft (`gh pr edit`, never a second PR). On a waived gate the pass is recorded once the drafts are open, with no stop. A failed open (no `gh`, auth, a push the remote refuses) stops the `REVIEW` for the operator, and so does a draft GitHub refuses: never retried as a plain PR, it waits for the operator's `plain` or `waive` (the `pr` skill's `reference/open.md`). Ready and merge stay the operator's. `review-phase --verdict pass` refuses, writing nothing, while a recorded branch has no URL, or while a block with no branch faces committed product files; `pr-record <P> --waive --note "why"` covers a phase whose change is not worth a PR. `next` prints `pr_branch=` and `pr_waived=` lines, and `pr_draft=due` while the review is under way with a branch unopened; `/do-whole-phases` parks only the acceptance gate, as before.
+- **The body.** The repo's own PR template keeps its headings and ours fills the gaps; the default is Summary · Review (what to decide, what to check, the risks, what to do before merging) · What is changed (by idea, never per file, with 2–3 lines on how it was tested) · Why · Related issue. `pr-check <P> [--body <path>]` measures it: 1,500 reading chars before the first section after Review, 3,500 visible, 6,000 whole; no phase or slice IDs, `workflow/` paths or workspace file names (a percentile is written `p95`); the headings in order. It never passes a missing body (`body=missing` warns; a missing `--body` file fails). With no phase, `pr-check --body <file> [--base <branch>] [--branch <b>]` checks a by-hand PR's body against the checked-out branch (the `/pr` route for a change made outside a phase). At root, a branch is labelled `root:<b>`. The `pr` skill's `reference/body.md` carries the visual rule (a diagram or screenshot only where it beats prose) and the prose rules.
+- **Size is information unless the team sets a limit.** `pr-check` counts changed lines, skipping generated files, lockfiles, deletions and binaries (tests count), and prints `size=<n> size_status=info`: there is no default limit and size never warns. When the team's rules state one, the review passes it as `pr-check … --limit <n>`; over it, `size_status=over` warns and the review picks a split (an in-repo stack or a cross-repo series, `reference/split.md`) or a named exception. Size never splits a phase.
+- **Team PR rules at install and update.** The installer reads the team's tracked rule files (PR templates, CONTRIBUTING, CODEOWNERS, PR lines in AGENTS/CLAUDE files, PR agent skills) and prints a `team PR rules:` line plus one `PR-rules conflict:` line per point where they disagree with ours. It records nothing; `/update-workspace` shows the conflicts and records only those the operator decides (`pr-rules-decide --rule … --choice team|ours`). The team wins wherever it speaks.
+- **At-root installs fold their state in PR diffs.** A fresh at-root install, and `--update` once, add `linguist-generated=true` lines for `works/**`, `docs/versions/**`, `docs/current/**` and `docs/index.json` to `.gitattributes`, so GitHub folds the workspace's state and `pr-check` skips it. A nested install's state never enters a host PR.
+- **A symlinked `.claude/skills` stays hidden.** When the host's `.claude/skills` is a symlink inside the repo (say to `.agents/skills`), a nested install's skill copies land in the resolved directory; the exclude lines, the tracked-target check and the post-write verify now use the resolved paths too, and the banner names where the copies sit. The team's files and the link are never touched.
+- **Fixed: `phase-scope` and passing reviews crashed on a nested phase off the default branch.** Since v91 a second `_is_ancestor` shadowed the first, so a nested phase whose host branch had left the default branch hit a `TypeError` in `phase-scope` and in `review-phase --verdict pass`. The loop's helper is now `_ref_is_ancestor`.
+- **Migration notes.** Run `--update`, then **start a fresh Claude Code session** so the new `pr-reader` agent loads (a review that needs it stops `pending` until you restart). At the next `/update-workspace`, decide any team-PR-rule conflicts it shows, or leave the team's rule in force. Phases created before this version carry no `pr` block and are not guarded. If your recorded host convention says "no PR", "work on main" or "push only on my word", re-record it with `nested-convention --confirm`: a phase's draft now opens when its review passes (the push and `gh pr create` still reach Claude Code's permission prompt). Draft PRs on private repos need a paid GitHub plan; without one GitHub refuses the draft and the review stops for your `plain` (a plain PR, which notifies watchers and requests code-owner reviews) or `waive` (no PR); it never opens a plain PR on its own.
+
+## v91 — 2026-11-02
+
+- **Loop phases and their charter.** A loop phase is an ordinary phase with a `loop` block in `phase.json` (`new-phase --loop`, or `loop-init <P>` on a phase still `planned`). Its DECOMP drafts `loop/charter/v1.md`: the objective, what one cycle does, the forbidden list every cycle plan carries verbatim, and one JSON bounds block (cadence, a three-cap budget in metered list-price USD with an optional `max_cycles`, `max_consecutive_failures`, covered spend, the stages and their rows, `checkpoint_every`, `digest_every_hours`, `keep_cycles`, `cycle_timeout_minutes`, `outputs`). `loop-sign <P> --words "…"` signs a version on your literal words and pins its sha256; it refuses while an `UNFILLED` line is left, no cycle starts before a signature, and a signed file that later changes halts the loop: a change of charter is a new version and a new signature. The signature is the loop's operator gate.
+- **Cycles are slices, and a `screen` row runs the first stage.** Each cycle is a slice `P<N>.C<k>` of the new kind `cycle`, and each checkpoint `P<N>.K<j>` is a `review`; the phase's own REVIEW runs only after the loop stops: `review-phase --verdict pass` (and `set-phase-status … done`) refuses until the loop is stopped, nothing is in flight and no parked item is open. The item queue, the ledger (one line per closed cycle: item, stage, verdict, product metrics, route, model, usd, minutes), the dead, survivor and parked lists live in `works/phases/active/<P>/loop/`; a dead or already tried key is refused. A cycle routes by its stage through the charter's `stages` (by default `screen` → the new `screen` row, `confirm` → high), and its retry always goes to high. The `screen` row runs `slice-executor` on the mid row's values unless `[claude.screen]` in `executors.toml` sets it cheaper, and follows the mid row's rules: it may `escalate`, and the retry runs on high.
+- **One driver, a read-only tick, and no double dispatch.** `loop-claim` records the Claude Code session that drives the loop, found up the parent chain in Claude Code's session registry, `${CLAUDE_CONFIG_DIR:-~/.claude}/sessions/<pid>.json`; a live other driver is refused, a dead one is replaced. That registry is an internal, undocumented Claude Code file the engine only reads, and a Claude Code release may change it. Without it (a plain shell, CI, a changed layout) the loop degrades: a claim records no session and is never alive, two callers with no session count as one driver, a span is live while its transcript changed within `cycle_timeout_minutes`, and `loop-cycle-dispatch` records no dispatcher, so only its 300 s window guards a double dispatch. `loop-tick <P>` writes nothing and prints the one next action with `wake_in=`: claim, start, plan, dispatch (`attempt=`), wait, close, overdue, resume-limit, halt, digest, checkpoint, setup, review. It resumes from disk after a compaction or a restart: a verdict in `result.md` closes, a live span waits, a usage limit with a reset time waits for it. The engine numbers each cycle's attempts and picks their row: attempt 1 runs on the stage's row; a dead span, a failed or empty return or an `escalate` sends it to attempt 2 on high, and attempt 2 failing too closes the cycle `error`; a dispatch that left no span (no executor ran) re-dispatches the same attempt on the same row. `executor-route <cycle>` prints the attempt's row with no `--retry`, and the ledger's `route` is the row the closing attempt ran on (`stage_route` the stage's), as are the spans' rows in `dispatch-summary`, a rolled-up cycle's included. `loop-cycle-dispatch`, run right before each Agent call, records the attempt, its row and the session that recorded it; it refuses while a span of the cycle is live, within 300 s of the last recorded dispatch while that session lives, and while `loop/control.json` holds requests the tick has not applied. A retry, an overdue and an `error` close print `dirty_outputs=`, the charter's `outputs` left uncommitted: the retry's plan carries them so the executor reconciles before acting again, and an `error` close carries them onto the re-queued item (`footprint=` on its next start), so a non-idempotent step is never done twice.
+- **Metering, budgets, halts and parking.** `loop-cycle-close` meters the cycle from the transcripts (main-thread share plus spans; with no transcript it is charged `per_cycle_usd` as `assumed`), appends the ledger line and applies the verdict: a pass queues the next stage or makes a survivor, a fail is dead, an error goes back in the queue once. An item that needs you closes `parked` with its question: it goes on the parked list (`loop-unpark` resolves it on your words, or routes it to a deferred job already filed with `--to deferred --pointer <DID>`) and the loop goes on. Only the charter's stops halt: `max_consecutive_failures` failed cycles in a row, a cycle over `per_cycle_usd`, the total budget or `max_cycles` reached, a signed charter changed, a usage limit with no reset time, uncovered spend, a blocked checkpoint. A halt sets the phase `pending` with a typed stop; the per-day cap waits for local midnight instead; `budget-total` and `max-cycles` lift only when you sign a new version whose bounds clear them, the rest on your "resume". No lift runs past a charter-level stop that still holds (a changed signed charter, the total spent, `max_cycles` run): your "resume", a checkpoint pause's resume, or a new version that clears one cap but not the other halts the loop on that stop instead and prints `not resumed` with its `on_words`, so a resumed loop never halts again on its next tick; your "resume" also resets a failure count that reached `max_consecutive_failures` under another halt. `loop-control <P> halt --reason` takes the tick's reason verbatim.
+- **What you see and say.** `loop-status <P>` is your view of one loop from any stream, read from the live loop (`source=` names it; `--json`; `--digest` the window's cycles, verdicts, new survivors, every open parked question, spend against budget and any halt, `--write` keeping it as `loop/digest.md`). `next` gains a `loop=` line on the loop's own stream (`loops_elsewhere=` in every other checkout) and prints a halted loop's WAITING block with its `on_words`; the resume card names the loop, its last cycle and its next action. `loop-control <P> pause|resume|stop|halt|apply` carries your words; from any other checkout pause, resume, stop and `loop-checkpoint --now` queue in the live loop's `loop/control.json` (the loop worktree's, or the default checkout's for a loop on the default stream), write nothing in the calling checkout and apply at its next tick; every other loop command runs only on the loop's own stream (its worktree, or the default checkout) and refuses elsewhere.
+- **Bounded state.** A loop's state stays the same size however long it runs. Each close rolls up: past the last `keep_cycles` closed cycles, a folder git holds unchanged leaves the tree (the ledger keeps its outcome, `loop.rolled.commit` names where `git show` finds it), and `## Slices` and the backlog show the live cycles plus one rollup row. Per-cycle events go to the loop's own `loop/events.jsonl` and are pruned with their cycles, so the global `works/events.jsonl` holds only milestones.
+- **Checkpoints and landing.** Every `checkpoint_every` cycles, or on `loop-checkpoint <P> --now`, a checkpoint reviews its window on the high row: the ledger, spend, failures, parked items and survivors, the diff against `outputs` and the forbidden list, charter fit. A pass, committed and recorded with `loop-checkpoint <P> --landed`, makes a loop in its own worktree `merge_ready=<P>:<sha7>` on the default stream, merged once that checkout's `works/` is committed (the loop's worktree refreshes its dashboards there as it runs); `parallel-gate` names that `merge_commit=` and admits it while main is busy when the diff stays in the phase folder, the works/ files and the charter's `outputs`. `changes_requested` pauses the loop for fix slices on its stream, then it resumes; `blocked` halts it. `run-phases` skips a loop phase (`reason=loop`): it is never a `/do-whole-phases` target.
+- **The `run-loop` skill.** `/loop /run-loop <P>`, in the loop's own session, runs one tick per wake and acts on it, writing each cycle's plan inline (the signed charter is the gate, so no plan pause), dispatching it in the background and committing after each close. Its *The driver's environment* section covers a headless driver (`claude -p`): in a directory Claude Code has not trusted, the install's `.claude/settings.json` allow list is ignored and only `--allowedTools` applies, so trust the directory once or pass a list covering the cycle's commands; each cycle plan asks for plain, unchained commands; and a denied call that leaves no item verdict is an `error` cycle by design, counting toward `max_consecutive_failures` and `max_cycles`. create-phase gains the loop route, both do-* skills learn a loop phase's DECOMP and REVIEW, parallel-phase the loop's landing, executor-route the `screen` row, and the slice executor the cycle and checkpoint rules. The skill count is 19.
+- **The contract's three loop clauses.** A loop phase's run stops only on its charter's stops (`run-loop`); a loop's item questions go on its parked list; the closed kind set gains `cycle`. Wording elsewhere was trimmed to keep the contract under its 12,288 B cap, every rule kept.
+- **Migration notes.** `/update-workspace` brings it; existing phases, slices and commands behave as before. The installer appends five `merge=union` lines for the loop's files to `.gitattributes`. To start a loop: `new-phase --loop`, or `loop-init <P>` on a phase still `planned`; its DECOMP drafts `loop/charter/v1.md`; sign it with `loop-sign <P> --words "…"`; then run `/loop /run-loop <P>` in the loop's own session (its worktree, when you asked for one). Optionally, `[claude.screen]` in `executors.toml` makes the first pass cheaper. A headless driver needs its directory trusted once, or an `--allowedTools` list covering the cycle's commands. The loop's driver and liveness checks read Claude Code's undocumented session registry; without it they degrade as above, so drive a loop from one Claude Code session. `/loop` pacing is first proven at your first real loop.
+
+## v90 — 2026-11-02
+
+- **The shared fixture covers what pages list and link to.** The frame's fixture now names every entity any page shows, lists or links to (every row's destination, every linked item), with all the figures any page draws of it. A page that needs an entity the fixture lacks logs it as a `frame_gaps:` entry with its figures, never a silently added id; the join adds it to the fixture and draws its item, so a link to an entity of the round opens that entity's own drawn item (a stand-in stays only for a destination outside the slice). The page critic counts an entity outside the fixture with no gap entry as a Part 1 must-fix, and the cross critic checks fixture coverage beside one answer per shared choice. A whole-round drafter keeps the same rule through the *Data* bullet.
+- **The critique default and the critic row are stated, with one measured round.** `design-cowork`'s drafting reference now says `critic` (page critics plus the cross-page critic) is the usual level for a connected group of new surfaces and `off` for small follow-ups and superseding revision rounds, agreeing with the shape reference. Its *Cost* section carries one measured 4-page round at `critic` (16 spans, $71.50, 3 h 43 min; the page-critic tier $19.90, 28 %, raising 13 page-internal must-fix items the cross-page critic cannot see; a superseding one-drafter revision $28.60), labelled as one round beside the per-span estimates, and the shape reference's page-critic tier figure is about $5 a page. The critic row's effort is no longer claimed as `xhigh`: the text defers to `executor-route --critic` / `--judge`, which print what the install resolves (opus @ high by default), and the engine's judge-row comment says high too.
+- **`check=token-drift` leaves token-derived values alone and suggests only a token of the property's role.** A declaration whose value holds `var(...)` anywhere (inside `calc`, `min`, `max` or `clamp`, or in a shorthand) is token-derived and never flagged, so `border-radius: calc(var(--radius-md) - 1px)` is no longer printed mangled as `calc( - 1px)`. A px length is matched only to a token of its property's role, read from the token name's family: space/spacing/gap/gutter for padding, margin, gap, inset and offsets, fs/font/text for font-size, lh/leading/line-height for line-height, tracking/letter for letter-spacing (radius tokens already served border-radius alone); an unknown family still matches any property, and a px no same-role token holds is not flagged (so width, height and other sizes no longer get a spacing-token suggestion, only an unknown-family one such as `--hit` or `--size-*`). So `padding: 14px` no longer suggests `var(--fs-14)` and `line-height: 22px` no longer suggests a font-size token, while `font-size: 14px` still suggests `var(--fs-14)`. A radius value is split into whole terms, so a raw `calc(...)` prints as written. `design-check --help` states the allow-list and the role rule. The drafter fixes each style-lint warning (`token-drift`, `transition-all`, `outline-none`, `zoom-disabled`) or logs it with its reason (a built value, say), as it answers an advisory line, and the critic counts one neither fixed nor logged as a 2a must-fix.
+- **Migration notes.** None beyond `--update`.
+
+## v89 — 2026-10-30
+
+- **Pointers, not restatements.** The explain references in `create-phase` and `do-whole-phase` no longer restate the knowledge plugin's writing rules: a phase book's title follows the plugin's §1 title rule, and a chapter's order and recaps are judged by B5 *Order and prerequisites* and §4 *Standalone* (a short recap of an earlier chapter's idea, a `chapter:` link only as an extra), each cited by section and heading. A change to how explain text is written now needs only a plugin release.
+- **The critic gets the title.** Both critic dispatch blocks carry B5's `title:` line (`· kept` for an existing chapter's next version, `· book:` on a new book's first chapter), and B5 *Your dispatch*, read from the installed skill, is declared the blocks' format: a line it has and a block lacks is filled from it. An older plugin's critic ignores a line it does not know, so the plugin floor stays 0.6.0.
+- **Migration notes.** None beyond `--update`.
+
+## v88 — 2026-10-30
+
+- **A design round runs in passes: a frame, the pages at once, a join.** The frame pass writes the shared choices (`frame.md`, `frame.css`, the `Shell`); each page is then drafted by its own `design-drafter` pass at once, named on the dispatch's one line `pass: frame | page <slug> | join`; the join wires the pages into one connected canvas (`canvas.json`, `Main.dc.html`, `join.json`). A one-page round skips the frame and the join. The round publishes only after the join, still one Design canvas Artifact and one stop per round.
+- **Critic tiers follow the passes.** `critic` runs a page critic per page (`scope: page <slug>`, each as its drafter returns, then one answer) and a cross-page critic on the joined canvas (`scope: cross`, the joiner answers); `critic+judge` adds the judge; `off` runs none. A superseding round is one scoped revise pass (`pass: join`). `dispatch-summary` meters the spans as `design-frame`, `design-page`, `design-join`, `critic-page` and `critic-cross`.
+- **Grouping (OQ1).** A small unrelated surface of the same phase may share a co-work slice's canvas, drawn unlinked and listed in `join.json`, within the 10-Page / 30-board warning; a bigger unrelated group stays a co-work slice of its own. The engine's `--new-job` refusal and unlinked-page hint say so.
+- **New flags.** `design-open --pages a,b,c` records the round's pages (`frame`, `main` and `shell` are reserved); `design-check <job> --page <slug>` checks one page's `pages/<slug>/boards.json` and files (or `frame`); `design-preview <job> --page <slug>` renders one page (or `frame`) into `.preview/<job>/<round>/pages/<slug>/`.
+- **Join gates.** `check=pending-link` warns about a `#to:` placeholder left on a board, and becomes a problem once the round's `join.json` exists, so `design-close --words` refuses until the join rewires it. A Page listed under `join.json`'s `unrelated` is exempt from `check=unlinked-page` (and warned if the entry reaches it). `design-check` prints one `stage=frame | pages <done>/<n> | join | joined` line per open per-page round.
+- **design-preview measures alignment, type and spacing, advisory only.** `check=align` (kinds `first-line`, `label-value`, `beside-control`, `segment-label`, `control-height`, `near-edge`, `label-ink`) and the measured lines M1–M14 (`cramped-padding`, `heading-rhythm`, `flat-type-steps`, `size-count`, `line-length`, `tight-leading`, `tiny-text`, `wide-tracking`, `ragged-edges`, `off-centre`, `ragged-row`, `radius-mix`, `nested-radii`, `numeric-align`, `straggler`) run in the frame view and its `--click` states. Each align line gets a 2× zoom crop (`<stem>.align-NN.png`, at most 12 per board); `target`, align and M lines fold once per board across views and states; an `advisory=<check:count,...>` line precedes `self_check=`. Nothing new blocks: the blocking set stays the four WCAG checks. At most 3 renders run at once (`AGENTIC_DESIGN_PREVIEW_SLOTS` sets the cap).
+- **design-check style lints (warnings).** `check=token-drift` (a raw value where the system or `frame.css` names a token), `check=transition-all`, `check=outline-none` (no `:focus-visible` rule) and `check=zoom-disabled`.
+- **Craft and critique.** The drafter gains frame, page and join rules and new craft rules (alignment means every button, text and box; answer every measured line, the advisory ones included; concentric nested radii; no optical nudge; strip explainer copy; copy the state bar's CSS verbatim). The critic judges by scope (one page or the joined canvas) and takes measured lines as `high`-confidence facts.
+- **Migration notes.** An open v87 round finishes as drawn: a dispatch with no `pass:` line drafts the whole round as before, and a round opened without `--pages` behaves as before. No manual step beyond `--update`.
+
+## v87 — 2026-10-29
+
+- **One connected group per co-work slice.** A design slice designs the surfaces a user moves between (one tab, one flow) as one job, one canvas and one Design canvas Artifact, published once per round, its entry Page reaching every surface by clicks. Unrelated surfaces are co-work slices of their own, each with its own artifact and its own stop. Multi-job waves retire: one drafter runs per round, and the contract, the do-* references (the `DECOMP` cut and the stop counts included), the executor's decomposition rule, both READMEs and the installer banner say so.
+- **`design-open --new-job` refuses while another job of the same slice has an open round**, writing nothing and pointing at `--job <job>` or a co-work slice of its own. It is allowed again once the slice's other rounds are closed, to merge surfaces into a new job. `--job` and the resume of a half-landed open are unchanged; a bare open on a slice holding several jobs still refuses, now naming the open round and suggesting `--new-job` only when every round of the slice is closed.
+- **The canvas size warning is now 10 Pages / 30 boards** (was 6 / 16), sized for one review of a connected group; mounted boards are still not counted. The per-open wave warning is gone.
+- **New `design-check` warning `check=unlinked-page`:** on a canvas of two or more Pages, a Page no link or mount reaches from the entry Page (`Main.dc.html`, else the lowest-numbered Page) is named. A warning, never a problem.
+- **The critic's cross-job look retires** (its `wave:` input, the `choice` finding and the `wave choice` ruling); its look across boards checks the connected canvas instead: the entry reaches every surface, links between surfaces are real, a shared choice has one answer.
+- **Migration notes.** An open multi-job wave finishes as drawn (each job's rounds by `--job`, signed by `design-sign --slice`); otherwise none beyond `--update`.
+
+## v86 — 2026-10-27
+
+- **One phase per publishable unit.** `create-phase`'s explain route now makes every explain its own
+  phase: a standalone document by default, a book or one chapter of a book only when asked, and a v2
+  of an earlier one. `## Explain` carries seventeen lines for every unit (it adds `unit`, `chapter`,
+  `prior`, `run`, `outline sign-off` and `worktree`), with a required set per unit; a section with no
+  `unit` line is a pre-v86 book and reads as `unit: book`. `validate` errors on an unknown unit, and
+  `next` prints `explain_unit=`.
+- **Created and run after one confirmation.** On a literal yes the route creates the phase, commits,
+  starts its worktree and runs `do-whole-phase` in `auto`, like `/rotate-backlog`'s docs phase. The
+  contract names both exceptions (*Making a phase* and the worktree rule: "for an explain, its
+  confirmation"), paid by trims in the same file. Asked from inside a phase worktree the route refuses
+  ("start an explain from the main checkout"); a chapter for a book in a public project is refused at
+  the confirmation, since `visibility: private` is absolute.
+- **The document path.** The three `explain-*` references branch per unit: a document's or chapter's
+  `DECOMP` leads the research into `doc/` (`doc/outline.md`) and always cuts one write slice `S1`,
+  critiqued `kind: document` (no critic under `run: quick`); the evidence gate is a typed `decision`
+  stop; outline sign-off stops only when it is `on`; the review proves the document private (an API
+  read-back fallback, no stop) and writes a `## Report`. The acceptance gate is waived for a document
+  and a chapter (published private; a v2 is cheap) and required for a book. Every knowledge-plugin §
+  citation carries its heading beside the number.
+- **Its own worktree, merged back by itself.** An explain phase is the one worktree exception (its
+  confirmation is the asking). In a nested install `parallel-start` with no `--host-branch` cuts a
+  detached host worktree (`host_branch: null`; `parallel-status` shows `detached`), since an explain
+  makes no host commit; `--repo`/`--repo-base` without `--host-branch` are refused. `parallel-gate`
+  now prints `exemption=` and drops the busy-default-stream reason when the branch's diff since its
+  merge-base touches only its phase folder, the five works files and paths added under
+  `works/deferred/open/`. A passing review with no `## Doc impact` note settles a worktree phase's
+  consolidation to `done`. When the automatic merge cannot run, the branch stays done and unmerged
+  and `next` on the default stream prints `merge_ready=<P>:<branch>`; the closing report comes after
+  the merge.
+- **The review pointer** now reads `explain: not written — run /knowledge:explain P<N> for a document,
+  or ask it for a book` (slice-executor, review-phase, both review references, the operations doc
+  body, `README.en.md`); the install's closing message and the shipped explain prose describe the
+  phase path.
+- **Migration notes.** None beyond `--update`. Explain phases now start in their own worktree under
+  `.claude/worktrees/` (already in `.git/info/exclude`) and merge back by themselves; a nested install
+  names no host branch for one. An explain phase created earlier reads `unit: book` and runs as
+  before, on the stream it is on (`parallel-start` refuses a phase that is not `planned`, so nothing
+  retrofits a worktree). Until the knowledge plugin's next release, `/knowledge:explain` still writes
+  single documents on its own; ask `/create-phase` to explain something to use the phase path now.
+  Plugin 0.6.0 or later stays required.
+
+## v85 — 2026-10-27
+
+- **The instrument.** Every real-browser check the workspace makes (implementation and fix
+  verification, design fidelity, a requested mockup, the gated review's stages 2–4, the explain
+  review's reader read) now drives Claude in Chrome's `mcp__claude-in-chrome__*` tools instead of
+  Aside. The doctrine is unchanged: the operator's runtime and access path from `## Operator Runtime`,
+  the agent picking each next action rather than a pre-written assertion suite, the instrument named
+  in `result.md`, and no run claimed that was not made. The whole Aside procedure is gone (`aside
+  repl` over Bash, `aside exec`, the re-attach preamble, `--account <id>`, the MCP escape hatch); the
+  contract's rule, `design-cowork`'s `reference/build.md` (which carries the procedure in full), its
+  mockup reference, `review-phase`'s stage 2 and `do-whole-phase`'s wave, decomposition and explain
+  review references all name the new instrument.
+- **Who can drive it.** `slice-executor`'s `tools:` gains `mcp__claude-in-chrome__*`, listed last.
+  A session without Chrome still launches the executor with its other tools (the wildcard matches
+  nothing; proven live), so the line is safe everywhere. `design-drafter`, `design-critic` and
+  `Explore` carry none: the drafter and critic render headless through `design-preview`, a self-check
+  rather than verification. The main thread inherits every tool the session has.
+- **The dedicated profile, selected first.** The agent drives a separate Chrome profile with the
+  extension, signed into none of the operator's accounts and into the same claude.ai account and org
+  as Claude Code. On every run, before any other browser tool, it calls `list_connected_browsers`
+  and `select_browser`s the entry whose `deviceId` is the one `## Operator Runtime` records: with one
+  browser connected the tools would otherwise act on it unasked, and that one may be the operator's.
+  The key is the `deviceId`, never the `name`: Claude in Chrome hides the names you give and labels
+  browsers by position ("Browser 1", "Browser 2"), and a label can move to another browser between
+  connections (anthropics/claude-code #74902, #90153), so a recorded label could select the
+  operator's own profile. The recorded id is also the operator's answer, given ahead of time, to the
+  tool's own "ask the user which browser". No Chrome tools in the session, no recorded id, or no
+  connected browser with it is the **third halt**: `needs_operator` → `pending`, never a fallback to
+  a label, never borrowing another browser or creating a profile. `slice-executor` reaches the tools
+  without `ToolSearch` (proven live, list-only).
+- **The fallback is the manifest's choice.** Where Claude in Chrome cannot run (WSL, CI, an API-key or
+  Bedrock/Vertex/Foundry session), `## Operator Runtime` names another real browser the agent drives
+  step by step on a throwaway profile (e.g. the project's Playwright), running the same sweep. The
+  agent never falls back mid-run: Chrome missing from a session whose manifest names it is the halt.
+- **The Operator Runtime template's two fields.** A fresh install's seed now reads
+  `- Browser instrument for the agent:` (Claude in Chrome by default, a blank meaning it, or the named
+  fallback) and `- Agent's Chrome deviceId:` (the `deviceId` `list_connected_browsers` prints for
+  the agent profile while it is the only browser connected). The smoke suite pins the new rule and fails on any shipped
+  body that still names Aside or its CLI.
+- **Migration notes.** Enable Chrome in Claude Code (`/chrome` → "Enabled by default", or start with
+  `claude --chrome`; a claude.ai login is required). Set up a separate Chrome profile with the Claude
+  in Chrome extension, signed into none of your accounts and into the same claude.ai account and
+  org as Claude Code. Read its id: with **only** that profile connected (close your other Chrome
+  profiles' windows for the moment), ask Claude in a Chrome-on session to call
+  `list_connected_browsers` and copy the one entry's `deviceId`. In `## Operator Runtime` (in
+  `workflow/docs/current/operations.md` for a nested install, `docs/current/operations.md` at the
+  root), replace the Aside lines with `- Browser instrument for the agent: Claude in Chrome` (or your
+  fallback browser) and `- Agent's Chrome deviceId: <that id>` through a new doc version
+  (`doc-new-version --doc operations`). A manifest that still names Aside counts as unfilled: the first
+  slice claiming a real-browser check stops `needs_operator` once to ask for the id. Reinstalling the
+  extension or signing it out changes the id; the run then halts until you record the new one. Aside
+  itself may be uninstalled.
+
+## v84 — 2026-10-27
+
+- **Phase and deferred ids you can say.** v73's minted tokens (`P-7kq2`) kept two branches from colliding,
+  but they were hard to say and to remember. A new id is the next number plus a two-symbol random tail:
+  `P46-k2`, `D92-x4`, slices `P46-k2.S1`. The number is what you say; the tail is what keeps two branches
+  (two worktrees, or two team members' feature branches in an at-root install) that each create the next
+  phase from taking the same id. The tail is two symbols of v73's Crockford alphabet drawn with `secrets`,
+  at least one of them a letter, so `P46-12` never reads as a range.
+- **Allocation.** `new-phase` without `--phase`, `defer-job` without `--id` and `promote-deferred
+  --create-phase` take one more than the highest number among the ids of that kind the checkout can see,
+  old and tailed alike (phases active and archived; deferred jobs open, promoted and dropped; v73 tokens
+  carry no number and are ignored), and redraw the tail while the full id is visible. An explicit `P12`
+  or `P-7kq2` keeps v73's rules; an explicit `P46-k2` is accepted when its tail is valid and the id is not
+  visible.
+- **Brief names by lookup.** Wherever a phase or deferred id is typed, `46`, `p46` and `P46` name `P46-k2`
+  while it is the only phase numbered 46 (an exact stored `P46` always wins); `46-k2` names it always. A
+  number two tailed ids share is refused with both listed (`'46' names 2 phases numbered 46: P46-k2,
+  P46-x4 -- type the tail (e.g. P46-k2 or 46-k2)`), as is one that names nothing. Slice arguments read the same way (`46.S1`),
+  as do `run-phases`, `/do-whole-phases` and `new-phase --consolidates`; `--depends-on` stays full-form.
+  `new-phase --phase 46` and `defer-job --id 92` create `P46` / `D92` as typed.
+- **`promote-deferred --create-phase --phase 46`** reuses the one existing `P46` or `P46-<tail>` and
+  creates `P46` only when none exists.
+- **Sorting and range labels.** Numbered ids sort by number, then untailed before tailed, tails
+  alphabetical (`P46`, `P46-k2`, `P46-x4`), with v73 tokens after them by creation time. Rotate's range
+  labels collapse consecutive numbers of either shape with full ends (`P45–P47-m9`); an all-numeric
+  backlog's labels are byte-identical to v83.
+- **One known limit.** Two branches that draw the same number and the same tail (about 1 in 924 per
+  pair) create the same folder; that surfaces as a git add/add conflict at the merge, never silently,
+  and the engine adds no guard for it.
+- **The adopter CI seed** resolves `phase/P46-k2-<slug>` by folder: a tail and a first slug word look
+  alike (`phase/P12-ab-x`), so the tailed id wins only when its phase folder exists in the head, and the
+  untailed number otherwise. `P12` and `P-7kq2` branches parse as before.
+- **The workspace version on `backlog.md`.** The generated backlog's `## Pointer` block now ends with a
+  `Workspace version:` line naming the installed version (`v83` style), read from the install's
+  `works/.workspace-version.json`; it says `unknown` when that marker is missing or unreadable. `next`
+  does not print it.
+- **Texts.** The engine's help and refusals, the contract's IDs and Status, `create-phase`, `defer-job`,
+  `promote-deferred`, `deferred`, `do-whole-phases`, `parallel-phase`, `review-phase`, `doc-new-version`
+  and both READMEs teach the new shape and the brief number. The contract stays under its 12,288 B cap.
+
+- **Migration notes.** Nothing is renamed: old `P12` / `D12` and v73 `P-7kq2` / `D-m3xa` ids keep their
+  folders, branches and brief forms, and `validate` accepts all three shapes. `--update` brings the engine,
+  skills and contract. **The CI seed is seed-once**, so an existing `.github/workflows/workspace-ci.yml`
+  keeps v73's parse, which reads `phase/P46-k2-<slug>` as `P46`; the engine looks that number up, so the
+  gate still checks the right phase until two phases share the number, and then the check fails on the
+  refusal. To take the new parse, copy the lines between `# branch-parse:begin` and `# branch-parse:end`
+  from a fresh install's seed into yours. Scripts of your own that match `P\d+` or `P-[0-9a-z]{4}` need
+  the tailed shape too (`P\d+-[0-9a-z]{2}`).
+
+## v83 — 2026-10-26
+
+- **The cheap row is retired.** Docs and qa slices rated `low` ran on it, on haiku @ xhigh since v80.
+  They now run on the mid row (opus @ medium), like implementation and fix slices. Docs work is not
+  mechanical: a `/rotate-backlog` docs phase merges many phases' `## Doc impact` notes into a few
+  durable docs, deciding what is still true and keeping only what the code cannot say. A wrong or
+  dropped line there misleads every later agent that reads the docs, and Haiku is weakest on exactly
+  that kind of long, multi-file synthesis. A large consolidation can still be rated `high` for a wide
+  blast radius.
+- **What goes with it.** `executor-route` prints seven rows, and a low docs or qa slice reads
+  `route=mid`. The cheap row's fallbacks are gone (behind a loopback proxy, and on Bedrock, Vertex
+  and Foundry), and so is the executor's cheap-route wording. The verdict's `route:` is `high`,
+  `research` or `mid`. The review still rates a fix to a slice whose older verdict reads
+  `route: cheap` as `high`, and the meter still reads old Haiku spans and records as `cheap`.
+- **Haiku stays on `explore` only**, the read-only `Explore` lookup agent, which judges nothing.
+- **Migration notes.** An `executors.toml` with a `[claude.cheap]` table is refused, naming its line,
+  by `executor-route` and `sync-agents`: delete the table (to change the model those slices run on,
+  set `[claude.mid]`). A seeded file that only has it commented out is fine. In-flight slices whose
+  `plan.md` pinned `route=cheap` should re-run `executor-route <slice>` before their next dispatch.
+
+## v82 — 2026-10-26
+
+- **The project `autoCompactWindow` ships at 500000** (it was 450000 from v66 to v81, and 500000 in
+  v57-v60). It is the operator's window for every workspace install. A 200k-context model still
+  compacts at its own limit, since the window is capped at the model's context, and Claude Code's own
+  idle compaction is unchanged.
+- **`--update` moves a window still at a value the workspace shipped.** 450000 (v66-v81) and 300000
+  (v56, v61-v65) become 500000, each with a `changed: … autoCompactWindow <old> -> 500000` line; any
+  other value you chose is kept. A nested install's `.claude/settings.local.json` moves the same way.
+- **Migration notes.** None beyond `--update`. Relaunch Claude Code to pick up the new window;
+  `/autocompact` with no argument shows the window in effect. If you had chosen 450000 yourself, set
+  it back after the update, as the `changed:` line says.
+
+## v81 — 2026-10-26
+
+- **A book runs on the knowledge plugin's research pipeline** (plugin **0.6.0** or later). An
+  explain phase's `DECOMP` now leads the explain skill's whole-book research (§9.2) before it
+  outlines: the dossier is the phase's `book/research/` (committed; fetched `pages/` ignored), and
+  the outline gate links `book/research/summary.md` (key sources, open disagreements, weak spots,
+  expected top-ups). The operator's signature freezes the book's `library.md` and `ledger.md`.
+  Each chapter slice tops up its own research into per-chapter overlays (§9.3), writes from the
+  reader tasks its outline entry names, keeps `trace-<key>.md`, and is judged by the plugin's
+  **`knowledge:explain-critic`** (`kind: chapter`). The critic runs on opus with
+  `same-model: accepted`, as v75 lets a critic run on the writer's model, so its
+  `(same model, degraded)` label is expected. Chapters are rated `high` (an Opus research lead).
+  The review checks the freeze and the optional "Sources and further reading" chapter.
+- **`/create-phase`'s explain route** asks `must-cover`, `leave-out` and `trusted sources`, defaults
+  `lang` to `en`, and takes a proposal from the plugin's `/knowledge:explain` that the operator
+  accepted with a literal yes as already confirmed.
+- **Explain executors may dispatch the plugin's research agents.** `slice-executor`'s Agent tool
+  stays read-only `Explore` lookups, with one carve-out: in an explain phase, the `DECOMP` and
+  chapter executors dispatch the research roles and probe agents the explain skill names, each
+  prompt starting `slice: <id>` so `dispatch-summary` attributes it. Explain chapters still run one
+  at a time, never in a wave.
+- **The workspace's own `explain-critic` agent is retired** (four agents ship).
+
+- **Migration notes.** `/update-workspace` lists `.claude/agents/explain-critic.md` as stale (by
+  content, any text v65 to v80 shipped; nested: the host's copy, renamed or not); delete it.
+  Update the knowledge plugin to 0.6.0 or later. A book's research runs on the session's
+  permissions: interactive auto mode needs nothing; manual mode needs the rules the skill's
+  preflight prints, in `.claude/settings.local.json` (the shipped `settings.json` is unchanged).
+  Raise `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` in your user settings' `env` (for example
+  `1000`): a book's research can pass the default 200, and the workspace never sets it. An explain
+  phase created earlier reads its three new fields as `none`; one already past its outline gate
+  has no `book/research/`, so re-run its `DECOMP` before its next chapter.
+
+## v80 — 2026-10-26
+
+- **New defaults.** Every opus row (`high`, `research`, `design`, `judge`) runs at `high` instead of
+  `xhigh`. The `critic` moves from sonnet @ xhigh to opus @ high. The `mid` row, where most slices
+  land, moves from sonnet @ xhigh to opus @ medium. `explore` stays on haiku @ xhigh. The shipped
+  `slice-executor`, `design-drafter` and `design-critic` frontmatter follows.
+- **The cheap row runs on haiku @ xhigh by default.** It no longer copies the mid row. It falls back to
+  the mid row (model and effort) by itself in two places:
+  - behind a loopback `ANTHROPIC_BASE_URL` (ocx/Kiro), as before, which now also takes the mid row's effort;
+  - on Bedrock, Vertex and Foundry (`CLAUDE_CODE_USE_BEDROCK`, `_VERTEX` or `_FOUNDRY`), where the
+    `haiku` alias is Haiku 4.5. Set `ANTHROPIC_DEFAULT_HAIKU_MODEL` there to keep haiku.
+
+  `executor-route` prints a `fallback=` line when either fires. The seed's commented-out cheap-route
+  block is gone, and so is the build's derived seed. `executors.toml` ships verbatim, with every row
+  commented out at its default.
+- **`executor-route` prints an `override=` line for each row `executors.toml` sets.** The line shows
+  the row's value beside the engine default, or says `same as the default`: a row you set stops
+  following later defaults. `/update-workspace` now shows these lines and asks before dropping each one.
+- **The dispatch meter tells high from mid when both run on opus.** It reads each span's recorded
+  effort, and review, decomposition and co-work spans read as high by kind.
+- **Migration notes.** After `--update` and `sync-agents`, run `executor-route` and read the
+  `override=` lines. An install that pinned the old defaults (for example `[claude.mid]` sonnet @
+  xhigh) keeps them until you delete those tables. An install that opted in to the cheap route
+  (`[claude.cheap]` haiku @ xhigh) now repeats the default and can drop it. On Bedrock, Vertex or
+  Foundry with no override, docs and qa slices rated low move from the old mid row (sonnet @ xhigh)
+  to opus @ medium.
+
+## v79 — 2026-10-24
+
+- **Six docs retire: `experience`, `frontend`, `backend`, `data`, `api` and `security`.** These docs are
+  read by agents, which can read the code, and those six mostly restated it. They went stale and were
+  written more than read. Across 1,992 transcripts:
+  - `data` was written 52 times and read 20;
+  - `security` was written 24 times and read 10;
+  - one adopter's `backend.md` reached 524 KB of per-phase narrative and was read 7 times.
+
+  The five that stay are the ones the mechanics and the reads rely on:
+  - `operations` (441 reads; `## Operator Runtime`);
+  - `qa` (151; `## Regression Checklist`, `## Test Commands`);
+  - `decisions` (66);
+  - `architecture` (48);
+  - `product` (38).
+
+  A fresh install seeds those five.
+  - The product seed gains a short `## User Experience` section (the journeys and UX rules the code cannot show).
+  - The architecture seed gains `## What the Code Cannot Say` (invariants, data rules, outside API contracts, trust boundaries).
+  - `docs/README.md`'s triggers say to write what the code cannot say and to point at the code for the rest.
+- **An existing install keeps its retired docs readable and never versions them again.**
+  - `docs` lists each one as `retired (v79)`, naming its successor.
+  - `doc-new-version --doc <retired>` refuses, writing nothing, and names the doc to write instead: `product` for `experience`, `architecture` for the rest.
+  - A `## Doc impact` note naming a retired doc (`backend.md: …`) counts for its successor in `docs-debt` and the STALE marks, so owed debt still gets paid.
+  - The executor's durable-truth list now names the five.
+- **Migration notes.** Nothing is deleted or rewritten. Retired docs stay in `docs/current` and `docs/versions`, frozen. A docs phase that pays an older note naming one writes it into the successor, keeping only what the code cannot say. `--update` refreshes `docs/README.md` only. The smoke suite gains one assertion (424).
+
+## v78 — 2026-10-24
+
+- **Every `/rotate-backlog` now ends with one docs phase covering all the doc debt.** Before, a docs
+  phase left live by an earlier rotate was widened to new debt only while it was undecomposed and kept
+  its engine-drafted name. A decomposed or renamed one ran as it was, and the new debt waited for a
+  second docs phase. Now, when every live docs phase is **unstarted** and new debt stands that none
+  pays, the engine prints `rotate=replace replaced=<ids>`. Unstarted means none of its docs slices is
+  past `ready`; a done `DECOMP` wrote only a plan. The engine removes each such phase's folder (one
+  `docs_phase_replaced=<P> (paid …)` line each, logged as `docs_phase_replaced`; git keeps the history)
+  and prints one proposal covering the replaced phases' debt and the new debt. The skill runs its
+  `create:` line as is, as on `rotate=create`.
+- **A docs phase that has started finishes first.** A live docs phase with a docs slice past `ready`
+  resumes as before (`rotate=resume`). `docs_debt_waiting=` names the debt it does not pay, and the
+  loop proposes the next docs phase once it is `done`. With nothing new owed, an unstarted docs phase
+  also resumes as it is, so a re-run writes nothing.
+- **The widening is gone.** `docs_phase_widened=` and its event no longer exist; replacement covers
+  every case widening did. `rotate-backlog` and `create-phase` say so, and the smoke suite's two widening
+  checks became two replacement checks (still 423).
+- **Migration notes.** None beyond `--update`. A docs phase an earlier rotate left unstarted is replaced
+  on the next `/rotate-backlog` only when new debt has arisen since; its operator-edited name or
+  `intent.md` notes, if any, go with it (git keeps them).
+
+## v77 — 2026-10-24
+
+- **A decomposition can no longer leave the parallel decision to the default.** Before, a slice cut
+  without `--depends-on` was undeclared and silently ran alone, so a phase whose slices could have run
+  as a wave ran as a chain whenever the decomposition forgot the flag. Now `finish-slice` on a
+  decomposition (`DECOMP`, `DECOMP2`, `DECOMP3`) refuses, writing nothing, while any open middle slice
+  that is not a barrier (`DECOMP2`, `REVIEW`, `co-work`) is undeclared. The refusal names each slice
+  and the command that fixes it. Fix slices, cut after a review, and an explain phase's chapters
+  (`## Explain` in `intent.md`) are exempt and stay undeclared.
+- **`set-slice-deps <slice> --depends-on <id>|none`** declares a slice that was already cut, under
+  the same rules as `new-slice --depends-on`: each id names an earlier slice of the same phase. It is
+  refused for a barrier kind or a `done` slice.
+- **The engine computes what runs together.** `parallel-plan <P>` (read-only) prints the phase's open
+  slices in rounds as the ready set would start them, for example
+  `parallel_plan=P3: S1 + S2 -> S3 -> REVIEW`, then a
+  `parallel_rounds=` summary (how many slices run beside another, or "a chain"), then any slice still
+  undeclared. `finish-slice` on a decomposition prints the same two lines.
+- **Every decomposition returns a parallel proposal.** The executor runs `parallel-plan` before it
+  returns and puts a `parallel:` field in its verdict: the rounds, and for a chain why, and what would
+  unlock parallelism. The orchestrator relays it in its report and runs the phase as drawn; it adds no
+  stop. `slice-executor` and both `do-*` skills' `reference/decomposition.md` say so. The smoke
+  suite gains one assertion (423).
+- **Migration notes.** An in-flight phase whose `DECOMP` is already done is untouched. A decomposition
+  that finishes after `--update` must declare its open middle slices: run the printed `set-slice-deps`
+  lines (`--depends-on none`, or the earlier slice it needs), then finish again. Existing undeclared
+  slices keep running alone.
+
+## v76 — 2026-10-23
+
+- **A phase notebook no longer grows past its budget unnoticed, and nobody rewrites the whole file
+  to change one line.** glide's live P33 `phase.md` reached 149 KB against the 40 KB budget, its
+  `## Decisions` alone 107 KB, and executors rewrote the whole file to change one entry. Every later
+  dispatch paid to read all of it. `phase-section` now works on single entries: `--list` prints a
+  section's entries with their keys and sizes, `--entry K` reads one (a position, a range, `OQ<n>` or
+  a unique lead match), and `--entry K --replace` / `--entry K --remove` swap or drop one while every
+  other byte stays identical (`--remove` is refused in Decisions and the append-only sections).
+- **A lossless move to `topics/`.** `phase-section <P> <section> --to-topic <slug>` appends the chosen
+  entries verbatim to `topics/<slug>.md`, verifies them there, and leaves one pointer line per entry
+  carrying a verbatim gist (at most 160 characters; a bare link is refused). `--topic <slug>` reads a
+  topic back. Slices, Doc impact, Operator Questions and Now never move.
+- **Per-section budgets and warnings.** The 40 KB total stays; each section now has its own budget
+  (Decisions 12 KB, Operator Questions 8 KB, Notes 6 KB, Now 2 KB, Objective 2 KB, others 6 KB; none
+  for the generated Slices table or Doc impact). The section index, `finish-slice` and `validate`
+  name the flagged sections and their long entries (over 512 B or nested), and `validate` warns on a
+  pointer line whose topic entry is missing.
+- **Paged reads.** A section over 24 KB prints in pages that break only between entries, each with a
+  `<!-- page i of n … -->` header; a plain read prints page 1, and the pages concatenate to the section.
+- **A "move to topics first" step.** When an unfinished phase's notebook is over 40 KB, `next`,
+  `run-phases`, `start-slice` and the resume card print `notebook_over_budget=` with the
+  `notebook_move=` commands to run. The step is required when a long movable entry exists and advisory
+  when nothing can move; it never blocks, and the orchestrator runs it between dispatches.
+- **The breakdown lives in `topics/breakdown.md`.** Each decomposition pass rewrites it in place (a
+  design phase's build inventory included) and leaves one Decisions gist line.
+- **No whole-file access.** The executor, the orchestrator skills, the `phase.md` template and the
+  contract now say: never `Read`, `Edit` or `Write` `phase.md`; read and write it through the
+  entry-level `phase-section` commands. The review counts a gist line together with its topic.
+- The smoke suite grows from 406 to 422 checks.
+- **Migration notes.** An unfinished phase whose notebook is over 40 KB (glide's P33, for one) gets the
+  required "move to topics first" step on its next run: run the printed `notebook_move=` lines. When
+  nothing can move, the advisory form names what remains (the generated Slices table, Operator
+  Questions to `--resolve`). Done phases and existing notebooks are untouched, and nothing is rewritten
+  on `--update`. The new template guidance applies to new phases only.
+
+## v75 — 2026-10-23
+
+- **The design critic and the explain critic may now run on the drafter's model.** Before v75,
+  `executor-route --critic` exited 1 when the critic row named the design row's model family, the
+  bare route table warned about it, and the design loop stopped on that exit. An explain chapter's
+  critic was also moved off the model that drafted the chapter (`model: sonnet` on the call for an
+  opus chapter), and returned `blocked` when the two matched, so a route table that put opus on both
+  slice rows stopped every explain phase. The operator dropped the rule for the judge in v66 and now
+  drops it for both critics. The fresh eyes are a fresh context, and the route table is the only knob.
+  `executor-route --critic` dispatches whatever row it resolves, the bare table prints no
+  `warning=fairness` line, and the explain critic runs on its frontmatter model. The shipped defaults
+  are unchanged: the design critic is still sonnet @ xhigh and the explain critic opus @ xhigh. The
+  smoke suite now checks that a critic on the drafter's model is accepted.
+- **Migration notes.** None beyond `--update`. To run the critic on the drafter's model, set it in
+  `executors.toml` (`[claude.critic]`), then run `sync-agents`.
+
+## v74 — 2026-10-23
+
+- **`next`, `run-phases` and a plain `rebuild` no longer dirty the tree.** Before v74 every rebuild
+  rewrote `works/state.json` (`updated_at`), `works/index.json` and `docs/index.json` (`last_rebuilt_at`)
+  with the current time, even when nothing else had changed. So a workspace was never clean after a
+  session's first `next`, and anything that checks for uncommitted changes counted the engine's own
+  noise as work. Now each of those three files is written only when something other than its stamp
+  changes, such as a new phase or slice, a status change, the pointer moving or a gate opening. When
+  nothing changed the engine writes nothing and the old stamp stays, so a stamp now means "last real
+  change" rather than "last time anyone looked". Nothing reads either stamp. The smoke suite checks
+  that the five read commands leave a committed install's tree clean and that a real change still moves
+  the stamps.
+- **Migration notes.** None for a clean install. An install already dirty from the old churn (a
+  `git status` showing only `works/state.json`, `works/index.json` or `docs/index.json` modified, with
+  nothing but a timestamp changed) can drop it once with `git checkout -- works/state.json
+  works/index.json docs/index.json` (in `workflow/` for a nested install) before running `--update`.
+  After the update it stays clean.
+
+## v73 — 2026-10-23
+
+- **Phase and deferred ids are minted, so two branches can no longer collide.** Before v73 a new id was
+  `max + 1` over what the checkout could see, so two branches that each created a phase both took the
+  same number and the merge picked a side. `new-phase` without `--phase`, `defer-job` without `--id` and
+  `promote-deferred --create-phase` now mint a token id: `P-7kq2`, `D-m3xa` (an uppercase prefix, then
+  four lowercase symbols from Crockford base32, drawn with `secrets`). A draw is repeated when it is all
+  digits, a mode word (`gate`, `plan`), `p` or `d` plus three digits, or equal to any phase or deferred id
+  the checkout can see, active or archived. `promote-deferred --create-phase` also takes a bare
+  `--slice S1`. An explicit `--phase P12` or `--id D12` still works, held to the same rules; the shipped
+  skills no longer teach picking a number. Slice ids stay per phase (`P-7kq2.S1`). **Existing ids are
+  never renamed:** `P12`, `D12` and the new tokens live side by side. Listings put numeric ids first
+  by number, then tokens by creation time, and selection still follows `order`.
+- **Brief names in every phase and deferred argument.** `7kq2`, `P-7kq2`, `p-7kq2`, `P12`, `p12` and
+  `12` all resolve, once and centrally, for every `phase`, `--phase`, `deferred_id`, `defer-job --id` and
+  `new-phase --consolidates` argument, so a command only ever sees the stored id. `/do-whole-phases` and
+  `run-phases` take the same tokens (`run-phases 7kq2 P12`). An id of an unknown shape is refused once,
+  with the accepted shapes listed, instead of a different message per command; a stored id of an odd shape
+  that exists on disk is still accepted as typed. The usage meter and the design-slice test read the
+  new slice ids too (`slice: P-7kq2.S1` attributes).
+- **Doc versions are named by the UTC minute.** `doc-new-version` writes `v<yyMMddHHmm>_<slug>.md`
+  (`v2610231542_<slug>.md`) instead of the next four-digit number, so a name always sorts above the
+  old `v0001`–`v0043`. A second version of one doc in the same minute, or on a clock behind the doc's
+  newest, steps to the next number. `doc-new-version` still runs on the default stream only: two branches
+  versioning one doc each copy its whole body and both write `docs/index.json`, so a merge keeps one side's
+  edits (the refusal now says so).
+- **New `validate` warnings.** An id of a shape it does not know, an active phase id equal to an archived
+  one, and a doc whose `latest` is not its highest-numbered version are warnings, never errors. The
+  duplicate-version-number error now names the ids as written.
+- **Texts.** The contract's IDs and Status, `create-phase`, `do-whole-phases`, `promote-deferred`,
+  `defer-job`, `parallel-phase` and the other skills that taught a picked number or a `vNNNN` name, the
+  executor body and the READMEs now teach the minted ids, the brief names and the minute-named versions.
+  The contract stays under its 12,288 B cap.
+- **This repo's release is stamped when work lands on `main`.** `python3 installer/build.py --release`
+  writes `WORKSPACE_VERSION` and the top `## v<N>` section from `changelog.d/` fragments, so a branch
+  never edits either. This affects the maintainers of this repo only; adopters see no change.
+
+- **Migration notes.** Nothing is renamed, and `--update` adds the engine's new lines and the rewritten
+  skills; but three things can need a hand. (1) **The adopter CI seed is seed-once.** An existing
+  `.github/workflows/workspace-ci.yml` keeps v72's branch parse, `sed -n 's|^phase/\(P[0-9][0-9]*\)-.*$|\1|p'`,
+  under which a `phase/P-xxxx-<slug>` branch matches nothing and **the quiet-point gate is silently
+  skipped**; replace that line by hand with `sed -nE 's#^phase/(P([0-9]+|-[0-9a-hjkmnp-tv-z]{4}))-.*$#\1#p'`.
+  (2) **Scripts that parse ids.** Anything of yours that matches `P\d+`, `D\d+` or `v\d{4}`, or expects
+  `v0044` to be the next doc version, needs the new shapes (`P-[0-9a-z]{4}`, `D-[0-9a-z]{4}`,
+  `v\d{10}`). (3) **Small behaviour changes.** `new-phase` now refuses an explicit id an archived phase
+  holds (v72 accepted it); `deferred.md` reorders once into id order (`D2` before `D10`); the phase-id
+  listings in `docs`, `validate`'s `stale_docs=` and `docs-debt` go numeric (`P9` before `P10`), while
+  rotate's labels and orders are byte-identical to v72; a phase or deferred argument of an unknown shape is
+  refused centrally.
+
+## v72 — 2026-10-23
+
+- **One `/rotate-backlog` cleans up every done phase.** Before v72 it stopped at the first sign of
+  trouble: any `pending`, `blocked` or `changes_requested` item, or any phase in review, held the whole
+  run, nothing was archived while any debt stood, and it paid one docs phase per invocation, so a
+  workspace with a vendor-blocked slice and ten owing phases stayed untouched across several runs. Now a
+  single invocation archives what is clean, pays all the debt and archives what it paid.
+- **The early sweep.** Every branch but `refused` first archives each phase that is cleanly archivable
+  (a phase that owes docs is never one), whatever else happens next, even when the run then stops. The
+  new line `archived=<ids>` names them (`rotate=archive` still prints its verbose sweep, and
+  `--archive-only` is byte-identical). The skill commits it (`chore(works): archive <ids> with
+  rotate-backlog`) before anything else. A docs phase's own run can print `archived=` for a phase it has
+  just paid.
+- **Parked work is gone around; running work still stops the run.** A phase `pending` or `blocked`, a
+  slice `pending`, `blocked` or `changes_requested`, is parked: one `parked=<id> status=<status>
+  [stop_kind=<kind>]` line each (a phase with its acceptance gate open shows `acceptance-gate`), and
+  the docs phase runs ahead of it. `rotate=stop_midflight` now means running work only, a slice
+  `in_progress` or `in_review` or a phase `in_review` (the `REVIEW` slice of a gate-open phase is
+  parked, not running). A new branch, `rotate=stop_uncommitted` (`uncommitted=<n>` and the paths, at
+  most 20), stops the run when something is parked and the product tree holds uncommitted edits, which
+  the parked item may own and the docs phase's commits would take; it reads git only, so a workspace
+  without git never prints it. Both stops end with a closing line that says nothing was created,
+  widened or reordered. A docs phase writes only workflow docs, so going around parked work is safe
+  once the product tree is clean (a `/do-whole-phases` run parks only an open acceptance gate; the
+  contract's `pending` clause names both).
+- **A docs phase is widened, not duplicated.** In the `resume` branch, an undecomposed docs phase
+  (its only slices `DECOMP` and `REVIEW`, both `todo` or `ready`) that still carries the engine-drafted
+  name is widened to the debt no docs phase pays yet: its `consolidates` list, name, objective and
+  `phase.md` heading and objective are rewritten in one step and the line
+  `docs_phase_widened=<P> <old ids> -> <new ids>` is printed (event `docs_phase_widened`); a re-run
+  writes nothing. The skill adds a dated *Notes* line to its `intent.md` and commits the widening
+  before the docs phase runs, whether or not the order moved too (`chore(works): widen <P> with
+  rotate-backlog`); an order change alone is committed as `chore(works): move <P> ahead with
+  rotate-backlog`. A decomposed or renamed docs phase runs as it is.
+- **The skill loops to the end.** After each docs phase is `done` it asks the engine again: `archive`
+  commits and ends, `resume` runs the next live docs phase, `create` is taken only when this
+  invocation created no docs phase yet (at most one new docs phase per invocation keeps the run
+  finite), and anything else is reported and ends the run. Every commit of the run leaves the parked
+  phases' folders out (`git commit -- <paths>`, never `git add -A`). `next`'s `WAITING ON OPERATOR`
+  for a parked item is not the run's stop while the docs phase sorts first.
+- **Texts.** The `rotate-backlog` skill is rewritten around the branches above; `create-phase`'s
+  *docs-phase route*, `archive-phase`'s chain paragraph, the README row and the contract's `pending`
+  clause now say the same; the contract stays under its 12,288 B cap.
+
+- **Migration notes.** None. A `pending` or `blocked` item no longer holds `/rotate-backlog`, and an
+  undecomposed docs phase that an earlier `/rotate-backlog` created is widened on the next run.
+  `--update` adds the engine's new lines and the rewritten skills; nothing in a phase's files changes.
+
+## v71 — 2026-10-23
+
+- **A phase's declared, independent slices run together.** `/do-whole-phase` (and `/do-whole-phases`
+  through it) now starts every slice whose dependencies are done at once, in the same checkout,
+  instead of one executor at a time. Each slice still gets its own start, verdict record, finish and
+  commit; the orchestrator writes the shared notebook entries as each one returns. There is no fixed
+  cap. `/do-next-slice` still runs one slice; in a declared phase it stops while a wave is unfinished
+  (a commit waits, or another slice is in flight) and points to `/do-whole-phase`. An explain phase
+  stays sequential: its chapters are cut undeclared (`explain-decomposition.md` drops `--depends-on`).
+- **Declared dependencies bind.** `new-slice` and `promote-deferred` take `--depends-on <id>`
+  (repeatable) or `--depends-on none`; the slice stores `"depends_declared": true` beside
+  `depends_on`. A declared dependency must name a slice of the same phase ordered strictly before
+  it, so `order` is a topological order and the plain pointer (`next`, `/do-next-slice`) always has
+  its dependencies done. `new-slice` refuses a violation (and `none` beside an id) and writes
+  nothing; `validate` adds three declaration errors and a warning for a declaration on a barrier.
+  Before v71 `depends_on` was advisory and only had to name a slice that exists.
+- **Barriers run alone.** `DECOMP`, `DECOMP2`, `DECOMP3`, `REVIEW`, `co-work` design slices and every
+  **undeclared** slice start only when everything before them is done and nothing is `in_progress`;
+  nothing after one starts until it is done. DECOMP declares every non-barrier slice with its
+  **set** (its files; the generated files its edits regenerate; any numbered sequence it extends; any
+  shared runtime resource it holds), and marks two slices independent only when the sets are disjoint.
+- **The ready set.** For a declared phase only, `next` and `run-phases` print `ready_slices=` and
+  `running_slices=`, and the resume card a `wave:` line (plus a `stop:` line for a sibling's stop).
+  A barrier running alone prints none of them, so a running `REVIEW` or an open acceptance gate
+  reads as before. `start-slice` warns, never refuses: it prints one `warning:` line and still starts
+  a declared slice whose dependency is not done, or a barrier beside running slices. At every
+  session start, after every compaction and before every start or commit, the run first commits
+  each finished slice whose commit still waits, read from disk:
+  a slice's workflow state commits with its host commit, or right after it in a nested pair, so a
+  finished slice whose `slice.json` is still uncommitted is one, and a committed slice never reads as
+  waiting; one whose set holds a path a check stop names keeps waiting for that answer. It starts no
+  barrier before those commits are in, then waits for every running span (none outlives the session
+  that dispatched it), never re-dispatches one, finishes each slice whose `result.md` says `done`,
+  re-dispatches the rest from disk, and starts the ready set only while no stop is on disk. A
+  `/do-whole-phases` run starts nothing in a phase while another phase on the stream has a commit
+  waiting or a slice in flight. A stop anywhere (`pending`, `blocked`, a failed high-row return)
+  empties the ready set; the slices already running finish and are committed, nothing new starts,
+  and the run stops.
+- **The wave protocol, in a new `do-whole-phase/reference/wave.md`.** A wave slice's `plan.md` carries
+  a `## Wave` section (its set, its siblings' sets, and the set of each finished slice whose commit
+  still waits); its executor writes no `phase.md` (it returns a `notebook` field in its verdict),
+  runs no engine command that writes, edits only its declared set (any other file is a
+  `needs_operator`), and lists whole-tree checks it left out as `deferred: whole-tree` for the
+  review. Commits are one per slice, rolling by default. A **join-rebuilt artifact** (a build
+  output regenerated from many slices' sources, such as this repo's `bootstrap_agentic_workspace.sh`)
+  is the one exception to disjoint sets: wave executors never rebuild it; every commit waits until
+  the running set drains, then the orchestrator rebuilds once and commits the artifact with the
+  last slice. Each slice's commit stages the dirty paths of its declared set, read from the tree
+  (new, deleted and renamed files included, whatever its `files_changed` lists), and commits only
+  those paths. An edit that no set in flight holds stops the run before any commit takes it: the
+  stop names its paths, the commit of any slice whose set holds one waits for the answer in any later
+  session too, and an answer that adds a path to a set is written into that slice's `## Wave` set
+  line. A slice whose set overlaps a finished slice's waiting commit starts only once that commit
+  is in, so each commit holds exactly its own slice's edits.
+- **The contract reverses "never fan out slices".** It now says a phase's declared, independent slices
+  may run at once (`do-whole-phase`'s wave), all others alone, and the phase stays the unit of
+  *worktree* parallelism (`parallel-phase` reverses its sequential line and its slice-level guardrail:
+  a wave runs in the phase's own checkout, never a worktree per slice).
+  `slice-executor.md` gains an `## In a wave` section and says `--depends-on` declares and binds; its
+  `files_changed` now lists deleted paths and both paths of a rename. The
+  contract stays under its 12,288 B cap; the skill count stays 18.
+- **A workspace that declares nothing is byte-identical to v70.** Every existing slice is undeclared,
+  so every existing phase selects, stores and prints exactly as before: no `ready_slices=` line, no
+  `wave:` line, `state.json` and the dashboards unchanged.
+- **The review finds every case of a finding at once.** A finding is a problem class, not an
+  instance: the reviewer names the rule that failed, enumerates and tests every case it governs
+  across every file that implements or describes it (states, paths, modes), and reports one finding
+  per class with its failing and passing cases. It proposes one fix slice per class, naming every
+  file of the rule's family and carrying the case list as its acceptance matrix; the orchestrator
+  copies the list into the fix's `plan.md`, and the fix executor proves every case. A re-review
+  round states its number and checks each fix against its case list, its blast radius and the
+  validation suite, reusing earlier results for what no fix touched; a new problem elsewhere is a
+  finding only when earlier rounds could not have seen it. When the same rules fail a second time,
+  the orchestrator cuts no further fix: it stops `pending --stop-kind decision` and asks the
+  operator (a simpler fix, accept and defer, or cut scope). Text only: `review-phase`, both loops'
+  `reference/review.md`, `slice-executor.md`.
+
+- **Migration notes.** Existing phases stay sequential (undeclared, including any pre-v71
+  `depends_on` list, which was advisory and may be incomplete). New phases' `DECOMP` declares its
+  slices from now on, and that is the only way a phase runs several at once. `--update` adds
+  `do-whole-phase/reference/wave.md` and the engine's new flag and lines; nothing in a phase's files
+  changes. A phase already in review takes the new review rules from its next round.
+
+## v70 — 2026-10-22
+
+- **One workspace over several repos.** A nested install can now sit over a folder of repos, a
+  multi-repo host. The nested marker gains an optional `repos` registry (schema 1, additive: a
+  marker without it is the single-repo install, and every path of the engine stays as it was).
+  Each entry holds `name`, `path`, `default_branch`, `commit_convention` and the repo's own
+  `rules` files. The new `nested-repos` command lists the registry and edits it: `--add`,
+  `--remove` (refused while a phase holds that repo's anchors), `--rules NAME --set …`,
+  `--detect-rules` and `--map-anchors`. In the shipped skills "this repo" now means the repo a
+  change lives in. `validate` errors on a registered repo that is missing, is not a git repo, is
+  visible to the host or tracks a workspace file, and warns on an unregistered child repo.
+- **Per-repo conventions.** `nested-convention --repo <name>` shows a repo's effective
+  conventions and, with `--confirm`, records its own; `--repo <name> --inherit` sets them back to
+  the host's. In a multi-repo host the top-level convention is the rules for every repo: a repo's
+  effective text is the host's plus its own, trailers are forbidden if either forbids, and a repo
+  is confirmed by its own record or, when it has none, by the host's. `next` adds one
+  `repo_conventions=` line naming the repos still to confirm before their first product commit.
+- **Per-repo phase scope.** A multi-repo phase carries `repo_anchors`, stamped at `new-phase` and
+  again at `parallel-start`, and frozen at a passing review. The base rule picks each repo's
+  range base: the recorded creation commit on the default branch or when the branch predates the
+  phase, the merge-base when the branch moved past it (rebased onto, or merged with, a newer
+  default branch), a patch-id match when the creation commit itself was rewritten, and a printed
+  note when that anchor is rewritten and pruned. The same rule fixes the review base of a
+  single-repo nested phase after a rebase or a merge. `phase-scope`
+  prints one block per repo (`--repo <name>`, repeatable; `--json` gains `repos[]`), with child
+  repos excluded from the host's own pathspec.
+- **Worktree sets.** On a multi-repo host,
+  `parallel-start <P> --host-branch <branch> --repo <name>=<branch> [--repo-base <name>=<ref>]`
+  (the `--repo` repeatable) also cuts a worktree for each named repo inside the host worktree, at
+  the repo's path, and stamps them in `execution.repos`. A registered repo the set does not name
+  is "not in this worktree set": inside it `phase-scope` skips that repo and never reads its main
+  checkout. `parallel-add-repo <P> --repo <name>=<branch>` adds a repo mid-phase from inside the
+  set, and with `--adopt` it stamps a worktree that already exists, whose branch stays yours.
+  `parallel-status` prints one line per stamped repo.
+- **The teardown is safer, and a data-loss path is closed.** `parallel-teardown --discard-ignored`
+  used to delete any worktree sitting inside a host worktree, the hand-made ones included, with
+  their uncommitted work. Now a set comes down repo worktrees first, then the nested one, then the
+  host's, and every refusal comes before anything is touched: a dirty worktree, ignored files
+  without `--discard-ignored`, a detached orphan, and **any git worktree the engine did not
+  stamp, refused even with `--discard-ignored`** (single-repo nested installs too). A repo branch
+  is deleted only when the engine created it and it holds no commit beyond its base; an
+  operator's branch stays. Stale registrations are pruned first, and a re-run resumes. `validate`
+  warns about an unstamped worktree inside a live set.
+- **A fresh install into a folder of repos makes a multi-repo host.** A target that holds only
+  repos (a single repo counts) used to be refused. Now the installer runs `git init`, makes the
+  empty commit `chore: start the host history` (when git has no identity it keeps the init and
+  prints the two commands that set one and make the commit), seeds the registry, hides every repo
+  through the managed exclude block and writes the multi-repo `CLAUDE.local.md` block.
+- **`--update` on a host that tracks nothing seeds the registry.** Every repo inherits a confirmed
+  host-level convention, or is inferred and unconfirmed otherwise; once a registry exists nothing
+  is detected again. The update prints and never writes the rest: a drift line for each
+  unregistered child repo with its `nested-repos --add` command, a `nested-repos --map-anchors
+  <repo>` note when phases recorded shas that are commits of one registered repo, and, where a
+  registered repo (or a single-repo host) carries an `AGENTS.md`, one line telling you to set
+  Project instructions to `claude-md-and-agents-md` in `~/.claude/settings.json`, because Claude
+  Code reads no `AGENTS.md` once a `CLAUDE.local.md` sits at the working directory. Nothing is
+  written into your repos.
+- **`--to-multi-repo <repo> [--dry-run]` converts a per-repo nested install into a multi-repo
+  host.** It works at the repo's parent folder. Every refusal comes before the first write, and
+  `--dry-run` prints each step or each refusal and writes nothing. The old repo's convention moves
+  to its registry entry, its phases' anchors are mapped with `nested-repos --map-anchors`, only
+  workspace files byte-identical to what the installer writes are removed from the old repo, and
+  the closing block prints the nested commit to make and the rollback (revert, move the install
+  back, `--update`).
+- **The review checks the team's rules.** On a nested install the phase review reads the phase's
+  commits and pull requests against the team's own rules, once per touched repo on a multi-repo
+  host: the commit convention, authorship and trailers, no workspace IDs or paths, the branch
+  pattern, the pull-request shape, the repo's own rules files, and no tracked workspace file.
+  It is read-only (`git log` and `gh pr view`), is recorded in `result.md` as `team-rules check:`,
+  and a failed item is a finding. At-root installs skip it.
+
+- **Migration notes.** A single-repo nested or at-root install: nothing to do; only the teardown's
+  new refusal can appear, and only where a hand-made worktree sits inside a host worktree. A host
+  already shaped like a multi-repo host by hand (it tracks nothing and holds repos): `--update`
+  seeds the registry, then run the printed `nested-repos --map-anchors <repo>` if phases moved
+  there from one repo. Hand-made repo worktrees inside a live set: never tear the set down on an
+  older engine; `validate` warns about them; adopt them from inside the set with
+  `parallel-add-repo <P> --repo <name>=<branch> --adopt` once that phase branch's engine is v70
+  (merge the default branch into it), or remove them by hand after integrating their branches. A
+  per-repo nested install that should become a host: `--to-multi-repo <repo> --dry-run`, then the
+  real run, then the printed nested commit.
+
+## v69 — 2026-10-22
+
+- **`/do-whole-phases` runs phases back to back.** `/do-whole-phases [phases] [auto|gate|plan only]`
+  runs each phase end to end by `/do-whole-phase`'s own loop, so the operator does not start every
+  one. Name them in any form: `P12, 13 p14` (any case, bare numbers, commas or spaces, order kept,
+  duplicates dropped). With no argument it runs every phase on this stream that is not done, in
+  backlog order. An unknown phase ID, a range, `worktree` or a mistyped mode word is refused before
+  anything starts; a done phase is skipped with a note, and a phase running in another worktree is
+  skipped and named, because it runs from its own branch. The mode word applies to every phase in
+  the run, and without an explicit `auto` each phase's `DECOMP` still waits in the session for the
+  operator to approve its plan: that is a pause, and the run continues after it.
+- **An open acceptance gate is parked, not a stop.** When a phase's review passes with a required
+  gate, the run opens the gate (the phase waits on the operator) and moves on to the next phase.
+  **Every other stop halts the whole run**: `needs_operator`, `blocked`, a failed high-row return
+  or a design wave. The run ends with a report of every parked gate with its walkthrough, each
+  phase that passed and each phase skipped with its reason; the operator clears each gate with
+  `accept-gate <P> --clear`, as today. `/do-whole-phase` still runs one phase and keeps its rule
+  not to continue into the next. The new skill takes no `worktree` word and never starts one.
+- **A new engine command, `run-phases [PHASE ...]`.** Read-only and stateless, it resolves the run
+  from disk on every call: `run=`, `stream=`, `queue=`, `skipped=<P> reason=…`, `parked=<P>`, then
+  one ending (a target phase and slice, a `halt=` naming the stop, or `run_done=yes`). The skill
+  re-runs it at the start, after each slice's commit and at each phase boundary. It prints
+  `gate_cleared=<P>` when the operator clears a parked gate mid-run, so the review's pass is
+  recorded without re-dispatching it. A run's later phase was usually created before the earlier
+  ones ran, so the skill plans its review with `phase-scope <P> --base <sha>` (the commit at
+  `<P>.DECOMP`'s start) instead of a boundary that would fold the earlier phases in.
+- **The resume card's `run:` line.** Under a parked gate's `stop:` line the card adds one line:
+  only a `/do-whole-phases` run passes the parked phase, and after a compaction mid-run the run's
+  own `run-phases` target wins over the card's pointer; outside a run the stop holds. The plain
+  pointer (`next`, `works/state.json`, the `WAITING ON OPERATOR` block) is unchanged and still
+  halts at a parked phase.
+- **The contract gains two narrow exceptions**, both limited to a `/do-whole-phases` run and an
+  open acceptance gate: the `pending` rule ("nothing starts, finishes or advances past it") is
+  barred for a parked gate, and the gate rule says the run parks it and continues while every other
+  stop halts the run. The contract stays under its 12,288 B cap. The skill count is now 18.
+
+- **Migration notes.** None beyond `--update`: it ships the new skill, the engine command, the
+  contract clauses and the resume card line. Nothing in a phase's files changes, and `/do-whole-phase`
+  runs as before.
+
+## v68 — 2026-10-22
+
+- **The review completes the `## Doc impact` list itself.** A passing review still verifies that
+  the list covers every durable-truth change the phase made, but it now appends each missing or
+  corrected line itself (`phase-section <P> "Doc impact" --append`) and reports those lines as
+  `doc_impact_added:` in its verdict block. A gap in the list is no longer a finding on its own, so
+  it no longer costs a fix slice and a re-review round that would only paste the review's own
+  draft. A finding is still raised for anything that needs a product change or an operator
+  decision. The change is in `slice-executor`, `review-phase`, both `do-*` `reference/review.md`
+  and `parallel-phase`; the contract and the engine are unchanged.
+- **Slices note the three easy misses.** The executor's Doc impact rule now names three changes
+  that are always durable truth: a change in the smoke suite's PASS count (qa `## Test Commands`),
+  a change that reverses or supersedes a recorded decision (`decisions.md`), and a rename or
+  removal (grep `docs/current/` for the old name and name every section that still says it).
+
+- **Migration notes.** None. A review already in flight finishes under the rule it was planned
+  with; the next review dispatch reads the new text.
+
+## v67 — 2026-10-22
+
+- **The default backlog follows a worktree phase live.** Every state change in a phase worktree
+  (the same rebuild `next`, `start-slice`, `finish-slice` and the rest end in) now reruns the
+  default checkout's **own** engine `rebuild`, so its `works/backlog.md` shows the phase's current
+  slices whether or not anything runs on the default stream. That rebuild reads an in-flight
+  phase from its worktree's files while the worktree is on disk, uncommitted progress included,
+  then from its branch, then `origin/<branch>`, else the local copy. The `## Streams` Source cell
+  says `worktree`, and the phase's slice table says `_Read live from its worktree `<path>`, where
+  this phase advances._`. The refresh is best effort and silent: a missing engine, a failure or a
+  60-second timeout never blocks the worktree. The default checkout's regenerated files stay
+  uncommitted until its next commit, and the merge step commits them first, as it already did
+  for a phase created there since the stamp.
+
+- **Migration notes.** None. A worktree started before this update refreshes the default
+  checkout once its own engine is v67 (merge the default branch into the phase branch, or wait
+  for the phase's next sync); until then the default checkout's own `next` or `rebuild` still
+  reads it live from its files.
+
+## v66 — 2026-10-22
+
+- **The route table runs at xhigh.** Every Opus row is now **opus @ xhigh**: `high` and `research`
+  move from opus @ high / medium, and `design` stays opus @ xhigh. The `judge` row moves from
+  fable @ high to **opus @ xhigh** and is **exempt from the critic-vs-drafter model rule**: only
+  `executor-route --critic` refuses an equal pair, and the Fable loopback-proxy skip fires only
+  on a Fable override of the judge. The rows below Opus (`mid`, `critic`, `explore`) go to
+  **xhigh**. `cheap` still inherits `mid`; its seed in `executors.toml` reads haiku @ xhigh,
+  commented out. The `explain-critic` frontmatter is opus @ xhigh.
+- **One executor.** `slice-executor` (`.claude/agents/slice-executor.md`) replaces
+  `slice-executor-mid` and `slice-executor-high`. Its frontmatter carries the `mid` row, and every
+  slice passes its row's model and effort per dispatch. A nested install that hits a name clash
+  renames it `wf-slice-executor`. `tier` retires for `route`: `executor-route` prints no `tier=`,
+  its bare table's columns are `route agent model effort source`, and the verdict field is
+  `route:` (`high | research | mid | cheap`). The review's fix rule reads `route: mid` or
+  `route: cheap`. A full model id or `inherit` is accepted only on the rows that own a file
+  (`mid`, `design`, `critic`, `explore`); `[claude.high]`, `research`, `cheap` and `judge` take an
+  alias, and a full id there is refused with a v66 line. `dispatch-summary` still reads old
+  transcripts' `slice-executor-mid` / `-high` spans, and reads `slice-executor` spans by kind and
+  model, approximately.
+- **A DECOMP estimates time, and marks real spend.** The estimate comes from the meter's means
+  (minutes per span by route, span-minutes per slice by kind), never a session-$ figure; the
+  `$/span` and `$/slice` columns stay. Each cut slice carries `spends money: no` or
+  `spends money: yes, ~$X via <service>`, and only a `yes` slice plans at the operator's gate. A
+  bulk-sweep slice is cut by surface, so its findings are written to disk as it goes.
+- **The compaction window is 450000.** The project `autoCompactWindow` ships at **450000** (was
+  300000 in v56 and v61–v65). Claude Code's native idle compaction does the rest, with no
+  compaction hook and no `idleCompaction` key: it is on by default, fires about 54 minutes after
+  the last request on a context of at least 200k tokens and a one-hour cache TTL, and
+  `idleCompaction: false` in user settings turns it off. A 200k-context model still compacts at
+  its own limit. See <https://code.claude.com/docs/en/settings-reference> (`autoCompactWindow`, `idleCompaction`)
+  and <https://code.claude.com/docs/en/model-config> (Set the auto-compact window).
+
+- **Migration notes.** `/update-workspace` lists `.claude/agents/slice-executor-mid.md` and
+  `-high.md` as stale, by content, ignoring their `sync-agents`-owned `model:` / `effort:` lines
+  (a nested renamed copy included). Delete them, then run `sync-agents`; a copy whose body you
+  edited is listed "yours, kept". A `[claude.high]` (or `research`, `cheap`, `judge`) full model
+  id must become an alias. `tier=` and `tier:` are now `route=` and `route:`. `autoCompactWindow`
+  moves from 300000 or 500000 to 450000, with `changed: <file> autoCompactWindow 300000 -> 450000
+  (today's default; set it back if you chose 300000)`; any other value is kept. The judge is no
+  longer refused on the drafter's model.
+
+## v65 — 2026-10-22
+
+- **`/explain` is the knowledge plugin's.** The vendored skill is gone (17 skills). The seed
+  operations doc's `## Knowledge (/knowledge:explain)` section, the README and the installer's
+  closing lines now point to `knowledge@knowledge` from the `leetusik/knowledge` marketplace,
+  plugin 0.5.0 or later, and quote its install commands. The contract drops its `/explain`
+  sentence. The updater never creates, writes, flags or reports a path with an `explain`
+  component, on any install path, nested included: a nested host's old copy stays recognised and
+  hidden.
+- **Explaining a book is a phase.** `/create-phase` gains *The explain route*: an `## Explain`
+  section in `intent.md` (subject, mode, book, lang, reader, depth, project, visibility) marks the
+  phase. Its `DECOMP` researches the subject, writes `book/outline.md` and cuts one chapter slice
+  per chapter; the operator signs the outline at a `pending` stop on the first chapter. Each
+  chapter is drafted and checked (`knowledge check`), judged by the new **`explain-critic`** agent
+  on a model different from the drafter's, and revised once. The review reads the whole book,
+  publishes every chapter **private** with the org key, reads it in the real reader, and the
+  operator accepts by reading it. Three new `do-whole-phase` references (shared into
+  `do-next-slice`): `explain-decomposition.md`, `explain-chapter.md`, `explain-review.md`. No
+  engine change: the critic has no route row; the orchestrator picks its model per call.
+- **The review's fixed pointer** is now `explain: not written — run /knowledge:explain P<N> for
+  one chapter, or create an explain phase for a book`.
+
+- **Migration notes.** `/update-workspace` installs `.claude/agents/explain-critic.md` (nested:
+  into the host's `.claude/agents/`, renamed `wf-explain-critic` on a clash). Explain phases need
+  the knowledge plugin at 0.5.0 or later and `/knowledge:setup` run once (the review publishes
+  with its org key); `knowledge check` needs a server with `POST /api/documents/check`. A 404 or
+  405 skips the check and the publish's 422 stays the backstop, while an unreachable server or a
+  rejected key stops the chapter. Delete an old `.claude/skills/explain/` by hand, once, after
+  installing the plugin: the updater leaves it in place.
+
+## v64 — 2026-10-22
+
+- **`create-phase` and `update-workspace` commit when they finish.** `create-phase` commits what
+  its intake wrote (the new phase folders or the deferred job's, and the regenerated `works/`
+  files), one commit as `chore(P<N>): create <name> and record the operator's intent` or
+  `chore(D<N>): defer <title>`. `update-workspace` commits the refresh as its new last step,
+  `chore: update agentic workspace to v<M>`. On a tree that was dirty before the update it stages
+  only the paths the update and its removals name. Nested installs commit both in the nested
+  repo, `git -C workflow`, and the host gets no commit. Neither pushes. The contract's Commit
+  Convention names both: "Commit after each slice, `create-phase` and `update-workspace`; else
+  only when asked." `retrofit` still leaves its first commit to you.
+
+- **Migration notes.** Nothing to run. The update that brings v64 still runs the old skill, so
+  commit that one refresh yourself; later updates commit on their own.
+
+## v63 — 2026-10-22
+
+- **`backlog.md` shows a worktree phase's slices before the merge.** The `## Streams` table
+  already read each in-flight worktree phase from its branch, but that phase's `## Active Phases`
+  row and its slice table showed this checkout's copy, which stands still until the merge, so the
+  slices its `DECOMP` cut on the branch were invisible from the main checkout. Both now come from
+  the same branch read, under a line naming the branch. A worktree checkout shows the default
+  stream's phase the same way, read from the base branch. With no phase in flight elsewhere,
+  nothing changes and no git call is made.
+
+- **Migration notes.** Nothing to run: the next command that rebuilds `works/backlog.md` writes
+  the new tables.
+
+## v62 — 2026-10-21
+
+- **The cheap route runs Haiku 5.5 at `xhigh`.** The opt-in `cheap` row (`docs` and `qa`
+  slices rated `low`) moves from `haiku @ high` to `haiku @ xhigh`. That is Haiku's best level on
+  the Artificial Analysis Coding Agent Index: 41.4 against 35.1 at `high`, and 23.7 against
+  12.6 on Terminal-Bench 4.0, for about $0.25 more per benchmark task. `max` scores lower, at
+  36.8. The workspace's own dispatch records show no other row failing for lack of capability,
+  so every other row keeps its model and effort. The `executors.toml` seed, both executor
+  bodies and the README now say `haiku @ xhigh`. Smoke asserts the seeded block's effort and
+  the repo's route: 352 PASS.
+
+- **Migration notes.** `/update-workspace` never overwrites `executors.toml`. If you turned the
+  cheap route on, set `effort = "xhigh"` under `[claude.cheap]`. If its block is still
+  commented out, nothing changes.
+
+## v61 — 2026-10-20
+
+**v61 cuts token waste.** It meters what a phase really costs, restores Claude Code's own
+compaction, and removes the waste P29 showed in the design loop, the skills and `phase.md`.
+Craft, literal signoff and the executor rules are unchanged. Each saving is reasoned from P29's
+transcripts, not replayed.
+
+- **Metering.** `dispatch-summary` reads Claude Code's transcripts and meters the main thread
+  beside every span, per slice and per phase (requests, context, output, list-price $, limit
+  hits, verdicts, plus a `means` block a DECOMP estimates from). `record-dispatch <slice>
+  --verdict <v>` is verdict-only; every dispatch prompt starts with `slice: <id>`; a
+  usage-limited span is resumed or re-dispatched, never a verdict.
+  - **Before / after:** `record-dispatch` stored a span's final context (P29: 7.40M against
+    1,188M processed) and the orchestrator (main $146.65, 30% of the phase) was invisible. Now both are metered
+    (span output and $ are floors where a transcript lacks the final usage, marked `≥`).
+
+- **Compaction and the resume card.** The PreCompact hook, `compact-gate` and the
+  post-compaction re-read rule are retired; the project window ships at 300000. After a
+  compaction the SessionStart hook prints a computed card of 2 KB or less (`next --card` on
+  demand): pointer, next action or typed stop, gates, running spans, file paths.
+  - **Before / after:** compaction ran late behind a veto, and each restart re-read a ~45 KB
+    skill and the notebook (P29: ~73k tokens, 26 times). Now Claude Code compacts when it
+    decides and re-attaches an 8 KB core whole.
+
+- **Typed stops and the stop rules.** `set-slice-status <id> pending --stop-kind
+  wave|mockup|decision|operator-action|limit|other --on-words "…"` records what the stop is and
+  what the operator's words will do (a bare `pending` warns). Every phase-run stop shows at most
+  ~5 decisions plus one "decided as drawn" list in about 2k chars, and one word signs it all.
+  - **Before / after:** a bare `pending` and a per-job list of everything; now five decisions.
+
+- **`phase.md` as an index.** `phase-section <P> [<name>] [--replace|--append|--resolve OQ<n>]`
+  prints the index or reads and writes one section; the soft budget is 40 KB (was 400 KB) and
+  long material goes to `topics/<slug>.md`.
+  - **Before / after:** P29's notebook (2 to 137 KB) was re-read whole 47 times to touch `## Now`;
+    now a slice pays for the sections it needs.
+
+- **The skill split and skill directories.** `design-cowork`, `do-whole-phase` and
+  `do-next-slice` are a core `SKILL.md` of 8 KB or less plus `reference/*.md` read when the core
+  says; the text is unchanged. Every install path writes whole skill directories.
+  - **Before / after:** each skill loaded whole (57.8 / 44.3 / 36.7 KB) and SKILL.md was re-read
+    37 times; now a run loads a core and only the references its moment needs.
+
+- **The design lifecycle and record.** `design-readback <job> --listing <file|->` names only the
+  changed files, `--fetched <dir> [--apply]` prints `+A -B` per file, never contents;
+  `design-close --words` and the all-or-nothing `design-sign --slice <S> --words "<w>"` generate
+  SIGNOFF.md after a settled read-back. A superseding round defaults critique off, a wave shares
+  one `waves/<slice>/brief.md` plus a delta per job, a round keeps one drafter output
+  (`result.md`; no `build-prompt.md`), and the record holds repo-relative paths only.
+  - **Before / after:** whole-canvas read-backs (0.99M chars), ~83 KB of drafter files per
+    round and a hand-written SIGNOFF.md that drifted twice; now a listing, a diff line per file
+    and a summary of 1 KB.
+
+- **Machine checks and render reuse.** `design-preview` adds blocking `non-text-contrast`,
+  `reflow`, `overprint` and `keyboard` checks and a `state-bar` check, ends on
+  `self_check=pass|fail`, and `--strict` exits 1; the render lands in the git-ignored
+  `docs/reference/design/.preview/<job>/<round>/` for `--states-only` and `--contact-sheet`.
+  - **Before / after:** P29 signed three machine-checkable defects and its critics read ~118
+    screenshots a span; now the drafter's check names all three and a critic reads a contact sheet.
+
+- **The drafter, the critic and the critic row.** Both read the wave brief and their delta, read
+  each reference once and print ranges, never whole files. The critic reads `preview.json` and
+  contact sheets first and re-renders only states. The critic row is **sonnet @ high** (was max).
+  - **Before / after:** ~9.3M chars of file prints into P29's drafters and 68-minute critic
+    spans; now a 51-shot board costs ~2.6k image tokens, not ~86k.
+
+- **Update hygiene.** `--update` decides stale by content, file by file, never a directory: a
+  file at a retired path is stale only while it holds the exact text a version shipped there,
+  else "yours, kept". One report lists `removed:` / `changed:` lines, stale and kept files and
+  the active intents naming a retired mechanism; `update-workspace` removes only listed files.
+  - **Before / after:** `.agents` was flagged whole and deleted knowledge's own `/explain`.
+
+- **The contract.** `payload/contract.md` carries v61's rules at 12,281 of 12,288 B with no rule
+  dropped; `create-phase` writes `intent.md` as what the operator wants, never mechanics.
+  - **Before / after:** it told sessions to re-read after a compaction; now it points at the card.
+
+- **Migration notes.**
+  - **Preview first:** `sh bootstrap_agentic_workspace.sh --update --dry-run .`.
+  - **Settings:** `--update` removes our PreCompact `compact-gate` handler (any other hook stays)
+    and moves a window of exactly 500000 to 300000, each listed as `removed:` / `changed:`. The
+    workspace ships 300000, but `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `--autocompact`, a per-model
+    `/autocompact` value or managed settings can still decide the window in effect; `/autocompact`
+    with no argument may show it (unverified).
+  - **Stale files** are listed per file and by content: remove only those, never a directory.
+    Your own files under `.agents/` or `.codex/` read "yours, kept".
+  - **Intents:** an active `intent.md` naming a retired mechanism is listed; re-confirm it with
+    the operator. The installer never edits one.
+  - **Design rounds opened on v60 and still open:** run `design-canvas <job> --version <its
+    canvas.version>`, then `design-readback <job> --listing …`; move the preview runtime into
+    `docs/reference/design/.type/` and fix absolute paths in the handoff. A hand-written
+    SIGNOFF.md is kept; signed rounds are untouched.
+  - **Critic row:** run `sync-agents`; an explicit `[claude.critic] effort = "max"` is kept.
+  - **`record-dispatch`:** the old flags still parse and print `ignored:`.
+  - **Relaunch Claude Code** to pick up the settings changes.
+
+## v60 — 2026-10-18
+
+- **The design loop moves to Claude-app Design canvases.** Each design job is drafted as files in
+  the repo and published by the main thread to its own Design canvas Artifact, with the product's
+  Design System Artifact installed in it; the operator views and checks it in the Claude app. The
+  `claude-design` design tool (DesignSync read-back, per-round push, regroup) and design-deck
+  (the Tailscale dashboard, `design-register` and its deck hint) are retired. `drafter` is the only
+  design tool, and existing `claude-design/` records stay readable as history.
+
+- **Design record schema 2.** One job per surface, each with its own canvas tree
+  (`jobs/<job>/canvas/project/`: `canvas.json` and one `.dc.html` per board) and its rounds inside
+  it, each round snapshotting the tree at its close. New commands: `design-system` (records the
+  synced Design System), `design-canvas` (the canvas url, each published version, a built job),
+  the read-only `design-publish-plan <job>` (the `Artifact` publish call as JSON) and
+  `design-migrate --to 2` (moves a v47 card record into `schema1/`). Board titles are numbered
+  `NN · ` and the regroup and card markers are gone.
+
+- **`design-preview` renders a job's canvas locally.** It serves the canvas with the Design type's
+  real runtime, saved per job and never vendored, and screenshots every board in an exact viewport
+  with a throwaway headless Chrome, at phone width too for Pages. With no browser it prints an honest
+  skip.
+  - **Measured checks:** contrast, target size, clipped text, dead links, broken images and missing
+    names, as `check=` issue lines plus a `preview.json` sidecar. The opt-in `--click` prints the
+    link graph and screenshots every state each interactive board reaches.
+  - **Interaction checks:** `layout-shift`, `same-target`, `page-clip` and `hover-contrast`. The walk
+    explores each page's state-bar presets first, samples long lists, runs a type pass that fills
+    forms, and with `--phone-click` walks at 390 px too. Caps: 48 states, 300 steps, 120 s per board
+    and view.
+
+- **design-drafter is remade as a design specialist** on its own `[claude.design]` row (opus @
+  xhigh), no longer following `high`. It drafts a working canvas, every screen working on fake or
+  real data plus a board per component with all its states, checks it with `design-preview`, and
+  answers a critic's findings once. It now carries the operator's approved recipe:
+  - flow boards that carry the clicked item across screens, and a canvas-only state bar on every
+    interactive page listing that page's states;
+  - one direction by default, options only when asked;
+  - links that stay inside the prototype;
+  - detail rules and a Toss-level bar for care, with decorative SVG on the slop list;
+  - frontend-design's useful lines carried in its own craft text (Apache-2.0 credit), and the
+    plugin not loaded.
+
+- **design-critic judges a drafted round with fresh eyes.** Critic mode runs on `[claude.critic]`
+  (sonnet @ max) and judge mode, for the items it is unsure of, on `[claude.judge]` (fable @ high).
+  It gives one pass on a rubric built from the operator's bar, with an interaction pass that hovers,
+  types and clicks every row at desktop and phone width, and writes `critique-NN.md`. Both rows must
+  be a different model family from the drafter's; the judge is skipped under a loopback proxy.
+
+- **Design waves.** One co-work slice may hold several jobs (about 3–4), drafted in parallel, one
+  open round per job, with one operator stop per wave. Critique is opt-in per job (`off | critic |
+  critic+judge`), decided at `DECOMP` and recorded per round (`design-open --critique`).
+
+- **design-cowork is rewritten for the canvas loop:** the handoff's accuracy checklist and collected
+  taste, the drafter-critic-judge loop, publish, the stop, the operator's session words as the record,
+  the system sync from code and canvas cleanup at the phase review. The operator's standing rules live
+  in `bar.md` at the design root and reach every handoff under `## The operator's bar`. The type links
+  now come from `Artifact` `quickstart`, a canvas opened in the app saving a new version is no edit,
+  and the system's namespace is its lowercase install folder.
+
+- **`design-publish-plan` stops re-sending the system copies.** They ride only a job's first publish
+  or a change of the system version its `canvas.json` pins; the server keeps files a publish leaves
+  out. `design-canvas --version` records the installed version in `job.json`'s new optional
+  `canvas.system`. Re-sending them was refused as unseen server-side copies on every republish.
+
+- **`design-check` lints boards.** New warnings: `leaves-canvas` (a link that leaves the prototype)
+  and `same-target-list` (every row of a list opening the same board), and the board-count warning no
+  longer counts boards another board mounts.
+
+- **Migration notes.**
+  - **`Design tool: claude-design` phases:** at their first design slice the orchestrator asks you to
+    re-confirm on `drafter`; nothing runs on the retired tool. design-deck and `design-register`
+    are gone.
+  - **Schema-1 records:** close any open schema-1 round before updating (v60 cannot close one; an
+    abandoned round can be set `superseded` with a `closed_at` by hand), then run `design-migrate
+    --to 2`, a dry run first.
+  - **Agents and rows:** run `sync-agents` after `--update`; it now manages five agent files,
+    `design-critic` included. New rows: `[claude.design]`, `[claude.critic]`, `[claude.judge]`. If
+    your `[claude.design]` row is sonnet or fable, move the critic or judge row, or
+    `executor-route --critic` / `--judge` refuses.
+  - **Publishing needs the `Artifact` tool on the main thread** (a claude.ai login). design-cowork
+    pre-approves its publish and comment calls (`Artifact`, `ArtifactComments`); deletes are still
+    confirmed by the tool.
+  - **`Mockup: requested`** now means an in-product route in addition to the working canvas, which
+    is the default review surface.
+  - **The `design-only` waive note** is now `design-only, no mockup: the operator signed each job on
+    its canvas`; phases already waived keep theirs.
+  - **No round `import/` folder:** file an exported design holding HTML outside the design root (or
+    zipped), since HTML outside a canvas tree fails `design-check`.
+  - **design-drafter loses `Skill`** and no longer loads frontend-design.
+  - **One critic pass** plus one drafter answer pass: no cap, and critique files lose the `repeated`
+    line.
+  - **`bar.md`** at the design root holds your standing design rules.
+  - **New checks and warnings:** design-check `leaves-canvas` and `same-target-list`; design-preview
+    `layout-shift`, `same-target`, `page-clip`, `hover-contrast`, the type pass and `--phone-click`;
+    `preview.json`'s `click` is keyed by view.
+  - **`job.json`** gains the optional `canvas.system`. A job published before v60 has none, and its
+    next publish leaves the system copies out; nothing to do.
+
+## v59 — 2026-10-14
+
+- **A slice that spends money plans at the operator's gate by default.** Spend means calls to a
+  vendor LLM or model API, paid third-party APIs, or cloud resources billed per use. The
+  workspace's own executor dispatches do not count. Under the bare default, `do-next-slice` and
+  `do-whole-phase` plan such a slice through plan mode for the operator's approval, the way they
+  plan a decomposition. The plan names what the slice calls and a rough volume or cost estimate.
+  An explicit `auto` (or "run unattended") waives this gate too.
+
+- **The executors stop before unplanned spend.** `slice-executor-mid` and `slice-executor-high`
+  return `needs_operator` rather than spend money `plan.md` does not cover, or more volume than its
+  estimate.
+
+- **Migration notes.** None beyond `/update-workspace`.
+
+## v58 — 2026-10-13
+
+- **A nested install can run a phase in its own worktree, as a pair.** `parallel-start <P>
+  --host-branch <name> [--host-base <ref>]` cuts a host worktree under `.claude/worktrees/` on the
+  host branch, with the nested worktree inside it at `workflow/`. The orchestrator proposes the
+  branch name from the host's recorded custom and the operator confirms it; the engine never
+  invents one. `--host-base` defaults to the host's default branch (`origin/HEAD`, else the local
+  default branch). Teardown is nested-first and checks before it removes anything (uncommitted
+  work, ignored worktree-only files unless `--discard-ignored`, orphaned detached host commits),
+  and keeps the host branch unless the engine created it and it is empty.
+  `parallel-merge-finish` and `parallel-consolidated` run in the nested repo. The engine never
+  pushes, opens a pull request or merges into the host's default branch: that is the host's custom.
+
+- **The compaction hooks follow the session's own directory.** `compact-gate` and
+  `compact-resume` walk up from the hook's stdin `cwd` to the engine that owns it and re-run it, so
+  a session in a phase worktree resumes on its own stream and the gate judges its own slice, at
+  root and nested. The hook commands in `settings.json` are unchanged.
+
+- **`works/backlog.md` gains a `## Streams` section,** and `next` lists only phases in flight. The
+  section shows the default stream and every in-flight worktree phase, read live from its branch
+  (a `Host branch` column in nested installs). `next` no longer lists a done phase whose worktree
+  is torn down, nor a started phase that owes no consolidation yet (D57).
+
+- **Smaller changes.** `nested-convention` now records the host's conventions for commits,
+  branches and pull requests. A nested install writes `/.claude/worktrees/` into its exclude block
+  and a `workflow/.gitattributes` (the union rule for `events.jsonl`, no CI file). `do-whole-phase`
+  prepares slice N+1 only during an idle window, never N+2 or later. The shipped contract drops its
+  "upstream repo only" rule, and the seeded `workspace-ci.yml` drops its two upstream-only steps
+  (artifact parity, smoke); both live in this repo's own dev contract and `upstream-ci.yml`.
+
+- **Upstream only.** This repo now runs as a nested install itself: its sources live under
+  `payload/`, its workspace is the git-excluded `workflow/`, and the built artifact is byte-identical.
+
+- **Migration notes.** At-root installs need nothing beyond `/update-workspace`. Nested installs get
+  the `/.claude/worktrees/` exclude line and `workflow/.gitattributes` on `--update`. Existing
+  adopters keep their seeded `workspace-ci.yml` (seed-once); delete its two `(upstream only)`
+  steps if you want them gone. Relaunch Claude Code so the refreshed hooks and skills load. Smoke:
+  292 to 297 PASS.
+
+## v57 — 2026-10-13
+
+- **The shipped auto-compact window is 500k.** `.claude/settings.json` now carries
+  `"autoCompactWindow": 500000` (v56 shipped 300000). 300k was a judgment call, not a documented
+  figure: Claude Code's docs recommend no window for 1M-context models, and Claude 4.6 and later
+  bill the full window at standard rates, so there is no cost step to stay under. With the
+  boundary veto in place the window is still "the earliest allowed point"; 500k keeps 350k of
+  headroom under the gate's 850,000 fill ceiling, enough for a full slice cycle, and halves how
+  often compaction fires.
+
+- **Migration notes.** `/update-workspace` sets `autoCompactWindow` to 500000 only when your
+  project `.claude/settings.json` (nested installs: `settings.local.json`) has no such key. A
+  checkout that took 300000 from v56 keeps it: edit the value yourself if you want 500000.
+  Relaunch Claude Code to pick it up; `/autocompact` with no argument shows the window in effect.
+
+## v56 — 2026-10-13
+
+- **The 300k auto-compact window ships in project settings.** `.claude/settings.json` now carries
+  `"autoCompactWindow": 300000`, so every clone and every machine compacts 1M-context models at
+  300k without a per-machine `/autocompact`. Claude Code resolves the window user → project →
+  local, and a file's top-level value replaces the earlier default and per-model entries, so the
+  project value wins over a user-level setting; override it per checkout in
+  `.claude/settings.local.json`. 200k-context models are unaffected. This reverses v55's "the
+  window is the operator's personal setting": the veto makes 300k mean "the earliest allowed
+  point", and a repo that runs on several machines wants that point committed.
+
+- **The installer fills the key, never overwrites it.** `_merge_settings_dict` copies
+  `autoCompactWindow` from the payload only when the target has no such key, on `--update`,
+  retrofit and the nested `settings.local.json` present-file path. Smoke: 289 to 292 PASS.
+
+- **Migration notes.** `/update-workspace` sets `autoCompactWindow` to 300000 in the project
+  `.claude/settings.json` (nested installs: `settings.local.json`) unless you already set one
+  there. Relaunch Claude Code to pick it up; `/autocompact` with no argument shows the window in
+  effect. Nothing else to run.
+
+## v55 — 2026-10-12
+
+- **Compaction waits for a slice boundary.** A `PreCompact` hook on auto-compaction calls the new
+  engine command `compact-gate`, which vetoes the compaction while the work is mid-process: the
+  current slice is `in_progress` or `in_review`, or the tree is dirty (your own uncommitted work
+  counts too). At a clean boundary it allows, so the loop becomes commit, then compact, then plan
+  the next slice. Manual `/compact` is never blocked. The block's `reason` tells you which rule
+  held it and how it releases.
+
+- **The gate's order, and it always fails open.** Rules in order: manual trigger allows; a
+  subagent's own compaction allows (an executor's slice is `in_progress` for its whole life, so the
+  boundary is the main thread's); fill at or above the ceiling allows (850,000 tokens for the
+  Claude 5 family, 170,000 otherwise, read from the transcript's last assistant usage); 8 blocks in
+  a row allow and reset; slice `in_progress`/`in_review` blocks; a dirty tree blocks (the generated
+  dashboards and `docs/index.json` are excluded, as `next` and `rebuild` restamp them); otherwise
+  allow. Garbage stdin, an unreadable transcript, any exception or a block it cannot count all
+  allow, and the command never exits 2. Allow is silent on stdout; a block prints
+  `{"decision":"block","reason":…}` at exit 0; one trace line goes to stderr. Tune with
+  `AGENTIC_COMPACT_CEILING` and `AGENTIC_COMPACT_BLOCK_CAP` (positive integers).
+
+- **A `SessionStart` hook on the `compact` source re-orients the resumed session.** The new
+  `compact-resume` prints `compaction=done source=compact`, the `next` output (the workflow
+  pointer, `WAITING ON OPERATOR` if any) and one resume line: re-read the running skill's
+  `SKILL.md` from disk (only its first 5,000 tokens were re-injected), the active slice folder and
+  `phase.md`'s `## Now`. Both hooks are `cd "$CLAUDE_PROJECT_DIR" && python3 scripts/workflow.py
+  <command> || true`, timeout 15, on for everyone.
+
+- **The contract and the execution skills are shaped for the compaction window.** `CLAUDE.md`
+  gains `## Compact Instructions` (what the summary keeps and drops) and is back under its
+  12,288 B cap (12,274 B; phrasing trims only, no rule dropped). `do-whole-phase` and
+  `do-next-slice` are reordered so the loop invariants and a post-compaction resume line sit in the
+  first 16 KB of each file, inside the 5,000 tokens a compaction re-injects; text moved, nothing
+  dropped or duplicated.
+
+- **The installer merges the hooks additively.** `.claude/settings.json` now carries a `hooks` key.
+  On `--update`, retrofit and the nested `settings.local.json` present-file path, a handler is
+  appended unless one with the same exact `command` already exists under that event; an adopter's
+  own hooks are kept first and re-running adds nothing. A malformed `permissions` or `hooks` shape
+  goes to the `.claude/settings.workspace.json` sidecar at the root, and a nested install refuses
+  with nothing written.
+
+- **The auto-compact window is still your own setting.** With the veto in place about 300k is the
+  recommended window (`/autocompact 300k`; the window then means the earliest allowed point, not
+  "compact here"). The workspace records the guidance in the operations doc and never writes it.
+
+- **Smoke: 266 to 289 PASS** (14 asserts for the two commands, 9 for the hooks merge).
+
+- **Migration notes.** `/update-workspace` adds the two hooks to the project
+  `.claude/settings.json` (nested installs: `settings.local.json`); an adopter's own hooks are
+  kept and ours are added once. Relaunch Claude Code (or review `/hooks`) to load them. Optionally
+  set `/autocompact 300k`. `AGENTIC_COMPACT_CEILING` and `AGENTIC_COMPACT_BLOCK_CAP` tune the gate.
+  Nothing else to run.
+
+## v54 — 2026-10-12
+
+- **`/rotate-backlog` is one invocation that pays the doc debt, then archives.** It checks the
+  doc debt **first** and archives nothing while any stands. When a phase owes consolidation it
+  creates the docs phase that pays it, runs that phase end to end on the default stream, and only
+  then archives every done phase, the docs phase included. When nothing owes, it archives the done
+  phases right away, as before. It is safe to re-run at any point: a stop (`pending`, `blocked`,
+  `needs_operator`, a failed review) ends the run and the next `/rotate-backlog` resumes from the
+  live docs phase. One docs phase per invocation keeps the chain finite.
+
+- **The engine prints one decision, `rotate=<branch>`, as its first stdout line.** The skill
+  branches on it. `refused` (a parallel stream: doc consolidation and archiving run on the default
+  stream only; exits 1, writes nothing). `archive` (no live docs phase and nothing uncovered owes:
+  the sweep runs, last, and the report ends `docs_phase=none`). `stop_midflight` (the debt stands
+  but default-stream work is off a boundary: nothing is archived, created or reordered). `resume` (a
+  docs phase is live: it continues it, even when it has paid everything but has not passed its
+  review). `create` (the proposal, with the queue-jump `--order`). A docs phase on another stream
+  that pays the debt is named in `docs_phase_elsewhere=` and does not block the sweep.
+
+- **The docs phase jumps the queue.** The printed `create:` line carries `--order` one below the
+  lowest open default-stream phase, so `next` selects the docs phase ahead of planned work. `resume`
+  re-asserts that order on a live docs phase that does not already sort first (one `order` write, a
+  `phase_reordered` event, printed as `docs_phase_order=<P> <old> -> <new>`). No new phase state;
+  `next`, `resolve_current` and `validate` are unchanged.
+
+- **It stops for mid-flight work.** The docs phase never interleaves with a running slice: any
+  default-stream slice that is not `todo`, `ready` or `done`, or any phase that is `pending`,
+  `blocked` or `in_review`, stops `/rotate-backlog` (`rotate=stop_midflight`, listing each as
+  `<id>:<status>`). The docs phase's own slices are excluded. A re-run once those clear goes on.
+
+- **The invocation is the yes, for this route only.** `create-phase`'s confirmation gate is
+  unchanged for every other phase. In the docs-phase route, typing `/rotate-backlog` confirms the
+  engine-drafted name, objective and `docs-debt` scope: the skill shows the proposal, runs the
+  `create:` line as printed (no pause, no narrowing), fills `intent.md`, and runs the phase through
+  `do-whole-phase` in `auto` (the invocation is the explicit `auto` the contract's decomposition
+  carve-out asks for; the docs phase's acceptance gate is normally `--waive`d at its `DECOMP`).
+
+- **Two words.** `gate` restores the approval loop for the embedded run. `archive-only` keeps the
+  pre-v54 archive-and-report sweep (`rotate-backlog --archive-only`), byte-identical, creating and
+  running nothing, and still allowed on a parallel stream.
+
+- **Skills, contract and docs.** The `rotate-backlog` skill is rewritten to the chain (its
+  `allowed-tools` gains `Glob`, `Grep`, `Bash` and `Agent`; it takes `archive-only` and `gate`; it
+  stays `disable-model-invocation: true`). `create-phase` names the invocation as the confirmation
+  for the docs-phase route only, `archive-phase`, `do-whole-phase`, `do-next-slice` and
+  `review-phase` say archiving is `/rotate-backlog`'s (or `archive-all` / `archive-phase <P>`), the
+  contract's exception, decomposition carve-out, *Making a phase ≠ executing it* and archiving lines
+  follow, and the README's skill table row is rewritten. The review's pass message points at
+  `rotate-backlog`. The smoke baseline rises from 239 to 247 PASS (Test 5's v51 rotate block is
+  rewritten to the `rotate=` branches).
+
+- **Migration notes.** Nothing to run. A docs phase created under v51 to v53 sits behind planned
+  work (default order one above the highest phase) until the first `/rotate-backlog` re-asserts its
+  order on `resume`. `archive-only` is unchanged. `/update-workspace` overwrites the
+  `rotate-backlog` skill as machinery; a hand-edited local copy loses its edits, so re-apply them
+  after the sync.
+## v53 — 2026-10-12
+
+- **One executor route table replaces the `economy` / `flex` presets.** The engine owns five rows —
+  `high` (`opus @ high`: review, decomposition, the co-work mockup span, any risk but `low`, every
+  second attempt; `design-drafter` follows it), `research` (`opus @ medium`), `mid` (`sonnet @ high`:
+  implementation and fix rated `low`), `cheap` (docs and qa rated `low`; inherits `mid` unless
+  overridden) and `explore` (`haiku @ high`, the read-only lookup agent). `executors.toml` overrides
+  them row by row (`[claude.<row>]`, keys `model` / `effort`); `sync-agents` writes four agent files
+  from the rows; `executor-mode` is gone.
+- **Model and effort are chosen at dispatch time.** `python3 scripts/workflow.py executor-route
+  <slice_id> [--retry]` prints the deterministic decision (kind first, then risk, then attempt), one
+  `key=value` per line; the orchestrator pins it as a `## Dispatch` section in the slice's `plan.md`,
+  passes `model` and `effort` on the Agent call, and the agent files' frontmatter is only the
+  fallback. `--drafter` and `--explore` resolve the design subagent and the lookup agent. A loopback
+  `ANTHROPIC_BASE_URL` (ocx/Kiro) makes the cheap row fall back to the mid model and `explore` to
+  `sonnet`; `CLAUDE_CODE_EFFORT_LEVEL` and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` print a warning, because
+  they outrank the per-dispatch values.
+- **The cheap route.** Docs and qa slices rated `low` run on Haiku 5.5 at `high`. It is on in this
+  repository's `executors.toml` and **seeded commented-out** for adopters, because the `haiku` alias
+  is Haiku 4.5 on Bedrock, Vertex and Foundry. Unset, the row inherits `mid`.
+- **The instrument.** `record-dispatch <slice_id> --route … --model … --effort … --verdict …
+  [--attempt N] [--duration-ms N] [--tokens N] [--tool-uses N]` appends an `executor_dispatched` event
+  to `works/events.jsonl`; `dispatch-summary [--phase P] [--slice S] [--json]` reads it back by route,
+  model @ effort and kind. The table is tuned from this workspace's own runs.
+- **`Explore`, the read-only lookup agent, and the `Agent` tool in both executor tiers.**
+  `.claude/agents/Explore.md` (Read / Grep / Glob, `haiku @ high`, `omitClaudeMd: true`) overrides
+  Claude Code's built-in Explore in the repo. The orchestrator uses it for planning lookups; executors
+  may hand it bulky read-only reads and upgrade the model per call for a lookup that needs judgment —
+  never `result.md`, `phase.md`, code, validation or the verdict. Executors record `model` and `effort`
+  beside `tier` in the verdict block, and the slice commit's `Co-Authored-By` follows the recorded model.
+- **`/executor-route` replaces `/executor-mode`.** Bare, it shows the route table and the dispatch
+  summary; with a slice id, that slice's dispatch decision. The orchestrator's own effort stays at the
+  session level.
+
+- **Migration notes.** (a) `sync-agents` refuses a leftover `mode = "…"` line in `executors.toml` —
+  delete it; `flex` was `xhigh` on both tiers, so set `effort = "xhigh"` under `[claude.mid]` and
+  `[claude.high]` to keep it. (b) After `--update`, re-run `python3 scripts/workflow.py sync-agents`
+  (the agent files reset to upstream defaults, now `opus @ high` / `sonnet @ high`). (c) To opt into
+  the cheap route on the Anthropic API, uncomment the `[claude.cheap]` block in `executors.toml`.
+  (d) `--update` flags `.claude/skills/executor-mode/` as stale — remove it by hand. (e)
+  `.claude/agents/Explore.md` overrides the built-in Explore for every session in the repo; in a
+  nested install whose host already has an `Explore.md`, ours is installed renamed (`wf-Explore`) and
+  no longer overrides the built-in, and the rename also rewrites the word "Explore" in the shipped
+  agent bodies. (f) `CLAUDE_CODE_EFFORT_LEVEL`, if set, flattens every row's effort.
+
+## v52 — 2026-10-08
+
+- **`/explain` gains a research mode for general, non-code research.** Alongside topic and
+  change mode, a third mode covers a question about the world (a market, a technology
+  landscape, a vendor comparison, a decision, the findings of a research phase). It is
+  auto-detected when the subject has no grounding in the repo's code, and the trailing word
+  `general` forces it (`research` / `no-research` keep their old meaning). Research mode
+  keeps the same self-contained HTML page contract and the 5-question quiz, but drops the
+  fixed Background / Intuition / Code / Best-practices outline for a **free-form outline**
+  the agent designs from the question, bookended by the table of contents at the top and a
+  **Sources** section plus the quiz at the bottom. Web research is the body, not an
+  add-on: every claim cites a page that was opened, and fact is kept apart from the
+  agent's own assessment. For a workspace phase or slice it reads `intent.md`, `phase.md`
+  and the research slices' `result.md` first. With no web access and too little prior
+  material it stops rather than write an ungrounded document. Topic and change mode are
+  unchanged.
+
+- **Migration notes.** None required. `--update` overwrites `.claude/skills/explain/SKILL.md` as
+  machinery, as it has since v26; a hand-edited local copy loses its edits, so re-apply them after
+  the sync.
+
+## v51 — 2026-10-07
+
+- **`/rotate-backlog` proposes the docs phase by default.** It still archives every clean phase
+  first, exactly as before. It then collects the phases held back only by unpaid doc consolidation
+  (every slice done, review `pass`, `consolidation: pending`, and no other blocker) and prints a
+  read-only proposal: `docs_phase_proposal=P26, P27, P28, P29`, `phase=P31` (one above the highest
+  phase number, active or archived), a `name=` and an `objective=` naming the phases it pays, the
+  exact `create:` line (`new-phase … --consolidates P26,P27,P28,P29`), and a `scope:` pointer to
+  `docs-debt`. The skill presents it, asks the operator **once**, and on the yes runs the `create:`
+  line and fills `intent.md` through `create-phase`'s docs-phase route (the verbatim words, the
+  `docs-debt` scope, and the one-`--kind docs`-slice-per-doc cut for the phase's `DECOMP`), then
+  stops. Nothing is decomposed, and `new-phase` still never runs before the operator confirms the
+  name and objective. The operator may edit the name or objective or narrow the phase list; a phase
+  left out keeps owing and stays active.
+
+- **Opt out with `archive-only`.** `/rotate-backlog archive-only` (the engine's
+  `rotate-backlog --archive-only`) keeps the pre-v51 archive-and-report behaviour and prints no
+  proposal. Every other default run ends in one of three lines, so the output is never silent about
+  the debt: `docs_phase=none`, `docs_phase_covered=<P> (pays …)`, or the proposal.
+
+- **No second docs phase, and no phase for other blockers.** When an active, not-done docs phase
+  already covers a debt-only phase, rotate prints `docs_phase_covered=<P> (pays …)` and proposes
+  nothing for it (one run can print covered lines and a proposal for the rest). A phase blocked for
+  any other reason (unfinished, unreviewed, an unmerged parallel branch) is reported as before and
+  never proposed. The archive gate, the archive manifest, `archive-all` and `archive-phase` behave
+  exactly as before, with the same refusal text.
+
+- **`new-phase --consolidates P26,P27`.** It marks the new phase as the docs phase that pays those
+  phases, by writing an optional top-level `"consolidates": [...]` key into its `phase.json`. It is
+  the only docs-phase marker (nothing reads a phase's name or `intent.md` to guess), it tolerates
+  spaces and duplicates, and it refuses with nothing written when an id is not an active phase owing
+  consolidation. `create-phase`'s docs-phase route passes it.
+
+- **`docs-debt` shows who pays.** Each owing phase a live docs phase covers gets one extra line,
+  `  paid by: P31 (in progress)`, beneath its `pay:` line. It stays read-only.
+
+- **`validate` checks the shape.** A `consolidates` that is not a non-empty list of `P<N>` ids is an
+  error. Phases without the key are valid.
+
+- **Skills and docs.** The `rotate-backlog` skill is rewritten around the propose-then-confirm flow
+  (its `allowed-tools` gains `Read`, `Edit` and `Write` for `intent.md`, and it takes an
+  `archive-only` argument; it stays `disable-model-invocation: true`). The `create-phase` docs-phase
+  route names `/rotate-backlog` as the default entry point and passes `--consolidates`. The
+  `archive-phase` skill says rotate leaves a debt-owing phase active and proposes the docs phase
+  that pays it, and names `--archive-only`. The README's skill table says so too. The smoke test
+  gains four asserts beside the `docs-debt` fixture.
+
+- **Migration notes.** None required. A phase created before v51 carries no `consolidates` key, and
+  that is valid. A docs phase created before v51 (by hand, through `create-phase`) is simply not
+  seen as covering the phases it pays, so `/rotate-backlog` may propose a docs phase for debt a live
+  one already pays. Decline it (or answer no), or run `archive-only`. Nothing else changes for an
+  adopting repo.
+
+## v50 — 2026-10-07
+
+- **The nested install is now the default.** `sh bootstrap_agentic_workspace.sh <dir>` with no flag
+  installs the private, nested layout v49 reached only through `--nested`: the engine and state go to
+  an untracked nested git repo `<dir>/workflow/`, the skills and agents go to the host's `.claude/`
+  untracked, and no tracked file changes. It holds for an existing git repo and for a new or empty
+  directory alike. A new or empty directory is `git init`-ed as the host repo (with the workspace's own
+  commit convention, `type(scope): summary`, imperative, no trailing period, recorded as confirmed and
+  Claude `Co-Authored-By` trailers allowed, so `next` never asks `UNCONFIRMED` about it), and that init
+  is undone when a refusal comes before the first write. The installer makes no commit in the host.
+
+- **`--at-root` is the committed layout.** It installs the team-visible layout into a fresh directory
+  (`CLAUDE.md`, `.claude/`, `scripts/`, `works/`, `docs/` at its root) and keeps the writes, guards and
+  output of a bare install through v49 (only the flag name in the hints differs). `--into-existing` is the at-root retrofit, unchanged (`--at-root` with it is
+  allowed and redundant).
+
+- **`--update` detects the layout.** It reads what is installed at the target, the nested marker
+  `workflow/.agentic-nested.json` versus an at-root workspace (`scripts/workflow.py` plus `works/`),
+  and refreshes it in that layout, so `--update` and `--update --dry-run` need no `--nested`. It
+  refuses, writing nothing, when the layout is ambiguous (both found, no flag to choose) or when a flag
+  contradicts the layout found (`--at-root` on a nested install, `--nested` on an at-root workspace).
+  A matching `--nested` is a no-op, so v49's `--update --nested` keeps working. At-root updates
+  behave exactly as before.
+
+- **New refusals** (each exits non-zero with nothing written):
+  - a bare install over an at-root workspace (use `--update`);
+  - a bare install or an `--update` on a nested install's own `workflow/` directory (run it at the
+    host root; v49's plain `--update` there would have written `CLAUDE.md` and `.claude/` into
+    `workflow/`);
+  - a non-empty directory that is not a git repo (`git init` it yourself, or use `--at-root`);
+  - a new directory inside another repo's work tree (name that repo's root, or `git init` the
+    directory first);
+  - `--at-root` together with `--nested`;
+  - `--force-empty-ok` without `--at-root` or `--into-existing`, on `--update` as well.
+
+- **`/update-workspace` runs a plain `--update`.** Its two `(nested)` command variants collapse into
+  the one command from the host root (the installer detects the layout), and the sentence saying a
+  plain `--update` at a nested host refuses is gone. A downstream still holding v49's skill text can
+  keep running `--update --nested`. `/retrofit` now points a private install at the default bare
+  command.
+
+- **Docs.** Both READMEs and the retrofit guide present the nested install as the default and
+  `--at-root` as the committed layout, and say `--update` detects the layout. The README section on
+  private use is retitled "Private use in a repo you don't own (the default install)" (its anchor
+  changes), and the options table gains `--at-root`. `installer/README.md` lists the install modes.
+  The smoke test passes `--at-root` wherever a test expects the at-root layout and gains Test 16.
+
+- **Migration notes.** Existing installs are unaffected and nothing migrates them: an at-root
+  workspace keeps updating at-root and a nested install keeps updating nested, with no new flag.
+  Changes to habits and scripts:
+  - A script or habit that ran a bare install expecting the committed at-root layout must now add
+    `--at-root`; without it the install is nested and needs `git`.
+  - `--nested` is now redundant; leave it or drop it.
+  - `--force-empty-ok` needs `--at-root` (or `--into-existing`), and that now applies to `--update`
+    too, where v49 silently ignored it, so an `--update --force-empty-ok` line must lose the flag or
+    gain `--at-root`.
+  - New personal projects are private by default: their skills and agents are untracked in the host's
+    `.claude/` and the phase history lives in `workflow/`. Install with `--at-root` if collaborators
+    should receive the workspace through the repo.
+  - Parallel worktrees (`parallel-*`) refuse on a nested install, so they are off by default and need
+    an `--at-root` install.
+
+## v49 — 2026-10-07
+
+- **A nested personal install: `--nested`.** `sh bootstrap_agentic_workspace.sh <host-root> --nested`
+  installs the workspace privately into a repo you don't own, with no team-visible footprint. The
+  engine and all state go to an untracked nested git repo `<host>/workflow/` (its contract is
+  `CLAUDE.workspace.md`, never `CLAUDE.md`, so Claude Code loads one copy). The 18 skills and the 3
+  agents go to the host's `.claude/` as untracked files, with every path rewritten once, at install,
+  to reach `workflow/` (`python3 workflow/scripts/workflow.py …`). Your permissions go to
+  `.claude/settings.local.json`, and one managed block in `CLAUDE.local.md` imports the contract and
+  states the nested rules. One `.git/info/exclude` block hides all of it, and each skill directory
+  also hides itself with a `.gitignore` of `*`, because a host `.gitignore` that re-includes a path
+  outranks `info/exclude`. The installer writes no CI file, no `.gitattributes`, no host `docs/`, no
+  `settings.json`, no `core.hooksPath` and no commit, and it refuses, writing nothing, when the host
+  tracks a file it would write. Before writing, it asks git whether every file it would write will
+  be ignored, and refuses, writing nothing, when the host's `.gitignore` would expose one (naming
+  the file and the deciding `.gitignore` line, on install and `--update --nested` alike). After
+  writing, it checks that the host's `git status` lists none of its files. A skill or agent name
+  that clashes with one of the host's own installs as `wf-<name>` (the host's file stays
+  byte-identical). `--nested` is refused with `--into-existing` and `--force-empty-ok`.
+
+- **The engine has a nested mode.** It is gated on one marker, `workflow/.agentic-nested.json`
+  (`host_root`, the host's commit convention, the rename map, and what the installer installed); with
+  no marker nothing changes, and a malformed marker fails `validate` and stops every other command.
+  Printed paths and hints are host-relative while stored paths stay relative to `workflow/`.
+  `parallel-*` refuse (`parallel worktrees are disabled in a nested personal install`). Doc
+  provenance and design identity come from the host.
+
+- **`phase-scope` reads the host.** A nested phase records the host's HEAD at `new-phase` and at a
+  passing review in `phase.json` (`host_anchors`), and `phase-scope` measures that range in the host
+  repo, excluding `workflow/`. An absent anchor lists only the working tree and suggests `--base`.
+
+- **`nested-convention` records the host's commit convention.** The installer infers it from the
+  host's `git log` and `CONTRIBUTING*` and records it as unconfirmed; the new command shows it
+  (bare) or records yours (`--confirm --text "<convention>" --trailers allowed|forbidden`, including
+  whether Claude `Co-Authored-By` trailers may appear in host commits). `next` prints
+  `nested_host=` and `host_commit_convention=UNCONFIRMED|confirmed`, and the agent asks before the
+  first product commit.
+
+- **`--update --nested` refreshes a nested install** with the same guarantees: it keeps a confirmed
+  convention and every rename, clash-checks only newly shipped names, reports (never deletes)
+  skills the version no longer ships, and leaves one exclude block and one `CLAUDE.local.md` block.
+  A plain `--update` at a nested host refuses and points to `--update --nested`.
+
+- **Skills.** `/update-workspace` detects a nested install (`workflow/.agentic-nested.json` under
+  the current directory) and runs `--update --nested` (and its `--dry-run`); `sync-agents` and `next`
+  run as usual. `/retrofit` says it is the team-visible route and points to `--nested` for a private
+  install. `/commit` explains the two-repo split: product changes in the host in the host's
+  convention, state with `git -C workflow`, nothing from `workflow/` staged into the host.
+
+- **Docs.** Both READMEs gain "Private use in a repo you don't own (`--nested`)" (install, first
+  run, one ticket from branch to PR, updates, caveats) and `--nested` in the options table; the
+  retrofit guide points to it. The smoke test gains Tests 14 (nested engine) and 15 (nested install).
+  At-root installs are unchanged: no marker, no difference in behaviour or generated files.
+
+- **Migration notes.** None required for an at-root workspace: nested mode is opt-in, and an
+  existing install behaves as before. `/update-workspace` picks up the nested branch automatically.
+  To try it, install with `--nested` into a host repo (see the README), start Claude Code at the host
+  root and accept the trust dialog on the first run, make the first commit in `workflow/`, then
+  confirm the commit convention with `nested-convention`. Keep any remote for `workflow/` inside
+  your company's organization, and check a company-managed policy does not disable
+  `bypassPermissions`, which the three agents set.
+
+## v48 — 2026-09-30
+
+- **The design tool is a per-phase choice.** `/create-phase` asks it beside the style and the
+  mockup questions and records a `Design tool: drafter | claude-design` line under `## Design
+  Style` in `intent.md`. An absent line, and an absent `## Design Style` section, read as
+  `drafter`, so every existing phase keeps v47's loop. The tool is fixed for the phase and never
+  switched mid-round; a later phase may pick the other one. When the style is asked at `DECOMP`
+  instead, so is the tool.
+
+- **`design-cowork` carries both loops.** It stays one file. `drafter` is v47's loop unchanged: the
+  design subagent drafts into the repo and design-deck shows the cards. `claude-design` is the
+  loop v47 retired, restored as it was and adapted only in its paths: Connect GitHub (or a
+  local-dir connection), `handoff.md` and one `git push` per round, a `pending` stop while the
+  operator designs in Claude Design, the `DesignSync` read-back on the main thread, the remote
+  SIGNOFF regroup, and the `DesignSync` mechanics and Never lines. `DesignSync` is back in the
+  skill's `allowed-tools`. **Governance is shared** and is v47's text where the two loops differ:
+  the three styles, rounds and superseding, literal signoff, the mockup gate, RESPECT THE DESIGN.
+  Under `claude-design` a round costs two commits without a mockup and four with one (v47's drafter
+  loop keeps two and three).
+
+- **Claude Design keeps its own record, and nothing is copied.** A `claude-design` round keeps the
+  original layout (`rounds/NN-slug/{handoff.md, output/{result.md, build-prompt.md}}`, `SIGNOFF.md`,
+  `grounding/`) under `docs/reference/design/claude-design/`. The cards stay in Claude Design, and
+  design-deck shows nothing for those rounds. The `design-*` commands and design-deck skip that
+  folder, so both records can sit in one repo across phases.
+
+- **`design-migrate` moves a pre-v47 record into it.** A repo whose Claude Design record still sits
+  in the old layout at the design root fails `design-check` and `design-open` refuses it. The new
+  command is a dry run by default, `--apply` moves, and it is all-or-nothing: it refuses, moving
+  nothing, when a destination already exists. It never deletes, never runs git and never writes
+  `design.json`. On such a root `design-check`, `design-open` and `design-register` name it (dry
+  run first, ahead of `design-init`), and `design-init` refuses, so the old `tokens.css` cannot
+  silently become schema 1's. Run it before the first `claude-design/rounds/` folder exists.
+
+- **`design-register` prints a design-deck hint.** On success it prints the deck URL from
+  `$AGENTIC_DESIGN_DECK_URL` when that is set, and warns when the repo sits outside the deck's
+  mounted projects folder (`$DECK_PROJECTS_DIR`, default `~/projects`), where the deck shows it as
+  unavailable. The engine never guesses a URL.
+
+- **The contract names the partner for either tool.** `CLAUDE.md` (still under 12 KB: the
+  co-work exception and the visual-design rule name `claude-design`, and a few descriptive phrases
+  were tightened to pay for it), both executor bodies (the refusal and the mockup span cover both
+  tools; under `claude-design` the mockup span reads only `build-prompt.md` and the landed record,
+  and the `DesignSync` read-back and regroup are never handed to an executor; the bodies stay
+  word-for-word identical), `do-next-slice` and `do-whole-phase` (a `claude-design` branch beside
+  the drafter steps), `create-phase` (the tool question and the `Design tool:` line), both READMEs,
+  the retrofit guide and the installer banner. The smoke test turns v47's absence pins into choice
+  pins and adds the `claude-design/` and `design-migrate` probes. Installer rebuilt.
+
+- **`claude-design` has real constraints.** It needs a **claude.ai login**, so it **fails under
+  `ocx claude`**, and `DesignSync` runs on the **main thread only**, never in a subagent. When
+  `DesignSync` is not available in the session, the slice stops `pending` and says so; it never
+  falls back to the drafter mid-round. The `drafter` tool needs none of this.
+
+- **The installer's stdin program now declares utf-8** (PEP 263), so the Mac's system Python 3.9
+  can no longer reject it when a multibyte character lands on a read-chunk boundary.
+
+- **Re-sync note.** A workspace synced at v47 **before P26.F1/F2** lacks three fixes to v47's own
+  loop: the drafter's `new visual direction` licence for `frontend-design`, the `#` in-page
+  fragments in the card contract's self-contained rule, and the stricter `design-check` reference
+  scan. design-deck is one of those copies. Update to v48; a copy synced at v47 is missing them.
+
+- **Migration notes.** (1) Nothing changes for a repo that keeps using v47's loop: an absent
+  `Design tool:` line reads as `drafter`. (2) A repo with a pre-v47 Claude Design record at its
+  design root moves it into `docs/reference/design/claude-design/`. Run
+  `python3 scripts/workflow.py design-migrate` (a dry run that prints each move), then
+  `python3 scripts/workflow.py design-migrate --apply`, and commit the renames yourself. The rule:
+  with no `design.json`, every top-level entry of the root moves; with one, only the rounds without
+  `round.json`, `SIGNOFF.md` and `grounding/` move. (3) Run `python3 scripts/workflow.py design-init`
+  only if the repo will also use the `drafter` tool, and only after the migration (it refuses on a
+  root that still holds the old record). (4) To see the deck URL after
+  `design-register`, run `AGENTIC_DESIGN_DECK_URL=<deck url> python3 scripts/workflow.py
+  design-register`. (5) Run `python3 scripts/workflow.py sync-agents` after `--update`, as at v47:
+  updates reset agent files to the upstream defaults.
+
+## v47 — 2026-09-29
+
+- **The design lives in the repo, under a written contract.** Visual design no longer lives in a
+  Claude Design project that the agent reads back through `DesignSync` (both need a claude.ai
+  login, so they fail under `ocx claude`, and `DesignSync` cannot run in a subagent).
+  Schema 1 puts one design project per repo at the fixed root `docs/reference/design/`: a
+  `design.json` manifest (`{schema, id, name}`), numbered self-contained cards
+  `cards/NN-slug.html` (line 1 is the `@dsCard` marker: `group`, `viewport`, optional `title`), one
+  `tokens.css`, and a flat folder per round under `rounds/NN-slug/` (`round.json`, `handoff.md`,
+  `result.md`, `build-prompt.md`, and `feedback.md`, `SIGNOFF.md` or an `import/` folder when they
+  apply). At most one round is open at a time, and a closed round is an immutable snapshot of the
+  cards and tokens it touched. The contract is written out in `design-cowork`, so a separate
+  dashboard can read it without configuration.
+
+- **Five `design-*` commands run the round's lifecycle.** `design-init` writes the manifest,
+  `design-open` opens the next round, `design-check` names every contract problem with exit 1 (and,
+  given the handoff's paths, runs the read-back check), `design-close <round> --words "…" |
+  --superseded` snapshots, regroups line 1 only (every later byte is asserted identical) and closes
+  the manifest, and `design-register` records the repo in a registry outside it so a dashboard can
+  list it. All five are stdlib-only, and `design-close` and `design-register` are idempotent.
+
+- **A design subagent drafts.** `.claude/agents/design-drafter.md` drafts one round's cards,
+  `tokens.css`, `result.md` and `build-prompt.md` from `handoff.md`, runs `design-check` on its own
+  paths, and returns a verdict block. It never signs, opens or closes a round, edits a record it does
+  not own, builds a mockup or writes product code. It is not a third tier: it follows the **high**
+  tier's model and effort through `sync-agents` and `executor-mode`, so one knob governs every agent
+  file. It may load the `frontend-design` skill on a round whose handoff says `new visual direction:
+  yes`, and nowhere else.
+
+- **`design-cowork` is rewritten around the files.** Per round: the orchestrator opens the round
+  and writes the handoff, `design-drafter` drafts it in the background, the orchestrator reads it
+  back with `design-check` itself, and the slice stops for the operator. Literal approval writes
+  `SIGNOFF.md` and runs `design-close --words` (two commits, one stop); anything else is recorded in
+  `feedback.md`, closes the round `--superseded` and opens a new round of the same slice (one more
+  commit and stop). A requested mockup is unchanged in spirit but goes three commits and two stops,
+  not four, because there is no landing step. The `DesignSync` read-back and its SIGNOFF regroup (the
+  write into the Claude Design project) are retired, along with the push and the `_ds_manifest.json`
+  card contract; the regroup itself lives on locally in `design-close --words`, which rewrites line 1
+  of each signed card and nothing after it. Governance is unchanged:
+  the three styles, immutable rounds, literal signoff, the mockup gate and RESPECT THE DESIGN.
+
+- **Claude Design is an optional bundle import.** An export the operator already has goes into a
+  round's `import/` folder; the drafter translates it and logs its departures. No claude.ai account
+  or `DesignSync` is needed for anything.
+
+- **The hard rule now says who drafts.** The contract's visual-design rule reads "the design
+  subagent drafts, the operator decides", and a `co-work` slice still runs inline. Its drafting is
+  dispatched to `design-drafter` and its mockup build (only on request) to `slice-executor-high`,
+  while the round's lifecycle and the operator's words stay on the main thread. Approval is still
+  literal and a design slice still authorizes no `git push`.
+
+- **Where it landed.** `CLAUDE.md` (the co-work exception and the visual-design rule, still under
+  12 KB), `design-cowork`, `do-next-slice`, `do-whole-phase` (the per-round co-work steps and the
+  idle-window note), `create-phase` (the mockup question), both executor bodies (the mockup span
+  now reads the round's record on disk; still word-for-word identical), the installer banner, both
+  READMEs and the retrofit guide. The smoke test moves the old pins to the new loop, retires
+  `DesignSync` and the four-commit mockup as negative pins, and adds pins for the contract, the
+  drafter and the commands. Installer rebuilt.
+
+- **Migration notes.** (1) A round in flight in Claude Design under v46 can be finished there and
+  brought in afterwards through the bundle import, or superseded by a first round under the new loop.
+  (2) A record built around `_ds_manifest.json`, a repo's own `design/` tree or `rounds/<NN>/output/`
+  moves to schema 1: run `python3 scripts/workflow.py design-init`, then move each card to
+  `docs/reference/design/cards/NN-slug.html` with the `@dsCard` marker on line 1 (see the contract in
+  `design-cowork`); `validate` does not run `design-check`, so run that yourself. (3) Run
+  `python3 scripts/workflow.py sync-agents` after `--update`: updates reset agent files to the
+  upstream defaults, and the drafter follows `[claude.high]`, so an override moves it too. (4) Run
+  `python3 scripts/workflow.py design-register` once per product repo to list it for a dashboard; the
+  registry is `$AGENTIC_DESIGN_REGISTRY`, default
+  `~/.config/agentic-workspace/design-registry.json`. It is the first engine write outside a repo,
+  which is why it is the operator's to run and no round waits on it.
+
+## v46 — 2026-09-29
+
+- **Mid is the default executor tier.** Since v23 routing was "high unless trivial": only a
+  one-line or few-line edit or docs was rated `risk: low` and went to `slice-executor-mid`, and mid
+  escalated the moment a slice turned into real code or touched a second file. With a stronger
+  sonnet the rule flips to "mid unless a named trigger says high". `implementation`, `fix`, `docs`
+  and `qa` slices are rated `low`, real code writing and multi-file changes included, as long as
+  the plan pins the approach. Models and presets are unchanged: mid is sonnet and high is opus, at
+  `high` effort in `economy` and `xhigh` in `flex`.
+
+- **`high` needs a named trigger.** A slice earns `risk: high` only for **open design** (the plan
+  cannot pin the approach), a **core invariant** (persisted state or a schema migration, state
+  transitions, auth, money, deletion, concurrency), an **unlocated root cause** (a bug whose cause
+  is known and located is `low`), or a **wide blast radius** (a shared interface whose callers are
+  spread across the code). The decomposition writes the trigger beside each high rating. Kind
+  routing is unchanged: `decomposition`, `research` and `review` go to high whatever their `risk`,
+  and so does a co-work mockup span, the operator's approval surface. The safety net is unchanged
+  too: `--risk` still defaults to `high` and an unrecognized value still routes high, so the
+  decomposition rates every slice explicitly. QA-sweep slices are now cut `--kind qa --risk low`.
+
+- **A second attempt never goes back to mid.** Mid escalates on four named reasons instead of
+  "real code or more than one file": the plan's approach fails and repairing it needs a design
+  decision the plan did not make; a high trigger the rating missed turns up; **two strikes**, where
+  the same validation failure survives two honest fix attempts; or the job grows past the plan's
+  scope. The ladder is unchanged (one escalation per slice, a failed or empty mid return counts as
+  one, high never escalates). New: the executor verdict block gains a `tier: mid|high` line, the
+  review rates each proposed fix slice, and a fix for a defect in a slice whose verdict reads
+  `tier: mid` is `risk: high`. The do-* skills now create fix slices with `--kind fix --risk
+  <low|high>` from that rating, where before they took the `high` default.
+
+- **Mid gets `WebSearch` and `WebFetch`.** Only high had them, a leftover from v16's auto-explain,
+  which has since been retired. A tier that writes real code against real libraries needs the
+  docs.
+
+- **Haiku is never an executor tier.** That was already true of both presets. The engine comment
+  and the seeded `executors.toml` header stop offering haiku as an example.
+
+- **Where it landed.** The contract's `risk` sentence (still under 12 KB), both executor bodies
+  (still word-for-word identical) and their descriptions, `do-next-slice`, `do-whole-phase`,
+  `review-phase`, `create-phase` (the QA-sweep rating), `design-cowork` (why the design slice stays
+  `high`), the `--risk` help on `new-slice` and `promote-deferred`, the seeded `executors.toml`
+  header, both READMEs and the installer's closing line. The smoke test pins the new wording in the
+  contract, the do-* skills and both executor bodies, plus mid's tools line. Installer rebuilt.
+
+- **Migration notes.** Run `python3 scripts/workflow.py sync-agents` after the update as usual.
+  Slices that already exist keep their recorded `risk` (planning bumps up, never down), so the new
+  standard applies to slices cut from now on. A seeded `executors.toml` is never overwritten, so an
+  adopting repo keeps the old tier comment in its header until the operator edits it. Only the
+  comment is stale; routing does not read it.
+
+## v45 — 2026-09-29
+
+- **Switch the executor mode with one command, and see which one is on.** Changing the preset both
+  slice-executor tiers run on (`economy`: sonnet@high / opus@high; `flex`: sonnet@xhigh /
+  opus@xhigh) meant hand-editing the `mode` line in `executors.toml` and then remembering
+  `sync-agents`. `python3 scripts/workflow.py executor-mode <economy|flex>` now does both. It
+  rewrites only the value of the top-level `mode = "…"` line (a trailing comment survives), inserts
+  one before the first `[claude.<tier>]` table when there is none, and creates a one-line file when
+  `executors.toml` is absent. Then it syncs `.claude/agents/slice-executor-{mid,high}.md`. A
+  malformed file errors before anything is written, an unknown preset is refused by the argument
+  parser, and re-selecting the active mode reports `(already set)` and still re-syncs. The switch
+  is logged as an `executor_mode_set` event beside the usual `agents_synced`.
+
+- **`executor-mode` run bare is the status command.** It prints the active mode and its source
+  (`executors.toml`, or the `economy` default with or without a file), each tier's model @ effort,
+  the per-tier overrides beside the preset value each one shadows, whether the agent files match
+  (naming the drifting or missing file), and the presets on offer. It is read-only and exits 0 even
+  on drift; `sync-agents --check` stays the gate that fails.
+
+- **Per-tier overrides still win, and a switch says so.** When `executors.toml` carries
+  `[claude.<tier>]` model/effort overrides, the switch still sets the mode but prints a `note:`
+  listing the overrides that keep beating the new preset. It never deletes or edits them.
+
+- **`/executor-mode` ships as the 18th skill**, explicit-invocation only like every other workflow
+  command skill: `/executor-mode` shows the mode, `/executor-mode flex` switches it. Claude Code
+  reloads edited agent files, so the next dispatch runs on the new mode without a restart. The
+  seeded `executors.toml` header now names the one-step switch before the manual edit-and-sync
+  route.
+
+- **Mechanics.** `sync-agents`' drift computation moved into a shared `executor_agent_drift()`
+  helper that both commands use, and `sync-agents`' output is unchanged. The skill inventory is 18
+  in `build.py`, `main.py`, the smoke test and both READMEs. The smoke test asserts the status
+  report, the switch in both directions, the byte-identical round trip of the seeded file, the
+  override note, the missing-file create, and the refusal of an unknown preset. Installer rebuilt.
+
+**Migration notes.** Nothing new to run: `/update-workspace` delivers the engine command and the
+`executor-mode` skill, and the usual post-update `sync-agents` still applies. Your `executors.toml`
+is seed-once, so its header comment keeps its old wording and won't mention `executor-mode`. The
+command works on the file as it is.
+
+## v44 — 2026-09-28
+
+- **Why this release: the contract is a routing layer again.** `CLAUDE.md` had grown to 50,048
+  bytes (49,646 characters), over Claude Code's 40,000-character per-file instruction warning, and
+  it loads into every session and every slice-executor dispatch. v44 cuts it to 12,259 bytes, under
+  the 12 KB (12,288-byte) target deferred job D8 set, without dropping a rule: each of its 58
+  "never" rules keeps a statement in the contract, and everything that left still has a carrier.
+  Commands are read from `python3 scripts/workflow.py --help`, procedure from the skill that runs
+  it (`do-next-slice`, `do-whole-phase`, `create-phase`, `review-phase`, `design-cowork`,
+  `parallel-phase`, `archive-phase`), and what a dispatched slice needs from the executor bodies.
+  The per-dispatch prefix (contract plus executor body) falls from 77,782 to 40,844 bytes.
+
+- **`## Workflow Commands` is gone; `python3 scripts/workflow.py --help` is the command
+  reference.** The section restated the engine's own help, one bullet per command. The one fact
+  worth keeping in the contract, the closed `--kind` set, moved to *IDs and Status*. Both READMEs
+  now point at `--help` too.
+
+- **Procedure the skills and executors already carry left the contract.** Mode mechanics and plan
+  persistence, the preset matrices, the escalation path, idle-window details, the design slice's two
+  `pending` windows, the review-verdict transitions, the acceptance-gate walkthrough sequence, the
+  archiving guard and the phase-branch merge now live only in `do-next-slice`, `do-whole-phase`,
+  `review-phase`, `design-cowork`, `archive-phase`, `parallel-phase`, the executor bodies and the
+  engine, which already said the same thing. The contract keeps each rule's prohibition.
+
+- **The Aside, worktree and design rules are stubs now; their procedure lives in the skills.** The
+  three largest Hard Rules bullets (11.5 KB between them) and the design-styles tail of the
+  decomposition bullet restated `design-cowork` and `parallel-phase` almost word for word. Each is
+  now a short stub that keeps its prohibitions: `aside repl` over Bash and never a standing MCP
+  registration, the dedicated profile (`--account <id>` on every call, the third halt, and the
+  unchanged clause that an agent never drives a profile signed into the operator's accounts,
+  whichever browser it is), the fallback, a worktree only on the operator's word and never for a
+  docs phase, never merging past a closed gate, `--risk high` and no product code in a design
+  slice, `design-only` chosen at `/create-phase` or nowhere, literal signoff, and RESPECT THE
+  DESIGN. The two surfaces, the MCP cost and escape hatch, the eight worktree rules, the three
+  styles, the numbered cards and the design slice's stops are read from `design-cowork` and
+  `parallel-phase`. Both executor bodies now say that every design style's `DECOMP` records a
+  **build inventory** in `phase.md`, which the contract used to carry.
+
+- **What remains is seven sections of short stubs, one statement per rule.** *Driving This
+  Workspace* absorbs the intent rules (refine, clarify, confirm; `new-phase` only after the operator
+  confirms) and *Canonical State* the slice-file and notebook rules (the verbatim `intent.md` is
+  immutable; two context files per slice, the verdict block first; the `phase.md` / `result.md`
+  audience split; never pre-filling another slice's plan; the notebook edited under budget, never
+  dropping a decision or a question), so *Hard Rules* keeps only what no other section owns. The
+  section headings and the anchors the skills cite (*Making a phase ≠ executing it*, *Orchestrator
+  and executor*, *Commit Convention*, `DECOMP2`'s two origins, the small-test-files rule) are
+  unchanged.
+
+- **A `docs` slice may now version docs.** The executor bodies forbade `doc-new-version` on every
+  slice but the review, while a docs phase's slices exist to run it; only the contract implied the
+  exception. Both executor bodies now carry it (operator-approved wording): a `docs` slice in an
+  operator-created docs phase, on the default stream, may run `doc-new-version` and `rebuild-docs`
+  for the `## Doc impact` notes its plan names, editing only the returned `edit_path`; recording
+  `docs-consolidated <P>` stays the orchestrator's.
+
+- **Fractional `--order` and advisory `depends_on` are stated where a decomposition reads them.**
+  The executor's decomposition bullet now says them, and `new-slice`, `promote-deferred` and
+  `new-phase` gained `--order` (and `--depends-on`) help text.
+
+- **`parallel-phase` no longer says the do-* skills start a worktree on a hint.** Its
+  `parallel-start` section said "the do-* skills do this for you when `next` prints the hint", a
+  v42 leftover that contradicted v43's "relay a hint, never act on it". It now says `parallel-start`
+  runs only on the operator's word and a hint is relayed.
+
+- Smaller fixes: `do-next-slice` and `do-whole-phase` list `research` among the delegated kinds; the
+  notebook template (and its embedded fallback) tags notes `**(from <slice>, for <slice>)**`, the
+  form the executor and every live notebook use. Installer rebuilt.
+
+- **Smoke follows the text.** Test 0's contract list keeps the 38 pins the stubs still carry and
+  all 19 retired-phrasing negatives. Each of the 22 pins whose text left the contract is asserted
+  where that text lives now: on the do-*, create-phase, design-cowork, parallel-phase,
+  review-phase or executor lists, or functionally (Tests 9 and 11). Test 0 also gains a
+  `parallel-phase` pin list (the worktree rules, the hint and merge-gate prohibitions, and the fix
+  above), two more `design-cowork` pins (the numbered cards, the instrument/runtime axis), asserts
+  for the two new executor-body rules, and copies of four retired phrasings on the skills that now
+  carry their rules. The PASS count is unchanged.
+
+**Migration notes.** Nothing to run. `/update-workspace` refreshes the contract (or its
+`CLAUDE.workspace.md` sidecar in a repo that keeps its own `CLAUDE.md`), the executor bodies, the
+skills and the engine. Use `python3 scripts/workflow.py --help` wherever you used to read the
+Workflow Commands list, and read a procedure the contract used to spell out in the skill that runs
+it.
+
+## v43 — 2026-09-17
+
+- **Why this release: v42 made every phase pay for parallelism almost no run used.** One phase at a
+  time is the normal shape of this workspace, and v42 put each one on its own branch in its own
+  worktree at first execution. Every ordinary run bought a stamp commit, a branch, a nested checkout
+  and an integration sequence to get back — machinery that earns its keep only when two phases are
+  genuinely moving at once. v43 puts the default back on the current checkout and makes the worktree
+  **opt-in again**. Nothing about the mechanism changed; only how it is reached.
+
+- **A phase runs on the default stream unless the operator asks for a worktree.** Rule 1 of the
+  contract's Worktree rules is now *when — only when asked*, and asking has three forms: the
+  **`worktree`** mode word on `/do-next-slice` / `/do-whole-phase` (or the same thing in the
+  operator's own words — "in a worktree", "in parallel", "on its own branch"), `parallel-start <P>`
+  run by the operator's own hand, or an explicit instruction to run two phases at once. The do-*
+  skills never run `parallel-start` on their own initiative and `create-phase` still never does; a
+  phase already carrying the stamp is entered without asking again. Rules 2–7 — the nested worktree
+  home and the `info/exclude` line, the dirty-tree stamp commit, what stays behind, what still
+  refuses, enter/exit, and the local `--no-ff` merge — are unchanged.
+
+- **The hints are suggestions again, and fire only where a worktree pays.** `next` on the default
+  stream prints `hint: <P> is waiting behind <current> — it can run in parallel on its own branch`
+  when the current phase is `in_progress` and a later one is still `planned`; `new-phase` prints the
+  same suggestion when it creates a phase while another is in flight. Both are silent in the ordinary
+  one-phase-at-a-time run. v42's "this phase runs in its own worktree by default" hint is gone with
+  the default that justified it. **Relay a hint; never act on it** — the contract, both do-* skills
+  and `create-phase` say so explicitly.
+
+- **`parallel-skip <P>` and `new-phase --on-main` are retired into no-ops.** They existed only
+  because v42 needed a marker for "run on `main`"; the default stream now needs none. Both stay
+  callable so adopting workspaces' habits and scripts survive the upgrade: they write nothing, stamp
+  nothing, report where the phase actually runs, and exit 0. A docs phase needs no pin either — it
+  runs on the default stream like everything else, and the rule that matters is stated directly
+  instead: **never ask for a worktree on a docs phase**, since `doc-new-version` /
+  `docs-consolidated` only work there.
+
+- **v42's pin is still honoured where it exists.** A phase carrying `execution: {"mode": "default"}`
+  keeps it, still validates, and still runs on the default stream — and `parallel-start` refuses that
+  phase rather than override a deliberate pin. Un-pinning is a deliberate hand edit: delete the block
+  from its `phase.json`.
+
+- Smoke Test 12 is rewritten for the reversed default: creating and selecting a lone phase says
+  nothing about worktrees, the waiting-behind hint fires from both `next` and `new-phase`, the
+  dirty-tree stamp / nested worktree / exclude line / gate / local merge / teardown checks are
+  unchanged, `parallel-skip` and `--on-main` are asserted to stamp nothing, and a hand-written legacy
+  pin is asserted to validate and to be refused by `parallel-start`. Both READMEs and the
+  `update-workspace` migration notes updated; installer rebuilt.
+
+**Migration notes.** Nothing to run. Phases already stamped `execution: {"mode": "parallel"}` keep
+running in their worktrees and integrate exactly as before. Phases carrying v42's
+`execution: {"mode": "default"}` pin keep it and still validate. If a habit or script calls
+`parallel-skip` or `new-phase --on-main`, it keeps working and now does nothing — drop it when
+convenient. To put a phase in a worktree from here on, ask for one.
+
+## v42 — 2026-09-13
+
+- **Why this release: parallel mode was opt-in, so it was never the shape of the work — and a design
+  round always paid for a mockup.** Every phase queued on `main` behind the one before it; the opt-in
+  moment was creation, the one moment nobody thinks about execution; and `parallel-start`'s clean-tree
+  guard refused exactly when the operator was mid-edit. On the design side every round paid a
+  dispatched mockup build and a second `pending` stop even when the operator would have signed on the
+  cards, and the cards carried no order, so the operator's review order was undefined. v42 reverses
+  both defaults and writes the rules down.
+
+- **Every phase runs in its own git worktree by default, entered at first execution in the same
+  session.** Eight explicit **Worktree rules** now live in the contract and the `parallel-phase`
+  skill: (1) *when* — a `planned` phase with no `execution` block enters its worktree when `next`
+  points at it and `do-next-slice` / `do-whole-phase` run `parallel-start`; `create-phase` never does;
+  (2) *where* — `<repo>/.claude/worktrees/P<N>-<slug>` on `phase/P<N>-<slug>`, the location Claude
+  Code's `EnterWorktree` accepts from anywhere, with `.claude/worktrees/` written to
+  `.git/info/exclude` (never `.gitignore`); (3) *the stamp commit* — exactly the phase folder plus the
+  five regenerated `works/` files; (4) *what stays behind* — everything else dirty or staged, and the
+  worktree starts from that commit; (5) *what still refuses* — not `planned`, already stamped or
+  pinned, no git, a parallel stream, a merge or rebase in progress, a taken branch or path; (6) *enter
+  and exit* — `EnterWorktree` by path, `ExitWorktree keep` to come back; (7) *the merge* — local
+  `git merge --no-ff` after `parallel-gate`, push → PR only on request; (8) *stays on `main`* —
+  `parallel-skip <P>` or `new-phase --on-main`. `next` on the default stream prints
+  `hint: <P> runs in its own worktree by default …` for a planned, unstamped phase, and `new-phase`
+  prints one note saying where the phase will run.
+
+- **A dirty default checkout no longer blocks `parallel-start`.** The stamp commit is made with
+  `git add -- <paths>` + `git commit --only -- <paths>`, so it holds the phase folder (whole, if the
+  phase was never committed — `create-phase` makes no commit) plus `works/state.json`, `index.json`,
+  `backlog.md`, `deferred.md` and `events.jsonl`, whatever else is dirty or staged; the worktree is cut
+  from that commit and the operator's edits stay behind, uncommitted. The one new refusal is a merge
+  or rebase in progress, because a partial commit cannot be made mid-operation.
+
+- **Integration merges locally by default.** `parallel-gate <P>` — which now reads the default stream
+  from the local default branch when run inside the worktree, instead of refusing — then
+  `ExitWorktree keep` → `git pull --ff-only` only if `main` tracks a remote → stop and ask if the index
+  is not clean or the merge would touch an uncommitted file → `git merge --no-ff phase/P<N>-<slug> -m
+  "merge(P<N>): <name>"` → `parallel-merge-finish` → the review's two gate sections → commit →
+  `parallel-teardown <P>`. Push → PR → CI → `gh pr merge` stays documented as the **remote variant**,
+  run only when the operator asks or repo policy requires; the CI `parallel-gate` job still guards
+  `phase/*` PRs there.
+
+- **Pinned phases stay on `main`.** `parallel-skip <P>` (a `planned` phase) and `new-phase --on-main`
+  stamp `execution: {"mode": "default"}`: `validate` accepts it, the hints skip it, `parallel-start`
+  refuses it, the backlog marks the row `· pinned: default stream`, and `parallel-status` prints
+  `pinned_to_default=`. The `create-phase` docs-phase route pins its phase, since doc versions come
+  from one shared index.
+
+- **The branch review's gate sections are recorded, not lost.** A review running in a phase worktree
+  still writes no doc versions; it now appends its stage-4 checklist lines and any `## Operator
+  Runtime` change to `phase.md`'s `## Doc impact` tagged `(gate section — written at merge)`, and the
+  post-merge step writes exactly those. Every other note waits for the operator's docs phase, which
+  records `parallel-consolidated <P>` — v38's deferral holds one stream over.
+
+- **Numbered cards.** The design handoff names every card path with a two-digit reading-order prefix
+  (`01-nav.html`, `02-hero.html`, …) following the scope checklist; cards the session adds take the
+  next numbers, a superseding card keeps its path, read-back verifies the sequence, and the numbers
+  stay in the library because paths never move at the regroup. Ordering the review is organization,
+  not design.
+
+- **Mockups are on request, and the operator's return closes the round.** `## Design Style` in
+  `intent.md` gains a `Mockup: requested` / `Mockup: on request` line (default `on request`, asked at
+  `/create-phase` beside the style — or in the operator's own words during the round). Without a
+  mockup the round has one `pending` stop: the operator's literal "done" on returning from Claude
+  Design is the signoff, taken after the read-back's card-contract and concreteness checks, which on
+  any failure re-stop `pending` with the points named and sign nothing — two commits, two
+  `/do-next-slice` invocations. **PENDING #2 exists only when a mockup was requested**, and is then the
+  gate on the running mockup, as before (four commits, three invocations). The phase gate follows the
+  mockup with no judgment left: `--require` when one ships, the fixed note
+  `design-only, no mockup: the operator signed the round on the card set` for a `design-only` phase
+  that ships none. "Only PENDING #2 is an approval" and "mechanical wait" are retired.
+
+- **Migration notes.** Nothing to run. Phases already `in_progress` on `main` finish there
+  (`parallel-start` refuses a non-`planned` phase); every `planned` phase enters its worktree the first
+  time it is executed — run `python3 scripts/workflow.py parallel-skip <P>` on any that must stay on
+  `main` (docs phases always) and create such phases with `new-phase … --on-main`.
+  `.git/info/exclude` gains `.claude/worktrees/` on your first `parallel-start`; `.gitignore` is
+  untouched. The CI seed is unchanged; the old `Bash(git push:*)` deny matters only for the remote
+  variant. Design rounds in flight finish under the shape they started with; add the `Mockup:` line to
+  a live design phase's `intent.md` if you want one. Adopters with their own smoke pins on "Only
+  PENDING #2 is an approval" or "mechanical wait" retire them.
+
+## v41 — 2026-09-06
+
+- **Why this release: the phase review re-verified the whole system on every phase.** Its gate stage
+  4 said *"re-run every line of `## Regression Checklist` … not just this phase's lines"*, its stage 3
+  walked the product with no phase boundary at all, and the fidelity slice carried the same whole-list
+  rule. On an adopting product with a 154-line cumulative list, a review of an auth-only phase re-ran
+  135 lines — paid model calls on a surface the phase never touched included — until the operator
+  interrupted it; the executor then derived the right scope itself from the phase's own diff. v41 makes
+  that the rule: **the review reviews the boundary of the phase, not the whole system.**
+
+- **The boundary is what the phase changed, and it is a mechanical read.** New read-only command
+  `phase-scope <P> [--base REF] [--head REF] [--json]` prints the phase's creation commit, its
+  base..head range and the product files it changed (`works/` and `docs/` excluded). The base is the
+  creation commit's parent (the merge-base with the default branch in parallel mode); the head is
+  `HEAD`, or the commit that recorded a passing review on a done phase, so a finished phase's boundary
+  never leaks later commits in. Archived phases resolve through the archive rename. Advisory
+  everywhere: without git it prints one explanatory line and exits 0, an uncommitted phase lists the
+  working tree, and `next` / `validate` are untouched.
+
+- **Stage 4 re-runs inside the boundary; stage 3 walks inside it.** The review classifies every
+  existing checklist line by its surface against `phase-scope`'s files — inside when a changed file
+  feeds it (a shared file such as global styles, chrome, a shared library or a dependency manifest
+  widens the boundary to everything it feeds; an unplaceable line is inside), outside otherwise —
+  re-runs the inside lines, records the classification in `result.md` with the outside count and the
+  diff as the proof, and appends its own lines as before. The fresh-eyes walk reaches the changed
+  surfaces the way a first-time user would and goes no further. Anything noticed outside the boundary
+  is an **observation**, listed as a deferred-job candidate for the orchestrator to file — never a
+  finding, never re-verified. The same wording lands in both executor bodies, both `do-*` skills, the
+  contract, and the fidelity paragraph of `design-cowork`.
+
+- **The whole-list sweep is an operator-created QA phase.** `create-phase` gains a *QA-sweep route*
+  beside the docs-phase route: "run the full regression sweep" becomes an ordinary phase whose `DECOMP`
+  cuts `--kind qa` slices per checklist block; it changes no code, appends no lines, and normally
+  waives its gate. The seed qa doc's `## Regression Checklist` intro says the same.
+
+- **v40 never bumped the marker.** The v40 change (decomposition slices plan at the gate by default in
+  `auto`) shipped without a `WORKSPACE_VERSION` bump or a changelog section; both are backfilled below
+  and the marker moves 39 → 41 in one step.
+
+- **Migration notes.** Nothing to run: `scripts/workflow.py` syncs the command and the skill/agent
+  prose carries the rule. Two things are yours: the `## Regression Checklist` intro in **your own** qa
+  doc still promises a whole-list re-run — rewrite it to the boundary wording (the seed body is the
+  model) in your next docs phase — and any review `plan.md` template of your own that says "read it
+  whole, re-run all of it" is retired. `python3 scripts/workflow.py phase-scope <P>` works on every
+  phase you already have, active or archived, so you can see a past phase's boundary today.
+
+## v40 — 2026-09-02
+
+- **Decomposition slices plan at the gate by default in `auto`.** With no mode word, a
+  `kind: decomposition` slice (`DECOMP`, `DECOMP2`, …) pauses for the operator to approve its plan and
+  then continues in `auto`; only an explicit `auto` invocation plans decompositions inline too. The
+  contract, `do-next-slice` and `do-whole-phase` state it. Shipped in commit `5004346` without a
+  version bump — this section is the backfill.
+
+- **Migration notes.** Nothing to run. Adopters who synced between 2026-09-02 and v41 already carry
+  this behaviour under a v39 marker; the marker catches up at v41.
+
+## v39 — 2026-09-02
+
+- **Why this release: a doc nobody has consolidated yet still reads like the truth.** v38 moved
+  durable-doc consolidation off the review and onto a docs phase the operator creates — deliberately
+  operator-paced, with no cadence forcing it. That left one gap: `docs/current` can trail the code by
+  however long the operator waits, and nothing on the page said so. v39 makes a doc's age readable and
+  states the doctrine that goes with it — **a doc whose last update predates the owed `## Doc impact`
+  notes is stale evidence to check against those notes, never current truth.** No cadence knob was
+  added: explicit staleness is what was taken instead of one.
+
+- **Every durable doc carries a last-updated marker.** `doc-new-version` now records the commit it was
+  written at beside the date and the consolidating slice, in **both** `docs/index.json` and the version's
+  frontmatter — and `rebuild-docs` copies that frontmatter verbatim, so the marker reaches
+  `docs/current/<doc>.md` itself. The sha is best-effort provenance, never a gate: a checkout without git
+  records `unknown` / `null` and still writes the version, and pre-v39 entries render `unknown (pre-v39)`
+  rather than being backfilled — a backfilled sha would mean "the commit that last touched the file", a
+  different fact wearing the same name. The staleness keys are the date and the source slice.
+
+- **`docs` and `validate` name the stale docs.** `workflow.py docs` — where an agent picks the sections
+  it is about to read — prints each doc's marker and flags every doc named by an unconsolidated
+  `## Doc impact` note as **STALE**, with the note count and the phases owing it; `validate` carries the
+  same shared `stale_docs=` line as a warning beside `consolidation_owed=` (which names phases and the
+  paying command, not docs). Advisory everywhere, exit codes unchanged, silent when nothing owes. The
+  contract's read-order item and both executor agents now say what a STALE doc is: evidence to check
+  against the notes, not truth.
+
+- **The phase-notebook budget is one generous byte cap, not a squeeze.** `PHASE_MD_BUDGET` was
+  `(200 lines, 16 KB)`; it is now a single **400 KB** byte cap — roughly 100k tokens — and the line
+  ceiling is gone. P21 measured both halves across every budget-era notebook: the byte half bound at
+  **92 %** of the ceiling while the line half sat at **69 %**, so four P21 slices compressed unrelated
+  notes purely to make room for their own. The cap is now a sanity check, not a working constraint:
+  the notebook is still **edited, never appended to**, still curated for the next slice, but it should
+  carry what that slice needs instead of shrinking to fit. Unchanged: it is a **warning, never an
+  error** (`validate` still exits 0 over budget, and still skips `done` phases), and `finish-slice`
+  still prints `phase.md: <lines> lines / <bytes> bytes (budget 409600 bytes)` — both numbers are
+  reported, only bytes judge.
+
+- **Tests are for core behavior only.** The contract's *keep test files small* rule now says what
+  earns a test file: **very core behavior — the logic the product cannot afford to break** — and
+  **never** style, cosmetic, or trivial surface, which is verified **live** instead (run the product,
+  `validate`, a small smoke check, the real-browser sweep). Tests that do exist still stay very small,
+  and still grow only when the operator asks or the risk warrants it. This closes the gap where "small
+  but welcome" was read as licence to test whatever was easy to assert.
+
+- **Migration notes.** Nothing to run at update time. Adopting repos pick up the relaxed budget the
+  moment `scripts/workflow.py` syncs; a notebook written under the old squeeze stays valid and simply
+  stops being over budget. If your repo restates "200 lines / 16 KB" in prose of its own, update it to
+  the soft ~100k-token cap. The doc marker is equally passive: existing `docs/index.json` entries are
+  left alone and read as `unknown (pre-v39)`, the first `doc-new-version` after the sync starts
+  recording it, and any doc your phases already owe notes for is flagged STALE from the first `docs`
+  run — that flag is the debt you already had, now visible, not a new one.
+
+## v38 — 2026-09-01
+
+- **Why this release: the phase review was rewriting whole documents that only ever grow.** Measured
+  across four live adopting repos (P21.S1, ~1,140 slices): per-review durable-doc consolidation is
+  **90–97 %** of a review's read budget. One adopter's `backend.md` is at **v0054 / 420 KB** and every
+  review rewrote it whole, while its last sixteen versions averaged **2.7 % new lines**; one review of
+  sixteen versions exceeded a 1 M-token window. So consolidation moves off the review's critical path.
+
+- **Durable docs are now versioned in a docs phase the operator creates.** Every slice still appends a
+  one-line `## Doc impact` note to `phase.md`. A passing review **verifies** that the list covers every
+  durable-truth change (an incomplete list is a finding) and reports
+  `doc_versions: none — deferred to a docs phase` instead of creating versions. Nothing new was
+  invented: **parallel mode has run exactly this deferred path since v24** — `consolidation:
+  pending|done`, the awaiting-consolidation listing, the completion command, the archiving guard — and
+  v38 simply lifts it out of the `execution` block so it serves every phase.
+
+- **The review keeps a narrow, named carve-out: two sections.** `## Regression Checklist` in the qa doc
+  (the acceptance gate's stage-4 append) and `## Operator Runtime` in the operations doc are written by
+  the review itself through `doc-new-version` on that doc, editing **only that section**. Deferring them
+  would have let the product's cumulative smoke list silently lag by however many phases the operator
+  batches, and they are cheap: ~13 k tokens worst case against the 74–734 k the deferral saves. **In
+  parallel mode even the carve-out waits** for the post-merge step — doc versions come from one shared
+  index.
+
+- **The debt is real state, and it holds a phase out of archiving.** `phase.json` gains a top-level
+  `consolidation` field (`pending` / `done`, absent = nothing owed), stamped by `review-phase --verdict
+  pass` whenever the phase left `## Doc impact` notes. `archive-phase` / `archive-all` /
+  `rotate-backlog` refuse an owing phase — archiving is precisely what would move those notes out of
+  `active/` — and the new **`docs-consolidated <P>`** records the payment. `parallel-consolidated <P>`
+  is unchanged as the parallel twin, and now writes both fields.
+
+- **Backward compatible in both directions.** A `phase.json` with no `consolidation` field owes nothing
+  and archives exactly as before, so every phase reviewed under v37 and earlier is unaffected; a
+  `phase.json` carrying the v24–v37 `execution.consolidation` is still read (and still honoured by the
+  archiving guard) with no migration.
+
+- **The debt is visible, never silent.** Deferral traded review cost for operator-paced staleness, so
+  the staleness had to stop being invisible: `next` prints one advisory `consolidation_owed=<phases>`
+  line naming the phases and the paying command, and `validate` raises the same text as a **warning** —
+  never an error, so an owing phase can neither fail CI nor block the loop. Both read the debt through
+  one helper, so the v24–v37 `execution.consolidation` shape surfaces identically and a phase merged
+  from a parallel branch is named with `parallel-consolidated`. Nothing is printed when nothing owes,
+  and "how loud" has exactly one knob — `CONSOLIDATION_DEBT_MIN_PHASES` (default 1 = always) — for a
+  stated docs-phase cadence to tune later, with no config plumbing.
+
+- **The docs phase now has an entry point, not just a rule.** Every doc said *"a docs phase the operator
+  creates"*; nothing said how to start one. The new read-only **`docs-debt`** prints the worklist — each
+  owing phase with its `## Doc impact` notes, the docs those notes touch, and the command that pays it
+  (`docs-consolidated`, or `parallel-consolidated` for a phase merged from a branch) — including the
+  v24–v37 `execution.consolidation` shape, and it writes nothing. The `create-phase` skill gained a
+  **docs-phase route** that reads that output as the proposed scope and goes through the *same*
+  procedure: the step-3 confirmation gate does not move, and no new gate is added. The default cut is
+  **one slice per doc** (`doc-new-version` is per doc, and one doc usually collects notes from several
+  phases), ending in `docs-consolidated <P>` for each phase covered. A docs phase leaves no `## Doc
+  impact` notes of its own, so it cannot feed itself.
+
+- **A second-order leak the same root cause caused: sections that outgrew the read-order rule.** Docs
+  only grow and sections are never split, so "read only the `docs/current/` sections the work touches"
+  quietly stopped being a small read — across the four repos measured, **10 % of H2 sections exceed
+  10 KB** and the worst is a single **112,619 B (~28 k token)** section. `validate` and
+  `doc-new-version` now print one advisory `oversized_doc_sections=` line naming the doc, the heading
+  and the size, biggest first, with the same text from one helper. **Advisory only — a warning at
+  both sites, never an error, and never a sweep order:** splitting is per-doc judgment taken while a
+  docs phase is already editing that doc (`doc-new-version` prints it beside `edit_path`, the only
+  place a split can land), and the same measurement showed sectioning *hurts* small-doc repos, so a
+  small doc with few sections is right as it is. One knob: `DOC_SECTION_WARN_BYTES` (10 KB).
+
+- **Migration notes.** Nothing to run at update time, and no existing phase changes state. What changes
+  is the habit: from your next passing review onward, `docs/current/*.md` trails the code until you
+  create a **docs phase** — run `python3 scripts/workflow.py docs-debt` for the worklist, then
+  `/create-phase` (objective "consolidate the `## Doc impact` notes from P<a>–P<b>"), which runs `doc-new-version --doc <doc> --summary "..." --source <P>.REVIEW` per note,
+  `rebuild-docs`, then `docs-consolidated <P>` for each phase it covered. Until you do, those phases
+  stay in `active/` and `rotate-backlog` leaves them there — that is the guard keeping their notes
+  findable, not a bug. Batching every ~5 phases is where the win is (3.3x fewer doc versions in the
+  repo measured). As always after an update, run `python3 scripts/workflow.py sync-agents`.
+
+## v37 — 2026-09-01
+
+- **Why this release: v36 named the instrument and got the surface wrong.** It prescribed the
+  **MCP** transport for a reason that is true but not decisive — an MCP server's tools arrive as
+  native tools in a dispatched executor's session, which a shell-out does not — and it never
+  weighed the cost: that one `repl` tool definition is paid in **every** session, browser-related
+  or not (~1,344 tokens, no lazy-load). And it said *use Aside* without ever saying **with which
+  profile**, on a real desktop browser signed into the operator's accounts. Both were settled by
+  running the CLI rather than citing it (Aside 1.26.810.1915, on this machine, 2026-09-01).
+- **Two surfaces, not three.** v36's MCP / CLI / REPL split confused a *transport* difference with
+  a *surface* one, and hid the distinction that actually matters: **who picks the next action.**
+  There are two — the **`repl` surface**, one tool, identical over `aside mcp` and the `aside repl`
+  CLI (the same Playwright-like `page`, `snapshot()`, locators, page JS and screenshots; different
+  transport only), where the **executor** chooses each step; and **`aside exec`**, where **Aside's
+  own model** drives from a natural-language instruction.
+- **The default is `aside repl` over Bash** — `aside repl --account <id> "<js>"`, executor-driven,
+  explicitly **not** the MCP transport. The measured per-session cost is the recorded reason, and
+  the only thing the CLI loses (JS scope between invocations) is bought back by the two-line
+  `listBrowserTabs()` → `attachBrowserTab()` re-attach preamble, written out in full in the
+  `design-cowork` skill and verified live. Bash is already in both executor tiers' allowlists, so
+  **nothing ships, nothing registers, nothing is configured**, and the default costs nothing until
+  it is used. `claude mcp add -s local aside -- aside mcp` survives as a named optional
+  per-operator, per-session **escape hatch** the workspace neither ships nor prescribes.
+- **"Not scripted Playwright-style automation" → "not a pre-written assertion suite."** The old
+  wording forbade the very thing v37 prescribes: the surface *is* Playwright. What the doctrine
+  rejects is never the library but **deciding every check in advance** — an assertion suite can
+  only test the selectors someone already thought of. Every carrier now says so.
+- **A dedicated Aside profile is required for agent runs.** The probe that settled the surface also
+  reached a browser holding the operator's Google session, 49 imported passwords and 6 passkeys —
+  authority enough to read mail, spend from saved cards and authenticate as the operator, which
+  makes this a requirement rather than hygiene advice. So: `--account <id>` on **every**
+  invocation, never `aside account use` (it only moves the *default*, and the default is the
+  operator's profile); the `## Operator Runtime` manifest records which account id is the agent's;
+  and a manifest naming Aside with no agent account id — or a machine holding only the operator's
+  personal profile — is a **third** `needs_operator` halt, distinct from the runtime one, resolved
+  by neither borrowing the personal profile nor creating an account for the operator. The same
+  holds whichever browser is driven: an agent never drives a profile signed into the operator's
+  accounts.
+- **The fallback and the axes are unchanged.** Aside is macOS-only and needs an account, so a
+  workspace that cannot run it owes the same sweep, at the same viewports, in the same manifest
+  runtime, through whatever real browser it has — **the doctrine's demands bind, the instrument
+  does not.** Instrument and runtime remain different axes: the absent-or-`UNFILLED` →
+  `needs_operator` rule is about the **runtime**, and a manifest naming no instrument is still not
+  an unfilled one.
+- **Surface facts, executed rather than cited.** Snapshot refs are session- and snapshot-scoped and
+  go stale on navigation (`RefStaleError`); `getByRole` survives it. One v36 phrasing was wrong and
+  is corrected: `title` + `code` is the **MCP tool's** schema, not a CLI flag — `aside repl` takes
+  the code as a positional, so v36's wording would have shipped an invocation that fails. This
+  closes deferred jobs **D9** (fallback) and **D11** (profile) and **D10's surface half**; D10's
+  against-a-real-product half stays open, since no executor has yet run this prescription against
+  a browsable product.
+- **Migration notes:** run `python3 scripts/workflow.py sync-agents` after updating, as always —
+  **both agent bodies changed**. There is **no engine change at all** in this release
+  (`scripts/workflow.py` is untouched), so history, existing slices and `validate` are unaffected
+  and nothing needs renaming. Because `--update` never touches `docs/`, the seeded manifest's two
+  fields — the corrected *Browser instrument for the agent* line and the new **conditionally
+  required** *Agent's Aside account id* line — reach **fresh installs only**; copy them from
+  `installer/payloads/doc_bodies/operations.md` in the upstream clone into your own operations doc
+  with `doc-new-version`. **And the sharp one:** if you followed v36 and actually ran
+  `claude mcp add -s local aside -- aside mcp`, **remove that registration** — v37 stops
+  prescribing it, and leaving it in place keeps paying the per-session cost this release exists to
+  avoid. Installing Aside, and creating a second Aside account for the agent, remain operator
+  actions this workspace never takes for you.
+
+## v36 — 2026-08-29
+
+- **Why this release: two ways a slice could be the wrong shape.** An agent told `research` was
+  not a valid `--kind` announced it would cut its research slices as `--kind qa` instead — a slice
+  that reads as one thing and is another, the exact failure v34 closed the enum to prevent. And the
+  verification doctrine shipped in v32 says thoroughly **what** to check (the functional sweep) and
+  **where** (the `## Operator Runtime` manifest, plus the production build when they differ), and
+  never once said **with what** — so the scripted assertion suite everyone reaches for kept being
+  the default by silence, which is the very shape of check that let eleven user-visible failures
+  through thirty slices.
+- **`research` is a real slice kind** — the eighth member of the closed `SLICE_KINDS` set, with
+  four semantics stated everywhere routing is stated (contract, both agent bodies, both `do-*`
+  skills, both `--kind`/`--risk` help strings): **findings-only**, so it writes no product code and
+  a throwaway probe is deleted before it finishes; **always `slice-executor-high` by *kind***,
+  joining `decomposition` and `review` — set `--risk high` anyway so the record cannot contradict
+  the routing, and **the kind wins if the two ever disagree**; **its findings land in `phase.md`**,
+  because the executor's context dies with the slice and a finding that stays in `result.md` prose
+  is lost, which is the whole reason the kind is worth a dispatch; and a `DECOMP2` **usually**
+  follows it. "My findings change nothing about the breakdown" is itself a real result.
+- **`DECOMP2` now has two origins, neither a special case of the other:** a research slice, and the
+  `build-after` design style — which is unchanged in every particular. It was written as a design
+  device with a research exception bolted on nowhere; the contract states the two as peers, and
+  `design-cowork` gained one cross-reference bullet ("the id is not design-only") rather than
+  carrying machinery a design reader never uses. A genuine third pass is `P<N>.DECOMP3` — one more
+  id, not a numbering scheme.
+- **Aside is the prescribed instrument for real-browser verification, in place of scripted
+  Playwright-style automation.** [Aside](https://aside.com) is a local-first Chromium browser agent;
+  the workspace now names it wherever a real browser is needed — the functional sweep, fidelity
+  slices, a design round's mockup, and the review's own walk of the running product. The **MCP**
+  surface comes first (`aside mcp`, configured
+  `{"mcpServers":{"aside":{"command":"aside","args":["mcp"]}}}`) because an MCP server's tools
+  arrive as native tools in a dispatched executor's session, which a shell-out does not; the `aside`
+  **CLI** is the one-shot Bash surface and `aside repl` the deterministic-inspection one. The
+  argument is not restated in every file: the doctrine's demands — type into it and wait, watch a
+  timer tick for a real interval, catch the browser defaults the record never drew — are agentic
+  browsing, and an assertion suite can only test the selectors someone already thought of.
+- **Instrument and runtime stay different axes.** Aside *drives* the runtime `## Operator Runtime`
+  records; it never substitutes one of its own. The absent-or-`UNFILLED` → `needs_operator` →
+  `pending` rule is untouched and is about the **runtime**: a manifest that names no instrument is
+  not an unfilled manifest. The long-standing "never assume headless" line now carries its reason —
+  a browsing agent drives a visible browser, and Aside's headless story is undocumented.
+- **Prescription, surface, fallback — and no pretence.** Aside is a macOS desktop app and needs an
+  Aside account, so a workspace that cannot install it (Linux, CI, or an operator who declines) is
+  excused nothing: it owes the same sweep, at the same viewports, in the same manifest runtime,
+  through whatever real browser it has — **the doctrine's demands bind, the instrument does not.**
+  Every slice names in `result.md` which instrument it actually used, and claiming a browser run
+  that was not made stays banned. Nothing here installs, bundles, or calls Aside, and no verified
+  Aside run has been made from an executor in this repository: v36 ships the doctrine, not an
+  integration.
+- **Migration notes:** run `python3 scripts/workflow.py sync-agents` after updating, as always —
+  both agent bodies changed. The engine change is purely additive (one member added to
+  `SLICE_KINDS`), so existing slices, history and `validate` are unaffected; nothing needs
+  renaming. Because `--update` never touches `docs/`, the seed's new one-line `## Operator Runtime`
+  field — *Browser instrument for the agent* — reaches **fresh installs only**; add it to your own
+  operations doc with `doc-new-version` (copy the line from
+  `installer/payloads/doc_bodies/operations.md` in the upstream clone) if you want it recorded, and
+  note that its absence alone never stops a slice. Installing Aside is an operator action this
+  workspace never takes for you.
+
+## v35 — 2026-08-29
+
+- **Why this release: `phase.md` was state and log in one append-only file, re-read whole on
+  every dispatch.** Nothing was ever pruned, so it grew roughly 70–90 lines per slice — P15
+  reached 819 lines, with `## Findings & Notes` alone at 82 % of that — and both the orchestrator
+  and every executor paid to re-read the whole thing on every turn: cost scaled about `40·N²`
+  lines per phase. The damage was context-window pressure, not dollars. Prompt caching was
+  examined and deliberately left unchanged — Claude Code already caches the prefix automatically,
+  and a 1-hour subagent TTL is a net loss on the write/read arithmetic — so size, not churn, is the
+  lever v35 pulls.
+- **`phase.md` is now bounded state, edited under a 200-line / 16 KB budget, not appended to.**
+  A fresh phase is seeded from `works/templates/phase.md` (with an embedded fallback) into fixed
+  sections: `## Objective`; an engine-generated `## Slices` table between `<!-- slices:begin -->` /
+  `<!-- slices:end -->` markers, regenerated by `rebuild` (so also by `next`, `new-slice`, and
+  `finish-slice`) — the markers must sit alone on their line, their absence is a silent no-op, and
+  the writer only rewrites on real change, since `phase.md` itself is not a generated file; `##
+  Decisions` (a superseded line is replaced, never stacked); `## Doc impact` and `## Operator
+  Questions` (append-only); `## Notes for later slices` (tagged by source/audience, consumed by
+  the slice that reads them); and `## Now`, rewritten last as the handoff the next dispatch reads
+  first. `## Context`, `## Findings & Notes`, `## Constraints`, and `## Open Questions` are left in
+  the seed for phases that still want them.
+- **`result.md` becomes the per-slice log, verdict block first,** so the orchestrator and the
+  review can `head` a file for status instead of reading it whole. `finish-slice <id> --outcome
+  "one line"` stores that line in `slice.json` and renders it in the generated `## Slices` table
+  (omitted is a warning, never a failure, and the command still exits 0).
+- **Two new guardrails, both warnings.** `validate` warns — never errors, and never on a `done`
+  phase, since a closed notebook waiting to be archived cannot act on the advice anyway — when a
+  notebook exceeds the 200-line / 16 KB budget, and when a `## Doc Impact` heading has drifted in
+  case from the canonical `## Doc impact`; `finish-slice` prints the notebook's current size on
+  every call. `works/backlog.md` and `works/deferred.md` also drop their `- Rebuilt at:` line, so
+  repeated `next` calls now leave them byte-identical instead of dirtying git on every read.
+- **Reads move from "read everything" to just-in-time.** An executor's read order is now `plan.md`
+  → `phase.md` → `intent.md` (only when still unsure) → `phase.json` → the `docs/current/`
+  **sections** the plan actually names — never the whole doc set, and never `docs/index.json`.
+  Both drivers drop their per-slice dashboard re-reads and read each `result.md` head-first for
+  its verdict block; the phase review cross-checks `phase.md` against every slice's `result.md`
+  rather than trusting the notebook alone. `CLAUDE.md`'s own `## Read Order` is now three steps
+  instead of a flat list of documents.
+- **Migration notes:** run `python3 scripts/workflow.py sync-agents` after updating, as always.
+  Existing `phase.md` files are left untouched by `--update` — no markers means the engine never
+  writes them — so a phase already in flight keeps its old append-only shape until it is archived,
+  or can be migrated by hand by adding the marker pair and the new sections. The budget warning
+  skips any `done` phase, so a pre-v35 notebook never nags once its review has passed.
+  `finish-slice` without `--outcome` still works exactly as before (a warning, not an error).
+  `CLAUDE.md` grew by roughly 1 KB carrying this protocol; trimming the remaining duplication
+  between *Driving This Workspace* and *Hard Rules* is deferred job D8, not part of this release.
+
+## v34 — 2026-08-29
+
+- **Why this release: a design round ended at a picture, and the phase's shape was a guess.** The only
+  thing an operator ever approved was the **card set** — a static review surface in the Claude Design
+  pane — and whether `build-prompt.md` was concrete enough to build from was a human judgment call
+  that nothing tested. The skill admitted the gap in its own closing line: *signing the cards is not
+  accepting the product*. Beside it, the design-then-build split was an implicit binary an agent
+  picked off a soft "big design → two phases" hint, and `--kind` — the one field that keeps a design
+  slice from being dispatched to an executor with no DesignSync — had been an unvalidated free-form
+  string since the beginning, so `--kind cowork` silently produced an ordinary implementation slice.
+  v34 makes the round's approval **running code**, names the shapes so the operator picks one, and
+  closes the typo hole in the engine.
+- **Three named styles, suggested by the agent and confirmed by the operator.** `build-after` is the
+  existing two-pass shape (`DECOMP` → groundwork → design round(s) → `DECOMP2` → build slices cut from
+  the landed design). `design-only` is a design phase plus a separate apply phase, and **must be
+  chosen at `/create-phase`**: a `DECOMP` executor may not run `new-phase`, so a split decided later
+  cannot be created from inside decomposition. **`paired` is new** — design 1 → apply 1 → design 2 →
+  apply 2 inside one phase, with **no `DECOMP2`**; `DECOMP` cuts one apply slice per round as a **bare
+  folder**, and each one's `plan.md` is written at its turn from the round that just landed. Cutting a
+  bare folder is not pre-planning, and the ban on planning past the design gate is generalized rather
+  than weakened — it now names everything downstream of a round instead of `DECOMP2` specifically. The
+  confirmed style is recorded in the phase's `intent.md` under **`## Design Style`**, appended by
+  `create-phase` only when the phase is visual (`works/templates/intent.md` is unchanged, so no
+  non-visual phase grows the heading); every reader treats its absence as "ask it at `DECOMP`", which
+  stops **`pending`** for the answer.
+- **A runnable mockup, and exactly one approval per round.** After the read-back lands the record, a
+  **dispatched** span — `slice-executor-high`, no DesignSync, working from `build-prompt.md` plus the
+  landed record — builds the round as a **throwaway route in the project's own frontend**, and the
+  operator opens and clicks it. **Only the second `pending` window is an approval:** the operator
+  confirmed the design *inside* the Claude Design session and that session ending **is** the
+  confirmation, so the first window is a mechanical wait and **SIGNOFF moves off the read-back onto
+  the mockup gate**. A design slice now runs **inline → dispatched → inline**, so the old absolute
+  "the design slice is never dispatched" narrows to the DesignSync work alone, and its commits go
+  from two to **four** — `handoff`, `read-back`, `mockup`, `signoff`, one per span. Both drivers carry
+  the consequences a `co-work` grep would not find: `plan only` stops before any plan that depends on
+  a round that has not landed (`paired` has no `DECOMP2` to stop at), a design slice is resumed
+  **twice** because it stops `pending` twice, its dispatched mockup span is a genuine — if short —
+  idle window for `do-whole-phase`'s optional preparation, and the two `pending` stops are reported
+  distinguishably, since the engine cannot tell them apart and nothing else can carry the difference.
+- **The mockup is stubbed on purpose, and that bound is load-bearing.** It proves **look and states,
+  not wiring**: stubbed data, no backing work, non-functional controls acceptable **and named as such
+  in the gate walkthrough**. Without the bound the mockup span grows into the apply slice it exists to
+  precede, and the design gate lands after the build instead of before it. So the mockup is **exempt
+  from the full functional sweep** — that sweep stays an apply/fidelity duty on real wiring — and
+  `review-phase`'s fresh-eyes stage now says so, because **a phase shipping a mockup takes
+  `accept-gate --require`** (so a `design-only` phase can no longer be waived) and a gated review
+  meeting a stubbed mockup would otherwise have filed every deliberately unwired control as a defect.
+  What *is* checked: it runs, every designed element and state renders, it matches the record, and it
+  is verified in the runtime and access path `## Operator Runtime` names. The concreteness check stops
+  being a judgment call — the mockup either builds from `build-prompt.md` without inventing anything
+  or it does not, and a record too thin to build without inventing is a third `needs_operator`
+  condition. The route is throwaway: whichever slice later implements the surface for real deletes it,
+  and the phase review checks that no orphaned design routes remain.
+- **`--kind` is a closed set — this release's one piece of machine enforcement.** `SLICE_KINDS` is
+  `implementation`, `review`, `decomposition`, `fix`, `docs`, `qa`, `co-work`. An unknown kind is a
+  **hard error at creation** — at `new-slice` *and* at `promote-deferred`, through a
+  `require_slice_kind()` helper called both from `create_slice` (the shared chokepoint) and from the
+  top of `promote_deferred`, because `--create-phase` creates the phase several lines before the slice
+  and a single guard left a half-created phase behind on a rejected kind. In `validate()` it is a
+  **warning only, exit-code neutral**, so an adopting repo carrying an invented kind survives an
+  update instead of having `validate` fail on history it cannot change. `--risk` next door stays
+  deliberately **unvalidated** — an unrecognized value routes to the `high` tier, which is the safe
+  direction — and both halves of the asymmetry are now commented at `SLICE_KINDS` so neither is
+  "fixed" for symmetry later.
+- **`create-phase` is agent-runnable on instruction.** It loses `disable-model-invocation: true` and
+  becomes the second model-invocable skill — and a **narrower** exception than `design-cowork`, which
+  fires by itself whenever work turns visual: `create-phase` is callable when an approved plan or a
+  direct operator instruction calls for a phase, and **never on the agent's own initiative**. Its
+  step-3 confirmation gate does not move; `new-phase` still runs only after the operator has
+  explicitly confirmed each phase's name and objective. **Invocation is not the gate; confirmation
+  is.** The smoke suite now pins an exempt set of exactly those two skills, in both directions, so the
+  marker still cannot be dropped from any other skill by accident.
+- **Migration notes:** preview with `--update --dry-run`. **(a)** Fresh installs and any workspace
+  whose `CLAUDE.md` the installer owns need nothing — `--update` overwrites the contract, both
+  executor agents, and every skill. A **retrofitted** repo keeps its own `CLAUDE.md` and receives the
+  new contract text in the `CLAUDE.workspace.md` sidecar instead; if you maintain a customised
+  contract, fold in the amended bullets by hand — the design-style/dispatch rules, the "not every
+  `pending` is an approval" wording, the gate bullet's no-waiver clause, and the `new-slice` line's
+  closed `--kind` set. **(b) Existing slices whose
+  `kind` is outside the set** — `docs` and `qa` are in it, only invented kinds are not — now produce a
+  `validate` **warning** naming the set, and the **exit code is unchanged**, so nothing that gated on
+  `validate` starts failing. Edit that `slice.json` if you want the warning gone, or leave it: it is
+  history. **(c) A design phase already in flight under the old shape needs nothing done to it.** Its
+  round ended at the cards, SIGNOFF sits at the read-back, and there is no mockup route — the engine
+  never enforced round shape and still does not, so the new loop applies to rounds started from here
+  on, the same way v32 scoped its acceptance gate. For a round whose handoff has not gone out yet, run
+  it under the new loop and declare the phase's gate with `accept-gate <P> --require`. **(d)**
+  `--update` preserves all of `docs/`, so the `## Visual-design runbook` in your `operations.md` keeps
+  its old two-shape, one-`pending`-window text until you re-version it yourself with
+  `doc-new-version --doc operations` — never by hand-editing `docs/current/`. **(e)** Run
+  `python3 scripts/workflow.py sync-agents` after the update, as always.
+
+## v33 — 2026-08-29
+
+- **`phase.md` and `result.md` now divide by audience, so nothing is written twice.** The contract
+  asked every executor to write `result.md` and, separately, to append cross-slice notes to
+  `phase.md`, but never said the two must not carry the same content — so diligent executors wrote
+  both in full. A v32 slice put the operator-runtime field bullets and the `UNFILLED` marker
+  verbatim into each, and its `result.md` even noted "already recorded in `phase.md` Findings". The
+  duplicated part was always the forward-looking notes, and `phase.md` is the file every later
+  dispatch re-reads, so that copy was paid for on every slice rather than once.
+- **The boundary, stated once and enforced in both tiers.** `phase.md` is what the **next slice**
+  needs; `result.md` is what **this slice** did — its validation commands and outcomes, its
+  deviations from `plan.md`, and the durable form of the structured verdict, which is otherwise
+  ephemeral and dies with the session. A note belonging in `phase.md` goes there and is referenced
+  from `result.md` in a line, never restated in both. The `## Operator Questions` instruction
+  changed from "not *only* into `result.md`" — which invited writing both — to "there, rather than
+  into `result.md`".
+- **No behavioural surface moved.** Both slice files keep their owners, lifecycles, and readers;
+  the review still re-runs each slice's validation from its `plan.md` / `result.md`, and the
+  acceptance-gate resume still reads `review_verdict: pass` out of the `REVIEW` slice's
+  `result.md`. `slice-executor-mid` and `-high` received identical wording, so the pre-existing
+  drift between the tiers did not widen.
+- **Migration notes:** none for a fresh install or for a workspace whose `CLAUDE.md` the installer
+  owns — `--update` overwrites the contract and both agent files. A **retrofitted** repo keeps its
+  own `CLAUDE.md` and receives the new contract text in the `CLAUDE.workspace.md` sidecar instead;
+  fold the one amended bullet (the "two context files" rule) into your `CLAUDE.md` by hand if you
+  maintain a customised one. The rule applies to slices written from here on; existing `result.md`
+  files under `works/` are history and are not rewritten.
+
+## v32 — 2026-08-23
+
+- **Why this release: every gate the machinery had sat between agents.** An adopting workspace ran
+  two build phases — 30 slices, a scripted real-browser fidelity pass at the end of each, both
+  reviews passed — and the product owner, meeting the running product only afterwards, filed 11
+  user-visible failures, starting with a login link that never rendered because of a dev-only
+  double-effect the production-build verification could not see. Every check had passed, because
+  verification's only yardsticks were the signed design record and the executor's most convenient
+  runtime. v32 puts the operator, and the operator's runtime, back in the loop.
+- **The operator acceptance gate, machine-enforced.** `phase.json` gains an optional five-field
+  `acceptance` block (`required` / `walkthrough` / `requested_at` / `cleared_at` / `note`) driven by
+  one new command, `accept-gate <P>`: `--require` or `--waive --note "why"` at the `DECOMP`
+  boundary — every phase declares explicitly, never by omission, whether it changes operator-visible
+  surfaces — then `--open --walkthrough "..."` at the review (records the script, sets the phase
+  `pending`), `--clear [--note "..."]` once the operator has walked the product, and a bare
+  invocation that shows the gate. The engine enforces it rather than trusting anyone to remember:
+  `review-phase --verdict pass` refuses while the gate is undeclared or uncleared and names the
+  exact command, while `changes_requested` and `blocked` are never refused — an operator's failure
+  report has to stay recordable — and `changes_requested` resets the gate for the re-review. `next`
+  prints an open gate's walkthrough and its `--clear` command, and `validate` errors on a `done`
+  phase whose required gate was never cleared. A phase carrying **no `acceptance` block at all** is
+  legacy and passes exactly as before.
+- **The operator runtime manifest.** The seeded operations doc gains an `## Operator Runtime`
+  section — run command(s), dev-vs-production mode, the origin the operator actually browses,
+  devices/viewports/browsers, the production build command when it differs. Any slice claiming
+  "verified in a real browser" now verifies **in that runtime and access path**, and additionally in
+  the production build when the two differ, because dev-only bug classes and access-path differences
+  live in exactly the gap between it and whichever runtime is convenient. The section ships an
+  explicit `- Status: UNFILLED — …` marker; absent and unfilled mean the same thing — the slice
+  returns `needs_operator` and the orchestrator sets it `pending` rather than assuming.
+- **"Works as a product" is a named verification dimension beside "matches the record."** The
+  `design-cowork` skill, which specified fidelity to the signed record and nothing else, gains a
+  `## Verifying — RESPECT THE DESIGN, and does it work` section: the record is the floor of what to
+  check, never the ceiling, and matching it is not acceptance. Its mandatory sweep — every visible
+  control does something observable, interaction states (focus/hover/keyboard, including browser
+  defaults the record never drew), liveness over time (the timer ticks; a refresh does not destroy
+  in-progress typing), and type-into-it-and-wait — makes each failure a defect even when the render
+  is pixel-perfect, in both runtime modes. Beside it the review walks the product once with fresh
+  eyes as a first-time user, reporting everything dead, confusing or annoying **explicitly not
+  judged against the design record**, and opens the running product itself instead of passing on
+  other slices' reports.
+- **Questions get asked, not archived.** Operator-decision questions accumulate on a running
+  `## Operator Questions` list in `phase.md` (now in the `new-phase` scaffold), mirroring the proven
+  "Doc impact" list, and the review must **route** every entry — into the acceptance walkthrough as
+  a decision for the operator, or into a deferred job — because an unrouted entry is a finding it
+  may not pass with. Catalogued now means delivered: a design gap is never fixed silently or
+  "improved", and signing the cards is not accepting the product.
+- **A cumulative product smoke list.** The seeded qa doc's `## Regression Checklist` is now the
+  product's append-only smoke list — headline behaviours only, shaped
+  `- [ ] <surface>: <one observable behaviour> (P<N>)` — re-run **whole** in the operator runtime by
+  every later phase before it appends its own lines, so a phase touching shared surfaces can no
+  longer silently invalidate an earlier phase's pass. Terse on purpose: the small-test-files rule
+  applies to verification too.
+- **Executor prompts carry the gate duties, with one new return field.** Both `slice-executor` tiers
+  read `acceptance.required` as the single switch for every new duty (`true` bites, `false` is
+  waived, `null` is a finding, no block is legacy), name `## Operator Runtime` as an input for any
+  real-browser claim, run the review's six gate stages in order, and append to
+  `## Operator Questions` beside "Doc impact". `walkthrough` is the one new structured-return field;
+  `accept-gate` and `defer-job` join the prohibited commands (the review *returns* the walkthrough
+  and *lists* the jobs; the orchestrator opens the gate and files them). Doc consolidation does not
+  move — it stays in the review's pass path, before the gate opens, and parallel mode still defers
+  it to the post-merge step. The two tier bodies are now byte-identical below their frontmatter (mid
+  gained the co-work refusal clause it lacked, plus the two-pass decomposition and no-commit
+  wording), pinned by the smoke test.
+- **Migration notes:** preview with `--update --dry-run`. `--update` preserves `works/` and `docs/`,
+  which shapes both manual steps. **(a) Every phase you already have carries no `acceptance`
+  block**, so it is legacy and passes as before; to gate a phase already in flight, run
+  `accept-gate <P> --require` on a **live** phase only — never on a `done` one, since `validate`
+  would then correctly report it as done with an uncleared gate. **(b) The `## Operator Runtime`
+  section and the rewritten `## Regression Checklist` reach fresh installs only.** Add them to your
+  own docs with `doc-new-version` (`--doc operations` / `--doc qa`, copying the seed text from
+  `installer/payloads/doc_bodies/` in an upstream clone) and fill the manifest in — never by
+  hand-editing `docs/current/*.md`. Until it exists, the first slice claiming real-browser
+  verification stops `pending` and asks you for it, as intended. **(c)** Run
+  `python3 scripts/workflow.py sync-agents` after the update, as always.
+
+## v31 — 2026-08-14
+
+- **Codex support is removed; the workspace ships Claude Code only.** The `.agents/` skill mirror (34
+  files), the `.codex/` config and executor agents (3 files), and `AGENTS.md` are gone from the
+  repository and from the installer payload, and the build no longer asserts that `CLAUDE.md` and
+  `AGENTS.md` carry byte-equal bodies. `CLAUDE.md` is the single routing contract — its "Equivalent to
+  `AGENTS.md`" header line went with the twin, so a fresh install, a retrofit sidecar, and an
+  `--update` refresh all write a contract that opens `# CLAUDE.md` → `## Agent Contract`. The Claude
+  Code surface itself is unchanged: the same 17 skills, the same `slice-executor-mid` / `-high` tiers,
+  the same workflow commands. The built artifact drops from ~475 KB to ~324 KB.
+- **The engine is single-harness.** Executor presets carry one model/effort pair per tier — `economy`
+  is Sonnet@high / Opus@high, `flex` (which the shipped seed selects) is Sonnet@xhigh / Opus@xhigh —
+  and `executors.toml` accepts `[claude.<tier>]` tables only. A leftover `[codex.*]` table is a
+  dedicated hard error naming this release rather than a generic parse failure, so an adopter is told
+  what to delete instead of what failed to parse. `sync-agents` now prints one line per tier
+  (`mid   sonnet @ xhigh`) in place of the old `claude=… codex=…` pair.
+- **Retrofit is less invasive than before.** The installer no longer reads, merges into, appends to,
+  or rewrites a repo's own `AGENTS.md` on any path, and writes no `AGENTS.workspace.md` sidecar. An
+  `AGENTS.md` your project maintains for other tools comes out of a retrofit and out of an `--update`
+  byte-identical — pinned by a sha check in the lifecycle smoke test. `CLAUDE.md` alone gets the
+  marked section and the `CLAUDE.workspace.md` sidecar.
+- **`--update` flags the retired machinery instead of deleting it.** `.agents`, `.codex`, `AGENTS.md`,
+  and the now-orphaned `AGENTS.workspace.md` each appear exactly once in the stale change-list line,
+  and all four survive the update. Removal stays the operator's call, as it is for every previously
+  retired path.
+- **The contract keeps every rule that was not Codex-specific, and drops the one that was.** The
+  visual-design rule collapses to the single Claude Design / DesignSync loop this side always had,
+  with the harness-branch framing dropped rather than a rule. The one genuine carve-out went with
+  Codex: the narrow exception that let the **Codex** orchestrator clear and resume a `pending`
+  `co-work` slice inline — written for Codex because it was automatic-only, and never held by Claude
+  Code — is gone. The `pending` gate is uniform again: a `pending` item resumes only after explicit
+  operator input clears it back to `in_progress`, exactly as the `do-next-slice` and `do-whole-phase`
+  skills have always said.
+- **Docs and tests were corrected against the source, not just stripped.** Passages this release
+  invalidated were rewritten from the code they describe: the retrofit guide's contract-merge promise
+  (it had been quoting a marker block the installer already stopped writing) and its manual-fallback
+  copy list (following it literally would have recreated three of the four paths `--update` now
+  flags), plus `installer/README.md`'s list of build safety checks. The lifecycle smoke test asserts
+  Codex's *absence* as regressions — no `.agents/` or `.codex/` installed, no `AGENTS.md` in a fresh
+  workspace, a repo's own `AGENTS.md` sha-pinned across a retrofit — and covers the stale-flagging
+  mechanism itself.
+- **Migration notes:** preview with `--update --dry-run`. The update flags `.agents`, `.codex`,
+  `AGENTS.md`, and `AGENTS.workspace.md` as stale machinery and never deletes them, so remove them by
+  hand; an `AGENTS.md` your project maintains for other tools is yours to keep. Drop any `[codex.*]`
+  table from `executors.toml` — `sync-agents` rejects it outright and `validate` reports the same
+  thing as a warning — then run `python3 scripts/workflow.py sync-agents` to re-apply your preserved
+  mode and per-tier overrides. Phases, docs, and the seed-once `executors.toml` are preserved as
+  always, and no state migration is needed. `docs/retrofit-guide.md` § *Updating after adoption* walks
+  the procedure step by step. **If you drive this workspace from Codex, do not update** — v30 is the
+  last release with a Codex path.
+
+## v30 — 2026-08-13
+
+- **Codex now has a native visual-design cowork path.** The model-invocable `design-cowork` skill uses
+  built-in ImageGen or one exact approved reference, copies the canonical reference into the
+  repository, reads that exact file back, and records a machine-checkable manifest, implementation
+  contract, validation evidence, and immutable approval provenance. No Figma or other plugin is
+  required; an explicitly chosen existing-design integration remains optional input only.
+- **The normal operator boundary is one visual signoff, not approval of generation or every plan.** A
+  complete review-ready record is committed without `SIGNOFF.md`, then the slice pauses for literal
+  approval or revision. Missing/failed generation or read-back capability, missing exact-reference
+  data, and requested revisions are explicit exceptional halts rather than silent service switches or
+  extra routine gates.
+- **Codex runners own design slices inline.** Automatic `do-next-slice` and `do-whole-phase` start and
+  plan `co-work` on the orchestrator thread, never dispatch it, and clear its pending state only when
+  the current invocation literally answers the recorded need. Bare automatic invocation is never
+  approval. After hash recheck and signoff, one-slice execution stops while whole-phase execution may
+  continue inside its entry phase to `DECOMP2`.
+- **Implementation remains separate and fidelity is browser-backed.** `DECOMP2` cuts backing work,
+  faithful UI implementation, and bounded fidelity work after signoff. Plans carry the approved round
+  and `RESPECT THE DESIGN`; later slices exercise declared routes, states, responsiveness, keyboard /
+  focus behavior, and reduced motion in a real browser before claiming fidelity.
+- **Claude Code's path is preserved.** Its `design-cowork` skill remains byte-identical and continues
+  to use Claude Design cards plus main-thread-only DesignSync read-back/regroup. Shared contracts now
+  branch explicitly by harness while retaining no implementation in the design slice, two-pass mixed
+  phases, immutable untrusted design data, literal signoff, and faithful downstream build rules.
+- **Fresh install, non-destructive retrofit, and update ship the same v30 payload.** The lifecycle
+  smoke covers the 17+17 inventory, implicit-invocation metadata, exact Codex skill/runner/executor /
+  contract payloads, fresh and retrofit delivery, and replacement of deliberately stale pre-v30
+  Codex visual files without misclassifying the still-current package as retired.
+- **Migration notes:** preview with `--update --dry-run`. Update refreshes workspace-managed skills,
+  runners, executor definitions, metadata, and contract files while preserving phases, docs, and the
+  seed-once `executors.toml`; retrofit remains non-destructive for pre-existing operator files. No
+  plugin, Figma integration, or state migration is required. This release alone needs no
+  `sync-agents` rerun unless update output reports executor drift from a preserved adopter override
+  (the installer continues to print its routine `sync-agents` instruction).
+
+## v29 — 2026-08-13
+
+- **Codex now ships the complete workflow surface as a first-class orchestrator.** All 17 Claude
+  Code skills have matching Codex packages with `agents/openai.yaml`. In particular,
+  `do-next-slice` and the restored `do-whole-phase` are independent Codex bodies: bare, `auto`,
+  and unattended requests execute automatically, while `gate`, `plan only`, and unknown modes
+  are rejected before workflow, state, or repository mutation. Existing `ready` slices still
+  dispatch from their approved `plan.md` for upgrade and cross-tool compatibility.
+- **Both harnesses use project custom-agent tiers with explicit preset matrices.** `economy`, the
+  no-mode fallback, maps Claude to Sonnet/Opus at `high` and Codex to GPT-5.6 Luna/Terra at
+  `high`; `flex` maps Claude to Sonnet/Opus at `xhigh` and Codex to GPT-5.6 Terra/Sol at `high`.
+  The shipped seed and this upstream repo select `mode = "flex"`; adopter-owned per-tier overrides
+  remain supported through `executors.toml` + `sync-agents`. Routing stays `risk: low` → mid and
+  everything else → high, with one `mid → high` escalation.
+- **Attribution follows the model that actually did the work.** Codex commits and saved explainers
+  no longer name a hard-coded default model; the orchestrator records the executing model's current
+  display name. The Codex project config also uses the current per-session concurrency setting.
+- **Fresh install, non-destructive retrofit, and update now carry the same parity release.** The
+  installer independently inventories both 17-skill trees, requires metadata for every Codex
+  package, emits the restored Codex whole-phase files in every lifecycle, and treats them as current
+  managed machinery rather than stale. Fresh installs seed the tracked `flex` selection; retrofits
+  still skip every pre-existing operator file; updates add missing pre-parity Codex files, refresh
+  managed skill/agent machinery, and preserve phase state, docs, and an existing seed-once
+  `executors.toml`.
+- **Migration notes:** preview with `--update --dry-run`, especially if a hand-maintained path may
+  collide with the newly managed `.agents/skills/do-whole-phase/` package. Updates preserve the
+  existing `executors.toml` but reset generated Claude/Codex agent files to upstream machinery, so
+  run `python3 scripts/workflow.py sync-agents` immediately after updating. Codex `gate` and
+  `plan only` requests are now rejected without mutation; already-`ready` slices remain executable.
+
+## v28 — 2026-08-11
+
+- **The round's slice ID comes back to the group names, and a post-approval regroup takes it off.** v27
+  banned stamping a round address into a group name because a design system's taxonomy is cumulative —
+  but the operator was using the prefix for a real reason (finding this round's cards in the pane), and
+  v27's replacement covered the *agent's* checkability, not the operator's. The ban was the wrong
+  strength. Both needs are now served, in sequence rather than as a trade.
+- **During the round, the group carries the address** — `⏳ P48.S1 · Components` — so the operator lands
+  on the cards under review instead of digging for them.
+- **At SIGNOFF, after the operator has approved, the orchestrator does a *pure regroup***: `list_files`
+  → `get_file` → rewrite **the `group` value on line 1 and nothing else** → `finalize_plan` with exactly
+  those paths → `write_files`. The card's path never moves; only the display label does. Idempotent, and
+  a pane that does not re-index is reported at the gate and left alone — a stale group label is cosmetic
+  and never blocks the apply slices.
+- **Why this is safe rather than a loophole.** "Pure regroup" is a first-class concept in the shipped
+  design tooling, not something invented here: `group` is a **display-only** label, the render hash
+  **deliberately ignores** it (`a pure regroup must not read as a contract change`), and a regroup
+  **must not orphan grades**. The skill already classified grouping as "organization, not a design
+  decision", so re-filing a card is documentation — the job this skill assigns the agent — and it
+  happens *after* approval, so it cannot influence the design.
+- **One enforceable invariant carries the whole carve-out:** everything after line 1 is byte-identical,
+  confirmed by diff before upload. Below line 1 is the design, and it stays untouchable. `Never` gains
+  two entries: touching anything below line 1 during a regroup, and regrouping **before** approval —
+  which would remove the operator's way of finding the cards mid-review.
+- **The write list is now two cases, not one:** grounding the project in already-implemented components
+  (v27), and the SIGNOFF regroup. Both go list/read → `finalize_plan` (the operator sees the exact path
+  list in the permission prompt) → `write_files`. "Never write anything that is a new visual decision"
+  is unchanged.
+- **Migration notes:** behavioral only — no state migration, no `sync-agents` re-run, no engine change.
+  If you kept prefixed group names from before v27, they are now the documented review-time state again;
+  nothing to undo. **Not verified end to end:** the regroup's semantics are confirmed from the shipped
+  tooling, but that a `write_files` regroup makes the pane re-index has not been observed on a live
+  round — hence the explicit "report it and leave the names" fallback.
+
+## v27 — 2026-08-11
+
+- **`design-cowork` is realigned with the shipped Claude Design contract.** The skill's policy was never
+  the problem — *the agent never makes a visual decision; Claude Design and the operator do* still holds,
+  and so does the whole handoff → `pending` → read-back → land → implement-in-a-separate-slice shape,
+  including the two-pass `DECOMP` / `DECOMP2` rule. What had drifted was the skill prescribing mechanics
+  of a product this workspace does not own, some of it demonstrably wrong.
+- **The `@dsCard` marker spec is corrected.** The skill said "Line 1 of every card file, **exactly**"
+  and gave four attributes, asserting that "the `subtitle` is where a card says what it is for." The
+  card emitter shipped in Claude Code writes
+  `` `<!-- @dsCard group="${escapeHtml(group)}"${viewportAttr} -->` `` — a `group` plus an *optional*
+  `viewport`, and nothing else. `name` and `subtitle` are fields of `register_assets`, the path the
+  `DesignSync` tool description itself labels **legacy** and which `@dsCard` replaced. We were telling
+  Claude Design to write attributes the Design System pane does not read. The skill now documents the
+  real two-attribute marker and says a card is addressed by its **file path**.
+- **The slice-ID group prefix and the `⏳` sort-first marker are dropped.** `group` is free-form, so
+  `P48.S1 · Components` was legal — but a design system is cumulative and shared, and stamping a round
+  ID into its taxonomy turns a component library into a work log. The `⏳` trick additionally depended on
+  group-ordering behavior in the server-side pane that is specified nowhere. Groups now follow the design
+  system's own taxonomy (`Foundations`, `Components`, `Type`, `Colors`, the app's surfaces), and the
+  round is made checkable a way we control: **the handoff names the exact card paths the round must
+  produce, and read-back verifies them with `list_files`.**
+- **The blanket ban on `DesignSync` writes is narrowed to what it always meant.** The skill's own opening
+  line assigns "documenting *what exists*" to the agent, then forbade the one write that is pure
+  documentation. The rule is now "never author a **new visual decision**", and one write is sanctioned,
+  operator-requested only: pushing previews of components that **already exist and are implemented** in
+  the repo, when there is no Connect-GitHub connection — following the tool's own
+  list/read → `finalize_plan` → `write_files` ordering, with `get_project` first to confirm
+  `type: PROJECT_TYPE_DESIGN_SYSTEM`. Mirroring nothing remains the default.
+- **"Never run `/design-sync`" is replaced with what is true.** `/design-sync` and `/design …` ship
+  `disableModelInvocation: true`, so the model could never call them; the old rule was inert and steered
+  the operator away from the sanctioned way to ground a project in an existing component library. The
+  skill now says the operator runs them.
+- **The required-output manifest asks for content, not filenames.** Anthropic ships a native handoff
+  bundle for exactly this purpose, so a round must return the card set, a record of what was designed,
+  and an implementation contract complete enough to build from — and if the session produces the native
+  bundle, that **is** the record and the contract. `result.md` / `build-prompt.md` remain only the names
+  we land under when the bundle brings none of its own.
+- **Why this was needed:** every earlier design-cowork change (v12, v13, v14, v22) moved `CLAUDE.md`,
+  `AGENTS.md`, and this changelog together. The commit that introduced the slice-ID prefix and the `⏳`
+  marker (`6cadb40`) touched only the two `SKILL.md` copies and the rebuilt installer — no changelog, no
+  contract, no doc version, and no check against the product. That is how the unverified spec got in.
+- **Migration notes:** behavioral only — no state migration, no `sync-agents` re-run, and no engine
+  change (`scripts/workflow.py` is untouched; `co-work` and `DECOMP2` were always free-form strings).
+  The contract's "Visual design is Claude Design's job" rule is reworded in place, so `--update`
+  refreshes `CLAUDE.md` / `AGENTS.md` and both `design-cowork` skill copies as usual. If your design
+  project already carries groups named with slice-ID prefixes or `⏳` markers, nothing breaks — they are
+  valid group names; new rounds simply stop adding them, and you can rename the old ones in the pane at
+  your leisure. Driver skills, executors, and the phase/slice architecture are unchanged.
+
+## v26 — 2026-08-10
+
+- **`/explain` ships with every workspace again — this reverses v15 for the skill.** v15 retired the
+  embedded `explain` skill because the feature had graduated into a standalone Claude Code plugin.
+  That left a dangling pointer: the phase review, the contract, the seeded `operations.md`, and the
+  installer's closing line all tell you to "run `/explain`", while the workspace shipped nothing that
+  provides it — an adopter followed the instructions and found no command. `explain` is now a normal
+  workspace skill in both `.claude/skills/` and `.agents/skills/`, so the pointer resolves.
+- **It sets up its own knowledge base on first use, and asks first.** A plugin-free workspace has no
+  `/knowledge:setup` either, so the old "STOP, go run the plugin's setup" branch is replaced by
+  step 2a: the skill asks for **one** thing — an email — then installs the `knowledge` CLI and runs
+  `knowledge init` to sign you up (or log you in), mint an org-level key, and write
+  `~/.config/knowledge-kb/config.json` at mode 0600. Creating an account is an outward-facing action,
+  so nothing runs until the operator agrees, and passwords are piped via `--password-stdin`, never
+  through argv. The hosted service at `knowledge.hi2vi.com` is the encouraged path; self-hosting stays
+  supported via `KB_API_BASE_URL` / `KB_API_TOKEN` but is not walked through.
+- **Operator-invoked only.** The vendored copy carries `disable-model-invocation: true` (and
+  `allow_implicit_invocation: false` on the Codex side), matching every other workflow command-skill —
+  `design-cowork` remains the single model-invocable exception. The phase review still writes no
+  explainer; it only reports `explain: not written — run /explain for this phase`.
+- **The offline local-file fallback is gone.** The upstream skill's "API unreachable" path wrote
+  markdown into a local KB checkout and committed it with `git -C <KB_ROOT>` — but v21 deleted the
+  contract carve-out that authorized exactly that commit, and a hosted account has no `kb_root`, so
+  the path was both unauthorized and unreachable. An unreachable API is now reported as a failed save.
+  This does not touch self-hosting: a self-hosted server is reached over the same REST API.
+- **Docs and permissions.** `.claude/settings.json` gains three read-only allow entries
+  (`Bash(command -v:*)`, `Bash(knowledge config:*)`, `Bash(knowledge guide:*)`); the account-creating
+  and software-installing commands are deliberately **not** pre-approved, so they still prompt. The
+  seeded `operations.md`, `README.en.md`, `installer/README.md`, and the installer's closing line all
+  describe the new first-run setup.
+- **Migration notes:** v15 left any existing `.claude/skills/explain/` alone as operator-owned. It is
+  now workspace machinery, so **`--update` overwrites it unconditionally** — if you hand-maintained
+  that file, run `--update --dry-run` first and save your copy. `--into-existing` still **skips** any
+  `explain` dir already present, so a retrofitted repo keeps its own. The new `settings.json` entries
+  merge in additively. A separately installed `knowledge` plugin is unaffected — its command is
+  `/knowledge:explain`, a different namespace from this workspace's `/explain`, and you do not need
+  both. `/explain` needs a knowledge base and will offer to create one on first run. On Codex it needs
+  `[sandbox_workspace_write] network_access = true`, which now gates the setup as well as the save.
+  The `--with-explain` flag stays **retired** — `explain` is unconditional, so the flag remains an
+  unknown option the installer rejects. No `sync-agents` re-run is needed.
+
+## v25 — 2026-08-05
+
+- **`auto` is now the default execution mode for `do-next-slice` and `do-whole-phase`.** Invoked with
+  no mode word, both skills plan each slice inline, `Write` its `plan.md`, and dispatch the executor
+  straight through — no per-plan approval pause. The safety halts are unchanged: `pending`,
+  `needs_operator`, `blocked`, and a failed/empty `slice-executor-high` return still stop the loop,
+  and an `escalate` (or a failed/empty `mid` return) still re-dispatches to `slice-executor-high`
+  without stopping. The word `auto` (and "run unattended") remains accepted as an explicit synonym of
+  the default.
+- **`gate` is the new explicit opt-in for manual-approval mode** (`/do-whole-phase gate`,
+  `/do-next-slice gate`): the previous default loop — plan at the operator's gate (`EnterPlanMode` /
+  `ExitPlanMode` in Claude Code; inline presentation in Codex), operator approves the readied plan,
+  persist it by copying the harness plan file (confirm-then-copy), then dispatch — is unchanged, just
+  no longer the default. Plan persistence inverts with the flip: `Write` is now the default path
+  (plan mode is never entered, so no harness plan file exists), and the copy rule applies in the
+  gated modes.
+- **`plan only` is unchanged and always gated** — it exists to produce operator-approved plans, so it
+  runs the approval gate regardless of the new default; an accompanying `auto` word is ignored
+  (previously phrased as "`plan only` never combines with `auto`").
+- The contract (`CLAUDE.md`/`AGENTS.md`), both skills (the Claude copies and the Codex
+  `do-next-slice` mirror), both READMEs, and the durable docs (`operations`, `decisions`) carry the
+  flipped wording. The engine has no mode logic, so `scripts/workflow.py` is untouched.
+- **Migration notes:** behavioral change — a bare `/do-whole-phase` or `/do-next-slice` now runs
+  unattended to the end of the phase (or slice) with no plan-approval pauses. Invoke with `gate` to
+  keep the old approve-each-plan behavior.
+
+## v24 — 2026-08-03
+
+- **The workspace now ships CI.** `.github/workflows/workspace-ci.yml` is one generic workflow that
+  works unchanged upstream and in every adopting repo: a `validate` job runs
+  `python3 scripts/workflow.py validate` on every push and pull request, and the two upstream-only
+  checks (`python3 installer/build.py --check`, `bash tests/retrofit_smoke.sh`) are **shell-guarded on
+  the presence of the files they need**, so a repo without `installer/`/`tests/` simply skips them.
+  Policy: **seed-once** — created when absent, never overwritten (the `executors.toml` precedent), on
+  fresh install, `--into-existing` and `--update` alike. It is your CI file; edit it freely.
+- **A second CI job gates parallel phase merges.** On a pull request whose head branch is
+  `phase/P<N>-<slug>` (the branch `parallel-start` cuts), the `parallel-gate` job derives `<P>` from
+  the branch name and runs `parallel-gate <P> --branch-ref HEAD --main-ref origin/<base>`, checking
+  the branch out at the PR head sha with full history. `GATE CLOSED` exits non-zero, so the check goes
+  red; whether that blocks the merge is your branch-protection choice, and the agent-side flow treats
+  a red check as stop-and-report.
+- **`.gitattributes` now ships too, line-merged instead of overwritten.** The
+  `works/events.jsonl merge=union` rule (append-only log, built-in git driver, no per-clone config) is
+  appended when missing and existing content is never rewritten — on install, retrofit and update
+  alike. Skipping a repo that already has a `.gitattributes` would have silently dropped the rule
+  exactly where a phase-branch merge conflicts. The generated files (`works/state.json`,
+  `works/index.json`, `works/backlog.md`, `works/deferred.md`, `docs/current/*.md`) still get **no**
+  merge driver on purpose: regenerate, don't merge.
+- **The shipped `.claude/settings.json` deny narrows from `Bash(git push:*)` to
+  `Bash(git push --force:*)`.** Agent-driven parallel integration has the orchestrator push a phase
+  branch and drive `gh`; a blanket deny blocked that outright, with no prompt. Pushes now go through
+  the normal interactive permission prompt — nothing is pre-allowed, the operator still approves each
+  one — while force-pushes stay denied.
+- **No `gh` wrapper in the engine.** PR creation/merge stays skill-guided (`gh` run directly by the
+  orchestrator): `gh` auth/output/error handling is agent territory, and `parallel-gate` is already
+  the shared engine-side check that both CI and the agent run before merging. `scripts/workflow.py`
+  stays offline-testable and unchanged by this release.
+- **A new `parallel-phase` skill documents the whole lifecycle** (Claude Code `/parallel-phase` and
+  Codex alike): when to suggest parallel mode (the engine's advisory `parallel-start` hints in
+  `new-phase` / `next`), how to opt in, how work and `pending` behave stream-scoped in the worktree,
+  the one difference at the branch review (a passing review defers doc consolidation), and the
+  agent-run integration sequence — `parallel-gate <P>` → push → `gh pr create` → `gh pr checks
+  --watch` → `gh pr merge --merge` → `parallel-merge-finish` → serialized `doc-new-version` on the
+  default stream → `parallel-consolidated <P>` → `parallel-teardown <P>` → commit.
+- **The contract and the existing skills gained the matching carve-outs.** `CLAUDE.md`/`AGENTS.md`:
+  the commit convention now says opting a phase in **is** the operator's ask (the engine stamp commit,
+  the phase branch, and the pushes that open/merge its PR are authorized inside that documented flow —
+  each push still prompts; outside it nothing changes), the durable-doc and review rules carry the
+  parallel deferral, archiving is blocked while `execution.consolidation` is `"pending"`, the
+  `works/state.json` pointer is documented as stream-scoped, and the six `parallel-*` commands are
+  listed. `create-phase` relays the opt-in hint at creation time (the only moment a phase is still
+  `planned`), `do-next-slice` / `do-whole-phase` read the pointer as stream-scoped and run the
+  integration after a parallel `pass`, `review-phase` skips consolidation on a parallel branch (it
+  verifies the "Doc impact" list instead), `archive-phase` names the consolidation gate, and all four
+  `slice-executor-*` agent files report `doc_versions: none — deferred to post-merge consolidation
+  (parallel mode)` in that case.
+- **Incidental:** `.githooks/pre-commit` now also matches `^\.github/` and `^\.gitattributes$` in its
+  staged-path regex, since both files are embedded in the distributable and must not ship stale.
+
+**Migration notes.** Existing adopters: the settings merge is **additive** — a deny entry can never be
+removed downstream — so your `.claude/settings.json` keeps the old `Bash(git push:*)` line. If you
+adopt agent-driven parallel integration, **remove `Bash(git push:*)` from `.claude/settings.json` by
+hand** (keep `Bash(git push --force:*)`); otherwise leave it and push manually. `--update` adds the CI
+workflow when you have none (it never touches an existing `.github/workflows/workspace-ci.yml`) and
+appends the union line to your `.gitattributes`, creating the file if absent — review both in
+`git status` before committing. If your CI is not GitHub Actions, delete the seeded file; the
+equivalent check anywhere is `python3 scripts/workflow.py validate`.
+
+## v23 — 2026-08-01
+
+- **The `low` executor tier is retired — slice execution is two-tier now.** `slice-executor-low` and
+  `slice-executor-mid` were byte-identical apart from `name`, `description`, and `effort`, so the third
+  tier bought a posture sentence and one effort step. The split is now drawn on **what the slice does**
+  rather than on a three-point difficulty scale: **`slice-executor-high`** takes decomposition, the phase
+  review, and essentially all code writing — every cross-file change without exception — while
+  **`slice-executor-mid`** takes a one-line (or few-line) code edit, or docs, and nothing more.
+- **The risk vocabulary narrows to `low | high`, and `--risk` now defaults to `high`** (it was `medium`)
+  on both `new-slice` and `promote-deferred`. Routing fails safe: only an exact `low` reaches `mid`, so
+  an unset, legacy (`medium`), or misspelled risk lands on `high`. `--risk` is still not validated by the
+  engine — deliberately, and it is what makes this migration free. A phase's `DECOMP` and `REVIEW` slices
+  are now created with `risk: high`, matching the `kind` rule that already routed them to the top tier.
+- **The surviving `mid` tier keeps its own models and efforts** — economy `sonnet` @ `high`, flex
+  `sonnet` @ `xhigh`, Codex `gpt-5.5` @ `high`. It was not re-cut down to the retired low tier's cheaper
+  values. `high` is untouched (`opus` @ `high` / `xhigh`, Codex `gpt-5.5` @ `xhigh`). `mid` also keeps
+  judgment within the plan's intent — it is not the old literal plan-follower — but escalates the moment
+  a slice turns out to be real code writing, spans more than one file, or breaks the plan's assumptions.
+- **The escalation ladder collapses to one step:** `mid → high`, at most **1** escalation per slice (was
+  `low → mid → high`, max 2). The section heading is the fixed `## Escalation: mid → high`.
+  `slice-executor-high` is still the ceiling and never escalates.
+- **`sync-agents` now manages four agent files, not six**, and rejects a retired `[claude.low]` /
+  `[codex.low]` section by name with a line-numbered migration message instead of a generic parse error.
+- **Incidental fix:** `.githooks/pre-commit` did not match `executors.toml` in its staged-path regex even
+  though the build embeds that file verbatim, so an `executors.toml`-only edit could ship without a
+  rebuild. Added.
+
+**Migration notes.** `--update` never deletes, so it flags
+`.claude/agents/slice-executor-low.md` and `.codex/agents/slice-executor-low.toml` as stale — remove both
+by hand. If you customized `executors.toml`, drop any `[claude.low]` / `[codex.low]` block (`sync-agents`
+now errors on them), then re-run `python3 scripts/workflow.py sync-agents`, since updates reset the agent
+files to upstream defaults. Existing slices need no edits: `risk: medium` routes to `slice-executor-high`
+and `risk: low` routes to `slice-executor-mid`. Note the cost posture moves **up** by default — work you
+would previously have rated `medium` now runs on opus; rate a slice `low` only when it truly is a
+one-line edit or docs.
+
+## v22 — 2026-07-28
+
+- **A phase that both designs and builds now decomposes in two passes.** The old `design-cowork` shape
+  assumed a phase could be cut up front ("one phase: design slice → implement slice"), but the design is
+  what decides *what gets built* — features appear and disappear at the gate — so an opening `DECOMP`
+  that cuts the build slices is guessing. It no longer does: the first `DECOMP` creates only what is
+  knowable before the gate — any groundwork slices, the design slice(s), and a **second decomposition
+  slice `P<N>.DECOMP2`** ordered after the last of them — and records a **build inventory** in `phase.md`
+  (the candidate feature/surface list, *what* to build, not how) instead of build slices. That inventory
+  is what the handoff's scope checklist is written from.
+- **`P<N>.DECOMP2` cuts the build slices after the design lands**, from the landed spec in `phase.md` and
+  the round's `build-prompt.md`: **backing/backend work first, then the design implementation**, then any
+  fidelity fix. An ordinary decomposition slice otherwise — orchestrator plans it, `slice-executor-high`
+  executes it, bare folders only. It is **never pre-planned**: `plan only` now stops before it for the
+  same reason it stops before `REVIEW`.
+- **How many design slices a phase gets is decided at the first `DECOMP`.** A design with many items to
+  cover splits into several rounds, one `co-work` slice each with its own handoff and `pending` gate —
+  that count *is* knowable up front from the inventory, unlike the build slices.
+- **A design-only phase is unchanged** — single pass, `DECOMP` → design slice(s) → `REVIEW`. So is the
+  *apply* phase of a two-phase split: its own `DECOMP` already runs after the design landed.
+- **`co-work` is now a kind the machinery actually knows.** `design-cowork` has always mandated
+  `--kind co-work` and said the design slice is never dispatched (only the main thread has `DesignSync`),
+  but no driver skill or executor knew the word: `do-next-slice`, `do-whole-phase`, and
+  `slice-executor-high` all enumerated "decomposition, implementation, `fix`, review" and would have
+  dispatched a design slice to an executor that has no `DesignSync`. All of them now carve `co-work` out
+  explicitly, `slice-executor-high` returns `needs_operator` if it is ever handed one, and
+  `do-whole-phase`'s idle-window list notes that a `co-work` slice has no idle window at all.
+- **`/create-phase` now asks the design-split question.** Whether a big design gets its own phase plus a
+  separate *apply* phase can only be decided there — the `DECOMP` executor is forbidden from running
+  `new-phase`, so a split decided later cannot be created from inside decomposition.
+
+**Migration notes:** no state or command changes — `--kind` and slice ids are free-form strings, so
+`P<N>.DECOMP2` and `--kind co-work` need no `workflow.py` change and `validate` is unaffected. But an
+**in-flight phase that mixes design and build and was decomposed under the old single-pass rule needs
+re-shaping**: delete the not-yet-started build slices, and insert a `P<N>.DECOMP2` slice
+(`--kind decomposition --risk high`) after the design slice at a fractional `--order`, to cut them from
+the landed design instead. Phases already past their design gate, and design-only phases, need nothing.
+
+## v21 — 2026-07-28
+
+- **The phase review no longer writes the phase explainer — this reverses v16's auto-explain.**
+  v16 made a passing review locate the knowledge plugin's explain skill and produce a phase
+  explainer as part of the review. That is removed: explaining is now a **separate operation the
+  operator runs** (`/explain`) whenever they want one. The review executor locates no skill, runs
+  no KB probe, has no offline fallback, and does no research for it — it was an authoring-plus-
+  research job bolted onto the review at its most context-loaded moment, and explaining is a
+  different job from reviewing.
+- **The review still reports a pointer, so explainers do not silently stop happening.** Its
+  structured return and `result.md` carry one fixed line on every verdict:
+  `explain: not written — run /explain for this phase`. No work, just the nudge.
+- **The KB-repo commit carve-out is gone.** v16 gave the executor's "never commit" invariant one
+  narrow exception — the explain skill's offline fallback committing with `git -C <KB_ROOT>` in the
+  separate knowledge-base repo. It existed solely for the explainer, so it is deleted from both
+  `slice-executor-high` files: the executor now runs **no** `git` write command in any git root, on
+  any slice kind. `WebSearch` / `WebFetch` stay on `slice-executor-high` — a reviewer sometimes
+  needs to check an external fact.
+- **A non-passing review now stops and hands back, instead of skipping a step and carrying on.**
+  The old wording ("on `changes_requested` / `blocked`, version nothing") read as *skip the docs and
+  continue*. It now reads as a full stop: the moment the verdict is not `pass`, the review executor
+  does no doc consolidation and no other pass-only work, and returns the verdict with its numbered
+  findings and proposed fix slices (`<P>.F<n>`) to the orchestrator, which decides — fix slices, or
+  an operator decision.
+- **"Stop" is scoped to the pass-only work, not to the review itself.** The executor still completes
+  validation and judgment across every slice *before* branching on the verdict — it never aborts at
+  the first failing check — so the orchestrator receives the complete picture in one cycle rather
+  than one finding per cycle. Review and doc consolidation stay in the **same** executor; only the
+  branch changed.
+- **Fresh installs say the same thing.** The bootstrap's closing knowledge line and the seeded
+  `operations.md` doc body no longer claim a passing review auto-saves the explainer — both now
+  describe `/explain` as the operator-run step. Your KB setup instructions are otherwise identical.
+- Unchanged: the review is still `slice-executor-high`'s job in a fresh context that never edits
+  source, docs are still versioned once per phase at a passing review, and `review-phase` verdict
+  handling, the executor tiers, `auto`'s safety halts, the escalation ladder, `plan only` / `ready`,
+  v19's copy-based plan capture, and v20's optional idle window are all untouched.
+
+Migration notes: **nothing to delete and nothing to configure.** The review simply stops writing
+explainers — run `/explain` yourself when you want one; your knowledge-base setup (`KB_API_BASE_URL`
+/ `KB_API_TOKEN`, or the plugin) still works exactly as before and is only ever used on demand now.
+Everything else lands automatically with `--update`: the rewritten `review-phase` checklist (both
+copies), the review paragraphs in `do-next-slice` / `do-whole-phase`, the amended contract bullets in
+`CLAUDE.md` / `AGENTS.md`, and both `slice-executor-high` files.
+
+## v20 — 2026-07-28
+
+- **The `do-whole-phase` prefetch becomes a permission instead of a procedure.** v19 told the
+  orchestrator to dispatch a research agent immediately after every executor and listed five
+  hard conditions for skipping it. That is now one optional practice: while executor N runs,
+  the orchestrator is idle on the main thread and **may** use that window to prepare slice N+1
+  — by dispatching the built-in read-only **`Explore`** agent, by reading inline itself, by
+  thinking the slice through, or by simply waiting. No mechanism is required, nothing is
+  mandatory, and the choice is the orchestrator's per slice. The goal is efficient,
+  high-quality work, not a sequence to follow.
+- **The agent is gone: `.claude/agents/slice-planner.md` is deleted.** Plain Claude Code
+  behaviour replaces it, so the workspace no longer maintains a fourth managed agent surface —
+  and the v19 anomaly of an agent outside `EXECUTOR_TIERS` (no `executors.toml` knob, no
+  `sync-agents` coverage, a model pinned in-file and drifting from the tier presets) dissolves
+  rather than needing a fix. `scripts/workflow.py` is unchanged; there was never a Codex
+  counterpart, since `do-whole-phase` is Claude Code only.
+- **The enforcement guarantee is honestly weaker, and the docs say so.** v19's read-only
+  property came from the agent's `Read, Glob, Grep` allowlist — structural, not prose. With the
+  agent gone, `Explore` has `Bash` and inline research is bounded only by the orchestrator's own
+  discipline: read-only is now a rule to follow, not a tool allowlist that enforces itself.
+- **What still binds, whatever the orchestrator chooses:** read-only (no repo writes, no
+  `workflow.py` state commands, no commits, none of slice N+1's actual work); no second
+  executor; never block (the executor's completion notification always wins, and anything not
+  ready by then is dropped); discard on any verdict other than `done`; notes live in the session
+  scratchpad, never in a slice folder; and **the operator's approval gate does not move**.
+- **v19's five skip conditions are demoted to guidance**, not deleted — `DECOMP`, a `REVIEW` or
+  already-`ready` next slice, anything `pending`, and blast-radius overlap are now stated as
+  where preparing ahead usually does not pay off, alongside where it does. The useful half of the
+  deleted agent's prompt (hand everything by path, ask sharp questions, expect a compact advisory
+  brief with an explicit "not read / possibly stale" list — never a plan, never a file dump)
+  survives as short guidance inside the skill.
+- Unchanged: v19's copy-based plan capture, `auto`'s safety halts, the escalation ladder,
+  `plan only` / `ready` semantics, the executor tiers, and both `do-next-slice` copies (which
+  never prefetched).
+
+Migration notes: **delete `.claude/agents/slice-planner.md` by hand after `--update`.** The
+updater never deletes files; it now lists the agent as **stale** in the update summary, but
+removing it is a manual step. Leaving it in place is harmless — nothing dispatches it any more —
+but it is dead machinery that will drift. Everything else lands automatically: the rewritten
+`do-whole-phase` rule and the amended contract bullets in `CLAUDE.md` / `AGENTS.md`. No workflow
+behaviour changes for Codex.
+
+## v19 — 2026-07-28
+
+- **`do-whole-phase` now overlaps the next slice's research with the running executor.**
+  Right after dispatching executor N in the background, the orchestrator dispatches a new
+  read-only prefetch agent to research slice N+1 during the idle window; when N returns it
+  plans N+1 by **reconciling** that brief with what N actually changed, instead of starting
+  a research pass from scratch. `do-next-slice` is unchanged — it stops after one slice, so
+  a tail prefetch would speculate on work the operator may never run.
+- **New agent: `.claude/agents/slice-planner.md`** (`Read, Glob, Grep` only; `sonnet`, pinned
+  in-file). The tool allowlist, not prose, is what makes the prefetch read-only: with no
+  `Bash` it cannot run `workflow.py`, `git`, or any build; with no `Agent` it cannot dispatch
+  a second executor; with no `Write`/`Edit` it cannot touch a slice folder. It returns a
+  compact advisory brief — relevant files, patterns to reuse, constraints, open questions,
+  and an explicit "not read / possibly stale" list — never a plan and never a file dump.
+- **The guardrails ship with it.** The prefetch is **skipped** when the current slice is
+  `DECOMP`, when the next is `REVIEW`, when the next is already `ready` (`[r]`), when the
+  phase or any slice is `pending`, or when the next slice's files sit inside slice N's blast
+  radius (the paths N's `plan.md` says it will touch). The brief is **discarded** on any
+  verdict other than `done`, is **never blocked on** (the executor's return always wins), and
+  lives in the session scratchpad — **never** in a slice folder, where a stale draft could be
+  misread as an approved plan. **The operator's approval gate does not move:** plan N+1 is
+  still approved after slice N's `result.md`, verdict, and `phase.md` notes are in hand.
+  Prefetch applies in the default loop and in `auto`; `plan only` has no idle window to fill.
+- The `slice-planner` model is **not** wired into `executors.toml` / `sync-agents` — it is not
+  an executor tier, so it stays pinned in the agent file and is not covered by the tier presets.
+- **Every plan-persistence site now copies the approved plan instead of retyping it.** After the
+  operator approves a plan in Claude Code, the orchestrator `cp`s the harness plan file — the
+  exact path the harness named for that planning session, confirmed to hold the just-approved
+  slice's plan — into the slice's `plan.md`, immediately, before the next `EnterPlanMode`
+  overwrites it. This is byte-exact and removes the one step where a paraphrase or a silent
+  truncation could creep in. Slice-local additions (an `## Escalation` section, for example) are
+  appended after the copy, never a rewrite of the copied body. `Write` remains the fallback
+  wherever no plan file exists: Codex (no plan mode) and `auto` (plan mode never entered).
+  Covers `do-next-slice` (its default and `plan only` branches, both copies) and `do-whole-phase`
+  (default loop and `plan only`; `auto` keeps `Write`, since it never enters plan mode).
+- **New settings allowlist entry: `Bash(cp:*)`** in `.claude/settings.json`, beside the existing
+  `Bash(python3 scripts/workflow.py:*)`. It grants nothing beyond the already-allowed `Write` tool
+  (file overwrite, no deletion) but avoids a permission prompt immediately after every approval
+  gate.
+
+Migration notes: after `--update`, adopting workspaces gain `.claude/agents/slice-planner.md`,
+the amended `do-whole-phase` rules and contract bullet, the copy-based plan-persistence rule in
+both `do-next-slice` copies and in `do-whole-phase`, and the `Bash(cp:*)` allow entry merged into
+`.claude/settings.json`. No manual action is required, and no existing behavior changes beyond how
+the approved plan is persisted: the approval gate, `auto`'s safety halts, the escalation ladder,
+`plan only` / `ready`, and the executor tiers are all untouched. Codex is unaffected (no plan mode
+there, so it keeps the `Write` fallback; there is no Codex `do-whole-phase`, so no `slice-planner`
+counterpart ships).
+
+## v18 — 2026-07-28
+
+- **Both tier presets are re-cut, and `economy` is the new default.** The shipped
+  `flex` / `economy` mappings adopt the tuning proven in a downstream workspace:
+  `economy` — now the default, applied even when `executors.toml` is absent or has no
+  `mode` key — runs low = sonnet@medium, mid = sonnet@high, high = opus@high;
+  `flex` raises the same ladder to low = sonnet@high, mid = sonnet@xhigh,
+  high = opus@xhigh. The Codex tiers are unchanged and still identical in both presets
+  (gpt-5.5 @ medium/high/xhigh). Per-tier `[claude.<tier>]` / `[codex.<tier>]` tables
+  still override the active preset field by field.
+- **No shipped preset uses haiku any more.** The low tier is sonnet in both presets, so
+  the empty-`effort` escape hatch (`effort = ""` omits the effort line) is now purely an
+  override-only feature — it stays in the engine and in `executors.toml`'s comments.
+- **What each mode is for:** `economy` is the everyday default — the previous default
+  (`flex` at sonnet@xhigh / opus@xhigh / opus@xhigh) put Opus on every medium-risk slice,
+  which is more than routine work needs. `flex` is the opt-in step up for a phase where
+  depth matters more than cost; the escalation ladder still covers the tail either way.
+
+Migration notes: after `--update`, re-run `python3 scripts/workflow.py sync-agents`
+— workspaces without explicit tier overrides move to the new economy mapping. To keep
+the deeper tiers, set `mode = "flex"` in `executors.toml` (and note that `flex` itself
+moved: its mid tier is now sonnet@xhigh, not opus@xhigh — pin `[claude.mid] model = "opus"`
+to keep the old behavior). Uncommented per-tier tables keep overriding as before. A
+previously seeded `executors.toml` keeps its old comment block — documentation only;
+delete it and re-run `--update` to reseed.
+
+## v17 — 2026-07-22
+
+- **Fresh workspaces now ship with knowledge-setup guidance by default.** The seed
+  `operations.md` doc body gains a `## Knowledge (phase explainers)` section describing the
+  default, plugin-free path: sign up at the knowledge service → mint an org-level API key →
+  export `KB_API_BASE_URL` + `KB_API_TOKEN` in `~/.zshenv` (never a repo `.env` — neither Claude
+  Code nor Codex auto-loads it, and a repo file risks committing the secret). With the env vars
+  set, a passing phase review auto-saves the phase explainer via plain REST — Claude Code and
+  Codex equally, no plugin install required. One key serves every repo; each document's project
+  defaults to the repo's directory name.
+- **Codex sandbox opt-in documented.** The seed section notes that Codex's `workspace-write`
+  sandbox blocks outbound network by default (so the save skips) and how to opt in with
+  `[sandbox_workspace_write] network_access = true` in `~/.codex/config.toml`, with its tradeoff
+  (loosens all Codex workspace-write runs; Claude Code needs nothing). The Claude Code knowledge
+  plugin remains the alternative/richer path.
+- **Fresh-install stdout gains a knowledge line** pointing operators at the `~/.zshenv` exports
+  and `docs/current/operations.md` for details.
+- **Migration notes:** no action required. Doc seeds are fresh-install-only, so existing
+  workspaces won't gain the `## Knowledge` section on `--update` — add the exports to `~/.zshenv`
+  directly (works regardless of workspace version), and, for Codex reviews to post online, enable
+  `[sandbox_workspace_write] network_access = true` in `~/.codex/config.toml`.
+
+## v16 — 2026-07-22
+
+- **A passing phase review now auto-produces a phase explainer.** Phase review used to be
+  *validate + consolidate docs*; it is now *validate + consolidate docs + **explain***. On a passing
+  review only (never on `changes_requested` / `blocked`, exactly like doc versions), the review
+  executor locates the knowledge plugin's installed `explain` skill — first hit wins: project
+  `.claude/skills/explain/SKILL.md` → user `~/.claude/skills/explain/SKILL.md` → plugin installs under
+  `~/.claude/plugins` (`cache/` and `marketplaces/`) — and follows it in change mode with the phase as
+  the change-ref, writing a self-contained interactive HTML phase explainer into the operator's KB.
+- **Verdict-neutral, gracefully skipped.** The explainer is best-effort: if the skill is not installed,
+  the KB is unconfigured, web research tools are unavailable, or the KB API is unreachable, the step
+  degrades to a reported skip (`skipped (skill not installed)` / `skipped (KB unconfigured)` /
+  `skipped-offline` / `failed (<reason>)`) and its outcome **never** changes the `review_verdict`. The
+  review executor now returns a one-line `explain:` outcome alongside its verdict.
+- **`WebSearch` / `WebFetch` added to the Claude high executor.** `.claude/agents/slice-executor-high.md`
+  gains those two read-only research tools so the explain skill's cited "Best practices & next steps"
+  section can run at review; `sync-agents` patches only `model:` / `effort:`, so the new `tools:` line
+  survives sync and `sync-agents --check` stays green. Only the high tier gets them (reviews always run
+  there); mid/low and the Codex executors are unchanged. The Codex high executor has no per-agent tools
+  list (Codex governs tools via `sandbox_mode`), so its review degrades the research section to
+  `skipped-offline` by design.
+- **Scoped KB-repo commit carve-out.** The explain skill's API-unreachable offline fallback commits the
+  explainer with `git -C <KB_ROOT>` in the **separate** knowledge-base repo. The executor's "never
+  commit" invariant gains one narrow exception for exactly this: the review slice's auto-explain
+  fallback may commit **only** in that KB repo — never in this workspace's repo, never any `git push`.
+  Under a Codex `workspace-write` sandbox (which cannot write outside the workspace) the fallback is an
+  automatic skip.
+- **Migration notes:** no action required — the step self-skips wherever the knowledge plugin or a KB
+  is absent, and the review verdict is unaffected. Adopters who want auto-explain at their own KB
+  install the knowledge plugin (`/plugin marketplace add leetusik/knowledge`,
+  `/plugin install knowledge@knowledge`) and run `/knowledge:setup` once. On `--update` the
+  `slice-executor-high` agent payload changed (new review step, `explain` verdict field, and — Claude
+  only — the `WebSearch` / `WebFetch` `tools:` line); no `sync-agents` re-run is required, since
+  `sync-agents` only rewrites `model:` / `effort:` and the update ships the new agent-file bodies
+  directly.
+
+## v15 — 2026-07-21
+
+- **Embedded `/explain` is retired — the feature ships as a Claude Code plugin now.** The bootstrap
+  used to carry an optional `explain` skill (installed with `--with-explain`) that wrote
+  novice-friendly educational explainers into a hard-coded personal knowledge base. That feature has
+  graduated into a real, portable Claude Code plugin in the
+  [knowledge repo](https://github.com/leetusik/knowledge), so it no longer needs to ride inside every
+  workspace. The embedded skill copies (`.claude/skills/explain`, `.agents/skills/explain`), the
+  `--with-explain` installer flag, and the `WITH_EXPLAIN` / `OPTIONAL_SKILLS` wiring are all gone —
+  `--with-explain` is now an unknown option that the installer rejects.
+- **Install the plugin instead.** Inside Claude Code:
+
+      /plugin marketplace add leetusik/knowledge
+      /plugin install knowledge@knowledge
+
+  then run `/knowledge:setup` once to scaffold a knowledge base, and `/knowledge:explain <topic>` to
+  use it. Note the namespace change: the embedded skill was bare `/explain`; the plugin's command is
+  `/knowledge:explain`.
+- **Migration notes:** existing installs are never auto-deleted. On `--update`, the Codex copy
+  `.agents/skills/explain` is flagged stale ("remove manually?") while the Claude copy
+  `.claude/skills/explain` is left untouched — it carries no workspace marker, so it is treated as an
+  operator-owned skill. Remove both copies by hand and install the knowledge plugin instead. No
+  `sync-agents` re-run is needed; this is a payload/installer change only.
+
+## v14 — 2026-07-17
+
+- **The design round returns a card set — the operator has to see the design to design it.** v13 was
+  right that the agent must not mirror a canvas, but it retired the line-1 `@dsCard` contract *as part
+  of the mirror*, reasoning that **Connect GitHub** makes mirroring unnecessary. That holds for
+  **input** — and the manifest was never only input. It is also **the render index for the Design
+  System pane**, and Connect GitHub does not populate that pane. So v13 dropped the card medium along
+  with the mirror, and a round degraded from "design on the cards" to "describe in prose, get loose
+  HTML back" — a complete `build-prompt.md` the operator could not see, review, or fix.
+- **The card set is now a required output of the session, authored by Claude Design.** Cards were never
+  the agent's to *author* — they are Claude Design's to *deliver*. The handoff's required-output
+  manifest is now three things: **the card set**, **`result.md`**, and **`build-prompt.md`**. **Markdown
+  alone is not a round.** Requiring a card is not drawing one: the agent says what must be reviewable
+  (**one card per reviewable unit** — never one monolithic "design system" page — and the `group`s that
+  become the pane's headings); Claude Design decides what it looks like. **The mirror ban is unchanged
+  and unweakened.**
+- **The line-1 `@dsCard` marker returns as a handoff requirement, not as mirror work.**
+  `<!-- @dsCard group="…" name="…" subtitle="…" viewport="…" -->` on line 1, exactly; the app compiles
+  it into `_ds_manifest.json` on its self-check. **No marker → no card → an empty pane.**
+- **`tokens.css` is Claude Design's deliverable now.** Under v12 it was the agent's mirror and it
+  drifted four versions behind; v13 deleted it. **The palette *is* the design**, so the design session
+  authors it and the pane compiles the foundations from it — no mirror, no drift, and the foundations
+  render.
+- **Read-back verifies the pane, not the files.** `list_files` first: no `_ds_manifest.json`, an empty
+  `cards[]`, or one monolith → **`needs_operator`** with the card contract restated. Explicitly **not**
+  fixable by editing the artifacts, writing the cards yourself, or hand-compiling the manifest —
+  `register_assets` and the write path stay closed. The definition of done is *"the cards appear in the
+  pane."*
+- **Migration notes:** a round already handed off under v13 comes back with no cards — it is not lost,
+  just invisible. Re-hand-off for the card set against the existing `result.md`/`build-prompt.md`
+  (a visibility pass: it decides nothing new, and supersedes any monolith so there is no second source
+  of truth). Nothing on disk migrates; no `sync-agents` re-run; skill text only.
+
+## v13 — 2026-07-17
+
+- **`design-cowork` drops the seeded canvas — the agent writes a handoff, nothing else.** v12 had the
+  agent mirror the real palette and every shipped surface into design-system cards, push them, and
+  keep them honest forever. Claude Design reads the **real repo** itself (**Connect GitHub** by
+  default, a local-dir connection also works), so the mirror was redundant work that could only drift
+  out of sync. The agent's one output is now **`handoff.md`** — product context, scope checklist,
+  locked vs. in-play, where to look, a strict required-output manifest (always a **`result.md`** and a
+  **`build-prompt.md`**), and the open questions posed back. **`DesignSync` survives as read-back
+  only**, and is how the design reaches the codebase.
+- **Retired with the mechanism:** the seeded-canvas / `/design-sync`-bundle selector and the
+  app-first-trap essay (`/design-sync` is now simply never this workflow), card authoring, the
+  `tokens.css` mirror, the `_ds_manifest.json` regen, the line-1 `@dsCard` contract,
+  `register_assets`, `create_project` ordering, the frozen-baseline mandate, and the standing
+  "re-push or the next pass runs against a lie" obligation — **no mirror, no drift.** The skill goes
+  from 176 to 128 lines.
+- **Design and implementation are now separate slices, always.** A design slice `--kind co-work
+  --risk high` ends at the landed design + SIGNOFF and **never writes implementation code**; a big
+  design gets several design slices (one per round, each with its own handoff and `pending`) and two
+  phases (design, then apply), while a small one stays in a single phase as design slice → implement
+  slice. New explicit step: **land the design as-is** — landing is not implementing; it is what makes
+  the implement slice easy.
+- **Contract:** the *Visual design is Claude Design's job* Hard Rule rewritten off "seed the canvas"
+  onto "write the handoff → STOP → read back → land as-is → implement in a separate slice". The
+  auto-firing routing line in *Driving This Workspace* is unchanged.
+
+Migration notes: none for state. After `--update`, the rewritten skill lands at
+`.claude/skills/design-cowork/` and `.agents/skills/design-cowork/`; no `sync-agents` re-run and no
+state migration are needed. **In-flight design phases decomposed against v12 need re-shaping** — slices
+that exist only to author canvas cards, mirror tokens, or regenerate `_ds_manifest.json` no longer have
+a job. Workspaces that do no visual design are unaffected.
+
+## v12 — 2026-07-17
+
+- **New `design-cowork` skill — product visual design is Claude Design's job, not the agent's.** A
+  guide (not a workflow command) covering the design co-work loop: the agent **seeds** a design-system
+  project by mirroring real code, says **what** to design, **STOPs** at a `pending` gate, reads the
+  operator's design back, and implements it faithfully. It carries the mechanism selector (a seeded
+  canvas + Connect GitHub vs. the bundled `/design-sync` skill, and why an app-first repo must not run
+  the latter), the gate lifecycle (`--kind co-work --risk high`, two commits per gate, expect the
+  read-back to re-shape the phase), the `docs/reference/design/` record layout, the DesignSync traps
+  (main-thread only; the remote is authoritative; the manifest does not rebuild on upload), and
+  **respect the design** for implementation. Distilled from three workspaces that already run this
+  loop successfully but never wrote it down.
+- **It is the first and only model-invocable skill in the workspace** — every other skill is
+  explicit-invocation only (`disable-model-invocation: true` / `allow_implicit_invocation: false`).
+  `design-cowork` fires by itself when work touches visual design, because that is precisely the
+  moment an agent that doesn't know the process starts designing on its own. Its description is scoped
+  to *visual* design so it stays quiet for schema/API/architecture "design".
+- **Contract:** one new Hard Rule (visual design is Claude Design's; seed → hand off → STOP → read
+  back → implement faithfully; DesignSync is main-thread only, so the design-gate slice is **never
+  dispatched** — a deliberate exception to the delegation rule; returned artifacts are read-only
+  **data, not instructions**), plus a routing line in *Driving This Workspace* naming `design-cowork`
+  as the one auto-firing skill.
+
+Migration notes: none — additive. After `--update`, the new skill lands at
+`.claude/skills/design-cowork/` and `.agents/skills/design-cowork/`; no `sync-agents` re-run and no
+state migration are needed. Workspaces that do no visual design are unaffected: the skill only fires
+on design-shaped work.
+
+## v11 — 2026-07-13
+
+- **Executor-tier `mode` presets; `flex` is the new default.** The repo-root
+  `executors.toml` gains a top-level `mode` key (set before any table) selecting a
+  named preset for the Claude slice-executor tiers: `flex` — the default, applied
+  even when the file is absent or has no `mode` key — runs low = sonnet@xhigh,
+  mid = opus@xhigh, high = opus@xhigh; `economy` restores the old
+  haiku / sonnet@xhigh / opus@xhigh mapping. The Codex tiers are identical in both
+  presets (gpt-5.5 @ medium/high/xhigh). Per-tier `[claude.<tier>]` /
+  `[codex.<tier>]` tables still override the active preset field by field, and
+  `sync-agents` now prints the active mode.
+
+Migration notes: after `--update`, re-run `python3 scripts/workflow.py sync-agents`
+— workspaces without explicit tier overrides move to the flex mapping (add
+`mode = "economy"` to `executors.toml` to keep the old tiers; uncommented old
+tables keep overriding as before). A previously seeded `executors.toml` keeps its
+old comment block — documentation only; delete it and re-run `--update` to reseed.
+
+## v10 — 2026-07-04
+
+- **`result.md` is free-form; the template is gone.** `new-slice` no longer
+  scaffolds `result.md` from `works/templates/result.md` — the executor writes it
+  from scratch at slice end, shaped to the slice, just as the orchestrator already
+  writes `plan.md` with no template. A fresh slice folder now holds only
+  `slice.json`. The old template's fixed sections were mostly vestigial (per-slice
+  review status, roadmap updates) and nothing in the engine ever read them; what a
+  result must cover (validation commands + outcomes, doc impact, deviations from
+  plan) stays specified in the executor agents. The full-result vs. cross-slice-note
+  split is unchanged: details in `result.md`, durable one-liners in `phase.md`.
+
+Migration notes: after `--update`, remove the flagged `works/templates/result.md`
+(`git rm works/templates/result.md`). Existing slices' already-written `result.md`
+files are untouched.
+
+## v9 — 2026-07-04
+
+- **`executors.toml` ships seeded; the `.example` file is gone.** The installer now
+  writes `executors.toml` itself — all defaults shown, commented out — instead of an
+  `executors.toml.example` to copy. The file is **seed-once**: created when absent
+  (fresh install, retrofit, or an update onto an older workspace) and never
+  overwritten by `--update`, so operator edits survive updates. The values ship
+  commented out so the engine's built-in defaults stay authoritative — a workspace
+  that hasn't opted into an override keeps tracking upstream default changes.
+  Deleting the file is also fine (absent = defaults).
+
+Migration notes: after `--update`, remove the flagged `executors.toml.example`
+(`git rm executors.toml.example`). A previously created `executors.toml` is
+preserved as-is — the update only seeds the file where it is missing.
+
+## v8 — 2026-07-04
+
+- **Executor-tier config moved from `.env` to `executors.toml`.** `sync-agents` now
+  reads a repo-root `executors.toml` (see the shipped `executors.toml.example`):
+  `[claude.low|mid|high]` / `[codex.low|mid|high]` tables holding `model` / `effort`
+  keys. Semantics are unchanged — values pass through verbatim (aliases, full model
+  IDs, `inherit`), `effort = ""` omits the effort line, models may not be empty.
+  Unlike `.env`, the file is not gitignored: it holds no secrets, committing it
+  shares the tier config with the team, and it no longer mingles workspace tooling
+  keys into an app-level `.env`. A leftover `.env` with `SLICE_EXECUTOR_*` keys is
+  no longer read; `sync-agents` warns when it sees one.
+- **`plan only` mode and the `ready` (`[r]`) slice status.** `/do-next-slice plan
+  only` and `/do-whole-phase plan only` walk slices through the plan-approval gate
+  without dispatching executors: each approved plan is written to the slice's
+  `plan.md` and the slice is set `ready`. A later execution run dispatches a
+  `ready` slice straight from its approved plan without re-entering plan mode.
+  `do-whole-phase plan only` ships `DECOMP` first when needed and stops before
+  `REVIEW` (never pre-planned); `plan only` never combines with `auto`; `validate`
+  errors on a `ready` slice that has no `plan.md`.
+
+Migration notes: move any `SLICE_EXECUTOR_*` / `CODEX_SLICE_EXECUTOR_*` values from
+`.env` into `executors.toml` tables and re-run `sync-agents`; after `--update`,
+remove the flagged retired example (`git rm .env.example`) and drop the `.env` line
+v7 added to `.gitignore` if nothing else in the repo uses a `.env`.
+
+## v7 — 2026-07-03
+
+- **Three slice-executor tiers.** The two executor variants are replaced by
+  `slice-executor-low` / `-mid` / `-high` for both tools, risk-routed by the
+  orchestrator: `risk == low` → low (haiku by default, no effort line — a literal
+  plan-follower: no judgment, no improvisation; it stops and escalates on any
+  surprise), `risk == medium` → mid (sonnet @ xhigh), and everything else —
+  decomposition, the phase review, high/unknown risk — → high (opus @ xhigh,
+  unchanged behavior). Codex tiers run gpt-5.5 at medium / high / xhigh. The
+  untiered `slice-executor.md` / `slice-executor.toml` are retired; phase reviews
+  now record `--reviewer slice-executor-high`.
+- **`.env`-configurable executor models and efforts.** New `sync-agents` workflow
+  command applies a repo-root `.env` (see the shipped `.env.example`) to the six
+  agent files. Values pass through verbatim (aliases, full model IDs, `inherit`);
+  an empty `*_EFFORT` omits the effort line (needed for models that reject the
+  effort parameter, e.g. haiku); `validate` warns while the agent files drift
+  from `.env`/defaults.
+- **Failure escalation.** Executors gain an `escalate` verdict with an
+  `escalation` findings field. When a low/mid executor can't safely complete a
+  slice, the orchestrator appends the findings to the slice's `plan.md` as an
+  `## Escalation` section and re-dispatches one tier up (a failed/empty low/mid
+  return is treated the same; at most 2 escalations per slice; the top tier never
+  escalates — there, unresolvable means `blocked` or `needs_operator`).
+  `needs_operator` / `blocked` semantics are unchanged, and in `auto` runs an
+  escalation re-dispatches without a pause while the other safety halts still stop
+  the loop.
+
+Migration notes: after `--update`, remove the two retired files the updater flags
+(`git rm .claude/agents/slice-executor.md .codex/agents/slice-executor.toml`) —
+updates never delete files. If you tune tiers via `.env`, re-run
+`python3 scripts/workflow.py sync-agents` after every update (updates reset the
+agent files to upstream defaults), and add `.env` to your `.gitignore`.
+
+## v6 — 2026-07-03
+
+- **The workspace bootstraps with no phases.** The installer no longer seeds a
+  placeholder `P1` ("Bootstrap Intake") — fresh installs and retrofits both start
+  with an empty `works/phases/active/`, and `next` reports the empty-start state
+  ("no active slice; create a phase or promote deferred work"). The first phase is
+  created by the operator through the create-phase intake flow (`/create-phase` /
+  `$create-phase` / `new-phase`), so intent is always captured and confirmed rather
+  than pre-filled at install time.
+- **`--phase-name` / `--phase-objective` removed.** With nothing to seed, the flags
+  are gone from the installer; passing them now fails as unknown options.
+- **`/retrofit` no longer synthesizes a first phase.** The skill installs, reconciles,
+  and verifies — then points the operator at `/create-phase` for their first task.
+  The `installer/payloads/p1_seed/` scaffolds are deleted.
+
+Migration notes: already-installed workspaces are unaffected (`--update` never
+touches your phases). Any script that passed `--phase-name` / `--phase-objective`
+to the installer must drop those flags.
+
+## v5 — 2026-07-03
+
+- **Slice-executor dispatch pinned to a background task.** The `do-next-slice` /
+  `do-whole-phase` orchestrator always launches the executor via the Agent tool as a
+  background task (never `run_in_background: false`) and waits for its completion
+  notification. (Shipped in machinery at `d1767f9`; versioned here — that commit
+  skipped the release rule.)
+- **Both slice-executors pinned to `model: opus`.** `.claude/agents/slice-executor.md`
+  and `slice-executor-high.md` now carry `model: opus` instead of inheriting the
+  session model. (Shipped in machinery at `1950902`; versioned here — that commit
+  skipped the release rule.)
+- **Upstream rebuild guard in the contract.** New Hard Rule, self-scoped to the
+  upstream bootstrap repo (inert in adopting repos, which have no `installer/`):
+  editing embedded machinery requires rebuilding and committing the distributable in
+  the same commit; upstream, the tracked `.githooks/pre-commit` hook enforces the
+  drift check. Prompted by a downstream report that `--update` at `d1767f9` emitted
+  stale machinery (that commit edited machinery without rebuilding the artifact).
+
+Migration notes: none.
+
+## v4 — 2026-07-02
+
+- **`/explain` saves through the KB document API.** The old steps 5–7 (manual file
+  write, Recent bullet in `docs/index.md`, KB git commit) are replaced by one
+  `POST http://localhost:8766/api/documents` — the API writes the convention file with
+  frontmatter, inserts the Recent bullet, upserts the DB row, and makes the scoped
+  commit in a single locked call.
+- **The manual flow is now fallback-only.** It runs only when the API is unreachable
+  (curl transport failure: connection refused / timeout). HTTP errors (409 duplicate,
+  422 validation, 401 auth) are handled per the API contract and **never** trigger a
+  file fallback.
+
+Migration notes: the primary path needs the KB API compose service running
+(`docker compose up -d` in `~/projects/personal/knowledge`); the skill still works via
+the fallback when it is down. Applies to `--with-explain` installs; delivered by
+`/update-workspace` force-refresh.
+
+## v3 — 2026-07-02
+
+- **A passing phase review now closes the `REVIEW` slice.** `review-phase` drives the
+  phase's `REVIEW` slice from the verdict (`pass` → `done`, `changes_requested` →
+  `changes_requested`, `blocked` → `blocked`), so a passing review no longer strands the
+  review slice `in_progress` — previously `do-whole-phase` left it open, showing a `done`
+  phase whose "Current Slice" still pointed at an unfinished `REVIEW` slice. Both
+  `do-next-slice` and `do-whole-phase` now behave identically; no separate `finish-slice`
+  for the review slice is needed.
+- **`validate` catches the inconsistency.** It now flags a `done` phase that still has any
+  unfinished slice, mirroring the archive guard, so a stranded slice is surfaced immediately
+  instead of only at archive time.
+
+Migration notes: if a pre-v3 phase was left `done` with an open `REVIEW` slice, run
+`python3 scripts/workflow.py finish-slice <P>.REVIEW` once — the new `validate` guard will
+name any such slice.
+
+## v2 — 2026-07-02
+
+- **`/explain` is now opt-in.** The `explain` skill is no longer installed by default. Pass
+  `--with-explain` to include it on a fresh install or an `--into-existing` retrofit. The skill
+  still ships inside the built artifact — it is only gated at install time.
+- **Update preserves your choice.** `/update-workspace` keeps refreshing an already-installed
+  `explain` (it is never dropped or flagged stale on update). A repo without it stays without it
+  unless you re-run update with `--with-explain`.
+
+Migration notes: none. Repos that installed `explain` under v1 keep it and keep receiving refreshes.
+
+## v1 — 2026-07-02
+
+First versioned release. Workspace versioning starts here.
+
+- **Installer is now a build product.** The 3,025-line self-contained
+  `bootstrap_agentic_workspace.sh` is dissolved into an `installer/` source tree
+  (`build.py` + `wrapper.sh` + `main.py` + `payloads/`); `python3 installer/build.py`
+  reassembles the single committed distributable deterministically. Source of truth
+  for emitted machinery is now the live repo files — no more heredoc mirroring.
+- **Drift check.** `python3 installer/build.py --check` (also `tests/retrofit_smoke.sh`
+  Test 7) fails when the committed artifact no longer matches `installer/` source.
+- **Model-flexible attribution.** The `slice-executor` agent defs use `model: inherit`
+  (run the session's model) and commit-attribution wording is rule-based — "attribute
+  each commit to the model that actually did the work" — with model names appearing
+  only as examples. The Codex agent tomls keep an explicit `model = "gpt-5.5"` (Codex
+  needs an explicit model).
+- **Workspace versioning.** A `WORKSPACE_VERSION` integer is stamped as
+  `workspace_version` into each target's `works/.workspace-version.json`, and this
+  `CHANGELOG.md` records what each version brings. `/update-workspace` reports
+  "you're on vN → upstream vM" and shows the changelog entries in between.
+
+Migration notes: none.

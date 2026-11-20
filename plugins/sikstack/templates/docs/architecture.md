@@ -1,0 +1,51 @@
+# Architecture
+
+## Status
+
+__PROJECT_NAME__ is newly bootstrapped. This document should describe stable system-level truth as the app takes shape.
+
+## Current Repo Shape
+
+- `CLAUDE.md`: the contract on one screen (four invariants, named principles, a rule table naming each enforcer)
+- `docs/current/`: the durable docs, plain files edited in place
+- `works/state.json`: current/next pointer
+- `works/index.json`: generated machine index
+- `works/backlog.md`: generated human dashboard
+- `works/phases/active/`: active phase folders
+- `works/phases/archived/`: archived phase folders
+- `works/deferred/`: deferred job folders
+- `works/agenda/`: agenda item folders; `works/agenda.md` is the generated list
+- `scripts/workflow.py`: workflow and docs version manager
+- `.claude/`: Claude Code entry points (skills, subagents, settings)
+
+## System Shape
+
+- <frontend runtime>
+- <backend runtime>
+- <database / persistence>
+- <background workers / queues>
+- <external integrations>
+
+## Boundaries
+
+- Frontend boundary:
+- Backend boundary:
+- Data boundary:
+- External service boundary:
+
+## What the Code Cannot Say
+
+Agents read the code, so this doc never restates it. It keeps only what the code cannot show about the modules, the data, the API and the security model:
+
+- Invariants and ownership: <rule the code relies on but does not state>
+- Data: <retention, migration or consistency rule>
+- API: <contract with an outside client or service>
+- Security: <trust boundary, secret handling, permission model>
+
+## Cross-Cutting Constraints
+
+- <constraint>
+
+## Open Questions
+
+-
