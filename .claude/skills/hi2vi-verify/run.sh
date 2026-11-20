@@ -9,8 +9,9 @@
 # Everything it writes (state, logs, screenshots, the saved sign-in) lives under
 # $HI2VI_VERIFY_HOME (default: one folder per checkout under ${TMPDIR}/hi2vi-verify/).
 # The container and the browser session are named after that home, so two homes run
-# side by side, and `down` stops only what `up` recorded starting: a process whose pid,
-# start time and command line match the record, and the container it created.
+# side by side, and `down` stops only what `up` recorded starting: each server leads its own
+# process group, recorded at launch, and `down` signals that group while its leader's pid and
+# start time still match the record; and the container it created.
 set -uo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +28,7 @@ abs() { # path: absolute and logically normalized (no ., .. or //), so every spe
 hash8() { printf '%08x' "$(printf '%s' "$1" | cksum | cut -d' ' -f1)"; }
 HOME_DIR="$(abs "${HI2VI_VERIFY_HOME:-$_tmp/hi2vi-verify/$(hash8 "$REPO")}")"
 STATE="$HOME_DIR/state.env"
-OWNED="$HOME_DIR/owned.tsv" # pid <TAB> start time <TAB> command line, one line per process up started
+OWNED="$HOME_DIR/owned.tsv" # pid <TAB> start time <TAB> pgid, one line per server group leader and member
 CONTAINER="hi2vi-verify-pg-$(hash8 "$HOME_DIR")"
 SESSION="hi2vi-verify-$(hash8 "$HOME_DIR")"
 LABEL="hi2vi-verify.home"
@@ -48,36 +49,52 @@ load_state() { # the names always come from the home, never from the file
 }
 
 # --- what this run started -------------------------------------------------------------
+# Each server is launched as the leader of its own process group and recorded straight after $!, as
+# "pid <TAB> start time <TAB> pgid" (a leader's pgid is its own pid); its group's members are recorded the
+# same way. A start time survives exec, a command line does not: nothing here reads a command line to
+# decide what is ours.
 proc_start() { LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | sed 's/ *$//'; }
-proc_cmd() { ps -ww -o command= -p "$1" 2>/dev/null; }
+proc_pgid() { ps -o pgid= -p "$1" 2>/dev/null | tr -d ' '; }
+proc_cmd() { ps -ww -o command= -p "$1" 2>/dev/null; } # for messages only
+group_alive() { kill -0 -- "-$1" 2>/dev/null; }
+group_members() { ps -A -o pid=,pgid= 2>/dev/null | awk -v g="$1" '$2==g{print $1}'; }
 owned_line() { [ -f "$OWNED" ] && awk -F'\t' -v p="$1" '$1==p' "$OWNED" | tail -1; }
-is_ours() { # pid: true only when its start time and command line still match the record
-  local rec; rec=$(owned_line "$1"); [ -n "$rec" ] || return 1
-  [ "$(proc_start "$1")" = "$(printf '%s' "$rec" | cut -f2)" ] && [ "$(proc_cmd "$1")" = "$(printf '%s' "$rec" | cut -f3-)" ]
+owned_groups() { [ -f "$OWNED" ] && awk -F'\t' '$1==$3{print $1}' "$OWNED" | sort -un; }
+recorded() { # pid: alive, with the start time recorded for that pid
+  local rec st; rec=$(owned_line "$1"); [ -n "$rec" ] || return 1
+  st=$(proc_start "$1"); [ -n "$st" ] && [ "$st" = "$(printf '%s' "$rec" | cut -f2)" ]
 }
-own() { # pid: record it and every descendant it has now (called only on this run's processes)
-  local pid=$1 child st line
-  st=$(proc_start "$pid"); [ -n "$st" ] || return 0
-  line=$(printf '%s\t%s\t%s' "$pid" "$st" "$(proc_cmd "$pid")")
-  # A newer line wins (owned_line reads the last): a process that exec'd keeps its pid and start time.
-  [ "$(owned_line "$pid")" = "$line" ] || printf '%s\n' "$line" >>"$OWNED"
-  for child in $(pgrep -P "$pid" 2>/dev/null); do own "$child"; done
-}
-own_refresh() { # record the descendants of this run's servers, while they are still ours
-  local pid; for pid in ${API_PID:-} ${WEB_PID:-}; do is_ours "$pid" && own "$pid"; done; return 0
-}
-settle() { # pid marker: wait until the started process has exec'd into its real command, then record it
-  local i=0
-  while [ "$i" -lt 50 ] && kill -0 "$1" 2>/dev/null; do
-    case "$(proc_cmd "$1")" in *"$2"*) break ;; esac
-    sleep 0.2; i=$((i + 1))
+group_ours() { # pgid: a group up launched, and still that group
+  local g=$1 m
+  owned_groups | grep -qx "$g" || return 1
+  if [ -n "$(proc_start "$g")" ]; then recorded "$g"; return; fi # the leader lives: its start time decides
+  # The leader is gone. Its pid (the group's id) is not reused while the group lives (POSIX fork()), but the
+  # group may have ended and the id been taken since: only a live member the record names keeps it ours.
+  group_alive "$g" || return 1
+  for m in $(group_members "$g"); do
+    recorded "$m" && [ "$(owned_line "$m" | cut -f3)" = "$g" ] && return 0
   done
-  own "$1"
+  return 1
 }
-kill_tree() { # pid: a process this run owns, and every descendant it has now
-  local pid=$1 child
-  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
-  kill "$pid" 2>/dev/null || true
+is_ours() { # pid: a process up recorded (pid and start time), or a member of a group that is still ours
+  local g; recorded "$1" && return 0
+  g=$(proc_pgid "$1"); [ -n "$g" ] && group_ours "$g"
+}
+launched() { # pid: record a server up has just started as the leader of its own group (called straight after $!)
+  local st; st=$(proc_start "$1")
+  [ -n "$st" ] && [ "$(proc_pgid "$1")" = "$1" ] || return 1
+  printf '%s\t%s\t%s\n' "$1" "$st" "$1" >>"$OWNED"
+}
+own_refresh() { # record every member of this run's groups (pid, start time, pgid), while the groups are ours
+  local g m st
+  for g in $(owned_groups); do
+    group_ours "$g" || continue
+    for m in $(group_members "$g"); do
+      recorded "$m" && continue
+      st=$(proc_start "$m"); [ -n "$st" ] && printf '%s\t%s\t%s\n' "$m" "$st" "$g" >>"$OWNED"
+    done
+  done
+  return 0
 }
 dev_lock_holders() { # pids holding this checkout's Next dev lock (Next 16 allows one next dev per web/)
   local lock
@@ -173,10 +190,13 @@ up() {
     || die "alembic upgrade failed (see $EV/run.log)"
   say "up: migrated"
 
+  # set -m for each server launch only: the server leads its own process group (bash sets its pgid before $!
+  # returns), so down can stop it and all its children by that group, whatever the server execs into.
+  set -m
   (cd "$REPO" && exec env -i "${BASE_ENV[@]}" DATABASE_URL="$db" KB_ROOT="$KB_ROOT_DIR" KB_GIT_COMMIT=false \
     KB_GIT_PUSH=false KB_STARTUP_REINDEX=false \
     nohup uv run uvicorn server.main:app --host 127.0.0.1 --port "$API_PORT") </dev/null >"$EV/api.log" 2>&1 &
-  API_PID=$!; settle "$API_PID" uvicorn; write_state
+  API_PID=$!; set +m; launched "$API_PID" || die "the API did not start (see $EV/api.log)"; write_state
   wait_http "http://127.0.0.1:$API_PORT/healthz" 60 || die "API /healthz did not answer (see $EV/api.log)"
   own_refresh
   say "up: api http://127.0.0.1:$API_PORT/healthz ok"
@@ -189,10 +209,11 @@ up() {
   local secret key
   secret=$(openssl rand -hex 32)
   key=$(sed -n 's/^HI2VI_FEEDBACK_CAPTURE_KEY=//p' "$ENV_FILE" | tr -d '"')
+  set -m
   (cd "$REPO" && exec env -i "${BASE_ENV[@]}" KB_API_BASE_URL="http://127.0.0.1:$API_PORT" SESSION_SECRET="$secret" \
     NEXT_PUBLIC_APP_URL="http://127.0.0.1:$WEB_PORT" HI2VI_FEEDBACK_CAPTURE_KEY="$key" \
     nohup pnpm --dir web exec next dev -H 127.0.0.1 -p "$WEB_PORT") </dev/null >"$EV/web.log" 2>&1 &
-  WEB_PID=$!; settle "$WEB_PID" "next dev"; write_state
+  WEB_PID=$!; set +m; launched "$WEB_PID" || die "next dev did not start (see $EV/web.log)"; write_state
   wait_http "http://127.0.0.1:$WEB_PORT/login" 120 || die "web /login did not answer (see $EV/web.log)"
   own_refresh; UPPING=""
   say "up: web http://127.0.0.1:$WEB_PORT/login ok"
@@ -301,26 +322,28 @@ status() {
 down() {
   if [ ! -f "$STATE" ]; then say "down: nothing recorded in $HOME_DIR (no state.env): nothing stopped"; return 0; fi
   load_state
-  local pw pid p who mine="" left="" i
+  local pw g p who mine="" left="" still i
   pw=$(sed -n 's/^HI2VI_DEV_TEST_PASSWORD=//p' "${ENV_FILE:-/dev/null}" 2>/dev/null | tr -d '"')
   if [ -n "$pw" ] && [ -d "${EV:-}" ]; then
     grep -rqF -- "$pw" "$EV" && say "down: WARNING the test password appears under $EV" || say "down: password check: not found under $EV"
   fi
   playwright-cli -s="$SESSION" close >/dev/null 2>&1 || true # named after this home: no other run's session
-  if [ -f "$OWNED" ]; then
-    for pid in $(cut -f1 "$OWNED" | sort -un); do
-      if is_ours "$pid"; then mine="$mine $pid"
-      elif kill -0 "$pid" 2>/dev/null; then say "down: pid $pid no longer matches what up started: left alone"; fi
-    done
-  fi
-  for pid in $mine; do kill_tree "$pid"; done
-  i=0
-  while [ "$i" -lt 20 ]; do
-    left=""; for pid in $mine; do kill -0 "$pid" 2>/dev/null && left="$left $pid"; done
-    [ -z "$left" ] && break
-    sleep 0.5; i=$((i + 1))
+  for g in $(owned_groups); do
+    if group_ours "$g"; then mine="$mine $g"
+    elif [ -n "$(proc_start "$g")" ] || group_alive "$g"; then say "down: process group $g is no longer the one up started: left alone"; fi
   done
-  for pid in $left; do is_ours "$pid" && kill -9 "$pid" 2>/dev/null; done
+  for g in $mine; do kill -TERM -- "-$g" 2>/dev/null; done
+  # A group alive at every check since the TERM is still the same group: its id is not reused while it lives.
+  left="$mine"; i=0
+  while [ -n "$left" ] && [ "$i" -lt 20 ]; do
+    sleep 0.5; i=$((i + 1))
+    still=""; for g in $left; do group_alive "$g" && still="$still $g"; done; left="$still"
+  done
+  for g in $left; do kill -KILL -- "-$g" 2>/dev/null; done
+  i=0; while [ -n "$left" ] && [ "$i" -lt 10 ]; do
+    still=""; for g in $left; do group_alive "$g" && still="$still $g"; done; left="$still"
+    [ -n "$left" ] && sleep 0.2; i=$((i + 1))
+  done
   for p in ${WEB_PORT:-} ${API_PORT:-}; do
     who=$(who_listens "$p")
     [ -n "$who" ] && say "down: port $p is held by $who, not started by this run: left alone"
@@ -331,7 +354,7 @@ down() {
     else say "down: container $CONTAINER_ID is gone or not this home's: left alone"; fi
   fi
   rm -rf "$HOME_DIR/kb-root"; rm -f "$HOME_DIR/web.env" "$OWNED" "$STATE"
-  say "down: stopped what this run started (pids:${mine:- none}); browser session $SESSION closed${EV:+; evidence kept in $EV}"
+  say "down: stopped what this run started (process groups:${mine:- none}${left:+; still alive after KILL:$left}); browser session $SESSION closed${EV:+; evidence kept in $EV}"
 }
 
 case "${1:-}" in
