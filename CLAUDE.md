@@ -19,6 +19,7 @@ The Library and Feedback at <https://hi2vi.com>: a document API, a web app, a CL
 
 - Python: `uv run pytest` (root suite); `uv run uvicorn server.main:app --port 8766` (local API). `cli/`, `mcp-server/` and `tools/listen-runner/` run `uv run pytest` from their own folder.
 - Web: `pnpm --dir web typecheck`, `lint`, `test`, `dev` (`http://127.0.0.1:3030`). Run `pnpm --dir web build` in a scratch copy of `web/`, never in a checkout whose dev server is running: the build rewrites `web/.next`.
+- Verify in a browser: `bash .claude/skills/verify/run.sh doctor | up | signin | feature <name> | down` runs the whole stack on loopback, outside the checkout, and drives it with `playwright-cli`; the steps and the feature map are in `.claude/skills/verify/` (`SKILL.md`, `features/`).
 - Parity: `python3 scripts/skills_parity.py` and `python3 scripts/plugin_parity.py` (CI runs both, `.github/workflows/plugin-ci.yml`).
 
 ## Rules
