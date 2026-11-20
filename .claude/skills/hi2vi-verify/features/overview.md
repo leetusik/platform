@@ -6,10 +6,10 @@
 
 ```bash drive
 "$RUN" signin
-playwright-cli -s=hi2vi-verify goto "$WEB/dashboard"
+playwright-cli -s="$SESSION" goto "$WEB/dashboard"
 "$RUN" expect "Usage, last 30 days" "Projects" "hi2vi" "default"
-playwright-cli -s=hi2vi-verify find "Projects"
-playwright-cli -s=hi2vi-verify screenshot --filename="$EV/overview.png"
+playwright-cli -s="$SESSION" find "Projects"
+playwright-cli -s="$SESSION" screenshot --filename="$EV/overview.png"
 ```
 
 **Proof:** URL `/dashboard`; the texts "Usage, last 30 days" and "Projects"; a Projects row `hi2vi` (Private, Keys 1 or more) and a row `default`. `overview.png` is the picture of the signed-in product.

@@ -8,7 +8,7 @@
 rm -f "$EV/auth-state.json"
 "$RUN" signin
 "$RUN" expect "Projects" "Send feedback"
-playwright-cli -s=hi2vi-verify screenshot --filename="$EV/sign-in.png"
+playwright-cli -s="$SESSION" screenshot --filename="$EV/sign-in.png"
 "$RUN" signin
 ```
 

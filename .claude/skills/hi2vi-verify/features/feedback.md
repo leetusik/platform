@@ -6,14 +6,14 @@
 
 ```bash drive
 "$RUN" signin
-playwright-cli -s=hi2vi-verify goto "$WEB/dashboard"
-playwright-cli -s=hi2vi-verify click 'role=button[name="Send feedback"]'
-playwright-cli -s=hi2vi-verify fill 'role=textbox[name="Message"]' "verify skill feedback check"
-playwright-cli -s=hi2vi-verify click 'role=button[name="Send"]'
+playwright-cli -s="$SESSION" goto "$WEB/dashboard"
+playwright-cli -s="$SESSION" click 'role=button[name="Send feedback"]'
+playwright-cli -s="$SESSION" fill 'role=textbox[name="Message"]' "verify skill feedback check"
+playwright-cli -s="$SESSION" click 'role=button[name="Send"]'
 "$RUN" expect "Feedback sent"
-playwright-cli -s=hi2vi-verify goto "$WEB/feedback"
+playwright-cli -s="$SESSION" goto "$WEB/feedback"
 "$RUN" expect "verify skill feedback check"
-playwright-cli -s=hi2vi-verify screenshot --filename="$EV/feedback.png"
+playwright-cli -s="$SESSION" screenshot --filename="$EV/feedback.png"
 ```
 
 **Proof:** the dialog turns into "Feedback sent"; `/feedback` shows a row "verify skill feedback check" with Project `hi2vi`, Product `hi2vi`, When "just now". Its link opens `/feedback/<id>`.
