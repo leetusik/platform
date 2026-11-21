@@ -11,7 +11,13 @@ it imports no other engine module (wf_store finds the state at import, or exits 
   (or refuses), setup still finishes: `<data-dir>/registration.json` says `pending`, and the plugin's SessionStart
   hook retries once per session (`retry_pending`), clearing the mark when it lands.
 - `autoCompactWindow: 500000` in the user's Claude Code settings (`$CLAUDE_CONFIG_DIR/settings.json`, else
-  `~/.claude/settings.json`), a setting a plugin cannot ship; nothing else in that file changes."""
+  `~/.claude/settings.json`), a setting a plugin cannot ship; nothing else in that file changes.
+
+`sikstack feedback --data-dir <the plugin's data folder> [--message TEXT]` (the `/sikstack:feedback` skill, after the
+user's yes; the report from stdin when --message is not given) lives here too: it needs the install id and no
+workspace. It posts `{install_id, message, plugin_version}` to `<server>/api/installs/feedback`, refuses a report
+holding an absolute path outside the plugin or the repo's folder name (the report carries no code, paths or repo
+name), and answers in one line: sent, or why not (the per-install limit included)."""
 from __future__ import annotations
 
 import json
@@ -147,6 +153,152 @@ def retry_pending(data_dir, timeout: float = HOOK_TIMEOUT):
         return "pending"
     except Exception:  # noqa: BLE001 - the session never waits on, or fails for, a registration
         return None
+
+
+def post_json(server: str, path: str, body: dict, timeout: float) -> tuple:
+    """(status, payload) of one POST to the server, or (None, why) when no answer came. Never follows a redirect;
+    an answer that is not JSON reads as {}."""
+    import urllib.error
+    import urllib.request
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    request = urllib.request.Request(f"{server}{path}", data=json.dumps(body).encode("utf-8"), method="POST",
+                                     headers={"Content-Type": "application/json", "Accept": "application/json",
+                                              "User-Agent": f"sikstack/{plugin_version()}"})
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=timeout) as answer:
+            status, raw = answer.status, answer.read(1 << 20)
+    except urllib.error.HTTPError as exc:
+        status, raw = exc.code, exc.read(1 << 16)
+    except Exception as exc:  # noqa: BLE001 - unreachable, refused, timed out, a TLS error
+        reason = getattr(exc, "reason", None) or exc
+        return None, f"{exc.__class__.__name__}: {reason}"[:200]
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        payload = {}
+    return status, payload if isinstance(payload, dict) else {}
+
+
+def machine_server(data_dir: Path) -> str:
+    """The server this machine talks to: SIKSTACK_SERVER when set, else the one setup registered with, else the
+    default. Raises ValueError for an address that is not https:// (or http:// to loopback)."""
+    if (os.environ.get(SERVER_ENV) or "").strip():
+        return server_url()
+    reg = _read_json(data_dir / REGISTRATION_FILE) or {}
+    if isinstance(reg.get("server"), str) and reg["server"].strip():
+        saved = os.environ.get(SERVER_ENV)
+        os.environ[SERVER_ENV] = reg["server"]
+        try:
+            return server_url()
+        finally:
+            if saved is None:
+                os.environ.pop(SERVER_ENV, None)
+            else:
+                os.environ[SERVER_ENV] = saved
+    return server_url()
+
+
+def data_dir_arg(raw: str, prog: str) -> Path:
+    """The --data-dir value as a folder, or SystemExit(2) with one line (the skill passes ${CLAUDE_PLUGIN_DATA})."""
+    raw = (raw or "").strip()
+    if not raw or "${" in raw or not os.path.isabs(raw):
+        print(f"{prog}: --data-dir must be the plugin's data folder as an absolute path (got {raw!r}); the skill "
+              "passes it -- nothing was sent", file=sys.stderr)
+        raise SystemExit(2)
+    return Path(raw)
+
+
+def registered_install(data_dir: Path, prog: str) -> str:
+    """This machine's install id, once registered (a pending registration is sent first); SystemExit(1) with one
+    line when setup never ran or the registration still does not land."""
+    ident = _read_json(data_dir / INSTALL_FILE)
+    if not ident or not isinstance(ident.get("install_id"), str) or not ident["install_id"].strip():
+        print(f"{prog}: this machine is not set up yet: run /sikstack:setup first (nothing was sent)", file=sys.stderr)
+        raise SystemExit(1)
+    if retry_pending(data_dir, SETUP_TIMEOUT) == "pending":
+        reg = _read_json(data_dir / REGISTRATION_FILE) or {}
+        print(f"{prog}: this install's registration is still pending ({reg.get('error') or 'no answer'}): the server "
+              "must take it first; try again when it is reachable (nothing was sent)", file=sys.stderr)
+        raise SystemExit(1)
+    return ident["install_id"]
+
+
+REPORT_MAX = 4000
+_ABS_PATH = re.compile(r"(?<![\w.:/])(?:~/|/(?:Users|home|private|tmp|var|opt|etc|root|mnt|Volumes)/)[^\s'\"`)]*")
+
+
+def report_problem(report: str, plugin_root: Path, repo_name) -> str:
+    """Why a report may not leave the machine, or "": a path outside the plugin, the repo's folder name, too long."""
+    if len(report) > REPORT_MAX:
+        return f"the report is {len(report)} characters; keep it under {REPORT_MAX}"
+    root = str(plugin_root.resolve())
+    for found in _ABS_PATH.findall(report):
+        if not os.path.realpath(os.path.expanduser(found)).startswith(root):
+            return f"the report names a path outside the plugin ({found[:60]}); describe it without the path"
+    if repo_name and len(repo_name) >= 3 and re.search(r"(?<![\w-])" + re.escape(repo_name) + r"(?![\w-])", report,
+                                                       re.IGNORECASE):
+        return f"the report names this repo ({repo_name}); describe what happened without it"
+    return ""
+
+
+def _repo_name():
+    """The git repo's folder name around the cwd, or None (the report must not carry it)."""
+    import subprocess
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if top.returncode != 0 or not top.stdout.strip():
+        return None
+    top_dir = Path(top.stdout.strip())
+    if top_dir.name == ".sikstack":
+        top_dir = top_dir.parent
+    return top_dir.name
+
+
+def feedback_main(argv: list) -> int:
+    import argparse
+    prog = "sikstack feedback"
+    parser = argparse.ArgumentParser(prog=prog, description="Send /sikstack:feedback's report (after the user's yes).")
+    parser.add_argument("--data-dir", required=True, dest="data_dir", help="the plugin's data folder")
+    parser.add_argument("--message", help="the report; read from stdin when not given")
+    args = parser.parse_args(argv)
+    data_dir = data_dir_arg(args.data_dir, prog)
+    report = (args.message if args.message is not None else sys.stdin.read()).strip()
+    if not report:
+        print(f"{prog}: the report is empty (nothing was sent)", file=sys.stderr)
+        return 2
+    problem = report_problem(report, PLUGIN_ROOT, _repo_name())
+    if problem:
+        print(f"{prog}: refused -- {problem} (nothing was sent)", file=sys.stderr)
+        return 2
+    try:
+        server = machine_server(data_dir)
+    except ValueError as exc:
+        print(f"{prog}: {exc} (nothing was sent)", file=sys.stderr)
+        return 2
+    install = registered_install(data_dir, prog)
+    status, payload = post_json(server, "/api/installs/feedback",
+                                {"install_id": install, "message": report, "plugin_version": plugin_version()}, SETUP_TIMEOUT)
+    if status == 202:
+        print(f"sent: the report reached {server} (receipt {payload.get('request_id', '?')}); thank you")
+        return 0
+    if status is None:
+        print(f"{prog}: {server} could not be reached ({payload}): nothing was sent; try again later", file=sys.stderr)
+    elif status == 429:
+        print(f"{prog}: refused -- this install has sent as many reports as it may for now (HTTP 429); try again later",
+              file=sys.stderr)
+    elif status == 404 and "setup" in str(payload.get("detail", "")):
+        print(f"{prog}: refused -- {server} does not know this install; run /sikstack:setup (HTTP 404)", file=sys.stderr)
+    elif status == 404:
+        print(f"{prog}: refused -- {server} takes no reports right now (HTTP 404)", file=sys.stderr)
+    else:
+        print(f"{prog}: refused -- {server} answered HTTP {status}", file=sys.stderr)
+    return 1
 
 
 def settings_path() -> Path:

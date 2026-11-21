@@ -36,6 +36,7 @@ from server import config, db
 from server import dashboard_api
 from server import documents_api
 from server import feedback_api
+from server import installs_api
 from server import listen_api
 from server import listen_play
 from server import reader_api
@@ -203,6 +204,12 @@ app.include_router(workspace_api.router)
 # memoized per head), and the agenda writes, which only add inbox entries that a linked
 # engine applies. Session-only; another tenant's project answers 404.
 app.include_router(workspace_web_api.router)
+
+# sikstack installs: the plugin's registration and its sign-in from the machine
+# (/api/installs, /api/installs/sign-in[/poll]), the connect page's read, approve and
+# decline (/app/connect/{code}…, through the web's BFF), and an install's Feedback
+# (/api/installs/feedback). Postgres-only: with no DATABASE_URL every route answers 404.
+app.include_router(installs_api.router)
 
 # One process-wide lock serializes the whole write critical section (file → index
 # → DB → git). Load-bearing invariant: the API runs a SINGLE uvicorn worker, so an

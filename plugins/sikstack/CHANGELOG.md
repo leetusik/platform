@@ -60,6 +60,18 @@ integer version per release, `## v<N>` below; that history continues here.
   `.sikstack/`), `unlink` removes it; `.hi2vi/` keeps only the sync's bookkeeping. The workspace key is kept in
   `$XDG_CONFIG_HOME/sikstack/workspace-keys.json`; a key the older engine kept in `…/hi2vi/workspace-keys.json` is still
   read.
+- **`/sikstack:sign-in` claims the install and links the repo.** `sikstack sign-in --data-dir ${CLAUDE_PLUGIN_DATA}`
+  starts a sign-in (`POST <server>/api/installs/sign-in`), prints a short code and the web's `/connect?code=…` address
+  and opens it, then polls while the person signs in there and presses Connect. The approval hands over the new
+  project's `workspace` key once; the engine keeps it like `link` does (never printed), writes and commits the
+  `[cloud]` table, and the first sync uploads the repo's earlier work. One run waits at most `--wait` seconds (exit 3:
+  run it again, same code). The server claims an install only through a signed-in account's approval of a code,
+  never by the setup email.
+- **`/sikstack:feedback` sends a short report on a yes.** The skill drafts it (what happened, what was expected, the
+  plugin version), shows it and sends it only when the user says yes: `sikstack feedback --data-dir …` posts it
+  with the install id (`POST <server>/api/installs/feedback`), so it needs no sign-in, and refuses a report naming a
+  path outside the plugin or the repo's folder. The contract and `sik-mode` offer it once after an engine error, a
+  refusal that cost a turn, or the user's frustration.
 - **Migration notes.** Run `/sikstack:setup` once per machine. An existing `workflow/` install keeps running its own
   engine until `sikstack migrate --apply` moves it into `.sikstack/` (run the bare `sikstack migrate` first to read the
   plan); nothing reads the old layout meanwhile.

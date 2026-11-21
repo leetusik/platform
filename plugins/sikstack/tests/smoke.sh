@@ -14,7 +14,8 @@
 #   12 (the at-root worktree: there is no at-root workspace any more; the nested worktree is 11, 14, 17 and 28),
 #   and the install/--update/--to-multi-repo parts of 5, 17, 19, 23 and 25. Test 0's pins moved to
 #   tests/static_pins.py, less the installer's own; Test 29 is new (the finder, init, the hooks, the shipped text), and
-#   so are Test 30 (setup, the registration retry, the rules card) and Test 31 (migrate from an old install).
+#   so are Test 30 (setup, the registration retry, the rules card), Test 31 (migrate from an old install) and Test 32
+#   (sign-in and feedback against the fake server).
 #
 # Usage:  bash plugins/sikstack/tests/smoke.sh        (alone in its shell call: never chained)
 # Exit 0 if every check passes; non-zero otherwise. Re-runnable; self-cleaning.
@@ -95,7 +96,7 @@ print(f"statements={len(ast.parse(src).body)} failed={fails}")
 sys.exit(1 if fails else 0)
 PY
 ); t0_rc=$?
-if [ "$t0_rc" = 0 ]; then ok "the plugin's text pins hold ($(printf '%s\n' "$t0_out" | tail -1)): 17 skills and their invocation metadata, the skill directories (cores of 8,192 B or less, every named reference shipped), the playbooks, agents and contract wording, the contract's 4,096 B cap"
+if [ "$t0_rc" = 0 ]; then ok "the plugin's text pins hold ($(printf '%s\n' "$t0_out" | tail -1)): 20 skills and their invocation metadata, the skill directories (cores of 8,192 B or less, every named reference shipped), the playbooks, agents and contract wording, the contract's 4,096 B cap"
 else printf '%s\n' "$t0_out"; bad "a shipped text pin failed (lines above)"; fi
 
 # ---------------------------------------------------------------------------
@@ -531,10 +532,10 @@ design = {"design-init", "design-system", "design-open", "design-check", "design
           "design-readback", "design-sign", "design-close", "design-migrate"}
 agenda = {"deferred", "defer-job", "promote-deferred", "drop-deferred", "agenda", "agenda-add", "agenda-edit", "agenda-move",
           "agenda-defer", "agenda-solve", "agenda-drop", "agenda-reopen", "agenda-delete", "agenda-link", "agenda-unlink"}
-cloud = {"link", "unlink", "sync", "mark-committed"}
-machine = {"setup", "migrate"}  # beside init, run before any workspace is found
-assert len(names) == 44 and set(names) == verbs | design | agenda | cloud | machine, sorted(set(names) ^ (verbs | design | agenda | cloud | machine))
-' ) && ok "the engine's --help lists 44 commands: init and the eleven verbs, setup and migrate, plus the design, agenda and cloud parts' own, no adapter command" \
+cloud = {"link", "sign-in", "unlink", "sync", "mark-committed"}
+machine = {"setup", "feedback", "migrate"}  # beside init, run before any workspace is found
+assert len(names) == 46 and set(names) == verbs | design | agenda | cloud | machine, sorted(set(names) ^ (verbs | design | agenda | cloud | machine))
+' ) && ok "the engine's --help lists 46 commands: init and the eleven verbs, setup, feedback and migrate, plus the design, agenda and cloud parts' own, no adapter command" \
   || bad "the engine's command list moved -- $(printf '%s\n' "$cg_help" | sed -n 2p)"
 card_ok() { # card_ok <text>: at most 2,048 bytes, no re-read, the pointer, the next action and the file paths
   [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -le 2048 ] && ! printf '%s\n' "$1" | grep -qi 're-read' \
@@ -4958,6 +4959,85 @@ mg_rn=$( cd "$MGR" && python3 "$ME" next 2>&1 | grep -x 'current_phase=P3' )
   && [ -z "$(git -C "$MGR/.sikstack" status --porcelain)" ] && grep -q '^migrate=done' "$MGW/root.txt" \
   && ok "migrate --apply on an at-root install seeds .sikstack/ (one import commit naming the source commit, the routes carried), leaves every tracked file and the repo's HEAD as they were, and prints the git rm to run" \
   || bad "migrate --apply (at-root) -- rc=$mg_rc $(tail -6 "$MGW/root.txt")"
+
+# ---------------------------------------------------------------------------
+echo "== Test 32: sign-in and feedback -- sign-in refuses an unregistered machine and a dirty workflow repo with nothing written; it prints the code and the connect address (never opening a browser with --no-browser), waits while the code is pending (exit 3 after --wait), keeps the same code on the next run, and on approval keeps the key (never printed) in the key file, writes and commits the [cloud] table and uploads the workspace; a declined or expired code ends with one line and nothing written; feedback sends {install_id, message, plugin_version} with no auth, reports the per-install limit in one line, and refuses a report naming a path outside the plugin or the repo, sending nothing =="
+newtmp SIW; printf 'signin-smoke-key\n' > "$SIW/key"
+si_fake() {  # si_fake <name>: a fake server logging into $SIW/<name>/; prints its PID
+  python3 "$PLUGIN/tests/fake_hi2vi.py" --dir "$SIW/$1" --port-file "$SIW/$1.port" --key-file "$SIW/key" --project p-si --org o-si \
+    --lifetime 300 > "$SIW/$1.txt" 2>&1 &
+  _p=$!; for _ in $(seq 1 100); do [ -s "$SIW/$1.port" ] && break; sleep 0.1; done; echo "$_p"
+}
+si_up=$(si_fake up); SIS="http://127.0.0.1:$(cat "$SIW/up.port")"
+si_eng() { ( cd "$SIW/$1" && XDG_CONFIG_HOME="$SIW/xdg" python3 "$ENG" "${@:2}" ) 2>&1; }
+si_decide() { curl -s -X POST "$SIS/_fake/sign-in" -d "{\"code\":\"$1\",\"state\":\"$2\"}" >/dev/null; }
+si_code() { sed -n 's/^code: \([A-Z0-9-]*\) .*/\1/p' "$1" | head -1; }
+mkhost "$SIW/repo" && git -C "$SIW/repo/.sikstack" add -A && git -C "$SIW/repo/.sikstack" commit -qm "seed" >/dev/null 2>&1
+# (a) not set up yet: refused, nothing written.
+si_none=$(si_eng repo sign-in --data-dir "$SIW/nodata" --no-browser --wait 1; echo "rc=$?")
+# (b) set up; a dirty workflow repo is refused before any request.
+( cd "$SIW/repo" && CLAUDE_CONFIG_DIR="$SIW/cfg" SIKSTACK_SERVER="$SIS" python3 "$ENG" setup --email s@example.com --data-dir "$SIW/data" ) >/dev/null 2>&1
+printf 'x\n' > "$SIW/repo/.sikstack/scratch.txt"
+si_dirty=$(si_eng repo sign-in --data-dir "$SIW/data" --no-browser --wait 1; echo "rc=$?")
+rm -f "$SIW/repo/.sikstack/scratch.txt"
+si_starts0=$(grep -c '"route": "sign-in"' "$SIW/up/requests.jsonl" 2>/dev/null); si_starts0=${si_starts0:-0}
+# (c) pending: the code and address, exit 3 after --wait; the next run keeps the same code.
+si_eng repo sign-in --data-dir "$SIW/data" --no-browser --wait 2 > "$SIW/c1.txt"; si_rc1=$?
+si_eng repo sign-in --data-dir "$SIW/data" --no-browser --wait 2 > "$SIW/c2.txt"; si_rc2=$?
+si_c1=$(si_code "$SIW/c1.txt"); si_c2=$(si_code "$SIW/c2.txt")
+si_starts=$(grep -c '"route": "sign-in"' "$SIW/up/requests.jsonl")
+[ "$(printf '%s\n' "$si_none" | tail -1)" = rc=1 ] && printf '%s\n' "$si_none" | grep -q '/sikstack:setup first' \
+  && [ "$(printf '%s\n' "$si_dirty" | tail -1)" = rc=1 ] && printf '%s\n' "$si_dirty" | grep -q 'uncommitted changes' && [ "$si_starts0" = 0 ] \
+  && [ "$si_rc1" = 3 ] && [ "$si_rc2" = 3 ] && [ -n "$si_c1" ] && [ "$si_c1" = "$si_c2" ] && [ "$si_starts" = 1 ] \
+  && grep -q "^connect page: http://127.0.0.1:$(cat "$SIW/up.port")/connect?code=$si_c1 (open it in your browser)" "$SIW/c1.txt" \
+  && grep -q 'still waiting for the connect page' "$SIW/c1.txt" && grep -q '^waiting for the connect page again' "$SIW/c2.txt" \
+  && grep -q '"repo": "repo"' "$SIW/up/requests.jsonl" && ! grep -q '"poll_token"' "$SIW/up/requests.jsonl" \
+  && ok "sign-in refuses an unset machine and a dirty workflow repo before any request; it prints the code and the connect address, waits (exit 3 after --wait) and keeps the same code on the next run" \
+  || bad "sign-in before approval -- none=[$si_none] dirty=[$si_dirty] rc=$si_rc1/$si_rc2 codes=$si_c1/$si_c2 starts=$si_starts0/$si_starts $(cat "$SIW/c1.txt")"
+# (d) approved: the key is kept (0600, never printed), the [cloud] table written and committed, the workspace uploaded.
+( si_eng repo sign-in --data-dir "$SIW/data" --no-browser --wait 30 > "$SIW/d.txt"; echo "rc=$?" >> "$SIW/d.txt" ) &
+si_bg=$!; sleep 1; si_decide "$si_c1" approved; wait "$si_bg"
+si_key=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d[sys.argv[2]]["p-si"]["key"])' "$SIW/xdg/sikstack/workspace-keys.json" "$SIS" 2>/dev/null)
+si_mode=$(python3 -c 'import os,stat,sys; print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode)))' "$SIW/xdg/sikstack/workspace-keys.json" 2>/dev/null)
+si_head=$(curl -s "$SIS/_fake/state" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("head"))')
+grep -q '^rc=0' "$SIW/d.txt" && [ "$si_key" = signin-smoke-key ] && [ "$si_mode" = 0o600 ] && ! grep -q signin-smoke-key "$SIW/d.txt" \
+  && grep -qx 'project_id = "p-si"' "$SIW/repo/.sikstack/config.toml" && grep -qx "server = \"$SIS\"" "$SIW/repo/.sikstack/config.toml" \
+  && [ -z "$(git -C "$SIW/repo/.sikstack" status --porcelain)" ] && git -C "$SIW/repo/.sikstack" log -1 --format=%s | grep -q 'link this checkout' \
+  && [ "$si_head" -ge 1 ] 2>/dev/null && grep -q '^linked: [0-9]* file(s) sent' "$SIW/d.txt" && grep -q '^on the web: ' "$SIW/d.txt" \
+  && [ -z "$(ls "$SIW/data/sign-in" 2>/dev/null)" ] \
+  && ok "on approval sign-in keeps the key in the key file (0600, never printed), writes and commits the [cloud] table and uploads the workspace (head r$si_head)" \
+  || bad "sign-in on approval -- key=$si_key mode=$si_mode head=$si_head $(cat "$SIW/d.txt")"
+# (e) declined and expired codes end with one line; nothing is written.
+mkhost "$SIW/repo2" && git -C "$SIW/repo2/.sikstack" add -A && git -C "$SIW/repo2/.sikstack" commit -qm seed >/dev/null 2>&1
+for si_end in denied expired; do
+  ( si_eng repo2 sign-in --data-dir "$SIW/data" --no-browser --wait 30 > "$SIW/e-$si_end.txt"; echo "rc=$?" >> "$SIW/e-$si_end.txt" ) &
+  si_bg=$!; sleep 1; si_decide "$(si_code "$SIW/e-$si_end.txt")" "$si_end"; wait "$si_bg"
+done
+grep -q '^rc=1' "$SIW/e-denied.txt" && grep -q 'declined on the connect page: nothing was written' "$SIW/e-denied.txt" \
+  && grep -q '^rc=1' "$SIW/e-expired.txt" && grep -q 'no longer works: run /sikstack:sign-in again' "$SIW/e-expired.txt" \
+  && ! grep -q '^\[cloud\]' "$SIW/repo2/.sikstack/config.toml" && [ -z "$(git -C "$SIW/repo2/.sikstack" status --porcelain)" ] \
+  && ok "a declined or an expired code ends sign-in with one line, the checkout unlinked and clean" \
+  || bad "sign-in declined/expired -- $(cat "$SIW/e-denied.txt") / $(cat "$SIW/e-expired.txt")"
+# (f) feedback: a second install that never signed in sends; past the per-install limit one line; a path or the repo's
+# name is refused before any request.
+( cd "$SIW/repo2" && CLAUDE_CONFIG_DIR="$SIW/cfg" SIKSTACK_SERVER="$SIS" python3 "$ENG" setup --email t@example.com --data-dir "$SIW/data2" ) >/dev/null 2>&1
+si_fb() { ( cd "$SIW/repo2" && python3 "$ENG" feedback --data-dir "$SIW/data2" "$@" ) 2>&1; echo "rc=$?"; }
+si_f1=$(printf 'sign-in printed its code twice; expected once. plugin 1.0.0\n' | si_fb)
+si_f2=$(si_fb --message "a second report")
+si_f3=$(si_fb --message "a third report")
+si_f4=$(si_fb --message "it broke at /home/me/app/main.py")
+si_f5=$(si_fb --message "the repo2 checkout failed")
+si_id2=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["install_id"])' "$SIW/data2/install.json")
+si_rep=$(curl -s "$SIS/_fake/reports" | python3 -c 'import json,sys; r=json.load(sys.stdin)["reports"]; print(len(r), r[0])')
+kill "$si_up" 2>/dev/null; wait "$si_up" 2>/dev/null
+printf '%s\n' "$si_f1" | grep -q '^sent: ' && [ "$(printf '%s\n' "$si_f1" | tail -1)" = rc=0 ] && printf '%s\n' "$si_f2" | grep -q '^sent: ' \
+  && [ "$(printf '%s\n' "$si_f3" | grep -c '')" = 2 ] && printf '%s\n' "$si_f3" | grep -q 'refused -- this install has sent as many reports as it may for now (HTTP 429)' \
+  && printf '%s\n' "$si_f4" | grep -q 'names a path outside the plugin' && [ "$(printf '%s\n' "$si_f4" | tail -1)" = rc=2 ] \
+  && printf '%s\n' "$si_f5" | grep -q 'names this repo (repo2)' \
+  && [ "$si_rep" = "2 {'install_id': '$si_id2', 'message': 'sign-in printed its code twice; expected once. plugin 1.0.0', 'plugin_version': '1.0.0'}" ] \
+  && [ "$(grep -c '"route": "feedback"' "$SIW/up/requests.jsonl")" = 3 ] \
+  && ok "feedback sends {install_id, message, plugin_version} from an install that never signed in, reports the per-install limit in one line, and refuses a path or the repo's name before any request" \
+  || bad "feedback -- f1=[$si_f1] f2=[$si_f2] f3=[$si_f3] f4=[$si_f4] f5=[$si_f5] reports=[$si_rep]"
 
 # ---------------------------------------------------------------------------
 echo

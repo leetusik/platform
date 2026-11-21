@@ -4,8 +4,9 @@ Ported from vocky's accounts/tenancy tables (the first six here) plus the P11
 ``usage_events`` table (the 7th), the seven P30.S8 reader-state tables (JSONB for
 a reader's anchors, quotes, snapshots and quiz responses), the five P41-sr.B1
 Listen tables (units, parts, jobs, runners and listening positions), vocky's
-three Feedback tables (events, comments, attachments; revision ``0009``), and the
-eight workspace-store tables (revision ``0011``).
+three Feedback tables (events, comments, attachments; revision ``0009``), the
+eight workspace-store tables (revision ``0011``), and the sikstack plugin's
+``installs`` and ``install_sign_ins`` (revision ``0012``).
 """
 
 from __future__ import annotations
@@ -1142,3 +1143,76 @@ class WorkspaceInboxModel(Base):
     batch_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = _ts()
     resolved_at: Mapped[datetime | None] = _ts(nullable=True)
+
+
+# -- sikstack installs (0012) -------------------------------------------------------
+#
+# One row per machine that ran ``/sikstack:setup`` (``installs``, the pre-user row:
+# the install id, the setup email and the plugin version, nothing else of the user's),
+# and one row per sign-in from that machine (``install_sign_ins``: a short code the
+# connect page shows, a poll token the plugin holds, an expiry). An install is
+# claimed only when a signed-in account approves one of its codes: ``claimed_by``
+# then names that account for good, and the setup email never claims anything by
+# itself (``server.installs_api``).
+
+
+class InstallModel(Base):
+    """One sikstack install (a machine's setup): the pre-user row, later its claimer."""
+
+    __tablename__ = "installs"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    install_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    plugin_version: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = _ts()
+    last_seen_at: Mapped[datetime] = _ts()
+    claimed_by: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    claimed_at: Mapped[datetime | None] = _ts(nullable=True)
+
+
+class InstallSignInModel(Base):
+    """One sign-in from an install: its code, its poll token's hash and what became of it.
+
+    ``state`` is ``pending`` | ``approved`` | ``denied`` (app-side values); a pending
+    row past ``expires_at`` reads as expired. An approved row names the org and the
+    project it made; ``delivered_at`` is set when the plugin collected the workspace
+    key, which is minted then and handed over once.
+    """
+
+    __tablename__ = "install_sign_ins"
+    __table_args__ = (Index("ix_install_sign_ins_install_id", "install_id"),)
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    install_id: Mapped[UUID] = _uuid_fk("installs.id")
+    code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    poll_token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    repo_name: Mapped[str] = mapped_column(Text, nullable=False)
+    plugin_version: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[str] = mapped_column(
+        Text, nullable=False, default="pending", server_default=text("'pending'")
+    )
+    created_at: Mapped[datetime] = _ts()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_poll_at: Mapped[datetime | None] = _ts(nullable=True)
+    decided_by: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    decided_at: Mapped[datetime | None] = _ts(nullable=True)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    project_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    delivered_at: Mapped[datetime | None] = _ts(nullable=True)

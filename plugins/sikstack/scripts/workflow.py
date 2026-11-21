@@ -29,6 +29,9 @@ if __name__ == "__main__" and sys.argv[1:2] == ["init"]:  # before the finder: t
 if __name__ == "__main__" and sys.argv[1:2] == ["setup"]:  # per machine: needs no workspace
     import wf_setup  # noqa: E402
     raise SystemExit(wf_setup.setup_main(sys.argv[2:]))
+if __name__ == "__main__" and sys.argv[1:2] == ["feedback"]:  # per machine: the install id, no workspace
+    import wf_setup  # noqa: E402
+    raise SystemExit(wf_setup.feedback_main(sys.argv[2:]))
 if __name__ == "__main__" and sys.argv[1:2] == ["migrate"]:  # reads an old workflow/ install, which the finder refuses
     import wf_migrate  # noqa: E402
     raise SystemExit(wf_migrate.migrate_main(sys.argv[2:]))
@@ -73,6 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
                    "folder>; keeps one install id there, registers {install_id, email, plugin_version} with the server "
                    "(SIKSTACK_SERVER, default https://sikstack.com; pending when unreachable, retried by the session-start "
                    "hook) and sets autoCompactWindow 500000 in the user's Claude Code settings. Needs no workspace")
+    sub.add_parser("feedback", help="Send a short report to sikstack (the /sikstack:feedback skill runs it after the user's "
+                   "yes): --data-dir <the plugin's data folder>, the report as --message or on stdin. Keyed by this "
+                   "install's id, so it needs no sign-in and no workspace; refuses a report naming a path outside the "
+                   "plugin or this repo; one line back (sent, or why not, the per-install limit included)")
     sub.add_parser("migrate", help="Move an old workflow/ install (nested, single- or multi-repo host, or at-root) into "
                    ".sikstack/: a dry run by default that prints the plan and writes nothing; --apply makes the move "
                    "(the history kept, one cleanup commit), rewrites the host's exclude block and CLAUDE.local.md block, "
@@ -330,7 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_agenda_parsers(sub)  # defer-job, promote-deferred, drop-deferred, agenda, agenda-*
 
-    add_cloud_parsers(sub)  # link, unlink, sync
+    add_cloud_parsers(sub)  # link, sign-in, unlink, sync
     return parser
 
 

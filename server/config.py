@@ -201,6 +201,39 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+# --- sikstack installs (server.installs_api) ----------------------------------
+
+
+def install_rate_limit() -> int:
+    """Max requests per client address per window on each unauthenticated install
+    route (``KB_INSTALL_RATE_LIMIT``, 30): registration, a sign-in's start, and a
+    signed-out read of a connect code (each route counted apart). ``<= 0`` turns
+    the limiter off."""
+    return _env_int("KB_INSTALL_RATE_LIMIT", 30)
+
+
+def install_rate_window_s() -> int:
+    """The install limiters' fixed window in seconds (``KB_INSTALL_RATE_WINDOW_S``,
+    900); a non-positive or unparseable value falls back to 900. The per-install
+    Feedback limit counts in it too."""
+    value = _env_int("KB_INSTALL_RATE_WINDOW_S", 900)
+    return value if value > 0 else 900
+
+
+def install_feedback_project_id() -> str | None:
+    """The project an install's ``/sikstack:feedback`` report lands in
+    (``KB_INSTALL_FEEDBACK_PROJECT_ID``, a project id); unset, the route is
+    dormant (404)."""
+    raw = _env("KB_INSTALL_FEEDBACK_PROJECT_ID")
+    return raw.strip() if raw and raw.strip() else None
+
+
+def install_feedback_rate_limit() -> int:
+    """Max reports per install per install window (``KB_INSTALL_FEEDBACK_RATE_LIMIT``,
+    5), on top of the per-address Feedback limit. ``<= 0`` turns it off."""
+    return _env_int("KB_INSTALL_FEEDBACK_RATE_LIMIT", 5)
+
+
 # --- Feedback (P56-p9): capture limits, the capture limiter, the owner alert ----
 
 

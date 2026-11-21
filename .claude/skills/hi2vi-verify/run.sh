@@ -155,6 +155,22 @@ write_state() {
   } >"$STATE"
 }
 
+# api_start <db url> [VAR=value...]: launch the API as its own process group (set -m for this launch only: bash sets
+# the pgid before $! returns, so down stops it and all its children by that group, whatever the server execs into),
+# record it and wait for /healthz. KB_PUBLIC_BASE_URL is the web's address (the sikstack connect page's links);
+# HI2VI_VERIFY_WAITLIST=1 in the caller's environment turns the sign-up waitlist on.
+api_start() {
+  local db=$1; shift
+  set -m
+  (cd "$REPO" && exec env -i "${BASE_ENV[@]}" DATABASE_URL="$db" KB_ROOT="$KB_ROOT_DIR" KB_GIT_COMMIT=false \
+    KB_GIT_PUSH=false KB_STARTUP_REINDEX=false KB_PUBLIC_BASE_URL="http://127.0.0.1:$WEB_PORT" \
+    KB_SIGNUP_WAITLIST="${HI2VI_VERIFY_WAITLIST:-false}" "$@" \
+    nohup uv run uvicorn server.main:app --host 127.0.0.1 --port "$API_PORT") </dev/null >>"$EV/api.log" 2>&1 &
+  API_PID=$!; set +m; launched "$API_PID" || die "the API did not start (see $EV/api.log)"; write_state
+  wait_http "http://127.0.0.1:$API_PORT/healthz" 60 || die "API /healthz did not answer (see $EV/api.log)"
+  own_refresh
+}
+
 up() {
   if [ -f "$STATE" ]; then
     load_state
@@ -190,21 +206,24 @@ up() {
     || die "alembic upgrade failed (see $EV/run.log)"
   say "up: migrated"
 
-  # set -m for each server launch only: the server leads its own process group (bash sets its pgid before $!
-  # returns), so down can stop it and all its children by that group, whatever the server execs into.
-  set -m
-  (cd "$REPO" && exec env -i "${BASE_ENV[@]}" DATABASE_URL="$db" KB_ROOT="$KB_ROOT_DIR" KB_GIT_COMMIT=false \
-    KB_GIT_PUSH=false KB_STARTUP_REINDEX=false \
-    nohup uv run uvicorn server.main:app --host 127.0.0.1 --port "$API_PORT") </dev/null >"$EV/api.log" 2>&1 &
-  API_PID=$!; set +m; launched "$API_PID" || die "the API did not start (see $EV/api.log)"; write_state
-  wait_http "http://127.0.0.1:$API_PORT/healthz" 60 || die "API /healthz did not answer (see $EV/api.log)"
-  own_refresh
-  say "up: api http://127.0.0.1:$API_PORT/healthz ok"
+  api_start "$db"
+  say "up: api http://127.0.0.1:$API_PORT/healthz ok${HI2VI_VERIFY_WAITLIST:+ (waitlist on)}"
 
   (cd "$REPO" && exec env -i "${BASE_ENV[@]}" DATABASE_URL="$db" \
     uv run python scripts/dev_feedback_key.py --env-file "$ENV_FILE" --api "http://127.0.0.1:$API_PORT") >>"$EV/run.log" 2>&1 \
     || die "dev_feedback_key.py failed (see $EV/run.log)"
   say "up: test account ready (credentials in $ENV_FILE, never printed)"
+
+  # The sikstack plugin's install Feedback lands in the test account's project hi2vi: the API learns its id only
+  # now, so it starts again with KB_INSTALL_FEEDBACK_PROJECT_ID set (the first group stopped by its recorded pgid).
+  FEEDBACK_PROJECT=$(docker exec "$CONTAINER_ID" psql -U kb -d kb -tAc \
+    "SELECT id FROM projects WHERE name = 'hi2vi' ORDER BY created_at LIMIT 1" 2>>"$EV/run.log" | tr -d '[:space:]')
+  [ -n "$FEEDBACK_PROJECT" ] || die "no project hi2vi for the install Feedback (see $EV/run.log)"
+  group_ours "$API_PID" && kill -TERM -- "-$API_PID" 2>/dev/null
+  local i=0; while group_alive "$API_PID" && [ "$i" -lt 40 ]; do sleep 0.25; i=$((i + 1)); done
+  group_alive "$API_PID" && die "the first API did not stop (pgid $API_PID)"
+  api_start "$db" KB_INSTALL_FEEDBACK_PROJECT_ID="$FEEDBACK_PROJECT"
+  say "up: api restarted with the install Feedback project (hi2vi, $FEEDBACK_PROJECT)"
 
   local secret key
   secret=$(openssl rand -hex 32)

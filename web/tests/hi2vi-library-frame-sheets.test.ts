@@ -124,6 +124,9 @@ const LIBRARY_PARTS = [
   // The Workspace's agenda (job 02): its board draws `button.link link-row` (the ended part's Show all),
   // and it mounts only under a project's Workspace, never on a page from before the Library.
   "/hi2vi/workspace/",
+  // sikstack's connect page (job 09): its board draws `button.link link-row` (another account's Sign out, F532),
+  // and it is a page of its own in the sign-in frame, never a page from before the Library.
+  "/app/(auth)/connect/",
 ];
 
 describe("the Library's sheets", () => {

@@ -1406,7 +1406,7 @@ def cloud_commit_step(session: CloudSession):
 # The link, the way back, and sync. These three run outside the boundary (main() calls them directly): each
 # takes the checkout's lock itself, and none goes through the begin step's journal recovery, because sync is
 # how an interrupted state is resolved and unlink --from-disk is the one command that runs offline.
-CLOUD_OWN = ("link", "unlink", "sync")
+CLOUD_OWN = ("link", "unlink", "sync", "sign-in")
 CLOUD_KEY_PROMPT = "Paste a workspace key for this project (make one under Keys on the project's page): "
 # Refused in cloud mode with one line each, before anything is read or written: a linked checkout runs every
 # phase here, with no worktree streams (and so no reopened pair).
@@ -1653,6 +1653,16 @@ def cloud_link(args: argparse.Namespace) -> int:
         if problem:
             raise CloudError(problem)
         key = cloud_read_key()
+    except CloudError as exc:
+        raise SystemExit(str(exc))
+    return cloud_link_with(server, project, key)
+
+
+def cloud_link_with(server: str, project: str, key: str, command: str = "link") -> int:
+    """The link's every step past its refusals and the key: probe the project, keep the key (cloud_save_key), write
+    the [cloud] table (cloud_write_link), commit it alone, then the first sync (an empty project gets this checkout's
+    files). `link` reads the key at a prompt; `sign-in` brings the one its approval handed over."""
+    try:
         probe = CloudLink({"server": server, "project_id": project}, key=key)
         info = cloud_probe(probe, "head")
         if str(info.get("project_id")) != project:
@@ -1705,7 +1715,7 @@ def cloud_link(args: argparse.Namespace) -> int:
         print(f"note: config.toml's [{CLOUD_TABLE}] table is not committed in the workflow repo; commit it ({cloud_commit_hint()})")
     try:
         with CloudLock():
-            session = CloudSession(["link", f"{server}/projects/{project}"])
+            session = CloudSession([command, f"{server}/projects/{project}"])
             if mode == "unused":  # an unused install's seed files give way to hi2vi's copy
                 for rel, sha in disk.items():
                     if (live.get(rel) or {}).get("sha256") != sha:
@@ -1715,7 +1725,7 @@ def cloud_link(args: argparse.Namespace) -> int:
             session.begin()
             sent = session.commit()
     except Exception as exc:  # noqa: BLE001 - one line, whatever stopped the first sync
-        raise SystemExit(f"{cloud_stop_line(exc, 'link')} (the link is made: [{CLOUD_TABLE}] in {shown(cloud_config_file())})")
+        raise SystemExit(f"{cloud_stop_line(exc, command)} (the link is made: [{CLOUD_TABLE}] in {shown(cloud_config_file())})")
     if mode == "upload":
         print(f"linked: {sent} file(s) sent to hi2vi")
     else:
@@ -1724,6 +1734,104 @@ def cloud_link(args: argparse.Namespace) -> int:
               + (", this unused install's seed files replaced)" if mode == "unused" else ")"))
     print(f"store=cloud server={server} project={project} head=r{session.base['head']}")
     return 0
+
+
+SIGNIN_WAIT = 540  # seconds one run waits for the connect page (under the Bash tool's 10-minute cap); run it again to go on
+SIGNIN_DIR = "sign-in"  # <data dir>/sign-in/<this checkout's hash>.json: a started sign-in (code, url, poll token), 0600
+
+
+def _signin_file(data_dir: Path) -> Path:
+    return data_dir / SIGNIN_DIR / (hashlib.sha256(str(ROOT.resolve()).encode("utf-8")).hexdigest()[:16] + ".json")
+
+
+def _signin_open(url: str) -> str:
+    """Open the connect page in the user's browser (`open`, `xdg-open`); one line saying what happened."""
+    import subprocess
+    opener = "open" if sys.platform == "darwin" else ("xdg-open" if shutil.which("xdg-open") else None)
+    if opener is None:
+        return "open it in your browser"
+    try:
+        subprocess.run([opener, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=True)
+        return "opened in your browser"
+    except (OSError, subprocess.SubprocessError):
+        return "open it in your browser"
+
+
+def cloud_sign_in(args: argparse.Namespace) -> int:
+    """sign-in: claim this machine's install for an account and link this checkout (see its parser's help)."""
+    import wf_setup
+    prog = "sikstack sign-in"
+    data_dir = wf_setup.data_dir_arg(args.data_dir, prog)
+    try:
+        problem = cloud_link_refusal() or cloud_key_problem(cloud_key_file())
+        if problem:
+            raise CloudError(problem)
+        server = cloud_server_check(wf_setup.machine_server(data_dir))
+    except (CloudError, ValueError) as exc:
+        raise SystemExit(f"{prog}: {exc}")
+    pending = _signin_file(data_dir)
+    started = None
+    try:
+        started = read_json(pending)
+    except (OSError, ValueError):
+        started = None
+    fresh = isinstance(started, dict) and started.get("server") == server and \
+        isinstance(started.get("poll_token"), str) and float(started.get("until") or 0) > time.time()
+    if fresh:
+        print(f"waiting for the connect page again (code {started['code']})")
+    else:
+        install = wf_setup.registered_install(data_dir, prog)
+        repo = (HOST_ROOT or ROOT.parent).name
+        status, answer = wf_setup.post_json(server, "/api/installs/sign-in", {
+            "install_id": install, "repo": repo, "plugin_version": wf_setup.plugin_version()}, wf_setup.SETUP_TIMEOUT)
+        if status != 200 or not isinstance(answer.get("code"), str) or not isinstance(answer.get("poll_token"), str):
+            why = answer if status is None else (answer.get("detail") or f"HTTP {status}")
+            raise SystemExit(f"{prog}: {server} did not start a sign-in ({why}): nothing was written")
+        started = {"server": server, "code": answer["code"], "url": str(answer.get("url") or ""),
+                   "poll_token": answer["poll_token"], "interval": max(1, int(answer.get("interval") or 5)),
+                   "until": time.time() + int(answer.get("expires_in") or 900), "repo": repo}
+        wf_setup._write_json(pending, started)  # owner-only from its first byte: it holds the poll token
+    print(f"code: {started['code']} (check that the page shows the same code)")
+    opened = "open it in your browser" if args.no_browser or not started["url"] else _signin_open(started["url"])
+    print(f"connect page: {started['url']} ({opened})")
+    sys.stdout.flush()
+    interval, stop = int(started["interval"]), time.monotonic() + max(1, int(args.wait))
+    while True:
+        status, answer = wf_setup.post_json(server, "/api/installs/sign-in/poll",
+                                            {"poll_token": started["poll_token"]}, wf_setup.SETUP_TIMEOUT)
+        state = answer.get("status") if isinstance(answer, dict) else None
+        if status == 429 or state == "slow_down":
+            interval += 5
+        elif status is None:
+            pass  # the server did not answer this time: keep waiting while the code lives
+        elif state in ("expired", "denied") or status == 404:
+            pending.unlink(missing_ok=True)
+            if state == "denied":
+                raise SystemExit(f"{prog}: the sign-in was declined on the connect page: nothing was written")
+            raise SystemExit(f"{prog}: the code {started['code']} no longer works: run /sikstack:sign-in again "
+                             "(nothing was written)")
+        elif state == "approved":
+            pending.unlink(missing_ok=True)
+            key, project = answer.get("key"), answer.get("project_id")
+            if not isinstance(key, str) or not key.strip() or not isinstance(project, str):
+                raise SystemExit(f"{prog}: the install is connected, but this run did not get its key (another run "
+                                 "collected it): run /sikstack:sign-in again to link this checkout")
+            print(f"connected: the install now belongs to your account; linking this checkout to "
+                  f"{answer.get('project_name') or project}")
+            sys.stdout.flush()
+            code = cloud_link_with(server, project, key.strip(), command="sign-in")
+            if answer.get("web_url"):
+                print(f"on the web: {answer['web_url']}")
+            return code
+        if float(started["until"]) <= time.time():
+            pending.unlink(missing_ok=True)
+            raise SystemExit(f"{prog}: the code {started['code']} expired: run /sikstack:sign-in again "
+                             "(nothing was written)")
+        if time.monotonic() + interval > stop:
+            print(f"still waiting for the connect page (code {started['code']}): run `sikstack sign-in` again to keep "
+                  "waiting")
+            return 3
+        time.sleep(interval)
 
 
 def cloud_unlink(args: argparse.Namespace) -> int:
@@ -2248,10 +2356,17 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
 
 
 def add_cloud_parsers(sub) -> None:
-    """Link, unlink, sync: this part's commands, registered by the entry's build_parser in their place."""
+    """Link, sign-in, unlink, sync: this part's commands, registered by the entry's build_parser in their place."""
     p = sub.add_parser("link", help="Link this checkout to hi2vi (cloud mode): hi2vi becomes the truth for works/ and docs/, and every command syncs at its boundary. Takes the project's page address; the workspace key is pasted at a prompt (one stdin line when not a terminal), never on the command line, and kept in $XDG_CONFIG_HOME/sikstack/workspace-keys.json (folder 0700, file 0600; a key the pre-plugin engine kept in $XDG_CONFIG_HOME/hi2vi/workspace-keys.json is still read). The link itself is the [cloud] table of .sikstack/config.toml. An empty project in hi2vi gets this checkout's files; one that already holds files is joined only from an unused install or an equal set, else the differences are listed. Refused, nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree, with uncommitted changes in the workflow repo, when already linked, http:// to a non-local host, a key file open to group or others. Prints store=cloud server= project= head=")
     p.add_argument("address", help="the project's page address: <server>/projects/<project-id>")
     p.set_defaults(func=cloud_link)
+    _one_line_usage_errors(p)
+
+    p = sub.add_parser("sign-in", help="Claim this machine's sikstack install for your account and link this checkout (the /sikstack:sign-in skill runs it): starts a sign-in with the server (SIKSTACK_SERVER, else the one setup registered with), prints a short code and the connect page's address and opens it in the browser, then waits while you confirm the code there. On approval the server hands over this project's workspace key once: it is kept like link's key (never printed), the [cloud] table is written and committed, and the first sync uploads the repo's earlier work. Waits at most --wait seconds a run (exit 3: run it again to go on with the same code); a declined or expired code ends with one line. Refused, nothing written, where link refuses (already linked, a dirty workflow repo, ...)")
+    p.add_argument("--data-dir", required=True, dest="data_dir", help="the plugin's data folder (${CLAUDE_PLUGIN_DATA}, as the skill substitutes it)")
+    p.add_argument("--no-browser", action="store_true", dest="no_browser", help="print the address without opening it")
+    p.add_argument("--wait", type=int, default=SIGNIN_WAIT, help=f"seconds to wait in this run (default {SIGNIN_WAIT})")
+    p.set_defaults(func=cloud_sign_in)
     _one_line_usage_errors(p)
 
     p = sub.add_parser("unlink", help="Return a linked checkout to local mode: pull to hi2vi's head (refused on a mismatch: sync first), push what is here, remove .hi2vi/; then commit the workflow repo once. The key stays in user config (revoke it on the project's page). --from-disk: offline, keep the disk as it is and say what it cannot hold")

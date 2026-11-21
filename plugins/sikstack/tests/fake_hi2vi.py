@@ -25,7 +25,17 @@ project is 404; X-Hi2vi-Checkout and X-Hi2vi-Engine are required):
 Like the server, a body over 8,388,608 B is refused with 413 before it is read.
 
 Also POST /api/installs {install_id, email, plugin_version} (no key) -> 200 {status: "registered"}, setup's
-registration, logged with its whole body (route "installs"), so a test can see exactly what was sent.
+registration, logged with its whole body (route "installs"), so a test can see exactly what was sent. And the
+install routes sign-in and feedback use, each logged whole (the poll token and key never):
+- POST /api/installs/sign-in {install_id, repo, plugin_version} -> {code, url, poll_token, expires_in, interval}
+  (interval 1 here), 404 for an install never registered (route "sign-in");
+- POST /api/installs/sign-in/poll {poll_token} -> {status: pending|denied|expired|approved}; the first approved
+  answer carries {org_id, project_id, project_name, web_url, key} (the key is --key-file's), later ones no key
+  (route "poll");
+- POST /api/installs/feedback {install_id, message, plugin_version} -> 202 {request_id, accepted_at, status}, 404
+  for an install never registered, 429 past `feedback_limit` reports per install (control, default 2) (route
+  "feedback"); GET /_fake/reports lists what landed.
+- Test-only POST /_fake/sign-in {code, state: approved|denied|expired} decides a code as the connect page would.
 
 Test-only routes (no key, 127.0.0.1 only): GET /_fake/state (the records, no content),
 POST /_fake/write {path, content, kind?, deleted?} or {path, lines} (a change made by another checkout: a revision,
@@ -92,10 +102,12 @@ class Store:
         self.derived = {}   # P9: path -> {head, content}
         self.lock = threading.Lock()
         self.installs = {}  # POST /api/installs: install_id -> the last body (setup's registration, S4's pre-user row)
+        self.sign_ins = {}  # code -> {token, install_id, repo, state, delivered}
+        self.reports = []   # POST /api/installs/feedback bodies that landed
         self.inbox = []     # the web's agenda changes: {id, created_at, kind, items, fields, minted_id, state, ...}
         self.control = {"offline": False, "commit": None, "race": None, "gate": None, "fetch_page": None,
                         "inbox_race": None, "break": None, "slow": 0, "drip": 0, "drip_route": None,
-                        "rate": 0}
+                        "rate": 0, "feedback_limit": 2}
         self.gate = threading.Condition()
         self.gate_seen = 0
 
@@ -360,6 +372,41 @@ def make_handler(store: Store, key: str, log_path: str):
             except OSError:  # the client gave up: nothing more to send
                 self.close_connection = True
 
+        def _install_route(self, path: str, body: dict) -> tuple:
+            """The sign-in and feedback routes (under the store's lock): (status, payload)."""
+            import secrets
+            install = str(body.get("install_id") or "")
+            if path.endswith("/sign-in"):
+                if install not in store.installs:
+                    return 404, {"detail": "this install is not registered: run /sikstack:setup"}
+                code = "".join(secrets.choice("ABCDEFGHJKMNPQRSTWXYZ23456789") for _ in range(8))
+                code = f"{code[:4]}-{code[4:]}"
+                token = secrets.token_urlsafe(24)
+                store.sign_ins[code] = {"token": token, "install_id": install, "repo": body.get("repo"),
+                                        "state": "pending", "delivered": False}
+                host = self.headers.get("Host") or "127.0.0.1"
+                return 200, {"code": code, "url": f"http://{host}/connect?code={code}", "poll_token": token,
+                             "expires_in": 900, "interval": 1}
+            if path.endswith("/poll"):
+                found = next((s for s in store.sign_ins.values() if s["token"] == body.get("poll_token")), None)
+                if found is None:
+                    return 404, {"status": "expired"}
+                if found["state"] != "approved":
+                    return 200, {"status": found["state"]}
+                answer = {"status": "approved", "org_id": store.org_id, "project_id": store.project_id,
+                          "project_name": found["repo"], "web_url": f"http://web.test/projects/{store.project_id}/workspace"}
+                if not found["delivered"]:
+                    found["delivered"] = True
+                    answer["key"] = key
+                return 200, answer
+            if install not in store.installs:
+                return 404, {"detail": "this install is not registered: run /sikstack:setup"}
+            sent = sum(1 for r in store.reports if r.get("install_id") == install)
+            if sent >= int(store.control.get("feedback_limit") or 0):
+                return 429, {"detail": "too many requests — please retry later"}
+            store.reports.append(dict(body))
+            return 202, {"request_id": f"r{len(store.reports)}", "accepted_at": "now", "status": "accepted"}
+
         def _body(self) -> dict:
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.raw if self.raw is not None else (self.rfile.read(length) if length else b"")
@@ -392,6 +439,19 @@ def make_handler(store: Store, key: str, log_path: str):
                         return
                     store.installs[str(body["install_id"])] = body
                 self.reply = (200, {"status": "registered"})
+                return
+            if url.path in ("/api/installs/sign-in", "/api/installs/sign-in/poll", "/api/installs/feedback") \
+                    and method == "POST":
+                try:
+                    body = self._body()
+                except ValueError:
+                    body = {}
+                body = body if isinstance(body, dict) else {}
+                with store.lock:
+                    self.reply = self._install_route(url.path, body)
+                    shown = {k: v for k, v in body.items() if k != "poll_token"}
+                    self._log({"method": method, "path": url.path, "route": url.path.rsplit("/", 1)[-1],
+                               "body": shown, "status": self.reply[0]})
                 return
             if parts[:1] != ["_fake"]:
                 with store.lock:
@@ -444,6 +504,15 @@ def make_handler(store: Store, key: str, log_path: str):
                         return self._send(200, store.inbox_add(self._body()))
                     if parts[1:] == ["inbox"] and method == "GET":
                         return self._send(200, {"entries": store.inbox})
+                    if parts[1:] == ["sign-in"] and method == "POST":
+                        decided = self._body()
+                        found = store.sign_ins.get(str(decided.get("code")))
+                        if found is None:
+                            return self._send(404, {"error": "no such code"})
+                        found["state"] = decided.get("state") or "approved"
+                        return self._send(200, {"state": found["state"]})
+                    if parts[1:] == ["reports"] and method == "GET":
+                        return self._send(200, {"reports": store.reports})
                     if parts[1:] == ["control"] and method == "POST":
                         with store.gate:
                             store.control.update(self._body())
