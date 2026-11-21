@@ -69,10 +69,10 @@ def test_config_file_is_authoritative_and_never_falls_through_to_legacy(home):
     """
 
     make_legacy(home)  # exists, and must be ignored entirely
-    write_cfg(home, {"api": {"base_url": "https://sikstack.com", "token": None}})
+    write_cfg(home, {"api": {"base_url": "https://hi2vi.com", "token": None}})
     resolved = config.resolve()
     assert resolved.kb_root == ""
-    assert resolved.api_base_url == "https://sikstack.com"
+    assert resolved.api_base_url == "https://hi2vi.com"
     assert resolved.api_token == ""  # JSON null -> "", never None
     assert resolved.site_base_url == "http://localhost:8765"  # default, not legacy
     assert resolved.local_fallback is False
@@ -130,30 +130,46 @@ def test_save_preserves_unknown_keys_deep_merges_and_is_0600(home):
 
 
 def test_save_creates_a_0600_file_when_absent(home):
-    config.save({"api": {"base_url": "https://sikstack.com", "token": "vk_new"}})
+    config.save({"api": {"base_url": "https://hi2vi.com", "token": "vk_new"}})
     resolved = config.resolve()
     assert stat.S_IMODE(os.stat(resolved.path).st_mode) == 0o600
     assert resolved.api_token == "vk_new"  # round-trips through the resolver
-    assert resolved.api_base_url == "https://sikstack.com"
+    assert resolved.api_base_url == "https://hi2vi.com"
 
 
-def test_cli_default_base_url_is_the_apex(home):
-    assert auth.resolve_base_url(None) == "https://sikstack.com"
+def test_cli_default_base_url_is_the_serving_host(home):
+    """No config: the hosted default is hi2vi.com, the host that serves until the domain moves."""
+
+    assert config.HOSTED_BASE_URL == "https://hi2vi.com"
+    assert auth.resolve_base_url(None) == "https://hi2vi.com"
 
 
-@pytest.mark.parametrize("host", ["knowledge.hi2vi.com", "hi2vi.com"])
 @pytest.mark.parametrize("source", ["config", "env"])
-def test_old_hosted_host_resolves_to_the_apex(home, monkeypatch, source, host):
-    """An old host only 308s to sikstack.com and the client never follows redirects."""
+def test_a_config_on_the_serving_host_stays_there(home, monkeypatch, source):
+    """A key configured for hi2vi.com goes to hi2vi.com, never to a host that does not serve yet."""
 
-    assert host in config.OLD_HOSTED_HOSTS
-    old = "https://" + host
+    if source == "config":
+        path = write_cfg(home, {"api": {"base_url": "https://hi2vi.com", "token": "vk_x"}})
+    else:
+        monkeypatch.setenv(config.ENV_API_BASE_URL, "https://hi2vi.com")
+    assert config.resolve().api_base_url == "https://hi2vi.com"
+    assert auth.resolve_base_url(None) == "https://hi2vi.com"
+    if source == "config":
+        assert json.loads(path.read_text())["api"]["base_url"] == "https://hi2vi.com"
+
+
+@pytest.mark.parametrize("source", ["config", "env"])
+def test_old_hosted_host_resolves_to_the_apex(home, monkeypatch, source):
+    """The old host only 308s to the apex and the client never follows redirects."""
+
+    assert config.OLD_HOSTED_HOSTS == ("knowledge.hi2vi.com",)
+    old = "https://knowledge.hi2vi.com"
     if source == "config":
         path = write_cfg(home, {"api": {"base_url": old, "token": "vk_x"}})
     else:
         monkeypatch.setenv(config.ENV_API_BASE_URL, old + "/")
-    assert config.resolve().api_base_url == "https://sikstack.com"
-    assert auth.resolve_base_url(None) == "https://sikstack.com"
+    assert config.resolve().api_base_url == "https://hi2vi.com"
+    assert auth.resolve_base_url(None) == "https://hi2vi.com"
     if source == "config":  # the file on disk is not rewritten
         assert json.loads(path.read_text())["api"]["base_url"] == old
 

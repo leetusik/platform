@@ -42,6 +42,7 @@ export function ConnectColumn({ initial }: { initial: ConnectView }) {
   const [phase, setPhase] = useState<ConnectPhase>(initial.phase);
   const [org, setOrg] = useState<string>(initial.account?.orgs[0]?.id ?? "");
   const [projectId, setProjectId] = useState<string | null>(initial.project.id);
+  const [connectedName, setConnectedName] = useState<string | null>(null);
   const sendRef = useRef(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -57,10 +58,12 @@ export function ConnectColumn({ initial }: { initial: ConnectView }) {
     if (!isConfirm(shown)) titleRef.current?.focus();
   }, [shown]);
 
-  const project = initial.project.name;
   const busy = shown === "connecting";
   const orgs = initial.account?.orgs ?? [];
-  const orgName = orgs.find((o) => o.id === org)?.name ?? orgs[0]?.name ?? "";
+  const picked = orgs.find((o) => o.id === org) ?? orgs[0];
+  const orgName = picked?.name ?? "";
+  // The new project a Connect makes in the picked org, then the one the server made.
+  const project = connectedName ?? picked?.project ?? initial.project.name;
 
   async function send(action: "approve" | "decline"): Promise<number | null> {
     try {
@@ -75,9 +78,10 @@ export function ConnectColumn({ initial }: { initial: ConnectView }) {
       });
       if (res.ok && action === "approve") {
         const body = (await res.json().catch(() => null)) as {
-          project?: { id?: unknown };
+          project?: { id?: unknown; name?: unknown };
         } | null;
         if (typeof body?.project?.id === "string") setProjectId(body.project.id);
+        if (typeof body?.project?.name === "string") setConnectedName(body.project.name);
       }
       return res.status;
     } catch {

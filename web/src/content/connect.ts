@@ -20,7 +20,10 @@ export const CONNECT_COPY = {
   codeLabel: "Check that Claude Code shows this code",
   title: "Connect this install?",
   signedOut: "Sign in to connect this install and see its work on the web.",
-  /** Signed in: the project (the repo folder's name) and the org picked, each at weight 500. */
+  /**
+   * Signed in: the new project (the repo folder's name, made unique in the org: `platform-2`
+   * when `platform` is taken) and the org picked, each at weight 500.
+   */
   signedIn: {
     before: "Connecting creates the project ",
     middle: " in ",

@@ -25,15 +25,20 @@ code the person confirms on the web, in the shape of a device authorization (RFC
 - ``GET /app/connect/{code}`` (a session, or none): what the connect page draws.
   ``state`` is ``out`` (signed out, the code pending: the install's facts, its setup
   email among them), ``ready`` (signed in, the code pending: the facts, the account
-  and its orgs), ``already`` (this account approved this code), ``other`` (the install
+  and its orgs, each with the name of the new project a Connect there makes),
+  ``already`` (this account approved this code), ``other`` (the install
   belongs to another account), ``declined`` (this account declined this code) or
   ``expired`` (unknown, expired, or used, and every signed-out read of a used code).
   Signed out it is rate-limited per client address, since it shows the setup email.
 - ``POST /app/connect/{code}/approve {org_id?}`` (a session): claim. The install
   becomes this account's (its row records the claimer and the time; an install
-  another account claimed is a 403 ``other``), the project named after the repo's
-  folder is made (or found) in the picked org, or the account's only one, and the
-  code is approved. An expired or unknown code is a 410 and changes nothing.
+  another account claimed is a 403 ``other``), a new project is made for the repo in
+  the picked org, or the account's only one, and the code is approved. The project is
+  named after the repo's folder, made unique in the org (``app``, then ``app-2``): an
+  approval never joins a project that exists, since a folder name says nothing about
+  which repo it is (two repos named ``app``, or one named ``default``). The same repo
+  signing in again (its key lost) gets a new project too, named on the page before
+  Connect. An expired or unknown code is a 410 and changes nothing.
 - ``POST /app/connect/{code}/decline`` (a session): the code is denied; nothing else
   changes.
 - ``POST /api/installs/feedback {install_id, message, plugin_version}`` (the install
@@ -233,6 +238,19 @@ def _web_url(path: str) -> str:
     return f"{config.public_base_url()}{path}"
 
 
+async def _free_project_name(session, org: UUID, repo: str) -> str:
+    """The name a Connect in ``org`` gives the repo's new project: the folder's name, or the
+    first of ``<name>-2``, ``<name>-3``, ... that no project in the org has."""
+
+    taken = set((await session.execute(select(ProjectModel.name).where(ProjectModel.tenant_id == org))).scalars())
+    if repo not in taken:
+        return repo
+    n = 2
+    while f"{repo}-{n}" in taken:
+        n += 1
+    return f"{repo}-{n}"
+
+
 # --- registration ---------------------------------------------------------------
 
 
@@ -427,17 +445,25 @@ async def read_connect(code: str, request: Request, ctx: AuthContext | None = De
     if row.state == STATE_APPROVED:
         if row.decided_by != me:
             return {"state": "other", "code": shown}
-        project = {"id": str(row.project_id) if row.project_id else None, "name": row.repo_name}
+        async with get_session_maker()() as session:
+            made = await session.get(ProjectModel, row.project_id) if row.project_id else None
+        project = {"id": str(made.id), "name": made.name} if made else {"id": None, "name": row.repo_name}
         return {"state": "already", "code": shown, "project": project}
     if row.state == STATE_DENIED:
         return {"state": "declined", "code": shown} if row.decided_by == me else gone
     tenants = await get_accounts_service().list_tenants_for_user(me)
+    async with get_session_maker()() as session:
+        orgs = [
+            {"id": str(t.id), "name": t.name, "project": await _free_project_name(session, t.id, row.repo_name)}
+            for t in tenants
+        ]
     return {
         "state": "ready",
         "code": shown,
         "install": _install_facts(install),
-        "account": {"email": ctx.user.email, "orgs": [{"id": str(t.id), "name": t.name} for t in tenants]},
-        "project": {"name": row.repo_name},
+        "account": {"email": ctx.user.email, "orgs": orgs},
+        # The project a Connect in the first org makes (the page names the picked org's).
+        "project": {"name": orgs[0]["project"] if orgs else row.repo_name},
     }
 
 
@@ -449,7 +475,7 @@ async def _session_body(request: Request) -> dict[str, Any]:
 
 @router.post("/app/connect/{code}/approve")
 async def approve_connect(code: str, request: Request, ctx: AuthContext = Depends(require_user)) -> dict[str, object]:
-    """Claim the install for this account and make the repo's project; the code becomes approved."""
+    """Claim the install for this account and make the repo a new project; the code becomes approved."""
 
     _require_accounts_plane()
     body = await _session_body(request)
@@ -474,19 +500,23 @@ async def approve_connect(code: str, request: Request, ctx: AuthContext = Depend
             raise HTTPException(status_code=410, detail="this code no longer works")
         if install.claimed_by is not None and install.claimed_by != ctx.user.id:
             raise HTTPException(status_code=403, detail="this install is connected to another account")
-        await session.execute(
-            pg_insert(ProjectModel)
-            .values(tenant_id=org, name=row.repo_name, created_at=now)
-            .on_conflict_do_nothing(index_elements=[ProjectModel.tenant_id, ProjectModel.name])
-        )
-        project = (
-            await session.execute(
-                select(ProjectModel)
-                .where(ProjectModel.tenant_id == org, ProjectModel.name == row.repo_name)
-                .order_by(ProjectModel.created_at)
-                .limit(1)
-            )
-        ).scalar_one()
+        # Always a new project: a name another approval took meanwhile is skipped, never joined.
+        project_id = None
+        for _ in range(8):
+            name = await _free_project_name(session, org, row.repo_name)
+            project_id = (
+                await session.execute(
+                    pg_insert(ProjectModel)
+                    .values(tenant_id=org, name=name, created_at=now)
+                    .on_conflict_do_nothing(index_elements=[ProjectModel.tenant_id, ProjectModel.name])
+                    .returning(ProjectModel.id)
+                )
+            ).scalar_one_or_none()
+            if project_id is not None:
+                break
+        else:  # pragma: no cover - eight approvals racing for one name
+            raise HTTPException(status_code=503, detail="could not make the project right now — please retry")
+        project = await session.get(ProjectModel, project_id)
         if install.claimed_by is None:
             install.claimed_by = ctx.user.id
             install.claimed_at = now

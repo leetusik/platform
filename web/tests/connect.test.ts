@@ -30,7 +30,7 @@ const ORG_A = { id: "11111111-1111-4111-8111-111111111111", name: "Personal" };
 const ORG_B = { id: "22222222-2222-4222-8222-222222222222", name: "Acme" };
 
 const out = { state: "out", code: CODE, install: INSTALL, project: { name: "platform" } };
-const ready = (orgs = [ORG_A], email = "you@example.com") => ({
+const ready = (orgs: { id: string; name: string; project?: string }[] = [ORG_A], email = "you@example.com") => ({
   state: "ready",
   code: CODE,
   install: INSTALL,
@@ -44,10 +44,7 @@ function view(raw: unknown): ConnectView {
 
 function render(initial: ConnectView, waitlisted: { email: string; next: string } | null = null): string {
   return renderToStaticMarkup(
-    createElement(AuthEmailProvider, {
-      initialWaitlisted: waitlisted,
-      children: createElement(ConnectColumn, { initial }),
-    }),
+    createElement(AuthEmailProvider, { initialWaitlisted: waitlisted }, createElement(ConnectColumn, { initial })),
   );
 }
 
@@ -68,7 +65,26 @@ describe("viewFromServer: the API's answer as the column's state", () => {
   it("reads ready with the account and every org", () => {
     const v = view(ready([ORG_A, ORG_B]));
     expect(v.phase).toBe("ready");
-    expect(v.account).toEqual({ email: "you@example.com", orgs: [ORG_A, ORG_B] });
+    // An org the server named no project for reads the view's project (the first org's).
+    expect(v.account).toEqual({
+      email: "you@example.com",
+      orgs: [
+        { ...ORG_A, project: "platform" },
+        { ...ORG_B, project: "platform" },
+      ],
+    });
+  });
+
+  it("reads each org's new project name, which a Connect there makes", () => {
+    const v = view({
+      ...ready([
+        { ...ORG_A, project: "platform-2" },
+        { ...ORG_B, project: "platform" },
+      ]),
+      project: { name: "platform-2" },
+    });
+    expect(v.account?.orgs.map((o) => o.project)).toEqual(["platform-2", "platform"]);
+    expect(v.project).toEqual({ id: null, name: "platform-2" });
   });
 
   it("reads the outcomes the server decides", () => {
@@ -152,6 +168,39 @@ describe("ConnectColumn: each designed state, its words and markup", () => {
     expect(html).toContain('<fieldset class="field"><legend class="label">Org</legend>');
     expect(html).toContain(`<input type="radio" name="connect-org" checked="" value="${ORG_A.id}"/><span>Personal</span>`);
     expect(html).toContain(`<input type="radio" name="connect-org" value="${ORG_B.id}"/><span>Acme</span>`);
+  });
+
+  it("ready, the repo's name taken in the org: the sentence names the new project, never the taken one", () => {
+    const html = render(
+      view({ ...ready([{ ...ORG_A, project: "platform-2" }]), project: { name: "platform-2" } }),
+    );
+    expect(text(html)).toContain(
+      "Connecting creates the project platform-2 in Personal, and this install’s work shows there on the web.",
+    );
+    expect(html).toContain('<span class="strong">platform-2</span>');
+  });
+
+  it("ready with two orgs: the sentence names the picked (first) org's own new project", () => {
+    const html = render(
+      view({
+        ...ready([
+          { ...ORG_B, project: "platform" },
+          { ...ORG_A, project: "platform-2" },
+        ]),
+        project: { name: "platform" },
+      }),
+    );
+    expect(text(html)).toContain("Connecting creates the project platform in Acme,");
+    const swapped = render(
+      view({
+        ...ready([
+          { ...ORG_A, project: "platform-2" },
+          { ...ORG_B, project: "platform" },
+        ]),
+        project: { name: "platform-2" },
+      }),
+    );
+    expect(text(swapped)).toContain("Connecting creates the project platform-2 in Personal,");
   });
 
   it("a different setup email: both rows, no mark", () => {

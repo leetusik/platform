@@ -6,7 +6,8 @@ check, which needs none. Each rule of ``server.installs_api`` has its test here:
 the pre-user row holds exactly what setup sent; a code is claimed only by a signed-in
 account's approval; an install another account claimed is refused; an account whose
 email equals the setup email sees nothing it never approved; an expired or unknown
-code changes nothing; the workspace key is handed over once; a signed-out read is
+code changes nothing; the workspace key is handed over once; an approval always makes
+a project of its own, never joining one that exists; a signed-out read is
 rate-limited per address; an install's report lands in the configured project,
 limited per install.
 """
@@ -255,7 +256,8 @@ def test_approval_claims_the_install_makes_the_repo_project_and_hands_the_key_ov
     head = client.get(
         f"/api/workspace/{project_id}/head", headers={"Authorization": f"Bearer {key}", **_ENGINE_HEADERS}
     )
-    assert head.status_code == 200, head.text and head.json()["project_id"] == project_id
+    assert head.status_code == 200, head.text
+    assert head.json()["project_id"] == project_id
 
     second = _poll(client, started).json()
     assert second["status"] == "approved" and "key" not in second
@@ -270,6 +272,141 @@ def test_approval_claims_the_install_makes_the_repo_project_and_hands_the_key_ov
         "state": "already", "code": started["code"], "project": {"id": project_id, "name": "platform"},
     }
     assert client.get(f"/app/connect/{started['code']}").json() == {"state": "expired", "code": started["code"]}
+
+
+# --- an approval makes its own project (never joins one that exists) ----------------
+
+
+def _approve(client: TestClient, started: dict, account: dict, org_id: str | None = None) -> dict:
+    body = {"org_id": org_id} if org_id else {}
+    res = client.post(f"/app/connect/{started['code']}/approve", json=body, headers=account["session"])
+    assert res.status_code == 200, res.text
+    return res.json()["project"]
+
+
+def _key_opens(client: TestClient, started: dict, project_id: str) -> None:
+    """The first poll's key opens exactly this project's workspace, and no other."""
+
+    first = _poll(client, started).json()
+    assert first["status"] == "approved" and first["project_id"] == project_id, first
+    head = client.get(
+        f"/api/workspace/{project_id}/head", headers={"Authorization": f"Bearer {first['key']}", **_ENGINE_HEADERS}
+    )
+    assert head.status_code == 200, head.text
+    assert head.json()["project_id"] == project_id
+
+
+def _workspace_keys(engine, project_id: str) -> int:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT count(*) FROM project_credentials WHERE project_id = :p AND scope = 'workspace'"),
+            {"p": project_id},
+        ).scalar_one()
+
+
+def test_a_same_named_repo_gets_a_new_project_and_the_first_stays_untouched(db):
+    client, engine = db
+    owner = _signup(client)
+    first = _start(client, _register(client)["install_id"], repo="scratch")
+    first_project = _approve(client, first, owner)
+    assert first_project["name"] == "scratch"
+    _key_opens(client, first, first_project["id"])
+
+    # Another repo with the same folder name, its own install, the same account.
+    second = _start(client, _register(client)["install_id"], repo="scratch")
+    ready = client.get(f"/app/connect/{second['code']}", headers=owner["session"]).json()
+    assert ready["state"] == "ready" and ready["project"] == {"name": "scratch-2"}
+    assert [(o["id"], o["project"]) for o in ready["account"]["orgs"]] == [(owner["tenant"]["id"], "scratch-2")]
+    second_project = _approve(client, second, owner)
+    assert second_project["name"] == "scratch-2" and second_project["id"] != first_project["id"]
+    _key_opens(client, second, second_project["id"])
+
+    assert _project_names(client, owner) == ["default", "scratch", "scratch-2"]
+    assert _workspace_keys(engine, first_project["id"]) == 1  # the first project got no second key
+    assert client.get(f"/app/connect/{second['code']}", headers=owner["session"]).json()["project"] == {
+        "id": second_project["id"], "name": "scratch-2",
+    }
+
+    # A third takes the next free name.
+    third = _start(client, _register(client)["install_id"], repo="scratch")
+    assert _approve(client, third, owner)["name"] == "scratch-3"
+
+
+def test_a_repo_named_default_never_joins_the_orgs_default_project(db):
+    client, engine = db
+    owner = _signup(client)
+    with engine.connect() as conn:
+        default_id = str(conn.execute(
+            text("SELECT id FROM projects WHERE tenant_id = :t AND name = 'default'"), {"t": owner["tenant"]["id"]}
+        ).scalar_one())
+    started = _start(client, _register(client)["install_id"], repo="default")
+    ready = client.get(f"/app/connect/{started['code']}", headers=owner["session"]).json()
+    assert ready["project"] == {"name": "default-2"}
+    project = _approve(client, started, owner)
+    assert project["name"] == "default-2" and project["id"] != default_id
+    _key_opens(client, started, project["id"])
+    assert _workspace_keys(engine, default_id) == 0
+    assert _project_names(client, owner) == ["default", "default-2"]
+
+
+def test_a_fresh_name_makes_the_project_by_that_name(db):
+    client, _ = db
+    owner = _signup(client)
+    started = _start(client, _register(client)["install_id"], repo="fresh-repo")
+    assert client.get(f"/app/connect/{started['code']}", headers=owner["session"]).json()["project"] == {
+        "name": "fresh-repo",
+    }
+    project = _approve(client, started, owner)
+    assert project["name"] == "fresh-repo"
+    _key_opens(client, started, project["id"])
+    assert _project_names(client, owner) == ["default", "fresh-repo"]
+
+
+def test_signing_in_again_after_a_lost_key_names_a_new_project_before_connect(db):
+    """The same install and repo signing in again (its key lost): the server cannot tell this repo
+    from another of the same name on the machine, so it never rejoins. The ready page names the new
+    project before Connect, and the old project keeps its records and its one key. Linking back to
+    the old project is `sikstack link` with a key minted on that project's page."""
+
+    client, engine = db
+    owner = _signup(client)
+    sent = _register(client)
+    first = _start(client, sent["install_id"], repo="scratch")
+    old = _approve(client, first, owner)
+    _key_opens(client, first, old["id"])
+
+    again = _start(client, sent["install_id"], repo="scratch")
+    ready = client.get(f"/app/connect/{again['code']}", headers=owner["session"]).json()
+    assert ready["state"] == "ready" and ready["project"] == {"name": "scratch-2"}
+    new = _approve(client, again, owner)
+    assert new["name"] == "scratch-2" and new["id"] != old["id"]
+    _key_opens(client, again, new["id"])
+    assert _workspace_keys(engine, old["id"]) == 1
+    assert _project_names(client, owner) == ["default", "scratch", "scratch-2"]
+
+
+def test_with_two_orgs_each_names_its_own_free_project(db):
+    client, engine = db
+    owner = _signup(client)
+    # A second org for the same account: its own tenant and membership (no route makes one).
+    with engine.begin() as conn:
+        org_b = str(uuid4())
+        conn.execute(
+            text("INSERT INTO tenants (id, name, slug, created_at) VALUES (:i, 'Acme', :s, now())"),
+            {"i": org_b, "s": f"acme-{uuid4().hex[:8]}"},
+        )
+        conn.execute(
+            text("INSERT INTO tenant_members (id, tenant_id, user_id, role, created_at) VALUES (:i, :t, :u, 'owner', now())"),
+            {"i": str(uuid4()), "t": org_b, "u": owner["user"]["id"]},
+        )
+    taken = _start(client, _register(client)["install_id"], repo="app")
+    _approve(client, taken, owner, owner["tenant"]["id"])
+
+    started = _start(client, _register(client)["install_id"], repo="app")
+    ready = client.get(f"/app/connect/{started['code']}", headers=owner["session"]).json()
+    by_org = {o["id"]: o["project"] for o in ready["account"]["orgs"]}
+    assert by_org == {owner["tenant"]["id"]: "app-2", org_b: "app"}
+    assert _approve(client, started, owner, org_b)["name"] == "app"
 
 
 def test_only_a_signed_in_account_approves(db):

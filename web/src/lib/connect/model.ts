@@ -34,6 +34,11 @@ export interface ConnectInstall {
 export interface ConnectOrg {
   id: string;
   name: string;
+  /**
+   * The project a Connect in this org makes: the repo folder's name, made unique in the org
+   * (`platform-2` when `platform` is taken). An approval never joins a project that exists.
+   */
+  project: string;
 }
 
 export interface ConnectAccount {
@@ -44,7 +49,7 @@ export interface ConnectAccount {
 export interface ConnectProject {
   /** Known once connected (the link to its Workspace). */
   id: string | null;
-  /** The repo folder's name. */
+  /** Connected or already: the project's name. Before: the one a Connect in the first org makes. */
   name: string;
 }
 
@@ -129,7 +134,11 @@ export function viewFromServer(
       ? acct.orgs
           .map((o) => obj(o))
           .filter((o): o is Record<string, unknown> => !!o)
-          .map((o) => ({ id: str(o.id) ?? "", name: str(o.name) ?? "" }))
+          .map((o) => ({
+            id: str(o.id) ?? "",
+            name: str(o.name) ?? "",
+            project: str(o.project) ?? project.name,
+          }))
           .filter((o) => o.id !== "")
       : [];
     account = { email: str(acct.email) as string, orgs };

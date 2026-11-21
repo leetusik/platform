@@ -202,7 +202,9 @@ Release checklist — before pushing a release:
 
 1. Any change under `plugins/explain/**` ships only with a `plugin.json` `version` bump;
    installers pull updates only when the version changes. (0.19.0: the move from `plugin/`
-   to `plugins/explain/`, the rename to `explain`, and the scaffold's server copies.)
+   to `plugins/explain/`, the rename to `explain`, and the scaffold's server copies.
+   0.19.1: the hosted address stays on the host that serves until the domain moves, and the
+   scaffold's install approval always makes a project of its own.)
 2. `python3 scripts/plugin_parity.py` — templates in parity with the repo.
 3. `claude plugin validate .`, `claude plugin validate ./plugins/explain` and
    `claude plugin validate ./plugins/sikstack` — all pass

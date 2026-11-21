@@ -36,7 +36,8 @@ export function AuthEmailProvider({
 }: {
   initialEmail?: string;
   initialWaitlisted?: Waitlisted | null;
-  children: ReactNode;
+  /** Optional, as React's own `PropsWithChildren`, so a test's `createElement` passes it as an argument. */
+  children?: ReactNode;
 }) {
   const [email, setEmail] = useState(initialEmail);
   const [waitlisted, setWaitlisted] = useState<Waitlisted | null>(initialWaitlisted);

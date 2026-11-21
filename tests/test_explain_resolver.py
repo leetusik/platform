@@ -6,8 +6,9 @@ with ``HOME`` and the XDG folders in a tmp dir, so it reads only a fake config:
 * with a token, stdout never carries it, and ``KB_AUTH_HEADER`` names a ``0600``
   file holding the bearer line;
 * with no token, ``KB_AUTH_HEADER=`` is empty and a stale header file is removed;
-* a base URL on an old host (``knowledge.hi2vi.com``, ``hi2vi.com``) resolves to
-  ``https://sikstack.com``, and every other base URL is left exactly as given.
+* a base URL on the old host ``knowledge.hi2vi.com`` resolves to the apex
+  ``https://hi2vi.com``, and every other base URL, ``https://hi2vi.com`` itself among
+  them, is left exactly as given (the domain move flips this with DNS).
 
 No network, no server.
 """
@@ -90,22 +91,18 @@ def test_no_token_leaves_no_header_file(tmp_path):
 
 def test_old_host_in_config_resolves_to_the_apex(tmp_path):
     vals = _run(tmp_path, None, base_url="https://knowledge.hi2vi.com")
-    assert vals["KB_API_BASE_URL"] == "https://sikstack.com"
-
-
-def test_old_apex_in_config_resolves_to_sikstack(tmp_path):
-    vals = _run(tmp_path, None, base_url="https://hi2vi.com")
-    assert vals["KB_API_BASE_URL"] == "https://sikstack.com"
+    assert vals["KB_API_BASE_URL"] == "https://hi2vi.com"
 
 
 def test_old_host_in_env_resolves_to_the_apex(tmp_path):
     vals = _run(tmp_path, None, env_base_url="https://knowledge.hi2vi.com/")
-    assert vals["KB_API_BASE_URL"] == "https://sikstack.com"
+    assert vals["KB_API_BASE_URL"] == "https://hi2vi.com"
 
 
 @pytest.mark.parametrize(
     "url",
     [
+        "https://hi2vi.com",
         "https://sikstack.com",
         "https://kb.example.org/api",
         "http://localhost:8766",

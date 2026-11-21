@@ -58,16 +58,18 @@ ENV_KB_ROOT = "KB_ROOT"
 ENV_API_BASE_URL = "KB_API_BASE_URL"
 ENV_API_TOKEN = "KB_API_TOKEN"
 
-# The hosted service is sikstack.com. Its old hosts (knowledge.hi2vi.com, then
-# hi2vi.com) only answer a 308 to it, and the client never follows a redirect (a
-# bearer must not cross hosts), so a config or env var still naming one is read as
-# sikstack.com. The file is not rewritten.
-OLD_HOSTED_HOSTS = ("knowledge.hi2vi.com", "hi2vi.com")
-HOSTED_BASE_URL = "https://sikstack.com"
+# The hosted service serves at hi2vi.com until the domain moves to sikstack.com (DNS
+# and the box): a key must not go to a host that does not serve yet, so the default
+# and the old-host mapping stay on hi2vi.com, and the move flips both with DNS. The
+# old host knowledge.hi2vi.com only answers a 308 to the apex, and the client never
+# follows a redirect (a bearer must not cross hosts), so a config or env var still
+# naming it is read as the apex. The file is not rewritten.
+OLD_HOSTED_HOSTS = ("knowledge.hi2vi.com",)
+HOSTED_BASE_URL = "https://hi2vi.com"
 
 
 def apex_base_url(url: str) -> str:
-    """`url`, unless its host is exactly an old hosted one: then sikstack.com."""
+    """`url`, unless its host is exactly an old hosted one: then the apex."""
 
     if url and urlsplit(url).hostname in OLD_HOSTED_HOSTS:
         return HOSTED_BASE_URL
@@ -281,7 +283,7 @@ def save(updates: Mapping[str, Any], path: str | None = None) -> str:
 
     `updates` uses the nested schema — a flat shape will not be read::
 
-        save({"api": {"base_url": "https://sikstack.com", "token": "vk_..."}})
+        save({"api": {"base_url": "https://hi2vi.com", "token": "vk_..."}})
 
     Raises `ConfigError` rather than overwrite a config file that exists but
     cannot be parsed: refusing to destroy an unreadable file the user may want to
