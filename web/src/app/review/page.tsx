@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { REVIEW } from "@/content/review";
-import { ReviewFrame } from "@/hi2vi/review";
-import { accountOf } from "@/hi2vi/review/saved-line";
+import { ReviewFrame } from "@/sikstack/review";
+import { accountOf } from "@/sikstack/review/saved-line";
 import { requireIdentity } from "@/lib/auth-guards";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 import { loadReviewContinue, loadReviewQueue } from "@/lib/review/actions";

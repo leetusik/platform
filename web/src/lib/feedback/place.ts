@@ -1,12 +1,12 @@
 /**
- * hi2vi Feedback (`04-feedback` round 02, F128, F134, F340) — the addresses every Feedback surface
+ * sikstack Feedback (`04-feedback` round 02, F128, F134, F340) — the addresses every Feedback surface
  * reads: the list's place, the project the Shell shows, and the way back from a piece of feedback.
  *
  * - **The scope** is the project picked in the Shell, or none for the org's own Feedback. It is a
  *   route of its own, as a project's library is (`/projects/{id}/library`): the org's list is
  *   `/feedback`, a project's is `/projects/{id}/feedback`; one piece of feedback is
  *   `/feedback/{feedbackId}` or `/projects/{id}/feedback/{feedbackId}`, so the item keeps the Shell
- *   its list showed. The Shell reads the scope from the path alone (`hi2vi/shell/model.ts`).
+ *   its list showed. The Shell reads the scope from the path alone (`sikstack/shell/model.ts`).
  * - **The place** is the list's query: `page`, `q`, `project` (the bar's project filter, the org's
  *   list only: a project's list has no select) and `rating` (`liked` | `disliked`). Blanks are
  *   absent; page 1 is no `page`. The org's list filtered to a project (`/feedback?project={id}`)

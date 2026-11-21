@@ -178,7 +178,7 @@ values fall back to 60, so the cap cannot be switched off.
 ```bash
 cd /opt/knowledge
 # COMPOSE_BAKE=false: this host hits a compose-v2 bake-path panic on --build
-# (documented in archive/workspace/docs/current/operations.md). Carry the flag.
+# (documented in archive/workspace/docs/current/operations.md at commit ee61f98c). Carry the flag.
 COMPOSE_BAKE=false docker compose -f compose.prod.yml up -d --build
 
 # This builds + brings up the api, the web app and the MCP server (and postgres). Expect Up (healthy):

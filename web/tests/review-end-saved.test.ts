@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Saved } from "@/hi2vi/review";
+import type { Saved } from "@/sikstack/review";
 import type { EndKind } from "@/lib/review/model";
 import type { ReviewQueue } from "@/lib/review/types";
 
@@ -42,11 +42,11 @@ vi.mock("next/navigation", async (real) => ({
   usePathname: () => "/review",
 }));
 
-const line = await import("@/hi2vi/review/saved-line");
-const real = await vi.importActual<typeof import("@/hi2vi/review/saved-store")>(
-  "@/hi2vi/review/saved-store",
+const line = await import("@/sikstack/review/saved-line");
+const real = await vi.importActual<typeof import("@/sikstack/review/saved-store")>(
+  "@/sikstack/review/saved-store",
 );
-vi.mock("@/hi2vi/review/saved-store", () => store);
+vi.mock("@/sikstack/review/saved-store", () => store);
 const ReviewPage = (await import("@/app/review/page")).default;
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -86,7 +86,7 @@ describe("what is kept and when (F241)", () => {
       });
       expect(step).toEqual({
         t: "store",
-        key: "hi2vi.review.saved.u-june",
+        key: "sikstack.review.saved.u-june",
         value: JSON.stringify({ day: TODAY, ...GOOD }),
       });
     }
@@ -111,7 +111,7 @@ describe("what is kept and when (F241)", () => {
         saved: GOOD,
         day: TODAY,
       }),
-    ).toEqual({ t: "drop", key: "hi2vi.review.saved.u-june" });
+    ).toEqual({ t: "drop", key: "sikstack.review.saved.u-june" });
     expect(
       line.keepStep({
         account: "u-june",
@@ -119,7 +119,7 @@ describe("what is kept and when (F241)", () => {
         saved: null,
         day: TODAY,
       }),
-    ).toEqual({ t: "drop", key: "hi2vi.review.saved.u-june" });
+    ).toEqual({ t: "drop", key: "sikstack.review.saved.u-june" });
   });
 
   it("leaves it while loading or failed, on an end with no line yet, and with no account", () => {
@@ -146,7 +146,7 @@ describe("what is kept and when (F241)", () => {
   it("reads it back only on an end with no saved line yet, for a known account", () => {
     for (const kind of ENDS)
       expect(line.restoreKey({ account: "u-june", kind, saved: null })).toBe(
-        "hi2vi.review.saved.u-june",
+        "sikstack.review.saved.u-june",
       );
     expect(
       line.restoreKey({ account: "u-june", kind: "card", saved: null }),

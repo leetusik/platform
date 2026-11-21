@@ -27,7 +27,7 @@ vi.mock("@/lib/knowledge/app", async (orig) => ({
 }));
 
 import { renderDocument } from "@/components/reader/document-page";
-import { ChapterBody } from "@/hi2vi/reader/body/body";
+import { ChapterBody } from "@/sikstack/reader/body/body";
 import type { KbDocument } from "@/lib/knowledge/types";
 import { validateChapter } from "@/lib/native";
 import {

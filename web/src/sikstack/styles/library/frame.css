@@ -1,0 +1,310 @@
+/* sikstack — the Library's frame (job 03, round 02-one-library: canvas/project/frame.css sections 1 to 12, and the
+   pager's own sheet from Pager.dc.html). Values and class names are the signed ones. The changes, and nothing else:
+   - the whole sheet is scoped like the system's (../README.md): it applies inside a `.ui` root and stops at
+     `[data-ui-legacy]`, the old-page boundary; the tokens' `:root` reads `:scope`; it sits in no cascade layer;
+   - sepia's roles (section 1) moved to ../tokens.css, where the system's schemes live (frame.md F57: a token gap
+     the system takes); no colour is written here;
+   - canvas mechanics are not built: `.bare > .sc-host` (a dc-import's host), the Listen stand-in's
+     `.read-facts > [data-proto="standin"]` (the reader places the real Listen control, S8), section 13 and the
+     `#dc-root` rules; `.mark-list > .sc-host:first-child > .mark-row` reads `.mark-list > .mark-row:first-child`;
+   - section P is the pager's rules from its board's own <style> (F325), less its `#dc-root` rule.
+   Its custom properties are restored at the old-page boundary by ./boundary.css.
+   1 tokens · 2 choice · 3 the bar outside the Shell · 4 the reader's layout · 5 the body of a text ·
+   6 the head, the end and the foot of a text · 7 chapters · 8 sheet · 9 sign in to save · 10 shelves ·
+   11 a mark's row · 12 display and versions · P the pager.
+   Every colour, gap and radius is a role of the system's tokens; the lengths below are the frame's own. */
+@scope (.ui) to ([data-ui-legacy]) {
+/* 1 ── tokens ──────────────────────────────────────────────────────────────── */
+:scope {
+  --read-fs: 18px;        /* the text of a chapter: step 3 of 5 (frame.md F56) */
+  --read-k: 1;            /* the text's scale against step 3: gaps and headings follow it */
+  --read-lh: 1.7;
+  --read-measure: 34;     /* the column, in ems of the text */
+  --sheet-w: 24em;
+  --side-w: 22em;
+  --line-h: 3px;          /* the progress line */
+  --row-h: calc(var(--control-h) + 1px);
+}
+[data-size="1"] { --read-fs: 14px; --read-k: 0.78; }
+[data-size="2"] { --read-fs: 16px; --read-k: 0.89; }
+[data-size="3"] { --read-fs: 18px; --read-k: 1; }
+[data-size="4"] { --read-fs: 20px; --read-k: 1.11; }
+[data-size="5"] { --read-fs: 22px; --read-k: 1.22; }
+
+/* Sepia, the reader's third scheme (frame.md F57), is a token gap the system takes: it is in ../tokens.css. */
+
+/* a button that reads as a link, 44 px tall: the system's .link-row on a <button> */
+button.link-row { margin: 0; padding: 0; border: 0; background: transparent; font: inherit; line-height: 1; cursor: pointer; }
+.is-off { visibility: hidden; }
+/* a button whose label may take a second line (a gap in the system's .btn, frame.md F98): one line wherever it fits, 44 px at least.
+   At 390 px with 200% text `Clear this book’s reading data` is wider than its panel. */
+.btn-wraps { flex: 0 1 auto; height: auto; min-height: var(--control-h); padding-block: var(--space-2); line-height: var(--lh-text); white-space: normal; text-align: left; }
+
+/* 2 ── choice: one of a few, each a button; the pressed one is filled (frame.md F58) ── */
+.choice { display: flex; flex-wrap: wrap; gap: var(--space-1); min-width: 0; }
+.choice.is-even > .btn { flex: 1 1 0; }
+.choice > .btn[aria-pressed="true"], .choice > .btn[aria-pressed="true"]:hover,
+.bar .btn[aria-pressed="true"], .bar .btn[aria-pressed="true"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); }   /* the bar: Ask while its panel is open (frame.md F93) */
+
+/* 3 ── the bar outside the Shell (Bar.dc.html draws it; no page restyles it) ── */
+.bar-wrap { position: relative; z-index: 3; }
+.bar-wrap.is-sticky { position: sticky; top: 0; }
+.bar-line { height: var(--line-h); background: var(--line); }
+.bar-line > i { display: block; height: 100%; background: var(--accent); }
+/* under the bar (frame.md F53, F100): the line lies on the bar's last 3 px, over its rule, and takes no room, so the bar stands where a book's does;
+   while the bar is hidden the line is at the window's top (F59) */
+.bar-wrap > .bar-line { position: absolute; z-index: 4; top: calc(100% - var(--line-h)); right: 0; left: 0; transition: top 0.18s ease; }
+.bar-wrap.is-hidden > .bar-line { top: 0; }
+.bar { transition: transform 0.18s ease, visibility 0.18s; }
+.bar-wrap.is-hidden { pointer-events: none; }
+.bar-wrap.is-hidden .bar { visibility: hidden; transform: translateY(-100%); }
+.bar .top-row { gap: 0 var(--space-2); padding-block: var(--space-1); }
+.bar .mark { width: auto; }
+/* the account's place, kept at no width, so the wordmark sits on the Shell's line (frame.md F33) */
+.bar-ghost { display: inline-flex; flex: none; align-items: center; width: 0; height: var(--control-h); margin-right: calc(-1 * var(--space-2)); visibility: hidden; }
+/* the chevron is out of the flow, so the label is the link's first line and shares the wordmark's baseline */
+.bar-back { position: relative; flex: 0 1 auto; min-width: 0; padding-left: calc(9px + var(--space-2)); font: inherit; font-weight: 500; }
+.bar-back::before { position: absolute; top: 50%; left: 0; margin: -4px 0 0 2px; }
+.bar-back > span { min-width: 0; max-width: 18em; overflow: hidden; line-height: var(--lh-text); text-overflow: ellipsis; white-space: nowrap; }
+.bar-mid { display: flex; flex: 1 1 0; align-items: baseline; gap: var(--space-3); min-width: 0; padding-left: var(--space-2); }
+.bar-title { min-width: 0; font-weight: 600; }
+.bar-meta { flex: none; }
+.bar .top-end { flex: 0 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-1) var(--space-2); min-width: 0; }
+.bar-short { display: none; }
+/* the control that brings the bars back: the first Tab stop, seen only while it has the focus (a tap on the text or a scroll up does the same) */
+.bar-show { position: absolute; top: calc(var(--line-h) + var(--space-1)); left: var(--space-2); opacity: 0; pointer-events: none; }
+.bar-show:focus-visible, .bar-show.is-shown { opacity: 1; pointer-events: auto; }
+@container top (max-width: 40em) {
+  .bar-long { display: none; }
+  .bar-short { display: inline; }
+  .bar-mid { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .bar, .bar-line, .foot-bar { transition: none; } }
+
+/* a page outside the Shell that is a list (a book, a book's notes): a narrower column, centred */
+.column.is-narrow { max-width: 52em; }
+
+/* 4 ── the reader's layout: .ui.app.bare.reader > Bar + .reader-frame + ReaderFoot ── */
+.app.reader { background: var(--surface); overflow-y: clip; }   /* the foot bar slides out under the page's end while hidden; the reader cuts it there (frame.md F94) */
+.reader-frame { display: grid; flex: 1 0 auto; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.reader-main { min-width: 0; padding: var(--space-6) var(--gutter-narrow) var(--space-8); }
+.reader-col { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; max-width: calc(var(--read-measure) * var(--read-fs)); margin-inline: auto; }
+/* the place of a panel that stays open beside the text (the reading assistant, a later slice) */
+.reader-side { display: none; }
+@container app (min-width: 64em) {
+  .reader-frame.has-side { grid-template-columns: minmax(0, 1fr) var(--side-w); }
+  .reader-frame.has-side > .reader-side { position: sticky; top: calc(var(--reader-top-h) + var(--line-h)); display: flex; flex-direction: column; gap: var(--space-3); max-height: calc(100vh - var(--reader-top-h) - var(--line-h)); padding: var(--space-4); overflow-y: auto; }
+  /* the panel's edge is the text column's, so it runs the page's height while the panel stays in view (frame.md F93) */
+  .reader-frame.has-side > .reader-main { align-self: stretch; border-right: 1px solid var(--line); }
+}
+
+/* 5 ── the body of a text: .read (Read.dc.html draws it; a page's own blocks sit beside it in .read-flow) ── */
+.read-flow { display: flex; flex-direction: column; gap: calc(var(--space-4) * var(--read-k)); min-width: 0; }
+.read { display: flex; flex-direction: column; gap: calc(var(--space-4) * var(--read-k)); min-width: 0; color: var(--ink); font: 400 var(--read-fs)/var(--read-lh) var(--font); font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+/* small text in a body (a table, code, a callout's kind) follows the text size and never goes under the meta step */
+.read { --read-small: max(var(--fs-meta), calc(var(--fs-text) * var(--read-k))); }
+.read :where(h2) { margin-top: calc(var(--space-6) * var(--read-k)); font: 600 calc(var(--fs-title) * var(--read-k))/1.3 var(--font); text-wrap: balance; scroll-margin-top: calc(var(--reader-top-h) + var(--space-5)); }
+.read :where(h3) { margin-top: calc(var(--space-4) * var(--read-k)); font: 600 var(--read-fs)/1.5 var(--font); }
+.read :where(ul, ol) { display: flex; flex-direction: column; gap: calc(var(--space-2) * var(--read-k)); padding-left: 1.4em; }
+.read :where(ul) { list-style: disc; }
+.read :where(ol) { list-style: decimal; }
+.read :where(li)::marker { color: var(--ink-2); }
+.read :where(code) { padding: 0 var(--space-1); border-radius: var(--radius-s); background: var(--bg); font: 400 0.85em/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.read-quote { padding-left: var(--space-4); border-left: 2px solid var(--edge); color: var(--ink-2); }
+/* a box that scrolls sideways says so: the hint shows only while the box overflows (the fit recipe, frame.md F60) */
+.scroll-box { max-width: 100%; overflow-x: auto; }
+.scroll-hint { display: none; margin-top: calc(-1 * var(--space-2) * var(--read-k)); color: var(--ink-2); font: 400 var(--fs-meta)/var(--lh-meta) var(--font); }
+.scroll-box[data-scrolls="true"] + .scroll-hint { display: block; }
+.read-code { margin: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--bg); font: 400 var(--read-small)/1.6 var(--font-mono); white-space: pre; overflow-wrap: normal; }
+.read-code > code { padding: 0; border-radius: 0; background: transparent; font: inherit; overflow-wrap: normal; }
+.read .table { font-size: var(--read-small); line-height: 1.5; }
+.read .table th { font-size: var(--fs-meta); }
+.read .table :where(th, td):first-child { padding-left: 0; }
+.read .table tr:last-child td { border-bottom: 1px solid var(--line); }
+/* callouts: Note, Skip and Definition are quiet; Important, Warning and Caution have the stronger edge */
+.callout { display: flex; flex-direction: column; gap: calc(var(--space-2) * var(--read-k)); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--bg); }
+.callout.is-strong { border-color: var(--edge); }
+.callout-kind { color: var(--ink-2); font: 600 var(--read-small)/1.4 var(--font); }
+.callout.is-strong .callout-kind { color: var(--ink); }
+.callout-title { font-weight: 600; }
+.callout-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); min-width: 0; }
+.callout > summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-h); margin: calc(-1 * var(--space-3)) 0; list-style: none; cursor: pointer; }
+.callout > summary::-webkit-details-marker { display: none; }
+.callout > summary::after { content: ""; flex: none; width: 7px; height: 7px; margin: -3px var(--space-1) 0 auto; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); }
+.callout[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.callout[open] > summary { margin-bottom: 0; }
+
+/* 6 ── the head, the end and the foot of a text ────────────────────────────── */
+.read-head { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.read-title { font: 600 calc(var(--fs-figure) * var(--read-k))/1.2 var(--font); overflow-wrap: anywhere; text-wrap: balance; }
+.read-lede { color: var(--ink-2); font: 400 var(--read-fs)/1.5 var(--font); text-wrap: pretty; }
+.read-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); min-height: var(--control-h); color: var(--ink-2); }
+.read-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.read-notice > p { flex: 1 1 16em; }
+.read-toc { display: flex; flex-direction: column; padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.read-toc > ol { columns: 2 14em; column-gap: var(--space-5); }
+.toc-link { display: flex; align-items: center; width: 100%; min-height: var(--control-h); padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; break-inside: avoid; }
+.toc-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+.read-end { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; padding-top: var(--space-5); border-top: 1px solid var(--line); }
+/* the status starts on its button's centre line and keeps that line when it wraps */
+.end-status { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: var(--space-2) var(--space-4); min-height: var(--control-h); }
+.end-status > p { flex: 1 1 16em; padding-top: var(--space-3); }
+.end-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.end-next > .row-stack { flex: 1 1 16em; gap: var(--space-1); }
+.end-next-title { font: 600 var(--fs-head)/var(--lh-head) var(--font); }
+
+/* the foot: the pill, then the chapter bar; it stays at the window's foot (ReaderFoot.dc.html) */
+.reader-foot { position: sticky; bottom: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); pointer-events: none; }
+.reader-foot > * { pointer-events: auto; }
+.pill { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 var(--space-3); max-width: calc(100% - 2 * var(--space-4)); margin-bottom: var(--space-2); padding: 0 var(--space-4); border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--surface); box-shadow: var(--shadow); }
+.pill > span { display: flex; align-items: center; min-height: var(--control-h); }
+.foot-bar { container: foot / inline-size; align-self: stretch; border-top: 1px solid var(--line); background: var(--surface); transition: transform 0.18s ease, visibility 0.18s; }
+.foot-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-2); min-height: var(--top-h); padding: 0 var(--space-3); }
+.reader-foot.is-hidden .foot-bar { visibility: hidden; transform: translateY(100%); }
+.foot-prev { justify-self: start; }
+.foot-next { justify-self: end; }
+.foot-prev::before, .foot-next::after { content: ""; flex: none; width: 7px; height: 7px; border-bottom: 1.5px solid currentColor; border-left: 1.5px solid currentColor; }
+.foot-prev::before { margin-left: 2px; transform: rotate(45deg); }
+.foot-next::after { margin-right: 2px; transform: rotate(-135deg); }
+.foot-mid { gap: var(--space-3); min-width: 0; }
+.foot-where, .foot-count { color: var(--ink-2); font-weight: 400; font-variant-numeric: tabular-nums; }
+.foot-count, .foot-short { display: none; }
+@container foot (max-width: 36em) {
+  .foot-where { display: none; }
+  .foot-count { display: inline; }
+}
+/* compact under 28em (frame.md F94): the two ways are their chevrons, named for a screen reader; at 320 px the two words do not fit their cells */
+@container foot (max-width: 28em) {
+  .foot-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+  .foot-prev, .foot-next { padding: 0; }
+}
+/* under 20em (390 px at 200% text) Contents carries its count under it and the row closes up, so the three targets fit */
+@container foot (max-width: 20em) {
+  .foot-row { gap: var(--space-1); padding: 0 var(--space-1); }
+  .foot-mid { flex-direction: column; gap: var(--space-1); height: auto; min-height: var(--control-h); padding: var(--space-1) var(--space-2); }
+  .foot-count { font-size: var(--fs-meta); }
+}
+
+/* 7 ── chapters: a book's chapters as rows (ReaderChapters.dc.html; the book's own contents copies the row) ── */
+.chapters { container: chapters / inline-size; display: flex; flex-direction: column; }
+.chapter-row { display: grid; grid-template-columns: 2em minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: baseline; min-height: var(--row-h); border-top: 1px solid var(--line); }
+.chapters > .chapter-row:first-child { border-top: 0; }
+.chapter-n { color: var(--ink-2); }
+.chapter-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); min-width: 0; }
+.chapter-open, .shelf-row .link-strong { padding-block: var(--space-3); }
+.chapter-row[aria-current="true"] .chapter-open { font-weight: 600; }
+.chapter-state { white-space: nowrap; }
+.chapter-sections { grid-column: 2 / -1; display: flex; flex-direction: column; padding-bottom: var(--space-2); }
+.section-link { display: flex; align-items: center; width: 100%; min-height: var(--control-h); padding: 0; border: 0; background: transparent; color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.section-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.section-link[aria-current="location"] { color: var(--ink); font-weight: 600; }
+@container chapters (max-width: 26em) {
+  .chapter-row { grid-template-columns: 2em minmax(0, 1fr); }
+  .chapter-state { grid-column: 2; padding-bottom: var(--space-3); }
+}
+
+/* 8 ── sheet: a native <dialog class="sheet">, opened with showModal(); one at a time (frame.md F61) ── */
+.sheet { position: fixed; inset: 0 auto 0 0; width: min(var(--sheet-w), calc(100vw - var(--control-h))); max-width: none; height: 100vh; max-height: none; margin: 0; padding: 0; overflow-y: auto; border: 0; border-right: 1px solid var(--edge); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.sheet.at-end { inset: 0 0 0 auto; border-right: 0; border-left: 1px solid var(--edge); }
+.sheet::backdrop { background: var(--scrim); }
+.sheet-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--top-h); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--line); background: var(--surface); }
+.sheet-body { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-4); }
+@container app (max-width: 40em) {
+  .sheet, .sheet.at-end { inset: auto 0 0 0; width: 100%; height: auto; max-height: 85vh; border: 0; border-top: 1px solid var(--edge); border-radius: var(--radius-m) var(--radius-m) 0 0; }
+}
+.sheet.is-bottom { inset: auto 0 0 0; width: 100%; height: auto; max-height: 85vh; border: 0; border-top: 1px solid var(--edge); border-radius: var(--radius-m) var(--radius-m) 0 0; }
+/* a sample on a Components board: in the flow, not modal */
+.sheet:not(:modal) { position: relative; inset: auto; width: 100%; max-width: var(--sheet-w); height: auto; border: 1px solid var(--edge); box-shadow: none; }
+.sheet.is-bottom:not(:modal) { max-width: none; }
+
+/* 9 ── sign in to save: offered in place, where the thing would have been saved ── */
+.save { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); font: 400 var(--fs-text)/var(--lh-text) var(--font); }
+.save-title { font-weight: 600; }
+
+/* 10 ── shelves: a project's books and documents (Shelf.dc.html) ── */
+.shelf-list { container: shelf / inline-size; }
+.shelf-list > ul:first-child > .shelf-row:first-child { border-top: 0; }
+.shelf-row { grid-template-columns: minmax(0, 1fr) minmax(0, 15em) 10em 4.5em; padding-block: 0; }
+.shelf-list.no-state .shelf-row { grid-template-columns: minmax(0, 1fr) minmax(0, 15em) 4.5em; }
+.shelf-sub { margin-top: calc(-1 * var(--space-2)); padding-bottom: var(--space-3); }
+.shelf-meta { display: contents; }
+.shelf-facts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); min-width: 0; color: var(--ink-2); }
+.shelf-date { color: var(--ink-2); white-space: nowrap; }
+.shelf-more { display: flex; padding: 0 var(--space-4); border-top: 1px solid var(--line); }
+.shelf-more .swap { justify-items: start; }
+/* a shelf's name breaks after _ - and / (Shelf adds the break points), and anywhere before it would leave the page (frame.md F97) */
+.shelf .section-head h2 { overflow-wrap: anywhere; }
+@container shelf (max-width: 46em) {
+  .shelf-row, .shelf-list.no-state .shelf-row { grid-template-columns: minmax(0, 1fr); }
+  .shelf-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); margin-top: calc(-1 * var(--space-2)); padding-bottom: var(--space-3); }
+  .shelf-meta > :empty { display: none; }
+  .shelf-date { text-align: left; }
+  .shelf-sub { padding-bottom: var(--space-2); }
+}
+
+/* 11 ── a mark's row: a highlight, a note or a bookmark in a list (MarkRow.dc.html) ── */
+.mark-list { container: marks / inline-size; display: flex; flex-direction: column; }
+.mark-list > .mark-row:first-child { border-top: 0; }
+.mark-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-4); align-items: start; min-height: var(--row-h); padding-block: var(--space-2); border-top: 1px solid var(--line); }   /* 8 px from a rule to a button, as between two buttons (frame.md F95) */
+/* the first line of a mark sits on the centre line of its row's buttons, whatever follows it */
+.mark-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; padding: var(--space-3) 0 var(--space-1); }
+.mark-open { display: block; width: 100%; min-height: var(--control-h); margin: calc(-1 * var(--space-3)) 0; padding: var(--space-3) 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.mark-open:hover { text-decoration: underline; text-underline-offset: 2px; }
+.mark-quote { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.mark-note { padding-left: var(--space-3); border-left: 2px solid var(--edge); white-space: pre-line; }
+.mark-meta { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); }
+.mark-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+.mark-undo { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); min-height: var(--control-h); }
+.mark-form { grid-column: 1 / -1; padding: var(--space-3) 0; }
+@container marks (max-width: 30em) {
+  .mark-row { grid-template-columns: minmax(0, 1fr); }
+  .mark-actions { justify-content: flex-start; margin-top: var(--space-1); }
+}
+
+/* 12 ── display and versions: the bodies of two sheets (Display.dc.html, Versions.dc.html) ── */
+.display { display: flex; flex-direction: column; gap: var(--space-5); }
+.display-size { padding: 0; }
+.display-size > span { line-height: 1; }
+.version-list { display: flex; flex-direction: column; }
+.version-row { grid-template-columns: 6em minmax(0, 1fr) auto; min-height: var(--row-h); padding: var(--space-2) 0; }   /* 8 px between View and each rule (frame.md F96) */
+.version-list > .version-row:first-child { border-top: 0; }
+.version-name { display: flex; align-items: baseline; gap: var(--space-2); }
+.version-facts { display: flex; flex-direction: column; min-width: 0; color: var(--ink-2); }
+/* under 20em of the app (390 px at 200% text) the row wraps: the name, its action at the row's end, the date under them */
+@container app (max-width: 20em) {
+  .version-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-4); padding-block: var(--space-3); }
+  .version-row > .version-facts { order: 1; flex: 1 0 100%; }
+}
+.rd-list { display: flex; flex-direction: column; gap: var(--space-1); padding-left: 1.4em; list-style: disc; }
+
+/* P ── the pager: the product's one pager (Pager.dc.html's own sheet, frame.md F325, handoff § 6) ── */
+/* the range at the start, the ways at the end, on the edge of the rows' actions */
+.pager { container: pager / inline-size; }
+.pager-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding: var(--space-2) var(--space-4); }
+.pager-range { margin: 0; font-variant-numeric: tabular-nums; }
+.pager-ways { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.pager-ways > .btn { font-variant-numeric: tabular-nums; }
+.pager-num { padding: 0 var(--space-2); }
+/* the current page is filled with ink, as a pressed choice is (frame.md F58), and is not a link */
+.pager-num[aria-current="page"], .pager-num[aria-current="page"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); cursor: default; }
+/* a gap in the numbers: an ellipsis, not a target, in a number's width, so the seven places keep one width */
+.pager-gap { display: inline-flex; align-items: center; justify-content: center; min-width: var(--control-h); height: var(--control-h); color: var(--ink-2); }
+/* the chevrons are the reader foot's (.foot-prev, .foot-next) */
+.pager-prev::before, .pager-next::after { content: ""; flex: none; width: 7px; height: 7px; border-bottom: 1.5px solid currentColor; border-left: 1.5px solid currentColor; }
+.pager-prev::before { margin-left: 2px; transform: rotate(45deg); }
+.pager-next::after { margin-right: 2px; transform: rotate(-135deg); }
+.pager-of { display: none; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* under 36em of the pager: the range takes its own line; the numbers give way to "Page 3 of 6" between the two ways */
+@container pager (max-width: 36em) {
+  .pager-range { flex: 1 0 100%; }
+  .pager-ways { flex: 1 0 100%; justify-content: space-between; }
+  .pager-num, .pager-gap { display: none; }
+  .pager-of { display: inline; }
+}
+/* under 22em (320 px, or 390 px at 200% text) the two ways are their chevrons; their names stay on the buttons (frame.md F94's rule) */
+@container pager (max-width: 22em) {
+  .pager-way { display: none; }
+  .pager-prev, .pager-next { padding: 0; }
+}
+}

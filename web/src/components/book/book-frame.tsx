@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { ListenPlayerSheet } from "@/hi2vi/listen/player";
-import { UiRoot } from "@/hi2vi/ui";
+import { ListenPlayerSheet } from "@/sikstack/listen/player";
+import { UiRoot } from "@/sikstack/ui";
 
 /**
  * The book page's frame, the Bar's (`Book.dc.html`, frame.md F52): `.ui > .page > .app.bare > Bar +

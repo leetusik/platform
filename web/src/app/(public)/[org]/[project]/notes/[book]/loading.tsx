@@ -1,12 +1,12 @@
 import { headers } from "next/headers";
 
-import { Bar } from "@/hi2vi/library";
+import { Bar } from "@/sikstack/library";
 import {
   NotesFrame,
   NotesLoading,
   notesPlace,
-} from "@/hi2vi/reader/book-notes";
-import { requestNonce } from "@/hi2vi/shell/data";
+} from "@/sikstack/reader/book-notes";
+import { requestNonce } from "@/sikstack/shell/data";
 import { REQUEST_PATH_HEADER } from "@/lib/next-path";
 import { LIBRARY_HREF } from "@/lib/reader-href";
 

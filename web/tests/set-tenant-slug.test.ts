@@ -47,19 +47,19 @@ describe("setTenantSlug", () => {
       tenant: {
         id: "t1",
         name: "Org",
-        slug: "hi2vi",
+        slug: "sikstack",
         created_at: "2026-01-01T00:00:00+00:00",
       },
     });
 
-    await expect(setTenantSlug(TOKEN, "hi2vi")).resolves.toMatchObject({
-      slug: "hi2vi",
+    await expect(setTenantSlug(TOKEN, "sikstack")).resolves.toMatchObject({
+      slug: "sikstack",
     });
     expect(fetch).toHaveBeenCalledWith(
       "http://kb.test:8766/app/tenant",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ slug: "hi2vi" }),
+        body: JSON.stringify({ slug: "sikstack" }),
         cache: "no-store",
         headers: expect.objectContaining({ Authorization: `Bearer ${TOKEN}` }),
       }),
@@ -71,10 +71,10 @@ describe("setTenantSlug", () => {
 
     // `tenants.slug` is GLOBALLY unique, so this is the likeliest real failure — the
     // action maps it to its own "already taken" copy rather than the generic retry.
-    await expect(setTenantSlug(TOKEN, "hi2vi")).rejects.toBeInstanceOf(
+    await expect(setTenantSlug(TOKEN, "sikstack")).rejects.toBeInstanceOf(
       ApiError,
     );
-    await expect(setTenantSlug(TOKEN, "hi2vi")).rejects.toMatchObject({
+    await expect(setTenantSlug(TOKEN, "sikstack")).rejects.toMatchObject({
       status: 409,
     });
   });

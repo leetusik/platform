@@ -3,8 +3,8 @@
 // page, the client islands and the Node tests all import it.
 
 import { MINT_CREDENTIAL_ERRORS, PROJECT_HOME } from "@/content/project";
-import type { KeyRow, MintResult, RevokeResult } from "@/hi2vi/frame";
-import { stepsN } from "@/hi2vi/workspace/frame/steps-model";
+import type { KeyRow, MintResult, RevokeResult } from "@/sikstack/frame";
+import { stepsN } from "@/sikstack/workspace/frame/steps-model";
 import type { FeedbackValue } from "@/lib/feedback/format";
 import { langAttr } from "@/lib/feedback/lang";
 import { feedbackItemHref } from "@/lib/feedback/place";

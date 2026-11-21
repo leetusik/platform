@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { Bar } from "@/hi2vi/library";
-import { requestNonce } from "@/hi2vi/shell/data";
-import { UiRoot } from "@/hi2vi/ui";
+import { Bar } from "@/sikstack/library";
+import { requestNonce } from "@/sikstack/shell/data";
+import { UiRoot } from "@/sikstack/ui";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { signInFrom } from "@/lib/public-library/model";
 

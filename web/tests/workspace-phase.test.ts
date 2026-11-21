@@ -14,8 +14,8 @@ import {
   PhaseView,
   pullRequestView,
   sliceSub,
-} from "@/hi2vi/workspace/phase";
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/phase";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
 import { dates } from "@/lib/workspace/model";
 import type {
   AgendaItem,
@@ -55,7 +55,7 @@ const slice = (over: Partial<SliceRow> & Pick<SliceRow, "id" | "name" | "kind" |
 const DECISIONS = [
   "Breakdown (DECOMP): one pass, eighteen slices: S1 server read-model additions, S2 frame, S3 data and writes.",
   "Run words (operator, 2026-11-18): the run goes on with the recommendations taken by default.",
-  "D1 Branch (taken by default): `feat/hi2vi-workspace` cut in `platform/` from `feat/workspace-sync`.",
+  "D1 Branch (taken by default): `feat/sikstack-workspace` cut in `platform/` from `feat/workspace-sync`.",
   "D2 Writes (taken by default): the web writes only inbox entries through the inbox routes.",
   "D3 Runtime (taken by default): `p67-runtime` at `p67.localhost:<port>`, its own Postgres.",
   "D4 Gaps (taken by default): S1 adds PR `{number, state, url}`, doc version ordinals and the sync line.",
@@ -86,7 +86,7 @@ function phase(over: Partial<Phase> = {}): WithHead<Phase> {
   return {
     id: "P8-q4",
     short: "P8",
-    name: "Apply hi2vi: Workspace",
+    name: "Apply sikstack: Workspace",
     objective:
       "Build the signed Workspace pages (design job 02, round 02-agenda-and-links) into the web app, on the read and inbox routes already built.",
     status: "in_progress",
@@ -103,8 +103,8 @@ function phase(over: Partial<Phase> = {}): WithHead<Phase> {
     branches: [
       {
         repo: "platform",
-        branch: "feat/hi2vi-workspace",
-        pr: { number: 10, state: "draft", url: "https://github.com/leetusik/platform/pull/10" },
+        branch: "feat/sikstack-workspace",
+        pr: { number: 10, state: "draft", url: "https://github.com/leetusik/sikstack/pull/10" },
       },
     ],
     agenda: "A7-m3",
@@ -155,8 +155,8 @@ const view = (p: Phase, item = null as ReturnType<typeof agendaItemOf>) =>
   );
 
 describe("a branch's pull request (F306)", () => {
-  const branch = (pr: Branch["pr"]): Branch => ({ repo: "platform", branch: "feat/hi2vi-workspace", pr });
-  const url = "https://github.com/leetusik/platform/pull/38";
+  const branch = (pr: Branch["pr"]): Branch => ({ repo: "platform", branch: "feat/sikstack-workspace", pr });
+  const url = "https://github.com/leetusik/sikstack/pull/38";
 
   it("reads each state's word in its shape", () => {
     const states = [
@@ -180,16 +180,16 @@ describe("a branch's pull request (F306)", () => {
   it("draws the link in the same tab with its hit area, then the word; no pull request reads the line", () => {
     const out = view(phase({
       branches: [
-        { repo: "platform", branch: "feat/hi2vi-workspace", pr: { number: 38, state: "merged", url } },
-        { repo: "vocky", branch: "feat/hi2vi-feedback", pr: null },
+        { repo: "platform", branch: "feat/sikstack-workspace", pr: { number: 38, state: "merged", url } },
+        { repo: "vocky", branch: "feat/sikstack-feedback", pr: null },
       ],
     }));
     expect(out).toContain(
-      `<div class="fact"><dt>Branch in platform</dt><dd class="row-stack"><span>feat/hi2vi-workspace</span><span class="phase-pr"><a class="link phase-pr-link" href="${url}" aria-label="Pull request #38 in platform on GitHub, Merged"><span>Pull request #38</span></a><span class="status status-done">Merged</span></span></dd></div>`,
+      `<div class="fact"><dt>Branch in platform</dt><dd class="row-stack"><span>feat/sikstack-workspace</span><span class="phase-pr"><a class="link phase-pr-link" href="${url}" aria-label="Pull request #38 in platform on GitHub, Merged"><span>Pull request #38</span></a><span class="status status-done">Merged</span></span></dd></div>`,
     );
     expect(out).not.toContain("target=");
     expect(out).toContain(
-      '<div class="fact"><dt>Branch in vocky</dt><dd class="row-stack"><span>feat/hi2vi-feedback</span><span class="meta">Pull request not opened</span></dd></div>',
+      '<div class="fact"><dt>Branch in vocky</dt><dd class="row-stack"><span>feat/sikstack-feedback</span><span class="meta">Pull request not opened</span></dd></div>',
     );
   });
 
@@ -306,14 +306,14 @@ describe("Intent", () => {
 
 describe("the agenda item", () => {
   const row = (over: Partial<AgendaItem>): AgendaItem => ({
-    id: "A7-m3", title: "Workspace pages on hi2vi", lang: "en", note: "", state: "open", created: "2026-11-12",
+    id: "A7-m3", title: "Workspace pages on sikstack", lang: "en", note: "", state: "open", created: "2026-11-12",
     changed: null, phases: ["P8-q4"], deferred: [], outcome: "", reason: "", sync: null, ...over,
   });
   const phases: Pick<PhaseRow, "id" | "short" | "status">[] = [{ id: "P8-q4", short: "P8", status: "in_progress" }];
 
   it("reads the item's state over the Workspace's phases and its mark", () => {
     expect(agendaItemOf("A7-m3", [row({})], phases)).toEqual({
-      id: "A7-m3", title: "Workspace pages on hi2vi", lang: "en",
+      id: "A7-m3", title: "Workspace pages on sikstack", lang: "en",
       state: { word: "In progress", cls: "status status-live" }, mark: null,
     });
     expect(agendaItemOf("A7-m3", [row({ sync: "waiting" })], phases)?.mark).toBe("waiting");
@@ -339,7 +339,7 @@ describe("the page's reads", () => {
       project: PROJECT, linked: true, version: "97", sync: { state: "fresh", at: "2026-11-18T00:58:00Z" },
       streams: [], pointer: { phase: "P8-q4", slice: "S10", next: null, waiting: [] },
       phases: [{ id: "P8-q4", short: "P8", status: "in_progress" }], deferred: [], docs: [], retired: [],
-      agenda: [{ id: "A7-m3", title: "Workspace pages on hi2vi", lang: "en", note: "", state: "open", created: "2026-11-12", changed: null, phases: ["P8-q4"], deferred: [], outcome: "", reason: "", sync: null }],
+      agenda: [{ id: "A7-m3", title: "Workspace pages on sikstack", lang: "en", note: "", state: "open", created: "2026-11-12", changed: null, phases: ["P8-q4"], deferred: [], outcome: "", reason: "", sync: null }],
       unplaced: [],
     } as unknown as Workspace;
     vi.stubGlobal(

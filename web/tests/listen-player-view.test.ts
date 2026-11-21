@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { goToText, PlayerBody, pressPlayer } from "@/hi2vi/listen";
+import { goToText, PlayerBody, pressPlayer } from "@/sikstack/listen";
 import type { ListenKey } from "@/lib/listen/machine";
 import {
   getKept,

@@ -32,10 +32,10 @@ vi.mock("next/navigation", async (real) => ({
   usePathname: () => "/review",
 }));
 
-const end = await import("@/hi2vi/review/end-model");
+const end = await import("@/sikstack/review/end-model");
 const { endKind } = await import("@/lib/review/model");
 const ReviewPage = (await import("@/app/review/page")).default;
-const { ReviewEndBody } = await import("@/hi2vi/review");
+const { ReviewEndBody } = await import("@/sikstack/review");
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 

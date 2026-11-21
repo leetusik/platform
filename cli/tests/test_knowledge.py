@@ -111,7 +111,7 @@ def run(*argv):
     return main.main(["--base-url", "http://api.test", *argv])
 
 
-# --- T1: the write lands where /knowledge:explain would put it -----------------
+# --- T1: the write lands where /explain:explain would put it -----------------
 
 
 def test_save_uses_the_repo_name_and_a_frontmatter_free_body(home, api, repo, tmp_path):

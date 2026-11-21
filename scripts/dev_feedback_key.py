@@ -1,13 +1,13 @@
-"""Set up hi2vi's own feedback control on a LOCAL dev stack. Never for production.
+"""Set up sikstack's own feedback control on a LOCAL dev stack. Never for production.
 
 It signs up (or signs in) a local-only test account, get-or-creates the project
-``hi2vi``, mints a project-bound ``capture`` key for it, and writes three lines into
+``sikstack``, mints a project-bound ``capture`` key for it, and writes three lines into
 the web app's gitignored env file (``web/.env.local`` by default), replacing earlier
 copies and keeping every other line:
 
-    HI2VI_FEEDBACK_CAPTURE_KEY   the key the web server posts captures with
-    HI2VI_DEV_TEST_EMAIL         the local test account's email
-    HI2VI_DEV_TEST_PASSWORD      its generated password
+    SIKSTACK_FEEDBACK_CAPTURE_KEY   the key the web server posts captures with
+    SIKSTACK_DEV_TEST_EMAIL         the local test account's email
+    SIKSTACK_DEV_TEST_PASSWORD      its generated password
 
 Run it from the repo root against the local API (``uv run uvicorn server.main:app
 --port 8766``), with the API's own env so a waitlisted sign-up can be approved::
@@ -49,13 +49,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENV_FILE = REPO_ROOT / "web" / ".env.local"
 DEFAULT_API = "http://127.0.0.1:8766"
 
-PROJECT_NAME = "hi2vi"
-KEY_NAME = "hi2vi feedback (local dev)"
+PROJECT_NAME = "sikstack"
+KEY_NAME = "sikstack feedback (local dev)"
 TEST_EMAILS = ("you@example.com", "dev-p69@example.com")
 
-KEY_VAR = "HI2VI_FEEDBACK_CAPTURE_KEY"
-EMAIL_VAR = "HI2VI_DEV_TEST_EMAIL"
-PASSWORD_VAR = "HI2VI_DEV_TEST_PASSWORD"
+KEY_VAR = "SIKSTACK_FEEDBACK_CAPTURE_KEY"
+EMAIL_VAR = "SIKSTACK_DEV_TEST_EMAIL"
+PASSWORD_VAR = "SIKSTACK_DEV_TEST_PASSWORD"
 
 
 class SetupError(RuntimeError):
@@ -126,7 +126,7 @@ def write_env(path: Path, updates: dict[str, str]) -> None:
         out.append(line)
     missing = [name for name in updates if name not in written]
     if missing:
-        out.append("# hi2vi's own feedback control, local dev (scripts/dev_feedback_key.py)")
+        out.append("# sikstack's own feedback control, local dev (scripts/dev_feedback_key.py)")
         out.extend(f"{name}={updates[name]}" for name in missing)
     mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".env.local.")

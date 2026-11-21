@@ -1,0 +1,28 @@
+/* sikstack — the Feedback frame's old-page boundary (see ../README.md and ../boundary.css, whose pattern this is, as
+   ../library/boundary.css is).
+
+   The Feedback frame declares five custom properties of its own on the `.ui` root (the text measure, a fact's least
+   width, a rating's mark, raw JSON's lines, the pressed filter's rule). Custom properties inherit across the scope's
+   limit, so an old page's content inside a `.ui` root would see them; this keeps the system's promise: an old page's
+   content sees exactly what it saw as a child of `<body>`.
+
+   1. On `:root`, each name is copied, as the old page sees it there (unset), into a new name of its own
+      (`--sikstack-legacy-*`). Nothing reads those names but the rule below, so no element outside `.ui` changes.
+   2. At the boundary each name is set back to that copy.
+
+   tests/feedback-frame-sheets.test.ts holds this list equal to every custom property ./frame.css declares. */
+:root {
+  --sikstack-legacy-measure: var(--measure);
+  --sikstack-legacy-fact-min: var(--fact-min);
+  --sikstack-legacy-rating-mark: var(--rating-mark);
+  --sikstack-legacy-json-lines: var(--json-lines);
+  --sikstack-legacy-seg-rule: var(--seg-rule);
+}
+
+.ui [data-ui-legacy] {
+  --measure: var(--sikstack-legacy-measure);
+  --fact-min: var(--sikstack-legacy-fact-min);
+  --rating-mark: var(--sikstack-legacy-rating-mark);
+  --json-lines: var(--sikstack-legacy-json-lines);
+  --seg-rule: var(--sikstack-legacy-seg-rule);
+}

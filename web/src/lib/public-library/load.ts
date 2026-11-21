@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, `PublicLibrary.dc.html`) — what an org's public library reads,
+ * sikstack Library (`03-library` round 02, `PublicLibrary.dc.html`) — what an org's public library reads,
  * composed in the BFF from reads that already exist; no server route is added.
  *
  * - The org's listing of its PUBLIC projects (`GET /app/orgs/{org}/library?scope=public`, tokenless or

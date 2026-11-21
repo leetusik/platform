@@ -2,9 +2,9 @@
 
 import { useParams } from "next/navigation";
 
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
-import { SliceLoading } from "@/hi2vi/workspace/slice/loading";
-import { segmentId, slicePhaseOf } from "@/hi2vi/workspace/slice/address";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
+import { SliceLoading } from "@/sikstack/workspace/slice/loading";
+import { segmentId, slicePhaseOf } from "@/sikstack/workspace/slice/address";
 import { phaseHref } from "@/lib/workspace/address";
 
 /**

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { ReaderFailed } from "@/hi2vi/reader";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
+import { ReaderFailed } from "@/sikstack/reader";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
 
 // P63-fk.S8 — Error, in the bar's frame (`Chapter.dc.html`, F5's words). Try again shows Loading, then
 // the chapter: `boundaryRetry` re-fetches the route (Next 16.3's `retry`); a failure that persists

@@ -66,11 +66,11 @@ function sentHeaders(n = 0): Record<string, string> {
 }
 
 describe("the client names the active org", () => {
-  it("sends X-Hi2vi-Org with a token when the cookie holds an org", async () => {
+  it("sends X-Sikstack-Org with a token when the cookie holds an org", async () => {
     withOrgCookie(ORG_B);
     vi.mocked(fetch).mockResolvedValue(json(200, {}));
     await getJson("/app/dashboard", { token: TOKEN });
-    expect(sentHeaders()["X-Hi2vi-Org"]).toBe(ORG_B);
+    expect(sentHeaders()["X-Sikstack-Org"]).toBe(ORG_B);
     expect(sentHeaders().Authorization).toBe(`Bearer ${TOKEN}`);
   });
 
@@ -78,9 +78,9 @@ describe("the client names the active org", () => {
     withOrgCookie(ORG_B);
     vi.mocked(fetch).mockImplementation(async () => json(200, {}));
     await sendJson("/auth/login", "POST", { email: "a@b.co", password: "x" });
-    expect(sentHeaders()["X-Hi2vi-Org"]).toBeUndefined();
+    expect(sentHeaders()["X-Sikstack-Org"]).toBeUndefined();
     await sendJson("/auth/login", "POST", {}, { org: ORG_A });
-    expect(sentHeaders(1)["X-Hi2vi-Org"]).toBeUndefined();
+    expect(sentHeaders(1)["X-Sikstack-Org"]).toBeUndefined();
   });
 
   it("sends nothing for a missing or malformed cookie", async () => {
@@ -89,8 +89,8 @@ describe("the client names the active org", () => {
     await getJson("/app/dashboard", { token: TOKEN });
     withOrgCookie("not-a-uuid");
     await getJson("/app/dashboard", { token: TOKEN });
-    expect(sentHeaders(0)["X-Hi2vi-Org"]).toBeUndefined();
-    expect(sentHeaders(1)["X-Hi2vi-Org"]).toBeUndefined();
+    expect(sentHeaders(0)["X-Sikstack-Org"]).toBeUndefined();
+    expect(sentHeaders(1)["X-Sikstack-Org"]).toBeUndefined();
   });
 
   it("lets the explicit override win, null included", async () => {
@@ -98,8 +98,8 @@ describe("the client names the active org", () => {
     vi.mocked(fetch).mockImplementation(async () => json(200, {}));
     await getJson("/auth/me", { token: TOKEN, org: ORG_A });
     await getJson("/auth/me", { token: TOKEN, org: null });
-    expect(sentHeaders(0)["X-Hi2vi-Org"]).toBe(ORG_A);
-    expect(sentHeaders(1)["X-Hi2vi-Org"]).toBeUndefined();
+    expect(sentHeaders(0)["X-Sikstack-Org"]).toBe(ORG_A);
+    expect(sentHeaders(1)["X-Sikstack-Org"]).toBeUndefined();
   });
 });
 
@@ -155,7 +155,7 @@ describe("POST /api/auth/org — the switch", () => {
       }),
     );
     const res = await orgPOST(switchReq(ORG_B));
-    expect(sentHeaders()["X-Hi2vi-Org"]).toBe(ORG_B);
+    expect(sentHeaders()["X-Sikstack-Org"]).toBe(ORG_B);
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/dashboard");
     const cookie = orgSetCookie(res);

@@ -12,7 +12,7 @@ import { requireIdentity } from "@/lib/auth-guards";
 // is `cache()`d, so a page that also calls it shares this layout's single /auth/me
 // round-trip.
 //
-// P58 — the hi2vi Shell. This layout is shared and persists across client navigation, so
+// P58 — the sikstack Shell. This layout is shared and persists across client navigation, so
 // it cannot choose per route between system markup and the old-page boundary:
 // `legacy={false}` hands that choice to each route folder. An old route's folder has a
 // `layout.tsx` that wraps its pages in `LegacyPage`; a rebuilt route has none and renders

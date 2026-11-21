@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { requestNonce } from "@/hi2vi/shell/data";
+import { requestNonce } from "@/sikstack/shell/data";
 import { loginHref, REQUEST_PATH_HEADER } from "@/lib/next-path";
 import { getSession } from "@/lib/session";
 

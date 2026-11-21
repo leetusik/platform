@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { BOOK_PAGE } from "@/content/book-page";
-import type { RowAudio } from "@/hi2vi/listen";
-import { Badge, Skeleton, Status } from "@/hi2vi/ui";
+import type { RowAudio } from "@/sikstack/listen";
+import { Badge, Skeleton, Status } from "@/sikstack/ui";
 import type { RowView } from "@/lib/book/view";
 
 const T = BOOK_PAGE.contents;

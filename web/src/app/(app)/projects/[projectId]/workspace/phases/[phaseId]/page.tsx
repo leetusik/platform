@@ -5,13 +5,13 @@ import { cache } from "react";
 
 import { WS_GLOSSARY, WS_PLACES } from "@/content/workspace/frame";
 import { PHASE_PAGE } from "@/content/workspace/phase";
-import { wsHeadOf, wsSyncLine, type WsBack } from "@/hi2vi/workspace/frame";
+import { wsHeadOf, wsSyncLine, type WsBack } from "@/sikstack/workspace/frame";
 import {
   agendaItemOf,
   PhaseFailed,
   PhaseMissing,
   PhaseView,
-} from "@/hi2vi/workspace/phase";
+} from "@/sikstack/workspace/phase";
 import { requireIdentity } from "@/lib/auth-guards";
 import { getProject } from "@/lib/knowledge/app";
 import { projectLibraryHref } from "@/lib/reader-href";
@@ -25,7 +25,7 @@ import {
 } from "@/lib/workspace/address";
 import { dates } from "@/lib/workspace/model";
 import { readPhase, readWorkspace } from "@/lib/workspace/read";
-import { PHASE_ID } from "@/hi2vi/workspace/phase";
+import { PHASE_ID } from "@/sikstack/workspace/phase";
 import type { WorkspaceHead } from "@/lib/workspace/types";
 
 /**
@@ -68,7 +68,7 @@ export async function generateMetadata({
   } catch (error) {
     unstable_rethrow(error);
   }
-  // the page renders the failure itself; the tab names the phase (`<id> · hi2vi`)
+  // the page renders the failure itself; the tab names the phase (`<id> · sikstack`)
   return { title: phaseIdShown(phaseId) ?? undefined, robots: { index: false } };
 }
 

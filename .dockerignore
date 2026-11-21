@@ -8,4 +8,4 @@ site/
 .venv/
 works/
 __pycache__/
-plugin/
+plugins/

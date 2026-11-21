@@ -12,7 +12,7 @@ path-agnostic verifier (not a unit test; the terse behavioral tests live in
     python mcp-server/scripts/e2e_smoke.py --url http://localhost:9000/mcp --key <bearer>
 
     # public path, operator post-deploy with a real vk_ key:
-    python mcp-server/scripts/e2e_smoke.py --url https://hi2vi.com/mcp --key vk_...
+    python mcp-server/scripts/e2e_smoke.py --url https://sikstack.com/mcp --key vk_...
 
 What it checks:
   1. initialize()                 -> handshake OK, serverInfo captured (SDK version).

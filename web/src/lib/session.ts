@@ -64,17 +64,17 @@ export function clearedSessionCookieOptions(): SessionCookieOptions {
 
 // ── The active org (multi-org sessions) ─────────────────────────────────────
 // A user may belong to several orgs; the API acts in the first one unless a session
-// request names another with `X-Hi2vi-Org`. The web keeps that choice in a second
+// request names another with `X-Sikstack-Org`. The web keeps that choice in a second
 // httpOnly cookie beside the session, holding only a tenant id: it is no secret (the
 // API checks membership on every request and 403s a foreign id), so it is not sealed.
 // It is set ONLY by `POST /api/auth/org` after the API confirmed the membership, and
 // cleared by the reset (`GET /api/auth/org`), by sign-in, sign-up and sign-out.
 
 /** Cookie name holding the active org's tenant id. */
-export const ORG_COOKIE = "hi2vi_org";
+export const ORG_COOKIE = "sikstack_org";
 
 /** The request header the API reads the active org from (`server/accounts/auth.py`). */
-export const ORG_HEADER = "X-Hi2vi-Org";
+export const ORG_HEADER = "X-Sikstack-Org";
 
 /** The switch (POST) and reset (GET) route. Under `/api/auth/` so the edge routes it here. */
 export const ORG_ROUTE = "/api/auth/org";

@@ -6,7 +6,7 @@ import {
   errorState,
   StateBlock,
   useShellOrgName,
-} from "@/hi2vi/states";
+} from "@/sikstack/states";
 
 /**
  * The Agenda's whole-page error (F49 falls back on F5): what the page's own failed part does not catch (the read's

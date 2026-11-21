@@ -3,7 +3,7 @@
 `init` is the headline: it runs the whole `scripts/onboarding_smoke.py` sequence
 for a real person — signup-or-login -> project -> mint a `vk_` key -> **write the
 config seam** — and that last step is the payoff. The moment `api.token=vk_...`
-lands in `$XDG_CONFIG_HOME/knowledge-kb/config.json`, `/knowledge:explain` starts
+lands in `$XDG_CONFIG_HOME/knowledge-kb/config.json`, `/explain:explain` starts
 writing to the hosted service with zero code change.
 
 Three rules shape every line here:
@@ -172,11 +172,11 @@ def _waitlisted(email: str, *, signed_up: bool) -> CliError:
     who = email or "this account"
     if signed_up:
         return CliError(
-            f"account created for {who}, and it is on the hi2vi waitlist — you will "
+            f"account created for {who}, and it is on the sikstack waitlist — you will "
             "get a mail when it opens; nothing was saved on this machine"
         )
     return CliError(
-        f"{who} is on the hi2vi waitlist — you will get a mail when it opens; "
+        f"{who} is on the sikstack waitlist — you will get a mail when it opens; "
         "nothing was saved on this machine"
     )
 
@@ -273,7 +273,7 @@ def stored_session_token() -> str:
 def stored_api_token() -> str:
     """The non-expiring `vk_` key in `api.token`, or `""`. **Literal, not resolved.**
 
-    This is the key `/knowledge:explain` reads, and the one `/api/*` commands ride.
+    This is the key `/explain:explain` reads, and the one `/api/*` commands ride.
     Literal on purpose, same as `stored_session_token`: callers that need the seam's
     *effective* token (`$KB_API_TOKEN` first) must apply that precedence themselves
     and say so, because the env var is not an innocent override — see
@@ -324,7 +324,7 @@ def resolve_base_url(explicit: str | None) -> str:
 
 
 def _legacy_checkout_active() -> bool:
-    """Is the pre-config-file convention what `/knowledge:explain` uses today?"""
+    """Is the pre-config-file convention what `/explain:explain` uses today?"""
 
     root = os.path.join(os.path.expanduser("~"), *config.LEGACY_ROOT_PARTS)
     return os.path.isfile(os.path.join(root, "mkdocs.yml"))
@@ -343,13 +343,13 @@ def _warn_before_first_write() -> None:
     through to `~/projects/personal/knowledge` for keys the file omits
     (`explain/SKILL.md:55-63`). That is the safety property that stops a remote KB
     degrading into a stray local write — but for someone already using the legacy
-    convention it silently changes where `/knowledge:explain` writes. Silent is
+    convention it silently changes where `/explain:explain` writes. Silent is
     the only unacceptable part, so: warn.
     """
 
     if not os.path.isfile(config.config_path()) and _legacy_checkout_active():
         note(
-            f"creating {config.config_path()} — /knowledge:explain will read it "
+            f"creating {config.config_path()} — /explain:explain will read it "
             "instead of falling back to your ~/projects/personal/knowledge checkout"
         )
 
@@ -359,7 +359,7 @@ def _save_session(base_url: str, token: str, email: str) -> None:
 
     `auth.*` is invisible to the skill's resolver, which reads exactly four keys
     and ignores everything else (S1's differential test pins that indifference) —
-    so this stays backward-compatible with a `/knowledge:setup`-written config.
+    so this stays backward-compatible with a `/explain:setup`-written config.
     `api.base_url` is written too because a session is only meaningful against the
     server that issued it, and that is where the CLI already looks for the base.
     """
@@ -428,7 +428,7 @@ def cmd_logout(args: argparse.Namespace) -> int:
     """Revoke the session server-side, then forget it locally.
 
     **Leaves `api.token` alone.** The `vk_` key is a separate, non-expiring
-    credential that `/knowledge:explain` depends on; logging out of the control
+    credential that `/explain:explain` depends on; logging out of the control
     plane must not silently break the user's knowledge writes. Revoking a key is a
     separate, explicit act.
     """
@@ -440,7 +440,7 @@ def cmd_logout(args: argparse.Namespace) -> int:
     with KnowledgeClient(args.base_url) as client:
         plane_call(args.base_url, client.auth_logout, token=token)
     # `config.save()` deep-merges and has no removal path, so absence is written as
-    # JSON null — the same convention /knowledge:setup already uses for api.token
+    # JSON null — the same convention /explain:setup already uses for api.token
     # (setup/SKILL.md:203). The resolver reads null as "no value".
     config.save({"auth": {"session_token": None}})
     print("logged out (your api.token is untouched — saved knowledge keeps working)")
@@ -496,7 +496,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     The one command a new user needs, and safe to re-run: an existing account logs
     in, an existing project is reused, and an existing key is kept. What it writes
     is a **remote-only** config — no `kb_root` — which is the safety property that
-    keeps `/knowledge:explain` from ever degrading a failed remote write into a
+    keeps `/explain:explain` from ever degrading a failed remote write into a
     stray local file.
     """
 
@@ -595,14 +595,14 @@ def cmd_init(args: argparse.Namespace) -> int:
         # and cannot remove a key, and destroying someone's local checkout setting
         # is not init's call to make.
         note(
-            f"your config still has kb_root={resolved.kb_root}, so /knowledge:explain "
+            f"your config still has kb_root={resolved.kb_root}, so /explain:explain "
             "may write locally if the API is unreachable; remove it to go remote-only"
         )
     # CLI and web share one accounts plane (POST /auth/signup · /auth/login), so
     # the same email + password that just onboarded this machine also logs into the
     # web UI. base_url-aware because a self-hosted service has its own origin.
     print(f"web login: {base_url}/login (same email + password)")
-    print("done — /knowledge:explain now writes to this knowledge base")
+    print("done — /explain:explain now writes to this knowledge base")
     return 0
 
 

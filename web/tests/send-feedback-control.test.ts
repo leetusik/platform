@@ -43,11 +43,11 @@ import {
   showCount,
   submitForm,
   type FeedbackForm,
-} from "@/hi2vi/send-feedback/model";
-import { FeedbackDialogContent } from "@/hi2vi/send-feedback/send-feedback";
-import { Landing } from "@/hi2vi/landing/landing";
+} from "@/sikstack/send-feedback/model";
+import { FeedbackDialogContent } from "@/sikstack/send-feedback/send-feedback";
+import { Landing } from "@/sikstack/landing/landing";
 
-const KEY = "HI2VI_FEEDBACK_CAPTURE_KEY";
+const KEY = "SIKSTACK_FEEDBACK_CAPTURE_KEY";
 const LIMIT = 2000;
 const TRIGGER =
   /<button[^>]*aria-haspopup="dialog"[^>]*>Send feedback<\/button>/g;
@@ -290,7 +290,7 @@ describe("the two mounts", () => {
 });
 
 describe("the control's sources", () => {
-  const dir = join(__dirname, "../src/hi2vi/send-feedback");
+  const dir = join(__dirname, "../src/sikstack/send-feedback");
   const files = readdirSync(dir).map((f) => ({
     name: f,
     text: readFileSync(join(dir, f), "utf8"),

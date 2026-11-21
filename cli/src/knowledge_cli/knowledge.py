@@ -113,7 +113,7 @@ def default_project() -> str:
     """The project a `save` lands in when `--project` is not given.
 
     **The repo's root directory name, verbatim** — which is what
-    `plugin/skills/explain/SKILL.md:160` tells `/knowledge:explain` to use. The CLI
+    `plugins/explain/skills/explain/SKILL.md:160` tells `/explain:explain` to use. The CLI
     and the plugin write the same corpus with the same key, so they must partition
     it the same way; a CLI that defaulted to something else would scatter one
     repo's notes across two project names depending on which tool wrote them.
@@ -508,7 +508,7 @@ def cmd_save(args: argparse.Namespace) -> int:
     lowercase-kebab.
 
     The project defaults to this git repo's directory name, which is exactly what
-    `/knowledge:explain` uses — so both tools file a repo's notes together.
+    `/explain:explain` uses — so both tools file a repo's notes together.
 
     The only command here that writes, and so the only one that has to be careful
     about *not being answered*: if the POST goes out and the reply is lost, the

@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { PUBLIC_LIBRARY } from "@/content/public-library";
-import { Shelf } from "@/hi2vi/library/lists";
-import type { StateModel } from "@/hi2vi/states";
+import { Shelf } from "@/sikstack/library/lists";
+import type { StateModel } from "@/sikstack/states";
 import type { ListOrigin } from "@/lib/library/from";
 import type { PublicShelf, PublicViewer } from "@/lib/public-library/model";
 import { LIBRARY_HREF } from "@/lib/reader-href";
@@ -14,11 +14,11 @@ import { LIBRARY_HREF } from "@/lib/reader-href";
  * frame (`./frame.tsx`): the head, then one `Shelf` per public project (no **Public** tag: every one is
  * public here), 24 px apart. Not shown here, by design: Continue reading, Your reading data, the Public
  * tag, the count of projects with nothing to read. Its sheet is
- * `src/hi2vi/styles/library/public-library.css` (the `publib-` classes).
+ * `src/sikstack/styles/library/public-library.css` (the `publib-` classes).
  */
 
 /** Where a member's **Personal’s projects** goes: org home, where the org's projects are listed. */
-const ORG_HOME_HREF = HI2VI_STATES.orgHomeHref;
+const ORG_HOME_HREF = SIKSTACK_STATES.orgHomeHref;
 
 /**
  * `PublicLibraryHead` (`header.page-top`): a member's way back **Library** on its own line, the org's
@@ -216,7 +216,7 @@ export function libraryError({
   viewer: PublicViewer;
   digest?: string | null;
 }): StateModel {
-  const e = HI2VI_STATES.error;
+  const e = SIKSTACK_STATES.error;
   return {
     title: e.title,
     text: e.text,

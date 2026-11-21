@@ -1,4 +1,4 @@
-// A book's notes page's words (hi2vi Library, job 03 round 02, `## Build` § Page: book-notes; the board
+// A book's notes page's words (sikstack Library, job 03 round 02, `## Build` § Page: book-notes; the board
 // `BookNotes`). Verbatim from the board; a mark's row's words (Delete, Undo, its lines) are MarkRow's,
 // `@/content/library-frame`. Imported by its own path, never through `content/index.ts`.
 

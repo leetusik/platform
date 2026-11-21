@@ -1,0 +1,140 @@
+{
+ "about": "What the v102 installer (bootstrap_agentic_workspace.sh, the last release) shipped in a nested install, read from a fresh `--nested` install with no renames: the host's .claude/ skill folders and agent files and workflow/works/templates/ (templates_at_root: an --at-root install's works/templates/) as sha256 per file (migrate removes a copy only when it matches), and the engine's own files under workflow/ (removed by name: the installer overwrote them on every --update).",
+ "version": 102,
+ "skills": {
+  "agenda": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "c4838aed0c6bcde54a23a3143caac33e99d1933d16760a9784e9ee3fd6784759"
+  },
+  "archive-phase": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "3e99e6863f4c70678a9a16bb845efa9dd4bebe28330a976731f13c065ce33285"
+  },
+  "commit": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "092373c5559d8d354a4ac9fd04a49b71acdcea3018085b535327f8eb38fcaeaf"
+  },
+  "create-phase": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "cf5eaf47752da69718354796a93a1947868e20551f84bd772ab83c18307f9ed5"
+  },
+  "defer-job": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "705ca3354572939712cc0a9f656dab1006a8133acf71807504fad028a3a90d10"
+  },
+  "deferred": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "d055b64f016445b288cfdaf02f21c8bbebf07e74192bf121b6d44a15f4ae6b67"
+  },
+  "design-cowork": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "1b2dedd6e7036ac9c4cd9880281765ced45cf62601f756747f0a132b5adfdb68",
+   "reference/build.md": "02e69b1602301acaab2f9bdee97f00a5f467fdf728d07e4223bbb2621df05da6",
+   "reference/drafting.md": "baa8b074b10a6498a180143f8cd024477f9d291f017277dc8d29b14c418f46f3",
+   "reference/legacy.md": "94ae657e5d0ca7d515b48217b79ab6becf221bc98fc557f21dd171ed6781106f",
+   "reference/mockup.md": "0214cf29c0f6abab4bbcf72b501e59f4f1595399c0f5bf31f2d2c191362937ab",
+   "reference/opening.md": "9137ab632e2687ee56d0630014457cb6b394d32755f306d72c5c6f1ad74461d8",
+   "reference/operator.md": "cc2b550b543774fa967839d52983839dcf21e01b03b3ec62498ec81f73dc86f4",
+   "reference/publish.md": "5614492ead427455130f506394b65e0ed730e5f61c807821c0c6459b469432bb",
+   "reference/record.md": "b665ac2b992adcfa600a731a13b800adb7a43bc41c40c72b0fbe7ceeaf4662d8",
+   "reference/shape.md": "93fdd22135541f9b2c5453de7d667516de8bf62b6adbea489b2db10fe0963de9",
+   "reference/system.md": "87a9869330e602f1dc23ebfdf559b2a2b4a1fc01850a67252a75da99591c7677"
+  },
+  "do-next-slice": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "ef54da4da5cd9b64d2cc1fda16b2ad505ec599eec9413531c7f4d263bc6a3aa2"
+  },
+  "do-whole-phase": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "c47d7e4eb8640988cd25ac7a3cc2b9036102fe5e3110563720098ec7249d3dbc",
+   "playbooks/decompose.md": "18e19a50ca50c972c308796d536a530f78e04295cc1ca121a9c3e757deb8a6f7",
+   "playbooks/explain.md": "7bc563940808702bd371ab2833015a67592217c289a138db59ad7d5f72821666",
+   "playbooks/feature.md": "a2cc5daba8f73d5d27da097bfe5ac7ab5a6b17845796f22ff1bc204ce0880aea",
+   "playbooks/fix.md": "5316d6ed91f42a6fe7855971318b69bf6a9961b0e65fc44cbf5804893cec0831",
+   "playbooks/investigation.md": "1f55fbf4f09e3c409b94c70e7b5c9acff17a0bc2b5b3c699056d00ab5952a2d3",
+   "playbooks/review.md": "04b7f0d70eec16fc72067d755fc8cb0718b0db93257056d1b316ed138604f0f9",
+   "playbooks/verify.md": "43d9e15f56f2ec9938a0a7e8f8205939d90be22dcf676171f3b7dd115fba514c",
+   "playbooks/wave.md": "7846b5794e25ff6e1ef914761b5e5df82d9ff42c86fdbb724a9eb2c2b8e36c14",
+   "reference/co-work.md": "18e369312936b9aeb8d9ac4ee99374b3a847261569fb5896e210985f89d6df09",
+   "reference/decomposition.md": "6ec8c74edce5ab9d11507857a498a30fe77def3e6c9fd29378a5be5aa32fcc68",
+   "reference/dispatch.md": "9406dfe846eab74553d4c62b919b9f20904b59987a56fbb7e78a20cb8e1d91d2",
+   "reference/explain-chapter.md": "f6ec88ad0519cf8f0a7d31917b9087d2ace4f1fe1ef907a305c7a92cb23501ae",
+   "reference/explain-decomposition.md": "8c7cd09050565e10b3bfa7922470115cbcf48b48ea60cc7396974bb11ad68280",
+   "reference/explain-review.md": "355fe83f4d338f37c8835def8344ff2e86b80255b236fb4c94ac4d91291fa316",
+   "reference/review.md": "143c5bd0ce826df85ca77e9d377e8534dd11656f5b17c9e5124348ca8a68fa90",
+   "reference/verdicts.md": "452befc8c7a908345aeed123415ec628d6dd614aadedcfb0e751bed6e3001087",
+   "reference/wave.md": "e51c192dd045aa851b6f11f42b7fc70a7b0b95cef86fec9000d17b3723cab12f",
+   "reference/worktree.md": "68117fbfb161e81710c8bb4d96293de6a0bdaa7ba91d7042e3261c720db82905"
+  },
+  "executor-route": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "10454e7ee029c40be4c5d4ff8829e2b51ef6dd4891fd3404d94959a8786b6340"
+  },
+  "parallel-phase": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "9c3e04db4e652bc105a64cfdfdeb31677e8c4c103fc77034bc816ef82f2f98c5"
+  },
+  "pr": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "a58f28f27c700fd50f23fe75e8642083f4cb118fb601749e697c62b3171f823f",
+   "reference/body.md": "4403150539b0e51adc228e1e60dfd2eb8ee37e17efa410e39c6147cd55b273aa",
+   "reference/close.md": "ac9e875a76216a932d9520a9ca1faa8253e3f2f32ba0a7b1070020279685304a",
+   "reference/open.md": "75ae2919e9f0ec4d113a712289205894f639041d9b5364a48ecd143df463cde9",
+   "reference/reopen.md": "d0c0e0bd45907d5445d9e30023ae38699072a843e0d3e7f4ee2bd7eaafbca369",
+   "reference/split.md": "a1bb399fa2f608da66a975e3c083a803943f2dfc3b95ac97e5fb6a8f8abda6ef",
+   "reference/stack.md": "e67a00f0483c2b1c1d4fe875a8d048e4b0f86035af148f2a3db1027829218394"
+  },
+  "promote-deferred": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "e673eaf4b8a1651f0723fafc75d51f060a863c9997d38ebfbf2a7fcc704d81b5"
+  },
+  "read-code": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "8737e5f117f9c417a850181232c55cac228da7cbad73fed440c3fb48fee750dd"
+  },
+  "retrofit": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "f4e0cd3e5dfe3fbefcdc4d10078f578773b1f284be42975e385193bce0304bb6"
+  },
+  "review-phase": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "f43ddda7abe98c3a6a630d776499a5a54b878c60ee166059cf697b828a514fd1"
+  },
+  "rotate-backlog": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "109e80bef22dba42a94815265c92afc352099d9c238403c9d5e7e370bfaf9256"
+  },
+  "update-workspace": {
+   ".gitignore": "cdbcae15105d6b781e620813c79c7e868740d4e9cc53ce6f5fcbbc12387adf4b",
+   "SKILL.md": "f018342af1bba985cde863ab7edab69237594219a0f486a9dfd6d032106d74c6"
+  }
+ },
+ "agents": {
+  "Explore": "c23bf4089c38ee8393195fbde6b43215ccf1f3cf55bb35f9f63803ca7b5ac2fd",
+  "code-reader": "0412f6d21435e5d40153b518d8e7e153861a4bb05a70d643b105e46478b8f30e",
+  "design-critic": "151095c8f5019314c2a52aa370e0c439d851267d9294f2999110e732e9cbe680",
+  "design-drafter": "21e369e1b8aceca729a5edc30785ba5589a85aee23977776c236213c90a4d299",
+  "pr-reader": "827b46eff5c1730a571e2139ba95dae92f9a6c17da778b15392ab7bab92c6611",
+  "slice-executor": "c27c8850c071f6b1e6bdc14221f41a6fd31062e275deb92af2c837a5272a1f8b"
+ },
+ "templates": {
+  "deferred_brief.md": "dd33571d2fb01e01798677c218d18962990a5b4e189c142c87349970a424f822",
+  "intent.md": "1746e64b1207afd5177e7082ada00d788eece866061b2b57ab69f3ee9a079ac7",
+  "phase.md": "754094db63f3cbb226b8f4cd53e39604b19ad4a53ba4f387246f9b6ac6bafbbb"
+ },
+ "engine_files": [
+  "scripts/wf_agenda.py",
+  "scripts/wf_cloud.py",
+  "scripts/wf_design.py",
+  "scripts/wf_git.py",
+  "scripts/wf_store.py",
+  "scripts/workflow.py",
+  "adapters/claude_code/adapter.py"
+ ],
+ "contract": "CLAUDE.workspace.md",
+ "templates_at_root": {
+  "deferred_brief.md": "dd33571d2fb01e01798677c218d18962990a5b4e189c142c87349970a424f822",
+  "intent.md": "1746e64b1207afd5177e7082ada00d788eece866061b2b57ab69f3ee9a079ac7",
+  "phase.md": "1172d7dc01afbc6aad2d9c3815f7d3fe6e721cd3c4d8763aa6927c7ff066c520"
+ }
+}

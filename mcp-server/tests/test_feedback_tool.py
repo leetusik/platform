@@ -26,7 +26,7 @@ _RECEIPT = {
 
 def _capture(handler, **fields):
     fields.setdefault("message", "the answer was wrong")
-    fields.setdefault("source", {"product": "hi2vi", "integration": "cs-bot"})
+    fields.setdefault("source", {"product": "sikstack", "integration": "cs-bot"})
     return asyncio.run(
         feedback.run_capture_feedback(
             fields=fields,
@@ -60,7 +60,7 @@ def test_body_carries_given_fields_and_bearer_and_omits_the_rest():
     assert seen["address_headers"] == set()
     assert seen["body"] == {
         "message": "the answer was wrong",
-        "source": {"product": "hi2vi", "integration": "cs-bot"},
+        "source": {"product": "sikstack", "integration": "cs-bot"},
         "feedback_value": 1,
         "tags": ["a"],
         "project": "cs",

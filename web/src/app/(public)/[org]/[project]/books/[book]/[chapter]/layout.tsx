@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 
-import { ReaderSegment } from "@/hi2vi/reader";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { ReaderSegment } from "@/sikstack/reader";
+import { requestNonce } from "@/sikstack/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 

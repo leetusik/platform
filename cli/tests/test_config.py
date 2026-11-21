@@ -1,4 +1,4 @@
-"""Pins the config-seam contract documented at plugin/skills/explain/SKILL.md:31-78.
+"""Pins the config-seam contract documented at plugins/explain/skills/explain/SKILL.md:31-78.
 
 `config.py` is a *second* implementation of a contract whose first implementation
 is an inline heredoc inside a SKILL.md the CLI must never edit. They cannot be
@@ -38,7 +38,7 @@ def write_cfg(home, payload):
 
 
 def make_legacy(home):
-    """The pre-/knowledge:setup convention: ~/projects/personal/knowledge/mkdocs.yml."""
+    """The pre-/explain:setup convention: ~/projects/personal/knowledge/mkdocs.yml."""
 
     root = home / "projects" / "personal" / "knowledge"
     root.mkdir(parents=True)
@@ -137,15 +137,33 @@ def test_save_creates_a_0600_file_when_absent(home):
     assert resolved.api_base_url == "https://hi2vi.com"
 
 
-def test_cli_default_base_url_is_the_apex(home):
+def test_cli_default_base_url_is_the_serving_host(home):
+    """No config: the hosted default is hi2vi.com, the host that serves until the domain moves."""
+
+    assert config.HOSTED_BASE_URL == "https://hi2vi.com"
     assert auth.resolve_base_url(None) == "https://hi2vi.com"
+
+
+@pytest.mark.parametrize("source", ["config", "env"])
+def test_a_config_on_the_serving_host_stays_there(home, monkeypatch, source):
+    """A key configured for hi2vi.com goes to hi2vi.com, never to a host that does not serve yet."""
+
+    if source == "config":
+        path = write_cfg(home, {"api": {"base_url": "https://hi2vi.com", "token": "vk_x"}})
+    else:
+        monkeypatch.setenv(config.ENV_API_BASE_URL, "https://hi2vi.com")
+    assert config.resolve().api_base_url == "https://hi2vi.com"
+    assert auth.resolve_base_url(None) == "https://hi2vi.com"
+    if source == "config":
+        assert json.loads(path.read_text())["api"]["base_url"] == "https://hi2vi.com"
 
 
 @pytest.mark.parametrize("source", ["config", "env"])
 def test_old_hosted_host_resolves_to_the_apex(home, monkeypatch, source):
     """The old host only 308s to the apex and the client never follows redirects."""
 
-    old = "https://" + config.OLD_HOSTED_HOST
+    assert config.OLD_HOSTED_HOSTS == ("knowledge.hi2vi.com",)
+    old = "https://knowledge.hi2vi.com"
     if source == "config":
         path = write_cfg(home, {"api": {"base_url": old, "token": "vk_x"}})
     else:

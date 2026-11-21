@@ -1,0 +1,24 @@
+sikstack
+Copyright (c) 2026 leetusik
+Licensed under the MIT License (see LICENSE).
+
+pstack
+------
+sikstack is its author's personal take on pstack, Lauren Tan's plugin for Claude Code
+and Cursor (https://github.com/cursor/plugins, folder pstack; MIT License,
+Copyright (c) 2026 Lauren Tan). sikstack borrows pstack's ideas: install from a
+marketplace and go with no account, one setup per machine, a rule loaded into every
+session, and one entry point that routes the work to playbooks. It reshapes them around
+its own phase-and-slice workflow.
+
+No file in this repository is adapted from pstack: none of its code or text is copied
+here. sikstack is not a fork of pstack, and it is not affiliated with or endorsed by
+Cursor or Lauren Tan.
+
+The workflow engine's earlier history
+-------------------------------------
+The workflow engine in plugins/sikstack/ was developed, with its history, in
+https://github.com/leetusik/bootstrap_agentic_workspace.sh and published there under
+the Apache License 2.0 until it moved into this repository in November 2026. Every
+commit in that repository was authored by its sole author, leetusik, who relicenses
+that work, and its history as carried here, under the MIT License above.

@@ -3,8 +3,8 @@
 import { useParams, useSearchParams } from "next/navigation";
 
 import { WS_PLACES } from "@/content/workspace/frame";
-import { PhaseLoading } from "@/hi2vi/workspace/phase/loading-view";
-import { PHASE_ID } from "@/hi2vi/workspace/phase/model";
+import { PhaseLoading } from "@/sikstack/workspace/phase/loading-view";
+import { PHASE_ID } from "@/sikstack/workspace/phase/model";
 import { decodeWorkspaceFrom, FROM_PARAM, wayBack } from "@/lib/workspace/address";
 
 /**

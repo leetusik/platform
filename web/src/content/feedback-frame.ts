@@ -1,4 +1,4 @@
-// The words of the Feedback frame (src/hi2vi/feedback/, lib/feedback/format.ts): the glossary every
+// The words of the Feedback frame (src/sikstack/feedback/, lib/feedback/format.ts): the glossary every
 // Feedback surface shares. Verbatim from job 04 round 02's ledger (frame.md F121 to F124, F128, F145,
 // F341 to F344) and its fixture's `FW` (`LABELS`, `WORDS`, `RATING`). A page's own sentences live in
 // its own `content/feedback-<part>.ts`. Imported by its own path, never through `content/index.ts`.

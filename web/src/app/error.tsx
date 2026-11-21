@@ -5,8 +5,8 @@ import {
   type BoundaryRetryProps,
   errorState,
   StateBlock,
-} from "@/hi2vi/states";
-import { UiRoot } from "@/hi2vi/ui";
+} from "@/sikstack/states";
+import { UiRoot } from "@/sikstack/ui";
 
 /**
  * The root error (job 01 round 03-instrument, Shared states: Error), for a throw no nearer boundary
@@ -17,7 +17,7 @@ import { UiRoot } from "@/hi2vi/ui";
  * A layout that threw renders nothing, so there is no Shell to keep and no org to name: like the
  * signed-out root not-found, the block stands alone in its own `UiRoot`. It holds the signed title,
  * sentence and Try again, the reference line when there is a digest, and in place of Back to <org name>
- * the signed-out not-found's one link, "Go to hi2vi" (`errorState({ orgName: null })`).
+ * the signed-out not-found's one link, "Go to sikstack" (`errorState({ orgName: null })`).
  *
  * Try again is `boundaryRetry`: the boundary's `retry` (Next 16.3: re-fetch, then re-render),
  * `unstable_retry` on 16.2, `reset` (re-render only) where neither is passed. A root-layout throw is

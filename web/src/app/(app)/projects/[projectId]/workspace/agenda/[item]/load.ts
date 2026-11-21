@@ -9,7 +9,7 @@ import {
 } from "@/lib/workspace/read";
 import type { WorkspaceHead } from "@/lib/workspace/types";
 import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
-import { itemLines, type ItemRead } from "@/hi2vi/workspace/agenda-item/model";
+import { itemLines, type ItemRead } from "@/sikstack/workspace/agenda-item/model";
 
 /**
  * What an agenda item's page reads, and no more (one page, its own reads):

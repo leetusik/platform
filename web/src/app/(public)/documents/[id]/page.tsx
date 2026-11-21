@@ -10,7 +10,7 @@ import {
   renderDocument,
 } from "@/components/reader/document-page";
 import { READER_DOCUMENT } from "@/content/reader-document";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { requestNonce } from "@/sikstack/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { getDocument } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";

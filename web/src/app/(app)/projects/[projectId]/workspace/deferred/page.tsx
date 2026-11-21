@@ -8,10 +8,10 @@ import {
   DeferredList,
   DeferredListFailed,
   readDeferredPlace,
-} from "@/hi2vi/workspace/deferred";
-import { loadDeferredList } from "@/hi2vi/workspace/deferred/load";
-import { jobTriggers } from "@/hi2vi/workspace/deferred/prose";
-import { WsNav, wsSyncLine, type WsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/deferred";
+import { loadDeferredList } from "@/sikstack/workspace/deferred/load";
+import { jobTriggers } from "@/sikstack/workspace/deferred/prose";
+import { WsNav, wsSyncLine, type WsSyncLine } from "@/sikstack/workspace/frame";
 import { requireIdentity } from "@/lib/auth-guards";
 import { viewerTimeZone } from "@/lib/time-zone";
 import {

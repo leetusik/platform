@@ -96,7 +96,7 @@ export interface RateLimitSlot extends RateLimitResult {
 
 /**
  * `checkRateLimit`, plus a way to give the hit back: for a caller that reserves a
- * slot before work that may not happen (hi2vi's feedback send gives it back when
+ * slot before work that may not happen (sikstack's feedback send gives it back when
  * the API does not deliver). The hit is taken synchronously, so concurrent callers
  * can never exceed `limit`. `release()` removes exactly the hit this call recorded,
  * at most once; after the bucket was pruned it does nothing.

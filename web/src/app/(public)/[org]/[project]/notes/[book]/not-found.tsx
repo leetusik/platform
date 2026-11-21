@@ -1,7 +1,7 @@
-import { Bar } from "@/hi2vi/library";
-import { MISSING_BACK, NotesFrame } from "@/hi2vi/reader/book-notes";
-import { requestNonce } from "@/hi2vi/shell/data";
-import { StateBlock } from "@/hi2vi/states";
+import { Bar } from "@/sikstack/library";
+import { MISSING_BACK, NotesFrame } from "@/sikstack/reader/book-notes";
+import { requestNonce } from "@/sikstack/shell/data";
+import { StateBlock } from "@/sikstack/states";
 import { BOOK_NOTES } from "@/content/book-notes";
 import { LIBRARY_HREF } from "@/lib/reader-href";
 

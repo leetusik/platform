@@ -16,10 +16,10 @@ import {
   withQuery,
   withStatus,
   type DeferredPlace,
-} from "@/hi2vi/workspace/deferred";
-import { loadDeferredList, loadJob } from "@/hi2vi/workspace/deferred/load";
-import { promotedSub } from "@/hi2vi/workspace/deferred/job-model";
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/deferred";
+import { loadDeferredList, loadJob } from "@/sikstack/workspace/deferred/load";
+import { promotedSub } from "@/sikstack/workspace/deferred/job-model";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
 import {
   decodeWorkspaceFrom,
   deferredHref,
@@ -393,7 +393,7 @@ describe("the list as it draws", () => {
 const PHASE: PhaseRow = {
   id: "P58-yw",
   short: "P58",
-  name: "Apply hi2vi: the Library",
+  name: "Apply sikstack: the Library",
   objective: null,
   status: "in_progress",
   created: "2026-11-14",

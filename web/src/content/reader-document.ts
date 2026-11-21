@@ -1,4 +1,4 @@
-// The words of a loose document in the Library's reader (src/hi2vi/reader/document/): its head's fact, the
+// The words of a loose document in the Library's reader (src/sikstack/reader/document/): its head's fact, the
 // sections' fold, the Notes sheet's body (DocumentNotes: bookmarks only) and its loading and not found
 // screens. Verbatim from the signed boards of Library round 02 (job 03: `Document.dc.html`,
 // `DocumentNotes.dc.html`; `## Build` § Page: document). The frame's own words (the head's facts, the end,

@@ -1,0 +1,48 @@
+# The sikstack contract
+
+## Agent Contract
+
+You work this repo's sikstack workspace (`.sikstack/`) for its operator. Four invariants always hold; everything else is a playbook you may leave with a stated reason.
+
+1. **Nothing is pushed, merged or paid for without the operator's word.**
+2. **A sign-off is the operator's literal words**, never your reading of them.
+3. **The operator's own work is never touched:** never discard, unstage or overwrite what you did not make.
+4. **Reports are truthful:** claim only what a run showed, and name what you did not check.
+
+## Principles (steer by name)
+
+- **Prove it works:** a claim counts only when a run shows it.
+- **Subtract before you add:** cut a rule, step or file before adding one.
+- **Settle by a run:** a question a throwaway run can answer is never asked.
+- **Finish line first:** `DECOMP` ends by writing the walkthrough the phase is judged by.
+- **Stop what you start:** a slice stops the servers, containers and browsers it started.
+- **Take your own recommendation:** a decision you have a recommendation for is taken and listed, never a stop; gates, pushes, money and what cannot be undone still ask.
+- **Ask, don't archive:** a question only the operator can answer goes on `## Operator Questions`.
+
+**The correction ladder:** fix a repeated mistake in product code first, then a type or lint, then a test or check, and only last in a rule file.
+
+## Rules and what enforces them
+
+| Rule | Enforced by |
+|---|---|
+| A phase the operator can see passes after they walk it | `review --verdict pass` refuses until `gate <P> clear` |
+| Sign-offs carry literal words | `gate clear`, `design-close`, `design-sign` refuse an empty `--words`; `close` refuses a gate cleared without them |
+| A pending stop halts the run | `next` prints `WAITING ON OPERATOR`; `slice status` refuses a stop without `--stop-kind` and `--on-words` |
+| No force-push, no `rm -rf` | the plugin's guard hook denies them, with its reason; a plain push, and one that deletes a merged branch, pass |
+| A branch switch never carries the operator's edits | `pr branch` refuses uncommitted tracked changes |
+| A linked checkout runs no streams | `worktree` commands (bar `status`) and `phase reopen` are refused in cloud mode |
+| Workflow state stays valid | `check` exits 1 on an invalid record; `check --no-rebuild` only reads |
+| This file fits one screen | smoke: the contract is at most 4,096 B |
+| Real-browser checks run on `playwright-cli`, the agent's own headless browser. Missing: install it yourself, `npm install -g @playwright/cli@0.1.25`, then `playwright-cli install-browser chrome-for-testing` if it finds no browser. Run it plainly (no pipes or chains) outside repos: it writes `.playwright-cli/` there. Claude in Chrome is used only when the operator asks an agent to use their own browser. | the guard hook allows `playwright-cli` and that exact install; smoke pins this one line |
+
+## Where things live
+
+- Commands, IDs and statuses: `sikstack --help`; start with `next`.
+- Claude Code's side (executor routes, the meter, the resume hook): `sikstack-adapter --help`; the routes are `.sikstack/config.toml`'s.
+- Playbooks: the plugin's `skills/` and the executor card, its `agents/slice-executor.md` (beside `code-reader.md`); dispatch agents by their prefixed names (`sikstack:slice-executor`, `sikstack:Explore`).
+- `/sikstack:sik-mode` is the entry. Asked to make a phase, use `/sikstack:create-phase`; product visual design follows `design-cowork`; commits follow `commit` (`type(scope): summary`).
+- An engine refusal or error ends with a `/sikstack:feedback` line: relay it once; send only on a yes.
+
+## Compact Instructions
+
+Keep: the operator's literal words, every open gate and typed stop, the mode word, each running executor's slice id, decisions not yet on disk. Drop: tool output and files already on disk. After compaction continue from the resume card's next action; never re-dispatch a running executor.

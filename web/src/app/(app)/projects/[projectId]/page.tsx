@@ -3,8 +3,8 @@ import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { PROJECT } from "@/content";
-import { Trend, Usage } from "@/hi2vi/frame";
-import { Grid } from "@/hi2vi/ui";
+import { Trend, Usage } from "@/sikstack/frame";
+import { Grid } from "@/sikstack/ui";
 import { requireIdentity } from "@/lib/auth-guards";
 import { countFeedback, listFeedbackPage } from "@/lib/feedback/app";
 import { feedbackHref } from "@/lib/feedback/place";

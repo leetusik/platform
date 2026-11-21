@@ -42,13 +42,13 @@ import {
   markPlace,
   runBookmarkWire,
   type DocMark,
-} from "@/hi2vi/reader/document";
-import { ReaderHead } from "@/hi2vi/reader/reader-head";
+} from "@/sikstack/reader/document";
+import { ReaderHead } from "@/sikstack/reader/reader-head";
 import {
   bookmarkWire,
   labelWire,
   removeBookmarkWire,
-} from "@/hi2vi/reader/marks/wire";
+} from "@/sikstack/reader/marks/wire";
 import { ApiError } from "@/lib/knowledge/client";
 import { validateChapter } from "@/lib/native";
 import { layerOn } from "@/lib/reader/layer";

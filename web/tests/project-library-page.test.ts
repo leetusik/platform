@@ -29,7 +29,7 @@ vi.mock("@/lib/auth-guards", () => ({
     identity: { tenant: { id: "t1", slug: "june", name: "Personal" } },
   })),
 }));
-vi.mock("@/hi2vi/shell/data", () => ({
+vi.mock("@/sikstack/shell/data", () => ({
   requestNonce: vi.fn(async () => undefined),
 }));
 vi.mock("next/headers", () => ({
@@ -50,7 +50,7 @@ const { projectLibraryView, visitorSource } =
 const { optionalIdentity } = await import("@/lib/auth-guards");
 const { ProjectParts, projectNotFound } =
   await import("@/app/(app)/projects/[projectId]/library/parts");
-const { StateBlock } = await import("@/hi2vi/states");
+const { StateBlock } = await import("@/sikstack/states");
 const PublicProjectPage = (await import("@/app/(public)/[org]/[project]/page"))
   .default;
 

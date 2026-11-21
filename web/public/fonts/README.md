@@ -66,12 +66,12 @@ when it shows math. Never subset or rename it in place: a cut file is a Modified
 be called "TM Math" (R1 left a 157 KB `pyftsubset` cut, `MATH` kept, as a later option gated on a coverage check).
 To refresh: `npm pack @fontsource/stix-two-math`, copy that one `woff2` here and check it still carries `MATH`.
 
-## The hi2vi design system's faces (`public/fonts/plex/`)
+## The sikstack design system's faces (`public/fonts/plex/`)
 
 IBM Plex, vendored from IBM's own npm packages (the `ibm/plex` repository's releases): the static
 `fonts/complete/woff2/` files, unmodified, only the weights the system sets. Wired through
 `next/font/local` in `src/lib/fonts.ts` as `--font-plex-sans`, `--font-plex-sans-kr` and `--font-plex-mono`,
-which `src/hi2vi/styles/tokens.css` reads inside a `.ui` root only. `preload: false`: an old page fetches
+which `src/sikstack/styles/tokens.css` reads inside a `.ui` root only. `preload: false`: an old page fetches
 none of them. No request goes to a font host at runtime.
 
 | Files | Face | Weights | Source |

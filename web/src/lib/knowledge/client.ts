@@ -55,7 +55,7 @@ export interface KbRequestOptions {
   /** The knowledge session token to present as `Authorization: Bearer <token>`. */
   token?: string;
   /**
-   * The active org to name in `X-Hi2vi-Org`, overriding the org cookie: a tenant id,
+   * The active org to name in `X-Sikstack-Org`, overriding the org cookie: a tenant id,
    * or `null` for "send none" (the API then acts in the first org). Omitted, the
    * cookie decides. Ignored without a `token`: a call with no session never names an
    * org.
@@ -68,7 +68,7 @@ export interface KbRequestOptions {
  * The bearer, plus the active org when the call carries a session token: the ONE
  * place every server-to-server call learns the org (multi-org sessions), so no call
  * site knows about it. The org comes from the explicit override when given, else
- * from the `hi2vi_org` cookie of the request being served.
+ * from the `sikstack_org` cookie of the request being served.
  */
 async function authHeaders(
   options: KbRequestOptions,

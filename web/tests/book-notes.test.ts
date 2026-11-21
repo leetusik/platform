@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MarkRow } from "@/hi2vi/library/mark-row";
+import { MarkRow } from "@/sikstack/library/mark-row";
 import {
   deleteWire,
   notesBack,
@@ -18,9 +18,9 @@ import {
   type NotesChapter,
   type NotesRow,
   type SendWire,
-} from "@/hi2vi/reader/book-notes/model";
-import type { Wire } from "@/hi2vi/reader/marks/wire";
-import type { Timers } from "@/hi2vi/reader/marks/undo";
+} from "@/sikstack/reader/book-notes/model";
+import type { Wire } from "@/sikstack/reader/marks/wire";
+import type { Timers } from "@/sikstack/reader/marks/undo";
 import type { ListItem } from "@/lib/reader/note-list";
 import { readerHref } from "@/lib/reader-href";
 

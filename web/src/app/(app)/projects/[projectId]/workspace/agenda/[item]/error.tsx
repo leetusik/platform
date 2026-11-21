@@ -2,8 +2,8 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
-import { WsItemFailed } from "@/hi2vi/workspace/frame";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
+import { WsItemFailed } from "@/sikstack/workspace/frame";
 
 import { agendaItemBack } from "./back";
 

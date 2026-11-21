@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell";
-import { notFoundState, StateBlock } from "@/hi2vi/states";
-import { UiRoot } from "@/hi2vi/ui";
+import { notFoundState, StateBlock } from "@/sikstack/states";
+import { UiRoot } from "@/sikstack/ui";
 import { optionalIdentity } from "@/lib/auth-guards";
 
 /**
@@ -12,7 +12,7 @@ import { optionalIdentity } from "@/lib/auth-guards";
  *   "This page doesn’t exist, or it isn’t part of <org name>." and Back to <org name>; no rail item is
  *   current (the Shell follows the path, and an unknown path is no rail item's).
  * - Signed out: there is no Shell to keep and no org to name, so the same block holds its signed title
- *   and one link to the landing, "Go to hi2vi" (the operator's answer to OQ7), inside its own `UiRoot`.
+ *   and one link to the landing, "Go to sikstack" (the operator's answer to OQ7), inside its own `UiRoot`.
  *
  * Before P58 there was no root not-found: Next's default 404 page answered both cases.
  */

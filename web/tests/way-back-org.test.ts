@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { documentBack } from "@/hi2vi/reader/document/model";
+import { documentBack } from "@/sikstack/reader/document/model";
 import { decodeFrom } from "@/lib/library/from";
 
 // P63-fk.S26 — a visitor's way back names the org by the name its read carries, on its own

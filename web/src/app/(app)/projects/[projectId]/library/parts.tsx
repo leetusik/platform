@@ -1,16 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { PROJECT_LIBRARY } from "@/content/project-library";
-import { Bar } from "@/hi2vi/library";
+import { Bar } from "@/sikstack/library";
 import {
   LibraryContinue,
   LibraryDocs,
   type LibraryDocsProps,
-} from "@/hi2vi/library/lists";
-import type { StateModel } from "@/hi2vi/states";
-import { UiRoot } from "@/hi2vi/ui";
+} from "@/sikstack/library/lists";
+import type { StateModel } from "@/sikstack/states";
+import { UiRoot } from "@/sikstack/ui";
 import { withFrom } from "@/lib/library/from";
 import type { ContinueItem } from "@/lib/library/continue";
 import type { ShelfBook } from "@/lib/library/lists";
@@ -31,7 +31,7 @@ import { LIBRARY_HREF } from "@/lib/reader-href";
  *
  * The parts, in `.column` (24 px apart, F97): the head, Continue reading (a member's, within the
  * project), **Books**, **Documents** (`LibraryDocs`: search and Delete a member's), or Nothing to read.
- * Its sheet is `src/hi2vi/styles/library/project-library.css` (the `projlib-` classes).
+ * Its sheet is `src/sikstack/styles/library/project-library.css` (the `projlib-` classes).
  */
 
 /** The head (`header.page-top`): a member's way back **Library**, then the name, Public or Private, the count. */
@@ -349,7 +349,7 @@ export function projectError({
   viewer: ProjectViewer;
   digest?: string | null;
 }): StateModel {
-  const e = HI2VI_STATES.error;
+  const e = SIKSTACK_STATES.error;
   return {
     title: e.title,
     text: e.text,

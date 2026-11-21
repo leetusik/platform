@@ -39,7 +39,7 @@ const nextConfig = (await import("../next.config")).default;
 const { exactProjectSearch, projectAt } =
   await import("@/lib/project-library/load");
 const Layout = (await import("@/app/(public)/[org]/[project]/layout")).default;
-const { ReaderHead } = await import("@/hi2vi/reader/reader-head");
+const { ReaderHead } = await import("@/sikstack/reader/reader-head");
 
 beforeEach(() => {
   vi.clearAllMocks();

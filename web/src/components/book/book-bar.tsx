@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Bar } from "@/hi2vi/library";
+import { Bar } from "@/sikstack/library";
 
 import { BOOK_HEAD_ID } from "./book-head";
 

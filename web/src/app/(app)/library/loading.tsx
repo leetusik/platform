@@ -1,4 +1,4 @@
-import { LibraryContinue } from "@/hi2vi/library/lists";
+import { LibraryContinue } from "@/sikstack/library/lists";
 import { requireIdentity } from "@/lib/auth-guards";
 import { publicLibraryHref } from "@/lib/reader-href";
 

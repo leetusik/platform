@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 
 import { WS_PLACES } from "@/content/workspace/frame";
-import { DocLoading } from "@/hi2vi/workspace/docs/head";
+import { DocLoading } from "@/sikstack/workspace/docs/head";
 import { docsHref } from "@/lib/workspace/address";
 
 /**

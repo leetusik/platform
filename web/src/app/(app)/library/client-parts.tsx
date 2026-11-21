@@ -4,8 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LIBRARY_PAGE } from "@/content/library-page";
-import { Choice, ReadingData, type ReadingDataPhase } from "@/hi2vi/library";
-import { LibraryContinue, LibraryDocs } from "@/hi2vi/library/lists";
+import { Choice, ReadingData, type ReadingDataPhase } from "@/sikstack/library";
+import { LibraryContinue, LibraryDocs } from "@/sikstack/library/lists";
 import { clearAllReadingData } from "@/lib/library/actions";
 import {
   viewHref,

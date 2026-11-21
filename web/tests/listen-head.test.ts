@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { AudioHead, followsIn, headOf, listenShown } from "@/hi2vi/listen";
+import { AudioHead, followsIn, headOf, listenShown } from "@/sikstack/listen";
 import type { KbListenState } from "@/lib/knowledge/listen";
 import { noteKey, type ListenKey, type NoteKey } from "@/lib/listen/machine";
 import { chapterSeed } from "@/lib/listen/seed";

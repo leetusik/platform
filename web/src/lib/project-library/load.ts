@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, `ProjectLibrary.dc.html`) — what a project's library page
+ * sikstack Library (`03-library` round 02, `ProjectLibrary.dc.html`) — what a project's library page
  * reads, composed in the BFF from reads that already exist; no server route is added.
  * (P63, OQ7: a member of the org at the public address is told the project's id, for the redirect;
  * OQ27: the address is read once here, `projectAt` and `exactProjectSearch`, for the page and its layout.)

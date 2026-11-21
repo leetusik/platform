@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 import {
   FeedbackItemBody,
   feedbackItemMetadata,
-} from "@/hi2vi/feedback/item/body";
+} from "@/sikstack/feedback/item/body";
 
 /**
  * One piece of feedback, the org's: `/feedback/<id>`.
- * The page is the shared item (`@/hi2vi/feedback/item`); this file only reads the address.
+ * The page is the shared item (`@/sikstack/feedback/item`); this file only reads the address.
  */
 type Params = { feedbackId: string };
 type Search = Record<string, string | string[] | undefined>;

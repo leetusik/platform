@@ -2,10 +2,10 @@
 
 import { useParams } from "next/navigation";
 
-import { DocsList } from "@/hi2vi/workspace/docs/list";
-import { placeHrefs } from "@/hi2vi/workspace/docs/model";
-import { WsNav } from "@/hi2vi/workspace/frame/nav";
-import type { WsSyncLine } from "@/hi2vi/workspace/frame/sync-model";
+import { DocsList } from "@/sikstack/workspace/docs/list";
+import { placeHrefs } from "@/sikstack/workspace/docs/model";
+import { WsNav } from "@/sikstack/workspace/frame/nav";
+import type { WsSyncLine } from "@/sikstack/workspace/frame/sync-model";
 
 const LOADING: WsSyncLine = { state: "fresh", text: "", cls: "", version: "" };
 

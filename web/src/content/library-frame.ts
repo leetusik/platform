@@ -1,4 +1,4 @@
-// The words of the Library's shared parts (src/hi2vi/library/): the bar outside the Shell, the sheet, a
+// The words of the Library's shared parts (src/sikstack/library/): the bar outside the Shell, the sheet, a
 // choice, the pager, Sign in to save, a mark's row, Your reading data, the Display and Version history
 // bodies and a book's chapters. Verbatim from the signed boards of Library round 02 (job 03:
 // `Bar.dc.html`, `Sheet.dc.html`, `Choice.dc.html`, `Pager.dc.html`, `Save.dc.html`, `MarkRow.dc.html`,
@@ -12,8 +12,8 @@ export const LANGUAGES: Record<string, { short: string; name: string }> = {
 };
 
 export const BAR = {
-  wordmark: "hi2vi",
-  homeLabel: "hi2vi, home",
+  wordmark: "sikstack",
+  homeLabel: "sikstack, home",
   showControls: "Show reading controls",
   language: "Language",
   notes: "Notes",

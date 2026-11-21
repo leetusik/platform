@@ -2,7 +2,7 @@
 """Explain-skill drift guard (P17.S2; P20.S3) — ROOT-ONLY; never shipped in the payload.
 
 The explain skill lives in three shipped copies: the plugin canonical
-``plugin/skills/explain/SKILL.md``, the portable ``.agents/skills/explain/SKILL.md``
+``plugins/explain/skills/explain/SKILL.md``, the portable ``.agents/skills/explain/SKILL.md``
 (Claude-plugin frontmatter vs. no ``argument-hint``/``allowed-tools``), and — new in
 P20.S3 — the landing-served copy ``web/public/SKILL.md`` (published at ``/SKILL.md``
 for the skill-on-landing section's Download + Copy). The two skill copies' *bodies*
@@ -28,7 +28,7 @@ Checks:
     between the two). A role's brief is its own extract followed by the shared extracts
     its ``with=`` list names, in that order, joined by one blank line. Since P39-hk the
     explain has no research roles, so the one role is the critic: its
-    ``plugin/agents/explain-critic.md`` must exist, carry ``name: explain-critic``, carry
+    ``plugins/explain/agents/explain-critic.md`` must exist, carry ``name: explain-critic``, carry
     none of the fields plugins ignore or forbid (``permissionMode``, ``hooks``,
     ``mcpServers``) and no ``Agent``/``Task`` tool, and have a body (after the
     frontmatter and one blank line) byte-equal to its brief. No other agent file may
@@ -51,12 +51,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL = REPO_ROOT / "plugin" / "skills" / "explain" / "SKILL.md"
+CANONICAL = REPO_ROOT / "plugins" / "explain" / "skills" / "explain" / "SKILL.md"
 PORTABLE = REPO_ROOT / ".agents" / "skills" / "explain" / "SKILL.md"
 WEB = REPO_ROOT / "web" / "public" / "SKILL.md"
 FEEDBACK_CANONICAL = REPO_ROOT / "skills" / "vocky-feedback" / "SKILL.md"
 FEEDBACK_WEB = REPO_ROOT / "web" / "public" / "feedback" / "SKILL.md"
-AGENTS_DIR = REPO_ROOT / "plugin" / "agents"
+AGENTS_DIR = REPO_ROOT / "plugins" / "explain" / "agents"
 AGENT_ROLES = ("explain-critic",)
 FORBIDDEN_FIELDS = ("permissionMode", "hooks", "mcpServers")
 FORBIDDEN_TOOLS = ("Agent", "Task")
@@ -157,10 +157,10 @@ def check_agents(canonical_text: str, write: bool) -> list[str]:
         return failures
     present = sorted(p.stem for p in AGENTS_DIR.glob("*.md")) if AGENTS_DIR.is_dir() else []
     for stray in sorted(set(present) - set(AGENT_ROLES)):
-        failures.append(f"plugin/agents/{stray}.md is not a Part B role")
+        failures.append(f"plugins/explain/agents/{stray}.md is not a Part B role")
     for role in AGENT_ROLES:
         path = AGENTS_DIR / f"{role}.md"
-        shown = f"plugin/agents/{role}.md"
+        shown = f"plugins/explain/agents/{role}.md"
         if not path.is_file():
             failures.append(f"{shown} is missing")
             continue
@@ -222,7 +222,7 @@ def main() -> int:
     if canon_body.encode() != port_body.encode():
         print(
             "FAIL — explain skill bodies drifted between "
-            "plugin/skills/explain/SKILL.md and .agents/skills/explain/SKILL.md."
+            "plugins/explain/skills/explain/SKILL.md and .agents/skills/explain/SKILL.md."
         )
         return 1
 
@@ -231,7 +231,7 @@ def main() -> int:
     if CANONICAL.read_bytes() != WEB.read_bytes():
         print(
             "FAIL — landing-served explain skill drifted: web/public/SKILL.md is not a "
-            "byte-for-byte copy of plugin/skills/explain/SKILL.md."
+            "byte-for-byte copy of plugins/explain/skills/explain/SKILL.md."
         )
         return 1
 

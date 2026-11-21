@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { FEEDBACK } from "@/content/feedback-frame";
-import { FeedbackListPage } from "@/hi2vi/feedback/list";
+import { FeedbackListPage } from "@/sikstack/feedback/list";
 
 /**
  * The org's Feedback (`Feedback.dc.html`, job 04 round 02): a system page in the Shell, the rail's

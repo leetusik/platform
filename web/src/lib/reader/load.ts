@@ -124,7 +124,7 @@ export interface LoadedLegacy {
   orgName?: string | null;
   /**
    * P63-fk.S13 — a loose html document's bookmarks as its Notes sheet lists them (the Original layout,
-   * `hi2vi/reader/document/original.tsx`): each a position, with its label, version and language, and the
+   * `sikstack/reader/document/original.tsx`): each a position, with its label, version and language, and the
    * bridge's anchor it was made at. The same bookmarks as `frame.bookmarks`, read by the same rule; absent on a
    * chapter (the legacy reader there lists none).
    */

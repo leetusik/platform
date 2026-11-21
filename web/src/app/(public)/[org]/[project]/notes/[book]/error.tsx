@@ -2,15 +2,15 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { Bar } from "@/hi2vi/library";
+import { Bar } from "@/sikstack/library";
 import {
   NotesChoiceWaiting,
   NotesFailed,
   NotesFrame,
   NotesHead,
   notesPlace,
-} from "@/hi2vi/reader/book-notes";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
+} from "@/sikstack/reader/book-notes";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
 import { LIBRARY_HREF } from "@/lib/reader-href";
 
 // Did not load (`BookNotes.dc.html`, preset Did not load) when the book itself did not load: the head stands

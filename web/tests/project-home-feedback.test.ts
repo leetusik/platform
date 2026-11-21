@@ -32,7 +32,7 @@ vi.mock("next/headers", () => ({
     get: (name: string) =>
       name === "kb_tz" && zone.value ? { value: zone.value } : undefined,
   })),
-  headers: vi.fn(async () => new Headers({ host: "hi2vi.com" })),
+  headers: vi.fn(async () => new Headers({ host: "sikstack.com" })),
 }));
 vi.mock("@/lib/workspace/read", () => ({
   readWorkspace: vi.fn(async () => ({

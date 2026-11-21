@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectSwitchHref, railFor } from "@/hi2vi/shell/model";
+import { projectSwitchHref, railFor } from "@/sikstack/shell/model";
 import { feedbackHref, feedbackItemHref } from "@/lib/feedback/place";
 
 // P65 — Feedback and the Shell (job 04 round 02, `## Build` § How the two pages connect, F134): with a

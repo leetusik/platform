@@ -1,20 +1,20 @@
 import { FullWidthExit } from "@/app/(public)/documents/[id]/full-width-exit";
 import { SKIP_TO_CONTENT } from "@/content";
-import { loadShellData, requestNonce } from "@/hi2vi/shell/data";
-import { LegacyPage } from "@/hi2vi/shell/legacy-page";
-import { ShellOrgNameProvider } from "@/hi2vi/shell/org-name";
-import { Shell } from "@/hi2vi/shell/shell";
-import { ToastRegion } from "@/hi2vi/shell/toast";
-import { Legacy } from "@/hi2vi/ui/boundary";
-import { UiRoot } from "@/hi2vi/ui/root";
+import { loadShellData, requestNonce } from "@/sikstack/shell/data";
+import { LegacyPage } from "@/sikstack/shell/legacy-page";
+import { ShellOrgNameProvider } from "@/sikstack/shell/org-name";
+import { Shell } from "@/sikstack/shell/shell";
+import { ToastRegion } from "@/sikstack/shell/toast";
+import { Legacy } from "@/sikstack/ui/boundary";
+import { UiRoot } from "@/sikstack/ui/root";
 import type { KbIdentity } from "@/lib/knowledge/types";
 import { reviewDue } from "@/lib/library/due";
 import { ORG_ROUTE } from "@/lib/session";
 
-import "@/hi2vi/shell/shell.css";
+import "@/sikstack/shell/shell.css";
 
 /**
- * The signed-in app's frame: the hi2vi Shell (P58; job 01 round 03-instrument, the org rail per job 03
+ * The signed-in app's frame: the sikstack Shell (P58; job 01 round 03-instrument, the org rail per job 03
  * round 02, F320), behind the export every signed-in route already renders, so they all get it at once.
  *
  *   UiRoot > .page > .app > .app-frame > [Shell: header.top + nav.rail] + main.app-main#main-content

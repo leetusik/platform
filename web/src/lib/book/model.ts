@@ -1,5 +1,5 @@
 /**
- * The book page's pure rules (hi2vi Library, job 03 round 02, `## Build` § Page: book), no I/O: the
+ * The book page's pure rules (sikstack Library, job 03 round 02, `## Build` § Page: book), no I/O: the
  * order and shape of a book, a chapter's shown language and state, the way on's five modes, the head's
  * state, one version region open at a time, and what a clear turns the page into. The loader (`load.ts`)
  * feeds these what the reads returned; `tests/book-page.test.ts` and `tests/book-model.test.ts` pin them.

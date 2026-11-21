@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { PROJECT_HOME } from "@/content/project";
-import { Block, BlockText, BlockTitle, buttonClass } from "@/hi2vi/ui";
+import { Block, BlockText, BlockTitle, buttonClass } from "@/sikstack/ui";
 import { requireIdentity } from "@/lib/auth-guards";
 
 // Project home's Not found (`ProjectHome.dc.html`, Not found): an id that is no project of the active

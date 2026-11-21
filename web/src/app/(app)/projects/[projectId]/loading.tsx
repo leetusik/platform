@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 
-import { Trend, Usage } from "@/hi2vi/frame";
-import { Grid } from "@/hi2vi/ui";
+import { Trend, Usage } from "@/sikstack/frame";
+import { Grid } from "@/sikstack/ui";
 import { requireIdentity } from "@/lib/auth-guards";
 
 import { projectHomeFormat, todayIn } from "./model";

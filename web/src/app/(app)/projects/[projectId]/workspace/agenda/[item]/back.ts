@@ -1,5 +1,5 @@
 import { WS_PLACES } from "@/content/workspace/frame";
-import type { WsBack } from "@/hi2vi/workspace/frame";
+import type { WsBack } from "@/sikstack/workspace/frame";
 import { decodeWorkspaceFrom, wayBack } from "@/lib/workspace/address";
 
 /**

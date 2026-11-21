@@ -4,13 +4,13 @@ import { notFound, unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
 import { WS_HEAD, WS_PLACES, WS_STATES } from "@/content/workspace/frame";
-import { StateBlock } from "@/hi2vi/states";
+import { StateBlock } from "@/sikstack/states";
 import {
   DeferredJob,
   jobItem,
   promotedPhase,
-} from "@/hi2vi/workspace/deferred";
-import { loadJob } from "@/hi2vi/workspace/deferred/load";
+} from "@/sikstack/workspace/deferred";
+import { loadJob } from "@/sikstack/workspace/deferred/load";
 import {
   BackRow,
   wsFailedTitle,
@@ -19,7 +19,7 @@ import {
   wsNotFoundState,
   wsSyncLine,
   type WsSyncLine,
-} from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/frame";
 import { requireIdentity } from "@/lib/auth-guards";
 import { getProject } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
@@ -42,7 +42,7 @@ import { readWorkspace } from "@/lib/workspace/read";
  * hold: Project not found. A failed read is the page's own Error under the way back with the sync line (F49,
  * F84); a render that throws is the route's (`error.tsx`). Both keep the sync line, as every item page's do. The tab
  * title is the Workspace's, **Deferred job not found** for a job it does not hold, or the job's id when it did not
- * load (`<id> · hi2vi`; the read is shared, `loadOnce`).
+ * load (`<id> · sikstack`; the read is shared, `loadOnce`).
  */
 type Params = { projectId: string; job: string };
 type Search = Record<string, string | string[] | undefined>;

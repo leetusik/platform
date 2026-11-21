@@ -26,7 +26,7 @@ _INIT = {
     },
 }
 _TOOL_CALLS = {
-    "/feedback/mcp": ("capture_feedback", {"message": "m", "source": {"product": "hi2vi"}}),
+    "/feedback/mcp": ("capture_feedback", {"message": "m", "source": {"product": "sikstack"}}),
     "/mcp": ("search", {"query": "q"}),
 }
 _GOOD = "Bearer kb_good_key"

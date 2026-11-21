@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { FEEDBACK } from "@/content/feedback-frame";
-import { FeedbackListPage } from "@/hi2vi/feedback/list";
+import { FeedbackListPage } from "@/sikstack/feedback/list";
 
 /**
  * A project's Feedback (`Feedback.dc.html` with a project picked, job 04 round 02): the list at

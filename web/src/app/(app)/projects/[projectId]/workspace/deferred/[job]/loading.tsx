@@ -1,4 +1,4 @@
-import { DeferredJobLoading } from "@/hi2vi/workspace/deferred/loading";
+import { DeferredJobLoading } from "@/sikstack/workspace/deferred/loading";
 
 /** One deferred job while it loads (`DeferredJob.dc.html`, Loading): it reads nothing. */
 export default function WorkspaceJobLoading() {

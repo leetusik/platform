@@ -12,7 +12,7 @@ import {
 } from "./check";
 import type { FeedbackSettings } from "./config";
 
-// The decision core of hi2vi's own feedback control: plain functions with their
+// The decision core of sikstack's own feedback control: plain functions with their
 // dependencies injected (the request headers, the settings, the key, the identity,
 // the post and the limiter), so tests drive every guard without Next. `actions.ts`
 // wires the real ones.
@@ -53,7 +53,7 @@ export type Limiter = (
 /** What the API's capture route receives. No address, user agent or header value. */
 export interface CaptureBody {
   message: string;
-  source: { product: "hi2vi"; integration: "landing" | "org-home" };
+  source: { product: "sikstack"; integration: "landing" | "org-home" };
   channel: "web";
   user_id?: string;
   source_metadata?: { reply_email: string };
@@ -334,7 +334,7 @@ export async function sendVisitorFeedback(
   const delivery = await deliver(
     {
       message,
-      source: { product: "hi2vi", integration: "landing" },
+      source: { product: "sikstack", integration: "landing" },
       channel: "web",
       ...(email ? { source_metadata: { reply_email: email } } : {}),
     },
@@ -381,7 +381,7 @@ export async function sendAccountFeedback(
   const delivery = await deliver(
     {
       message: (input?.message as string).trim(),
-      source: { product: "hi2vi", integration: "org-home" },
+      source: { product: "sikstack", integration: "org-home" },
       channel: "web",
       user_id: account.userId,
       ...(email ? { source_metadata: { reply_email: email } } : {}),

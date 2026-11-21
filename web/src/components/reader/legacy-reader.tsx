@@ -79,7 +79,7 @@ import "@/app/legacy.css";
  *  - Reading memory: `useLegacyReading` (S3's rules, fed by the bridge).
  *
  * P63-fk.S13: it serves an html chapter of a book only. An html document opens in its Original layout on the
- * Library's frame (`@/hi2vi/reader/document` `DocumentOriginal`), which keeps this file's frame, bridge, probe
+ * Library's frame (`@/sikstack/reader/document` `DocumentOriginal`), which keeps this file's frame, bridge, probe
  * and reading memory as they are.
  */
 type Panel = "contents" | "display" | "versions" | null;

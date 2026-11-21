@@ -16,7 +16,7 @@ vi.mock("@/lib/listen/actions", () => ({
 }));
 
 const { createEngine } = await import("@/lib/listen/engine");
-const { pressPlayer } = await import("@/hi2vi/listen");
+const { pressPlayer } = await import("@/sikstack/listen");
 const { getKept, getListen, setEngine, setKept, setListen } =
   await import("@/lib/listen/store");
 

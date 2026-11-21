@@ -11,12 +11,12 @@ import {
   docsRow,
   placeHrefs,
   retiredCount,
-} from "@/hi2vi/workspace/docs";
-import { WsNav } from "@/hi2vi/workspace/frame/nav";
+} from "@/sikstack/workspace/docs";
+import { WsNav } from "@/sikstack/workspace/frame/nav";
 import {
   wsSyncLine,
   type WsSyncLine,
-} from "@/hi2vi/workspace/frame/sync-model";
+} from "@/sikstack/workspace/frame/sync-model";
 import { requireIdentity } from "@/lib/auth-guards";
 import { viewerTimeZone } from "@/lib/time-zone";
 import { dates } from "@/lib/workspace/model";

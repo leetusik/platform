@@ -1,6 +1,6 @@
 """Multi-org sessions and key scopes: Postgres-gated.
 
-A signed-in user may name the org a request acts in with ``X-Hi2vi-Org: <tenant
+A signed-in user may name the org a request acts in with ``X-Sikstack-Org: <tenant
 id>``; absent, the session acts in the user's first tenant (today's behaviour). A
 non-member or malformed id is a 403, never another tenant. ``vk_`` keys and the
 master bearer ignore the header. A ``capture`` key is refused by the Library
@@ -132,7 +132,7 @@ def test_header_picks_the_active_org(switch_client):
     org_a = body["tenant"]["id"]
     org_b = _second_org(switch_client, body["user"]["id"])
     session = {"Authorization": f"Bearer {body['token']}"}
-    in_b = {**session, "X-Hi2vi-Org": org_b}
+    in_b = {**session, "X-Sikstack-Org": org_b}
 
     # No header: the first tenant, as before.
     assert switch_client.get("/app/tenant", headers=session).json()["tenant"]["id"] == org_a
@@ -166,7 +166,7 @@ def test_header_naming_a_foreign_or_malformed_org_is_403(switch_client):
     org_c = other["tenant"]["id"]
 
     for bad in (org_c, str(uuid4()), "not-a-uuid"):
-        hdr = {**session, "X-Hi2vi-Org": bad}
+        hdr = {**session, "X-Sikstack-Org": bad}
         assert switch_client.get("/app/tenant", headers=hdr).status_code == 403, bad
         assert switch_client.get("/auth/me", headers=hdr).status_code == 403, bad
         assert switch_client.post(
@@ -196,10 +196,10 @@ def test_keys_and_master_bearer_ignore_the_header(switch_client, monkeypatch):
         write = switch_client.post(
             "/api/documents",
             json={**_doc("by-key"), "title": f"Key Write {n}"},
-            headers={"Authorization": f"Bearer {key}", "X-Hi2vi-Org": hdr_value},
+            headers={"Authorization": f"Bearer {key}", "X-Sikstack-Org": hdr_value},
         )
         assert write.status_code == 201, write.text
-    in_b = {**session, "X-Hi2vi-Org": org_b}
+    in_b = {**session, "X-Sikstack-Org": org_b}
     assert "by-key" in {p["project"] for p in switch_client.get("/api/projects", headers=session).json()["projects"]}
     assert "by-key" not in {p["project"] for p in switch_client.get("/api/projects", headers=in_b).json()["projects"]}
 
@@ -211,7 +211,7 @@ def test_keys_and_master_bearer_ignore_the_header(switch_client, monkeypatch):
     api_auth._tenant_one_cache = None
     ctx = switch_client.portal.call(
         api_auth.resolve_api_read,
-        _request({"Authorization": "Bearer p56s2-master", "X-Hi2vi-Org": org_b}),
+        _request({"Authorization": "Bearer p56s2-master", "X-Sikstack-Org": org_b}),
     )
     assert str(ctx.tenant_id) == org_a and ctx.scope == "full"
 
@@ -277,7 +277,7 @@ def test_service_validates_scope_and_adds_members(switch_client):
     )
     in_owner_org = {
         "Authorization": f"Bearer {joiner['token']}",
-        "X-Hi2vi-Org": owner["tenant"]["id"],
+        "X-Sikstack-Org": owner["tenant"]["id"],
     }
     res = switch_client.get("/app/tenant", headers=in_owner_org)
     assert res.status_code == 200 and res.json()["tenant"]["id"] == owner["tenant"]["id"]
@@ -342,9 +342,9 @@ def test_joining_an_older_org_moves_neither_tenant_one_nor_the_default_org(switc
 
 def test_missing_session_with_header_is_still_401(switch_client):
     org = _signup(switch_client)["tenant"]["id"]
-    assert switch_client.get("/app/tenant", headers={"X-Hi2vi-Org": org}).status_code == 401
+    assert switch_client.get("/app/tenant", headers={"X-Sikstack-Org": org}).status_code == 401
     assert switch_client.get(
-        "/app/tenant", headers={"Authorization": "Bearer nope", "X-Hi2vi-Org": org}
+        "/app/tenant", headers={"Authorization": "Bearer nope", "X-Sikstack-Org": org}
     ).status_code == 401
 
 
@@ -353,5 +353,5 @@ def test_no_header_value_means_first_tenant(switch_client):
 
     body = _signup(switch_client)
     _second_org(switch_client, body["user"]["id"])
-    hdr = {"Authorization": f"Bearer {body['token']}", "X-Hi2vi-Org": ""}
+    hdr = {"Authorization": f"Bearer {body['token']}", "X-Sikstack-Org": ""}
     assert switch_client.get("/app/tenant", headers=hdr).json()["tenant"]["id"] == body["tenant"]["id"]

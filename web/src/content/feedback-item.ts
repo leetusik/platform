@@ -2,7 +2,7 @@
 // `FeedbackItemFiles*`; frame.md F121 to F124, F132): what only the item page says. The words every
 // Feedback surface shares (the parts' names, the labels, Unknown author, Untitled file, the empty
 // sentences, `zoneMeta`) are `@/content/feedback-frame`'s; Error's title, sentence, Try again and
-// reference are the shared states' (`@/content/hi2vi-states`). Verbatim from the boards. Imported by
+// reference are the shared states' (`@/content/sikstack-states`). Verbatim from the boards. Imported by
 // its own path, never through `content/index.ts`.
 
 /** The message's panel has no head; its accessible name (`section.panel[aria-label=Message]`). */

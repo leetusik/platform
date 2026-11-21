@@ -9,7 +9,7 @@ import {
   readingOrder,
   type NotesChapter,
   type NotesView,
-} from "@/hi2vi/reader/book-notes/model";
+} from "@/sikstack/reader/book-notes/model";
 import { getBook } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
 import { getReaderBookNotes } from "@/lib/knowledge/reader";

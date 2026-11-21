@@ -43,8 +43,8 @@ import {
   send,
   type AddPhase,
   type AgendaScopeProps,
-} from "@/hi2vi/feedback/agenda";
-import { FeedbackItemBody } from "@/hi2vi/feedback/item/body";
+} from "@/sikstack/feedback/agenda";
+import { FeedbackItemBody } from "@/sikstack/feedback/item/body";
 import {
   agendaFiling,
   agendaStatus,

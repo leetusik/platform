@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, F324, F328) — where a book, a document or a chapter was
+ * sikstack Library (`03-library` round 02, F324, F328) — where a book, a document or a chapter was
  * opened from, and the way back to it.
  *
  * A list's place rides in one query value, `?from=`, on the item's address: the list's own

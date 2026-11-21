@@ -6,8 +6,8 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PlaceBar, SlotLine, SlotSave } from "@/hi2vi/reader/marks/parts";
-import { OldBodyContext, OldRoot } from "@/hi2vi/reader/old-root";
+import { PlaceBar, SlotLine, SlotSave } from "@/sikstack/reader/marks/parts";
+import { OldBodyContext, OldRoot } from "@/sikstack/reader/old-root";
 import {
   layerHolderOf,
   readerTopH,
@@ -18,7 +18,7 @@ import {
   type LayerHolder,
   type SlotChild,
   type SlotHolder,
-} from "@/hi2vi/reader/slot";
+} from "@/sikstack/reader/slot";
 import { DEFAULT_READER_SETTINGS } from "@/lib/reader-cookie";
 
 // P64-3y.F4 — the reader's one slot above the foot bar (03-library frame.md F93; 07-listen-review frame.md F207:
@@ -185,8 +185,8 @@ describe("the slot (F93, F207)", () => {
 
   it("is what both reading pages give Listen's pill and the resume pill", () => {
     for (const page of [
-      "src/hi2vi/reader/chapter-reader.tsx",
-      "src/hi2vi/reader/document/document-reader.tsx",
+      "src/sikstack/reader/chapter-reader.tsx",
+      "src/sikstack/reader/document/document-reader.tsx",
     ]) {
       const src = read(page);
       expect(src, page).toMatch(/useLayerHolder\(slotHost\)/);

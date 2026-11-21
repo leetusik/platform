@@ -1,9 +1,9 @@
 # knowledge-cli
 
 A standalone command-line client for a personal knowledge base on the hosted
-service at <https://hi2vi.com> — sign up, configure credentials, and
+service at <https://sikstack.com> — sign up, configure credentials, and
 save and search knowledge from a terminal, without ever visiting the website. It
-is a separate install from the `/knowledge:explain` Claude Code plugin, but writes
+is a separate install from the `/explain:explain` Claude Code plugin, but writes
 the same config the plugin reads, so the two share one hosted knowledge base.
 
 ## Install
@@ -11,12 +11,12 @@ the same config the plugin reads, so the two share one hosted knowledge base.
 The quick path — one command that installs [`uv`](https://docs.astral.sh/uv/) if
 you don't have it, then the CLI:
 
-    curl -fsSL https://hi2vi.com/install.sh | bash
+    curl -fsSL https://sikstack.com/install.sh | bash
 
 Or install it directly with `uv` (the canonical, manual channel — what the
 one-liner wraps):
 
-    uv tool install git+https://github.com/leetusik/platform#subdirectory=cli
+    uv tool install git+https://github.com/leetusik/sikstack#subdirectory=cli
 
 Either way this puts a `knowledge` executable on PATH. Requires Python 3.12+ and
 `uv`. There is no PyPI, npm, or brew package — the git URL is the distribution
@@ -45,7 +45,7 @@ channel. Upgrade by re-running either command; the `uv` form takes `--reinstall`
     knowledge usage
 
 `init` is idempotent — re-run it any time; it logs in, reuses your project, and
-keeps your key. If the service holds new sign-ups on its waitlist (hi2vi.com
+keeps your key. If the service holds new sign-ups on its waitlist (sikstack.com
 does), `init`, `signup` and `login` stop with one `error:` line saying so and exit 1,
 saving nothing; you get a mail when your account opens, then run `init` again. Passwords never go through `argv`: use `--password-stdin`,
 `$KNOWLEDGE_PASSWORD`, or an interactive prompt. Your `vk_` API key is show-once

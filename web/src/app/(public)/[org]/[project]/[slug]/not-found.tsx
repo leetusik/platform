@@ -1,4 +1,4 @@
-import { DocumentMissing } from "@/hi2vi/reader/document";
+import { DocumentMissing } from "@/sikstack/reader/document";
 
 // P63-fk.S12 — Document not found, in the bar's frame (`Document.dc.html`: Not found, Not found visitor),
 // for the pretty share address. Reached by the page's `@`-prefix guard (this route is the catch-all for every

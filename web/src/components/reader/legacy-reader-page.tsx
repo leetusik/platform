@@ -9,7 +9,7 @@ import { LegacyReader } from "./legacy-reader";
  * with the view.
  *
  * P63-fk.S13: only an html CHAPTER of a book opens here now (`books/[book]/[chapter]/page.tsx`); an html
- * document opens in its Original layout on the Library's frame (`@/hi2vi/reader/document` `DocumentOriginal`).
+ * document opens in its Original layout on the Library's frame (`@/sikstack/reader/document` `DocumentOriginal`).
  */
 export function LegacyReaderPage({
   legacy,

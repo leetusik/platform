@@ -68,14 +68,14 @@ import {
   TermWindows,
   type LibraryQuizItem,
   type TermEntryView,
-} from "@/hi2vi/reader/aids";
+} from "@/sikstack/reader/aids";
 import {
   Media,
   MissingMedia,
   OldIsland,
   ratioOf,
   ScrollBox,
-} from "@/hi2vi/reader/body";
+} from "@/sikstack/reader/body";
 import { hangulRuns, isKorean } from "@/lib/reader/hangul";
 import { printAddress, widestLine } from "@/lib/reader/print";
 import { specOf } from "@/lib/reader/quiz";

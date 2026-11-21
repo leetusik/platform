@@ -1,4 +1,4 @@
-import { FeedbackItemNotFoundState } from "@/hi2vi/feedback/item";
+import { FeedbackItemNotFoundState } from "@/sikstack/feedback/item";
 
 /**
  * Feedback not found (`FeedbackItem.dc.html`, Not found; F132): a malformed id, a missing record or

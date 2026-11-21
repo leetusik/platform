@@ -15,8 +15,8 @@ import {
   StackTable,
   Tags,
   Waiting,
-} from "@/hi2vi/feedback";
-import { isToggle } from "@/hi2vi/feedback/filter-bar";
+} from "@/sikstack/feedback";
+import { isToggle } from "@/sikstack/feedback/filter-bar";
 
 // The Feedback frame's shared parts (job 04 round 02, `result.md` § The shared pieces; the Components
 // boards Rating, Tag, Facts, Json, FilterBar, Stack, Waiting). Each emits its board's markup.

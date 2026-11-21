@@ -16,7 +16,7 @@ Two modes, switched per-call on ``config.database_url()``:
        org-level key (``project_id NULL``) carries no bound project, a project-bound
        key additionally carries its ``project_id`` for attribution;
     3. a session token of an ``approved`` user (a waitlisted user's session never
-       resolves) -> the tenant the request names in ``X-Hi2vi-Org`` (403 when
+       resolves) -> the tenant the request names in ``X-Sikstack-Org`` (403 when
        the user is not a member, or the id is malformed), else the user's first
        tenant (``server.accounts.auth.active_tenant``). Steps 1 and 2 never read
        the header: a key or the master bearer always acts in its own tenant.
@@ -157,7 +157,7 @@ async def _resolve_tenant_bearer(
     Returns None when the token resolves to nothing (bad key, revoked credential,
     expired session, or a misconfigured master bearer) — the caller turns None
     into a generic 401. ``request`` is read only by the session step, for its
-    ``X-Hi2vi-Org`` header (a non-member org raises a 403 from there).
+    ``X-Sikstack-Org`` header (a non-member org raises a 403 from there).
     """
     service = get_accounts_service()
 
@@ -199,7 +199,7 @@ async def _resolve_tenant_bearer(
             )
         return None
 
-    # 3. Session token -> the active tenant: the X-Hi2vi-Org header's org (403 for a
+    # 3. Session token -> the active tenant: the X-Sikstack-Org header's org (403 for a
     #    non-member), else the user's first (own-corpus reads/writes). Only an
     #    approved user's session resolves: a waitlisted user's is unresolvable (401).
     auth_token = await service.get_active_auth_token_by_hash(token_hash)

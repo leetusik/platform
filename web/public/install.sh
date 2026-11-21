@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# knowledge-cli installer — served live at https://hi2vi.com/install.sh
+# knowledge-cli installer — served live at https://sikstack.com/install.sh
 #
-#   curl -fsSL https://hi2vi.com/install.sh | bash
+#   curl -fsSL https://sikstack.com/install.sh | bash
 #
 # Installs the `knowledge` CLI with uv (bootstrapping uv first if it is missing)
 # from the canonical git-subdirectory channel — there is no PyPI package by
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 UV_BIN_DIR="$HOME/.local/bin"
-INSTALL_TARGET="git+https://github.com/leetusik/platform#subdirectory=cli"
+INSTALL_TARGET="git+https://github.com/leetusik/sikstack#subdirectory=cli"
 
 say() { printf '==> %s\n' "$1"; }
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }

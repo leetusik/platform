@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, `ProjectLibrary.dc.html`, F321 to F324, F328) — a project's
+ * sikstack Library (`03-library` round 02, `ProjectLibrary.dc.html`, F321 to F324, F328) — a project's
  * library page as data: the head (the name, Public or Private, the count line), the project's books
  * (the frame's shelf rows), its documents table at a place, Continue reading within the project, and
  * the list's origin every link carries. Pure (no I/O), so the page and the tests read one source;

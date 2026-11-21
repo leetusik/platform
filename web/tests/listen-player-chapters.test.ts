@@ -24,8 +24,8 @@ vi.mock("@/lib/listen/actions", () => ({
 }));
 
 const { createEngine } = await import("@/lib/listen/engine");
-const { bookRowsOf, bookStartOf, pressPlayer } = await import("@/hi2vi/listen");
-const { chapterStartOf } = await import("@/hi2vi/listen/press");
+const { bookRowsOf, bookStartOf, pressPlayer } = await import("@/sikstack/listen");
+const { chapterStartOf } = await import("@/sikstack/listen/press");
 const { earlierOf, forgetReads, rememberRead } =
   await import("@/lib/listen/earlier");
 const { getKept, getListen, setEngine, setKept, setListen } =

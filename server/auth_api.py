@@ -378,7 +378,7 @@ async def me(context: AuthContext = Depends(require_user)) -> dict[str, object]:
 
     ``tenants`` keeps its oldest-first order (the CLI reads ``tenants[0]``);
     ``active_tenant_id`` is the tenant ``require_user`` picked for this request (the
-    ``X-Hi2vi-Org`` header's org, else the first).
+    ``X-Sikstack-Org`` header's org, else the first).
     """
 
     tenants = await get_accounts_service().list_tenants_for_user(context.user.id)

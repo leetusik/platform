@@ -3,13 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LISTEN } from "@/content/listen";
-import { PlayerBody } from "@/hi2vi/listen";
+import { PlayerBody } from "@/sikstack/listen";
 import {
   focusAfterPress,
   focusable,
   type PlayerControl,
-} from "@/hi2vi/listen/press-focus";
-import type { PlayerEvent } from "@/hi2vi/listen/press";
+} from "@/sikstack/listen/press-focus";
+import type { PlayerEvent } from "@/sikstack/listen/press";
 import type { ListenKey } from "@/lib/listen/machine";
 import type { Listen, ListenBookKey } from "@/lib/listen/types";
 import { playerView, type PlayerView } from "@/lib/listen/view";

@@ -1,0 +1,181 @@
+/* sikstack — Review's sheet (job 07-listen-review, round 01: the Review classes of its frame.css sections 10 to 13 and
+   Review.css, prefix `.rv-`). Values are the signed ones; names are the system's (P58-yw class-names: F239's
+   `.card-kind > .badge` is not built; the card's kind line writes `badge is-wrap`). Owned by the Review chain: the
+   frame, the head and the sheets (P64-3y.S7), the card and the rating pair (S8), the end of a session (S9); each adds
+   its own rules here. Review's shared parts (the state word, `.hold`, the wrapping badge) are the system's
+   (../bundle.css), never redefined here.
+   Scoped like the system (../README.md): it applies inside a `.ui` root and stops at `[data-ui-legacy]`; root rules
+   read `:scope`; no colour is written here. A custom property it declares is restored at the old-page boundary.
+   Imported once, by ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+/* ── S7: the frame (frame.css 10), the head (frame.css 11), the bar's filled controls (frame.css 13's last rule),
+   the card's skeleton and the page's states (Review.css 5, 6, less the canvas-only stand-in), and Schedule's own
+   rules (Schedule.dc.html's <style>) ─────────────────────────────────────────────────────────────────── */
+
+/* the focused frame sets its own scheme (Display: light, dark, sepia) but is not the `.ui` root, so it takes the
+   base rule's colour itself, as the board's root (`.ui.app.bare.focus`) does and the reader's does (library/reader.css) */
+.app.focus { color: var(--ink); }
+
+/* 10 ── Review's frame (F201; Focus.dc.html draws its bar) ───────────────────────────── */
+/* .ui.app.bare.focus > Focus + main.app-main.focus-main > .focus-col */
+.focus-main { padding-top: var(--space-6); }
+.focus-col { container: focus / inline-size; display: flex; flex-direction: column; gap: var(--space-6); width: 100%; max-width: var(--focus-w); margin-inline: auto; }
+
+/* 11 ── Review's head (F215; DueHead.dc.html draws it) ─────────────────────────────────── */
+.due-head { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.due-counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.due-counts strong { color: var(--ink); font-weight: 600; }
+.by-book { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.by-book > [role="region"] { align-self: stretch; }
+/* "By book" is a link-row that opens in place; its chevron turns when it is open (as Version history's does on a book) */
+.by-book-btn { gap: var(--space-2); padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; }
+.by-book-btn::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: calc(var(--space-1) / 2); border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-25%) rotate(45deg); }
+.by-book-btn[aria-expanded="true"]::after { transform: translateY(25%) rotate(-135deg); }
+.by-book-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.by-book-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-4); padding-block: var(--space-3); border-bottom: 1px solid var(--line); }
+.by-book-name { display: flex; flex-direction: column; min-width: 0; }
+.by-book-figs { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.by-book-note { padding-block: var(--space-3); color: var(--ink-2); }
+/* the saved line keeps its line while empty, so nothing under it moves */
+.saved-line { min-height: calc(var(--fs-text) * var(--lh-text)); }
+.saved-line.is-empty { visibility: hidden; }
+
+/* Review's bar: Settings and Display are filled while their sheet is open, as Ask is while its panel is (03-library F93) */
+.bar .btn[aria-expanded="true"], .bar .btn[aria-expanded="true"]:hover { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+
+/* ── S8: the card (frame.css 12, less F239's `.card-kind > .badge`: the kind line writes the system's `badge is-wrap`),
+   the rating pair (frame.css 13) and Review.css 1 to 4. Changes from the signed sheet: a blank with the characters
+   that touch its end (a comma, a Korean particle) sits in `.rv-gap-w`, which keeps them on its line and takes the
+   field's rules as `.rv-gap > .input` does (as the Library's `.blocks-gap-w`) ─────────────────────────────── */
+
+/* 12 ── a card (F216): a page of its own between two strong hairlines, never a box ───────────── */
+.card-page { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; padding-block: var(--space-5) var(--space-6); border-block: 1px solid var(--ink); }
+.card-kind { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-width: 0; }
+.card-kind > .strong { font-weight: 600; }
+.card-source { color: var(--ink-2); }
+.card-quote { padding-left: var(--space-4); border-left: 2px solid var(--edge); font-size: var(--fs-head); line-height: var(--lh-head); }
+.card-prompt { font: 500 var(--fs-head)/var(--lh-head) var(--font); }
+
+/* 13 ── the rating pair (F217): two equal buttons, each with its interval; side by side from 32em of the column ── */
+.rate-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+@container focus (min-width: 32em) { .rate-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rate { flex-direction: column; gap: 0; width: 100%; height: auto; min-height: var(--control-h); padding-block: var(--space-2); white-space: normal; text-align: center; }
+.rate-ivl { color: var(--ink-2); font-size: var(--fs-meta); font-weight: 400; line-height: var(--lh-meta); font-variant-numeric: tabular-nums; }
+.rate-ask { color: var(--ink-2); }
+
+/* Review.css 1 ── the card's text follows Display's text size (the reader's --read-k); the chrome keeps its size ── */
+.rv-card .card-prompt, .rv-card .card-quote { font-size: calc(var(--fs-head) * var(--read-k)); }
+.rv-text { font-size: calc(var(--fs-text) * var(--read-k)); line-height: var(--lh-text); }
+.rv-hint { color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.rv-card:focus { outline: none; }
+.rv-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.card-quote { margin: 0; }
+
+/* Review.css 2 ── the quiz item, re-asked: the Library's option rows, gap and answer, on this page's steps. An option:
+   the whole row is the button; its verdict is a tag on its own edge, so nothing moves ──────── */
+.rv-opts { display: flex; flex-direction: column; gap: var(--space-3); }
+.rv-opt { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--space-3); width: 100%; min-height: var(--control-h); margin: 0; padding: calc((var(--control-h) - 2px - 1lh) / 2) var(--space-3); border: 1px solid var(--edge); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); font-size: calc(var(--fs-text) * var(--read-k)); line-height: var(--lh-text); text-align: left; cursor: pointer; }
+.rv-opt:hover { background: color-mix(in srgb, var(--surface) 92%, var(--ink)); }
+.rv-opt[aria-disabled="true"], .rv-opt[aria-disabled="true"]:hover { background: var(--surface); cursor: default; }
+/* the ring sits on the option's first line: its box is one line tall */
+.rv-opt-lead { display: inline-flex; align-items: center; height: 1lh; }
+.rv-opt-key { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2em; height: 2em; border: 1.5px solid var(--ink-2); border-radius: 50%; font: 600 var(--fs-meta)/1 var(--font); }
+.rv-opt[data-state="right"], .rv-opt[data-state="answer"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.rv-opt[data-state="wrong"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.rv-opt[data-state="right"] .rv-opt-key { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.rv-opt[data-state="wrong"] .rv-opt-key { border-color: var(--danger); background: var(--danger); color: var(--on-accent); }
+.rv-opt[data-state="answer"] .rv-opt-key { border-color: var(--ink); color: var(--ink); }
+.rv-opt-tag { position: absolute; top: 0; right: var(--space-3); padding: 0 var(--space-1); background: var(--surface); color: var(--ink); font: 600 var(--fs-meta)/var(--lh-meta) var(--font); white-space: nowrap; transform: translateY(-50%); }
+.rv-opt[data-state="wrong"] .rv-opt-tag { color: var(--danger); }
+/* a gap: the field sits in the sentence; every line of it holds a control */
+.rv-gap { line-height: calc(var(--control-h) + var(--space-2)); }
+.rv-gap > .input, .rv-gap-w > .input { display: inline-block; width: min(7.5em, 100%); font-size: max(16px, 1em); font-weight: 400; line-height: var(--lh-text); vertical-align: middle; }
+.rv-gap > .input[data-state="right"], .rv-gap-w > .input[data-state="right"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.rv-gap > .input[data-state="wrong"], .rv-gap-w > .input[data-state="wrong"] { text-decoration: line-through; text-overflow: ellipsis; }
+.rv-gap-w { white-space: nowrap; }
+.rv-wrote { color: var(--ink-2); }
+.rv-wrote > b { color: var(--ink); font-weight: 600; }
+/* recall: the answer's box, closed with Show answer at its end */
+.rv-answer { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+.rv-answer:focus { outline: none; }
+.rv-answer:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rv-answer-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: calc(var(--control-h) + 2 * var(--space-2)); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); color: var(--ink-2); font-weight: 600; }
+.rv-answer-text { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-4) var(--space-4); }
+.rv-answer-text > p + p { color: var(--ink-2); }
+
+/* Review.css 3 ── the foot (F217): the line over the main button, or the pair; one cell holds every form ──────────── */
+.rv-foot { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.rv-line { min-height: calc(var(--fs-text) * var(--lh-text)); }
+.rv-line.is-empty { visibility: hidden; }
+/* the failure is one signed sentence, `Not saved · check your connection`: a space's width either side of its dot, as the
+   failed suspend's notice and Review settings' draw it */
+.rv-line-fail { column-gap: var(--space-1); }
+.rv-main { width: 100%; }
+.rv-main[data-busy="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.rv-main > .hold { justify-items: center; }
+.rate[data-busy="true"] { cursor: progress; }
+/* while a rating is sent, the button not pressed and Suspend card wait at full opacity, in --ink-2 */
+.rv-card .btn:disabled, .rv-where .btn:disabled { border-color: var(--edge); background: var(--surface); color: var(--ink-2); }
+.rv-card .rv-main:disabled { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.rv-card .rate[data-busy="true"]:disabled { color: var(--ink); }
+
+/* Review.css 4 ── under the card: where it came from, the way to it, and Suspend card at the end of the last line ───── */
+.rv-where { display: flex; flex-direction: column; min-width: 0; }
+.rv-where-go { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--space-4); }
+.rv-where-go > .is-off { visibility: hidden; }
+.rv-where-go > .btn { margin-left: auto; }   /* Suspend card stays at the row's end when the row wraps */
+
+/* The bridge (the build's own, no look of its own): the old review page's sheet (`app/review.css`, global, unscoped)
+   still loads on /review while an old view is bridged in the flow (`OldView`: a card in a form job 07 does not draw;
+   the end is Review's own since S9 and uses none of its names). It names `.rv-card`, `.rv-where`, `.rv-hint` and `.rv-sk` too, with its own borders, gaps, paddings,
+   sizes and face. These hold the signed values against it, one weight above it (`:scope`), and go when nothing on
+   /review imports that sheet. */
+:scope .rv-card { margin-top: 0; border-block: 1px solid var(--ink); scroll-margin-top: 0; }
+:scope .rv-where { margin: 0; padding: 0; border-top: 0; gap: normal; font-family: inherit; }
+:scope .rv-hint { margin: 0; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+:scope .rv-sk { margin-top: 0; padding-top: var(--space-5); border-top: 1px solid var(--ink); }
+
+/* Review.css 5 ── the card's skeleton: the card's own shape (F221) ─────────────────────────────────────── */
+.rv-sk-line { display: block; height: 0.9em; }
+.rv-sk-opt { display: block; width: 100%; height: var(--control-h); border-radius: var(--radius-m); }
+
+/* Review.css 6 ── the page's states ─────────────────────────────────────────────────────────────────── */
+/* failed to load: the editorial state, on the column's edge */
+.rv-failed { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+.rv-failed > .rv-failed-text { max-width: 60ch; color: var(--ink-2); }
+/* the toast region at the column's foot (F223): the system's region, as wide as the column */
+.focus-main > .focus-col { flex: 1 0 auto; }
+.focus-main > .toast-region { width: 100%; max-width: var(--focus-w); margin-inline: auto; }
+/* (Review.css's `.toast > .btn`, `.toast-region .btn` and `.toast-region > .notice`, read under `.focus-main`: the job
+   sheet names only its own parts, and the toast region on /review is the focused frame's) */
+.focus-main .toast > .btn { margin-block: calc(-1 * var(--space-2)); }
+/* Undo and the failed suspend's Try again sit in one place: one width, so the place never changes size */
+.focus-main > .toast-region .btn { min-width: 7em; }
+.focus-main > .toast-region > .notice { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); max-width: min(28em, 100%); box-shadow: var(--shadow); }
+
+/* ── S9: the end of a session (ReviewEndBody.dc.html's own rules; F214, F237). The end takes the card's place and the
+   card's form (`.card-page`, above); Continue reading is the Library's next block (library/frame.css `.end-next`).
+   The board's `.facts`, `.facts-in` and `.fact` are built as `.end-facts`, `.end-facts-in` and `.end-fact`, under
+   `.end-cont`: the system's `.facts` and `.fact` are the Workspace's label-over-value pairs, another meaning, and the
+   job sheet names only its own ─────────────────────────────────────────────────────────────────────────── */
+.end-page:focus { outline: none; }
+.end-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.end-title { text-wrap: balance; }
+/* short copy breaks between its sentences first, never into a two-word tail; a sentence wider than the line wraps in
+   balanced lines */
+.end-text { max-width: 60ch; display: flex; flex-wrap: wrap; column-gap: .25em; }
+.end-text span { min-width: 0; text-wrap: balance; }
+/* on Review the chapter's title takes the text step, so the end's title is the one 16 under the head */
+.end-cont .end-next-title { font: 500 var(--fs-text)/var(--lh-text) var(--font); }
+/* the signed line breaks only between its facts, the book first, then between the chapter and the share read; each
+   fact keeps together, and a separator that would open a line sits in the clipped edge */
+.end-cont .end-facts { display: block; min-width: 0; overflow: hidden; }
+.end-cont .end-facts-in { display: flex; flex-wrap: wrap; margin-inline-start: -1.5em; }
+.end-cont .end-fact { display: flex; min-width: 0; }
+.end-cont .end-fact::before { content: "·"; content: "·" / ""; flex: none; width: 1.5em; text-align: center; }
+
+/* Schedule (F219; Schedule.dc.html's own rules) */
+.schedule { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.schedule .input { max-width: 100%; }
+.schedule-num { width: 8em; }
+}

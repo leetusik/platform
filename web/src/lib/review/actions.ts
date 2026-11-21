@@ -333,7 +333,7 @@ export async function saveReviewSettings(
 
 /**
  * The end state's "Continue reading" block (Q9): the reader's most recent place, or nothing. Job 07's end (F214,
- * review-end FG5) builds its line from `book`, `chapter` and `pct` (`hi2vi/review/end-model.ts` `contView`).
+ * review-end FG5) builds its line from `book`, `chapter` and `pct` (`sikstack/review/end-model.ts` `contView`).
  */
 export interface ContinueView {
   title: string;

@@ -9,8 +9,8 @@ import {
   AgendaList,
   deferredPageFrom,
   workspaceHrefs,
-} from "@/hi2vi/workspace/agenda";
-import { WsNav, wsSyncLine, type WsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/agenda";
+import { WsNav, wsSyncLine, type WsSyncLine } from "@/sikstack/workspace/frame";
 import { requireIdentity } from "@/lib/auth-guards";
 import { viewerTimeZone } from "@/lib/time-zone";
 import { readWorkspace } from "@/lib/workspace/read";
@@ -23,7 +23,7 @@ import { requestOrigin } from "../model";
 // changes. Not linked or never synced: `WsNav` alone, its one panel. A project the org does not hold: Not found.
 // The read failed: the head stands and the part says it, with Try again (F49). Dates are in the viewer's zone.
 //
-// The tab title is the static `Workspace` (`Workspace · hi2vi`): a title from the read would cost a second one.
+// The tab title is the static `Workspace` (`Workspace · sikstack`): a title from the read would cost a second one.
 export const metadata: Metadata = { title: WS_HEAD.title };
 
 /** The line a failed read draws: the read gave no sync facts, so the line says nothing (no figure made up). */

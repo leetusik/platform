@@ -1,0 +1,24 @@
+name: name guard
+
+# The product is sikstack (it was hi2vi). Every line that still names hi2vi must be held by
+# scripts/name_guard_allow.txt (the live box's config until the domain moves, old records,
+# compatibility reads, history notes); any other fails this job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  names:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 scripts/name_guard.py

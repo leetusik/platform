@@ -1,4 +1,4 @@
-// The public landing's words and links (src/content/marketing/landing.ts), read by src/hi2vi/landing/.
+// The public landing's words and links (src/content/marketing/landing.ts), read by src/sikstack/landing/.
 export {
   LANDING,
   LANDING_LINKS,

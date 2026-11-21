@@ -34,7 +34,7 @@ def cmd_config(args: argparse.Namespace) -> int:
 
     Deliberately prints the **same `KB_*` keys** the skill's own resolver heredoc
     prints (`explain/SKILL.md:72-77`), so this is the debug command for the seam:
-    what the CLI reports here is what `/knowledge:explain` will act on.
+    what the CLI reports here is what `/explain:explain` will act on.
 
     Exit 0 only when a usable knowledge base is configured; 1 for `unconfigured`
     or `error`, so an agent can branch on the status without parsing stdout.

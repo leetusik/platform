@@ -13,9 +13,9 @@ import {
   Panel,
   PanelHead,
   Skeleton,
-} from "@/hi2vi/ui";
-import { Rating } from "@/hi2vi/feedback";
-import { Steps, WsStatus } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/ui";
+import { Rating } from "@/sikstack/feedback";
+import { Steps, WsStatus } from "@/sikstack/workspace/frame";
 import { date, type FormatOptions } from "@/lib/format";
 
 import type { FeedbackRow, LibraryRow, WorkspacePart } from "./model";

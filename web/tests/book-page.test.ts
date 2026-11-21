@@ -16,7 +16,7 @@ import {
 } from "@/lib/book/model";
 import type { BookView, RowView } from "@/lib/book/view";
 
-// The book page's rules (hi2vi Library, job 03 round 02, `## Build` § Page: book): the way on's five
+// The book page's rules (sikstack Library, job 03 round 02, `## Build` § Page: book): the way on's five
 // modes, one version region open at a time, what a clear turns the page into, and what a visitor sees.
 // The look is the fidelity slice's, checked live.
 

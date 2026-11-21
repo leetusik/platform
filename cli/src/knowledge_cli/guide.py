@@ -34,7 +34,7 @@ import argparse
 # with the local `uv tool install ./cli --reinstall`. Kept as a named constant so
 # the test can assert the exact string ships without hard-coding it twice.
 INSTALL_COMMAND = (
-    "uv tool install git+https://github.com/leetusik/platform#subdirectory=cli"
+    "uv tool install git+https://github.com/leetusik/sikstack#subdirectory=cli"
 )
 
 GUIDE = f"""\
@@ -71,7 +71,7 @@ verify it resolves. It is **idempotent** — re-running logs in, reuses the exis
 project, and keeps the existing key. Safe to run twice.
 
 If the service holds new sign-ups on a **waitlist** (hi2vi.com does), `init`,
-`signup` and `login` stop with one `error: … on the hi2vi waitlist …` line and exit
+`signup` and `login` stop with one `error: … on the sikstack waitlist …` line and exit
 `1`, saving nothing; the account opens later by mail, and then `init` runs as above.
 
 **Passwords never go through `argv`.** There is deliberately no `--password` flag:
@@ -111,7 +111,7 @@ into the config file for you and **never prints, logs, or echoes it** — not on
 success, not in an error message. You never copy-paste it. If the config is lost, mint
 a new one (`knowledge init --new-key`); the old plaintext is unrecoverable by design.
 
-This `vk_` in `api.token` is also the exact key the `/knowledge:explain` Claude Code
+This `vk_` in `api.token` is also the exact key the `/explain:explain` Claude Code
 plugin reads. Writing it here is what lets that plugin write to the same hosted
 knowledge base with no extra setup.
 
@@ -130,7 +130,7 @@ knowledge base with no extra setup.
   than 2 or more than 5 tags are each rejected with a sentence rather than a raw 422.
   Tags are repeatable and comma-splittable (`--tag a,b` == `--tag a --tag b`).
 - **The project defaults to the git repo's directory name**, verbatim — exactly what
-  `/knowledge:explain` uses, so the CLI and the plugin file one repo's notes under the
+  `/explain:explain` uses, so the CLI and the plugin file one repo's notes under the
   same project. Override with `--project`. Outside a git repo it falls back to the
   project `init` configured, then to `default`. Any name is fine — the server
   get-or-creates the project on first save, so you never pre-create one. If the repo's
@@ -225,7 +225,7 @@ write can never silently degrade into a stray local file.
 
     knowledge config      # print the resolved state (status, base URL, token shape)
 
-`knowledge config` prints exactly the keys the `/knowledge:explain` resolver would
+`knowledge config` prints exactly the keys the `/explain:explain` resolver would
 see, with the token reduced to its shape (`vk_…last4`) — never its value. Exit 0 means
 a usable knowledge base is configured; exit 1 means unconfigured or broken.
 

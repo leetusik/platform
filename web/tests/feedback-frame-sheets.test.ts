@@ -4,14 +4,14 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-// The Feedback frame's sheets change no other page (src/hi2vi/styles/README.md; P58-yw's *Isolation* and
-// *Class names*), as the Library's do (hi2vi-library-frame-sheets.test.ts): every rule sits in the system's
+// The Feedback frame's sheets change no other page (src/sikstack/styles/README.md; P58-yw's *Isolation* and
+// *Class names*), as the Library's do (sikstack-library-frame-sheets.test.ts): every rule sits in the system's
 // one scope; no rule names only system or Library classes, so no existing page's markup gains a
 // declaration; no markup outside Feedback's own folders draws a Feedback class; the frame's custom
 // properties are restored at the old-page boundary; the barrel loads each sheet once, after the Library's.
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const styles = join(web, "src/hi2vi/styles");
+const styles = join(web, "src/sikstack/styles");
 const feedback = join(styles, "feedback");
 const read = (path: string) => readFileSync(path, "utf8");
 const SCOPE = "@scope (.ui) to ([data-ui-legacy])";
@@ -124,7 +124,7 @@ const rulesOn = (selector: string) =>
 
 /** Where Feedback's classes may be drawn: its parts, its pages, and project home's Feedback panel (S7). */
 const FEEDBACK_MARKUP = [
-  "/hi2vi/feedback/",
+  "/sikstack/feedback/",
   "/app/(app)/feedback/",
   "/app/(app)/projects/[projectId]/",
 ];
@@ -231,13 +231,13 @@ describe("the Feedback frame's sheets", () => {
       ),
     ];
     const saved = pairs(saves.body);
-    expect(saved.every((m) => m[1] === `--hi2vi-legacy${m[2].slice(1)}`)).toBe(
+    expect(saved.every((m) => m[1] === `--sikstack-legacy${m[2].slice(1)}`)).toBe(
       true,
     );
     expect(new Set(saved.map((m) => m[2]))).toEqual(added);
     const restored = pairs(restores.body);
     expect(
-      restored.every((m) => m[2] === `--hi2vi-legacy${m[1].slice(1)}`),
+      restored.every((m) => m[2] === `--sikstack-legacy${m[1].slice(1)}`),
     ).toBe(true);
     expect(new Set(restored.map((m) => m[1]))).toEqual(added);
   });

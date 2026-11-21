@@ -95,13 +95,13 @@ export const APP_SHELL = {
 } as const;
 
 /**
- * The hi2vi Shell's words (P58: job 01 round 03-instrument `Shell.dc.html`, the org rail as job 03
+ * The sikstack Shell's words (P58: job 01 round 03-instrument `Shell.dc.html`, the org rail as job 03
  * round 02 revised it, F320; Workspace's `Coming` badge, operator D1), verbatim. Imported by path
- * (`@/content/app`) by `src/hi2vi/shell/`; the barrel's keys above stay for the files that still read them.
+ * (`@/content/app`) by `src/sikstack/shell/`; the barrel's keys above stay for the files that still read them.
  */
 export const SHELL = {
-  wordmark: "hi2vi",
-  homeLabel: (org: string) => `hi2vi, ${org} overview`,
+  wordmark: "sikstack",
+  homeLabel: (org: string) => `sikstack, ${org} overview`,
   orgPlainLabel: (org: string) => `Org: ${org}. Overview`,
   orgLabel: (org: string) => `Org: ${org}. Switch org`,
   switchOrg: "Switch org",

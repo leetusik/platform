@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { Dock, ListenPill, trackOf, type HeadControl } from "@/hi2vi/listen";
+import { Dock, ListenPill, trackOf, type HeadControl } from "@/sikstack/listen";
 import type { ListenKey } from "@/lib/listen/machine";
 import type { Listen, ListenBookKey } from "@/lib/listen/types";
 import { dockView } from "@/lib/listen/view";
@@ -467,7 +467,7 @@ describe("the line (F208): always drawn, 0% with nothing made", () => {
 });
 
 describe("no line opens with a middle dot (C04)", () => {
-  const css = read("src/hi2vi/styles/listen/listen.css");
+  const css = read("src/sikstack/styles/listen/listen.css");
   it("writes no dot in the rest or the pill's figure: the dot is their ::before", () => {
     for (const [, l] of CASES) {
       const rest = /<span class="say-rest">([^<]*)<\/span>/.exec(dock(l));
@@ -564,7 +564,7 @@ describe("the track (F208, listen:FG1)", () => {
     expect(trackOf({ ...base, chapter: false, hidden: false }).overFoot).toBe(
       false,
     );
-    const css = read("src/hi2vi/styles/listen/listen.css");
+    const css = read("src/sikstack/styles/listen/listen.css");
     expect(css).toContain(
       ".dock-track { position: sticky; bottom: var(--space-4);",
     );
@@ -574,7 +574,7 @@ describe("the track (F208, listen:FG1)", () => {
   });
 
   it("is mounted by the chapter reader before ReaderFoot, in place of the old slot and the body's old root", () => {
-    const cr = read("src/hi2vi/reader/chapter-reader.tsx");
+    const cr = read("src/sikstack/reader/chapter-reader.tsx");
     expect(cr).not.toMatch(
       /components\/listen\/listen-page|ListenSlot|ListenPageContext/,
     );
@@ -583,7 +583,7 @@ describe("the track (F208, listen:FG1)", () => {
     );
     expect(cr.indexOf("<ListenTrack")).toBeLessThan(cr.indexOf("<ReaderFoot"));
     // the body's old root renders nothing after the body (its old Listen slot left with the old Listen)
-    const root = read("src/hi2vi/reader/old-root.tsx");
+    const root = read("src/sikstack/reader/old-root.tsx");
     expect(root).not.toMatch(/value\?\.after|\bslot\b\s*[?=:]/);
   });
 });

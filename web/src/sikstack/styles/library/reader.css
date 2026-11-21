@@ -1,0 +1,54 @@
+/* sikstack — the Library: the reader's frame (ReaderHead, ReaderEnd, ReaderFoot, its sheets). Owner: P63-fk.S8; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+
+   What the reader adds to frame.css, and nothing else:
+   - the sections' fold's one rule (P63-fk.S12, by the operator's answer: the fold is the head's own line);
+   - P64-3y.F4: the reader's top bar's real height in one place of its own, `--reader-top-h` (the bar wraps to two
+     rows, or three, on a narrow window: 03-library F89), which every "below the reader's top bar" reads (the
+     landing margins in frame.css and blocks.css, the side panel's sticky top); `--top-h` stays the system's one-row
+     bar (the foot bar, the sheets' heads and the landing page read it too). The frame measures the bar and writes
+     its height here (`sikstack/reader/frame-measure.ts`); until then, and in print, the one-row bar's;
+   - P64-3y.F4: the one slot above the foot bar stands on the dock while a Listen is under way (07-listen-review
+     F208: the dock is "under F207's slot"); the frame measures how far (`--reader-slot-lift`, none without a dock);
+   - print: ⌘P of a chapter keeps printing as today (the old body's own print rules in app/kb-print.css, its
+     masthead and colophon), so the new frame's chrome (the bar, the head, the end, the foot) prints nothing and
+     the column gives the page its whole width, as the old reader's page did. */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* the reader's root sets its own scheme (Display: light, dark, sepia) but is not the `.ui` root, so it takes the
+     base rule's colour itself, as the board's root (`.ui.app.bare.reader`) does: an inherited text colour then
+     follows the reader's scheme, not the device's (P63-fk.S21) */
+  .app.reader {
+    --reader-top-h: var(--top-h);
+    color: var(--ink);
+  }
+
+  /* the slot's holder on the dock: the marks layer's part and the resume pill (P64-3y.F4) */
+  .app.reader > .marks-slot,
+  .app.reader > .reader-foot > .pill {
+    translate: 0 calc(-1 * var(--reader-slot-lift, 0px));
+  }
+
+  /* the sections' fold (a loose document, `Document.dc.html`, FG8; P63-fk.S12): Show all N sections / Show
+     fewer, the nav's last line on the column's left edge, both labels in one cell */
+  .read-toc-more .swap {
+    justify-items: start;
+  }
+
+  @media print {
+    .reader .bar-wrap,
+    .reader .read-head,
+    .reader .read-end,
+    .reader .reader-foot {
+      display: none;
+    }
+    .reader .reader-main {
+      padding: 0;
+    }
+    .reader .reader-col {
+      max-width: none;
+      gap: 0;
+    }
+  }
+}

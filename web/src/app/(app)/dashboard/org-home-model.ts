@@ -1,5 +1,5 @@
 import { ORG_HOME } from "@/content/dashboard";
-import type { KeyRow } from "@/hi2vi/frame";
+import type { KeyRow } from "@/sikstack/frame";
 import { date, num, when, type FormatOptions } from "@/lib/format";
 import { viewerTimeZone, type CookieReader } from "@/lib/time-zone";
 import { credentialStatus } from "@/lib/knowledge/credential-status";
@@ -12,7 +12,7 @@ import type {
 /**
  * Org home's rules (job 01 round 03-instrument, `## Build` § *Org home*; `OrgHomeProjects.dc.html`,
  * `OrgHomeUrl.dc.html`, `OrgHomeActivity.dc.html`), pure so they are tested without a DOM
- * (tests/hi2vi-org-home.test.ts). The panels hold no other logic.
+ * (tests/sikstack-org-home.test.ts). The panels hold no other logic.
  */
 
 /**

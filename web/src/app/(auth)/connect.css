@@ -1,0 +1,80 @@
+/*
+ * The connect page's classes (job 09 *Install and connect*, round 01, `frame.css` 9b–9e and
+ * `ConnectColumn.dc.html`), copied value for value, beside `signin.css`. Scoped like the
+ * system's sheets (src/sikstack/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])`
+ * block, imported by the connect page, never through `globals.css`.
+ */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* 9b: the code (SignInCode, F502): a label line, then the code at the figure step in the
+     mono face. It breaks only after its hyphen (a <wbr> there), never inside a group. */
+  .sk-code {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .sk-code-label {
+    color: var(--ink-2);
+  }
+  .sk-code-value {
+    font: 500 var(--fs-figure) / var(--lh-figure) var(--font-mono);
+    color: var(--ink);
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .sk-code-group {
+    white-space: nowrap;
+  }
+
+  /* 9c: the install (InstallFacts, F503): label/value rows in a panel. The labels take one
+     8em column; a row's label and value share their first baseline. Under 20em of the list
+     the value goes under its label. */
+  .sk-facts {
+    container: skfacts / inline-size;
+  }
+  .sk-facts > .row {
+    grid-template-columns: 8em minmax(0, 1fr);
+    row-gap: var(--space-1);
+    align-items: first baseline;
+  }
+  .sk-facts > .row:first-child {
+    border-top: 0;
+  }
+  .sk-facts dt {
+    color: var(--ink-2);
+  }
+  .sk-facts dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  @container skfacts (max-width: 20em) {
+    .sk-facts > .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* 9d: a command named in a sentence (F501): the mono face, breaking anywhere rather than
+     leaving its line. */
+  .cmd-inline {
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+  }
+
+  /* 9e: the action pair (F504): two equal cells spanning the column; under 20em of column
+     (320 px at 200% text) each takes the whole width, the primary last. */
+  .sk-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(10em, 100%), 1fr));
+    gap: var(--space-2);
+  }
+  .sk-actions > .btn {
+    width: 100%;
+  }
+
+  /* an address inside a sentence moves to the next line whole; only when it is longer than
+     a line does it break, before its @ (F534) */
+  .connect-addr {
+    display: inline-block;
+    max-width: 100%;
+  }
+}

@@ -1,5 +1,5 @@
 /**
- * The one time zone (hi2vi Library, the operator's decision 5): every date on a page is in the
+ * The one time zone (sikstack Library, the operator's decision 5): every date on a page is in the
  * viewer's own zone, remembered in a cookie the page sets once, and UTC until it is known.
  *
  * - The browser writes the cookie (`TimeZoneCookie`, `time-zone-cookie.tsx`, mounted once in the

@@ -10,7 +10,7 @@ every scope and permission check stays in the API. Nothing is reimplemented here
 - **Feedback** at **`/feedback/mcp`**: write-only, one tool, `capture_feedback`
   (proxying `POST /api/feedback`).
 
-Public URLs: `https://hi2vi.com/mcp` and `https://hi2vi.com/feedback/mcp`.
+Public URLs: `https://sikstack.com/mcp` and `https://sikstack.com/feedback/mcp`.
 `CONTRACT.md` is the full contract of both.
 
 ## What it exposes
@@ -48,7 +48,7 @@ Public URLs: `https://hi2vi.com/mcp` and `https://hi2vi.com/feedback/mcp`.
 | `MCP_HOST` | `0.0.0.0` | uvicorn bind host. |
 | `MCP_PORT` | `9000` | uvicorn bind port (both MCP endpoints and `/healthz`). |
 | `MCP_STATELESS_HTTP` | `0` | `1` to run the Streamable-HTTP transport statelessly (no session affinity); applies to both endpoints. |
-| `MCP_ALLOWED_HOSTS` | *(localhost only)* | Extra `Host` values both endpoints accept (comma-separated). A port-less public host needs an exact entry (`hi2vi.com`); a host with a port needs `name:*`. |
+| `MCP_ALLOWED_HOSTS` | *(localhost only)* | Extra `Host` values both endpoints accept (comma-separated). A port-less public host needs an exact entry (`sikstack.com`); a host with a port needs `name:*`. |
 | `MCP_ALLOWED_ORIGINS` | *(localhost only)* | Extra `Origin` values both endpoints accept (an absent Origin always passes). |
 | `MCP_FETCH_MAX_CHARS` | `20000` | `fetch_document`'s character cap. |
 

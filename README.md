@@ -1,130 +1,88 @@
-# Knowledge Base
+# sikstack
 
-### 🗺️ [**Explore my library → hi2vi.com/@leetusik**](https://hi2vi.com/@leetusik)
+sikstack is a phase-and-slice workflow for Claude Code. You ask for a change; the agent writes it up as a
+**phase**, cuts it into **slices**, runs each slice on its own executor, reviews the result, and stops for you to
+walk it before it lands. The plan, the verdicts and the decisions stay on your machine, in your repo's hidden
+`.sikstack/` folder, kept out of the repo's history.
 
-*Start there — every explainer in this library, in one place. No sign-up
-needed; open any one to read it.*
+It installs as a Claude Code plugin and needs no account: one setup per machine, then work.
 
-**Live site → <https://hi2vi.com>** — the hosted product; sign in to
-browse your own library, or jump straight to the public
-[library](https://hi2vi.com/@leetusik) above.
+## Install
 
-Technical explainers written from real project work. When I solve something
-non-trivial, a coding agent (Claude Code / Codex) reads the actual code and
-what its phases recorded, and writes an explainer here — grounded in the real
-repo, no invented claims. The library grows as I work.
+In Claude Code:
 
-What started as a personal knowledge base is now a small hosted product with
-four ways in: a free **web app** (sign up, browse/search/read, share), a
-Claude Code **plugin** (self-host your own KB), a standalone **CLI** (drive it
-from a terminal or a coding agent), and an **MCP retrieval service** (`search` +
-`fetch_document` tools for any AI agent). This README covers the plugin and CLI
-install paths; the web app needs no install — just sign up.
+    /plugin marketplace add leetusik/sikstack
+    /plugin install sikstack@sikstack
+    /sikstack:setup
 
-## Install the plugin
+`/sikstack:setup` runs once per machine. Then start working, in any git repository:
 
-This repo's knowledge feature ships as a Claude Code plugin, so any Claude Code
-user can spin up their own version. From inside Claude Code:
+    /sikstack:sik-mode
 
-    /plugin marketplace add leetusik/platform
-    /plugin install knowledge@knowledge
+`sik-mode` reads where the repo stands and offers the next step: making the `.sikstack/` folder, starting a phase,
+running the one in flight, or showing what waits on you.
 
-Then run `/knowledge:setup` once — pick **Connect** to post to the hosted KB
-with just a browser (no infra), or **Scaffold** to self-host your own. Scaffold
-mode needs Python 3.12+, Docker (optional — runs the local viewer + API), and a
-GitHub repository (optional — only to publish via Pages). Then run
-`/knowledge:explain <topic>` whenever you want something explained and kept.
-Explain runs as an explain phase, so it needs a workflow workspace (v96 or later)
-in the repository you run it from. Whenever the records lack what the reader
-needs (a subject no phase covers, even one with no code behind it, or a covered
-subject that rests on outside basics no record states), it offers a research
-phase first, and your own "research first" is always honoured; the research runs
-at once, and when it passes, the explain's confirmation comes back by itself
-(`from=P<N>` names that research). A book can be about a subject with no code
-behind it, and its chapters are written at once.
-Full details in [`plugin/README.md`](plugin/README.md).
+To clone only the plugins rather than the whole repository, add the marketplace from a shell with a sparse
+checkout:
 
-## Command-line interface
+    claude plugin marketplace add leetusik/sikstack --sparse .claude-plugin plugins
 
-There is also a standalone `knowledge` CLI for the **hosted** service — sign up,
-configure credentials, and save and search knowledge from a terminal, without
-visiting the website or installing the plugin:
+**Needs** Claude Code, `git`, and `python3` 3.8 or later. Nothing else: no server, no key, no Docker.
 
-    curl -fsSL https://hi2vi.com/install.sh | bash
-    printf %s "$PASSWORD" | knowledge init --email you@example.com --password-stdin
-    knowledge save note.md --tag python --tag testing
+## No account needed
 
-The installer bootstraps [`uv`](https://docs.astral.sh/uv/) if needed, then runs
-the canonical `uv tool install git+https://github.com/leetusik/platform#subdirectory=cli`
-(also usable directly). `init` prints a `web login:` line — the CLI and the web
-app share one account, so the same email + password log into both. It writes the
-same `~/.config/knowledge-kb/config.json` the plugin reads, so all three (plugin,
-CLI, web app) share one hosted knowledge base. Full quickstart in
-[`cli/README.md`](cli/README.md).
+Setup asks for an email and registers it, with a random install id, at sikstack.com. That is all the server keeps
+before you sign in. Your phases and their records stay on your machine, and sikstack works fully without signing
+in. If sikstack.com cannot be reached, setup still finishes and registers on a later run.
 
-Driving this from a coding agent? Export
-`KB_API_BASE_URL=https://hi2vi.com` and `KB_API_TOKEN=<an org key>` to
-save over plain REST with no CLI install at all, or run `knowledge guide` for the
-full machine-readable contract (auth, the save rules, the `--json`/exit-code
-protocol) as one bundled, offline document. The canonical `/knowledge:explain`
-skill is also published, copyable and downloadable, at
-[`/SKILL.md`](https://hi2vi.com/SKILL.md).
+**Sign in later to see your work on the web.** `/sikstack:sign-in` prints a short code and opens a page on
+sikstack.com; you confirm the same code there, signed in to your account, and the install is connected. The repo's
+earlier work then uploads, and you see its phases on the web. An email alone never connects an install: only a
+code you confirm does.
 
-Capturing user feedback from an agent? The Feedback capture skill for agents,
-`vocky-feedback`, is published at
-[`/feedback/SKILL.md`](https://hi2vi.com/feedback/SKILL.md): it captures over REST
-or the `/feedback/mcp` endpoint with a key minted in the web app.
+## On the web, for signed-in users
 
-## How it's built
+<https://sikstack.com> holds the web services, for signed-in users (new accounts start on a waitlist):
 
-- **Write path** — a custom `explain` skill posts to a FastAPI document API that
-  writes the page, updates a **hybrid** search index (BM25 + recency decay +
-  Gemini embedding cosine, fused by RRF), and makes a scoped git commit.
-  Documents are self-contained interactive HTML explainers (Background,
-  Intuition, Code, a quiz) — this page you're reading was written the same way,
-  into this same repo.
-- **Publish path** — the API is hosted at <https://hi2vi.com> behind
-  one nginx edge that also fronts a Next.js web app (`/` — the primary human
-  surface: sign up, browse/search/read, sharing) and an MCP
-  retrieval service (`/mcp`) any AI agent can call. A doc written on the box is
-  live the instant it's saved — *fresh-on-write*, no CI build or CDN lag — and a
-  manual-dispatch `Production Deploy` GitHub Action reconciles the box from
-  `main`. The box pushes every write to `origin/main` for off-box backup; locally
-  and from the plugin, nothing pushes until you do. (The old GitHub Pages deploy
-  is retired here; the plugin still ships it for self-hosters.)
-- **Publish-safe metadata** — document frontmatter (`source.repo`) is sanitized
-  at write time (local paths become repo basenames; URLs pass through), so no
-  filesystem details leak to the public site.
-- **Pretty share links** — a hosted org can claim a durable public slug and get
-  readable URLs (`/@{org}/{project}/{doc-slug}`); the old
-  `/documents/{id}` and `/graph/{uuid}` links keep resolving forever.
-- **Knowledge map** — the **local** MkDocs site (below) builds a static graph
-  of the library: `graph.json` emitted at build time by a MkDocs hook
-  (`scripts/graph_hook.py`) and drawn client-side with vendored, no-CDN
-  JavaScript — that copy is what self-hosters and the plugin scaffold get.
+- **Workspace**: a connected repo's phases, slices and verdicts, its agenda and its docs.
+- **Library**: books and documents your agents write for you to read, grounded in the code; read, listen,
+  review with a quiz, search in English and Korean, and publish a project's documents in your org's public library.
+- **Feedback**: what your users said, captured from your product over REST or MCP with a capture-only key.
 
-## Recreating from scratch
+Agents can also write to sikstack directly: the `knowledge` CLI (`curl -fsSL https://sikstack.com/install.sh |
+bash`, see [`cli/README.md`](cli/README.md)), or plain REST with `KB_API_BASE_URL=https://sikstack.com` and an
+org key. The Feedback capture skill for agents is published at
+[`/feedback/SKILL.md`](https://sikstack.com/feedback/SKILL.md), and the MCP endpoints are described in
+[`mcp-server/CONTRACT.md`](mcp-server/CONTRACT.md).
 
-Two ways to stand this knowledge base back up:
+## Running it yourself
 
-- **Restore this KB** — clone this repo and run `docker compose up -d` (this now
-  also starts a local `postgres` for the accounts plane). The API reindexes
-  `docs/` on startup, so the SQLite content database self-heals from the files
-  already in git — nothing else to restore for browsing/searching. The accounts
-  plane (signup/login) starts unmigrated and empty; run
-  `docker compose exec api alembic upgrade head` if you need that too.
-- **Rebuild a fresh one** — install the plugin (above) and run
-  `/knowledge:setup`. It scaffolds a new KB and writes
-  `~/.config/knowledge-kb/config.json`; point that file's `kb_root` at the
-  restored or newly scaffolded directory and `/knowledge:explain` writes there.
+There is no packaged self-host install yet. What this repository supports today:
 
-## Agentic workflow
+- `docker compose up -d` (`compose.yml`) starts the document API, its Postgres and the docs viewer locally;
+  `docker compose exec api alembic upgrade head` creates the accounts tables.
+- `pnpm --dir web dev` serves the web app (`web/`, Next.js), against that API.
+- Production runs as one box behind an nginx edge; its runbook is [`deploy/README.md`](deploy/README.md).
+- The plugin talks to the server `SIKSTACK_SERVER` names, `https://sikstack.com` when it is unset.
 
-This repo is developed with
-[bootstrap_agentic_workspace.sh](https://github.com/leetusik/bootstrap_agentic_workspace.sh),
-a portable harness that drives coding agents through phases → slices → phase
-reviews, with operator-approved plans and versioned docs as the durable record.
-Its workflow state and docs live outside this repo. The records of the
-workspace that built the repo up to November 2026 (phases, versioned docs,
-design records) are frozen, read-only, under
-[`archive/workspace/`](archive/workspace/README.md).
+## What is in this repository
+
+- `plugins/sikstack/`: the sikstack plugin, the workflow engine and its skills, agents and hooks
+  ([`CHANGELOG.md`](plugins/sikstack/CHANGELOG.md)). Its history before the move is
+  `leetusik/bootstrap_agentic_workspace.sh`'s.
+- `plugins/explain/`: a second plugin, `explain`, that writes a chapter from the code and your phases' records
+  into your Library. It is on hold and not offered yet.
+- `server/`, `web/`, `cli/`, `mcp-server/`, `tools/listen-runner/`: the services behind sikstack.com.
+- `.claude-plugin/marketplace.json`: the marketplace that lists both plugins.
+
+## Credits
+
+sikstack is my personal take on [pstack](https://github.com/cursor/plugins/tree/main/pstack), Lauren Tan's
+Claude Code and Cursor plugin: her principles (install and go, no account, a setup once, an entry point that
+routes the work to playbooks), reshaped around this phase-and-slice workflow. It took pstack's ideas, not its code.
+sikstack is not a fork of pstack, and it is not affiliated with or endorsed by Cursor or Lauren Tan. See
+[`NOTICE`](NOTICE).
+
+## License
+
+MIT, see [`LICENSE`](LICENSE).

@@ -45,9 +45,9 @@ vi.mock("next/navigation", async (real) => ({
   usePathname: () => "/review",
 }));
 
-const { ReviewCardView } = await import("@/hi2vi/review");
-const cardModel = await import("@/hi2vi/review/card-model");
-const session = await import("@/hi2vi/review/session");
+const { ReviewCardView } = await import("@/sikstack/review");
+const cardModel = await import("@/sikstack/review/card-model");
+const session = await import("@/sikstack/review/session");
 const { reduce } = await import("@/lib/reader/quiz");
 const { freshFor, specFor } = await import("@/lib/review/spec");
 const { decodeFrom } = await import("@/lib/library/from");
@@ -614,7 +614,7 @@ describe("Open at this … → (F242): the card's place, and the way back", () =
     expect(href).toBe(
       "/@june/platform/books/handbook/09-search?lang=en&from=%2Flibrary#check-yourself",
     );
-    const url = new URL(href, "https://hi2vi.invalid");
+    const url = new URL(href, "https://sikstack.invalid");
     expect(url.hash).toBe(`#${CHOICE.where.block_id}`);
     expect(url.searchParams.get("lang")).toBe("en");
     expect(decodeFrom(url.searchParams.get("from"))).toEqual({
@@ -961,7 +961,7 @@ describe("the rating payloads are unchanged", () => {
   });
 
   it("are what the page sends: one rateReviewCard call, given the step's send", () => {
-    const src = readFileSync(`${web}src/hi2vi/review/review-frame.tsx`, "utf8");
+    const src = readFileSync(`${web}src/sikstack/review/review-frame.tsx`, "utf8");
     expect(src.match(/rateReviewCard\(/g)).toHaveLength(1);
     expect(src).toContain("rateReviewCard(start.send)");
   });
@@ -1003,7 +1003,7 @@ describe("/review shows Review's own card under the head", () => {
 });
 
 describe("Review's sheet: the card's text scales with Display, its chrome does not", () => {
-  const css = readFileSync(`${web}src/hi2vi/styles/review/review.css`, "utf8");
+  const css = readFileSync(`${web}src/sikstack/styles/review/review.css`, "utf8");
   it("scales the prompt, the quote, the options and the text by --read-k; the hint, the intervals and the buttons stay", () => {
     expect(css).toContain(
       ".rv-card .card-prompt, .rv-card .card-quote { font-size: calc(var(--fs-head) * var(--read-k)); }",

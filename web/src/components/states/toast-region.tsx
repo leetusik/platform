@@ -1,6 +1,6 @@
 /**
- * P58 — NO LONGER MOUNTED. The hi2vi Shell mounts the system's region instead
- * (`ToastRegion` and `publishToast` from `@/hi2vi/shell`, last child of
+ * P58 — NO LONGER MOUNTED. The sikstack Shell mounts the system's region instead
+ * (`ToastRegion` and `publishToast` from `@/sikstack/shell`, last child of
  * `main.app-main`). Nothing ever published to this one; the export stays for the
  * `@/components/states` barrel until the old states are retired.
  *

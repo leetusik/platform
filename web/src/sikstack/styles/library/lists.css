@@ -1,0 +1,358 @@
+/* sikstack — the Library: the Library's lists: the library page's head and views, Continue reading (`LibraryContinue`), a project's section (`Shelf`) and the documents table (`LibraryDocs`). Owner: P63-fk.S4; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+
+   The rules are the signed boards' own (job 03, round 02-one-library): `Library.dc.html` (the page's parts and its
+   toolbar), `LibraryContinue.dc.html`, `LibraryDocs.dc.html`; `Shelf` needs nothing beyond frame.css section 10.
+   Changes from the boards: their canvas-only rules (`#dc-root …`, the state bar, `.library-note`, `.sc-host`) are
+   not built; `.libdocs-tools + .sc-host > .block` (a canvas host element) is `.libdocs-tools ~ .block` alone. */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* ── the library page (Library.dc.html) ── */
+  /* the library's three parts (Continue reading, the shelves or the table, Your reading data) stand further apart than one shelf from the next (library:FG11) */
+  .library-parts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+    min-width: 0;
+  }
+  /* the toolbar over the two views: the count of what is shown at the start, the view at the end. It keeps a control's height in every
+     state, so what follows never moves (frame.md F320) */
+  .library-bar {
+    min-height: var(--control-h);
+  }
+  .library-bar .dim {
+    font-variant-numeric: tabular-nums;
+  }
+  .library-shelves {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
+  /* ── Continue reading (LibraryContinue.dc.html): the text last read, with the reader's progress line as the panel's top edge, then the others in progress ── */
+  .library-continue {
+    container: librarycontinue / inline-size;
+  }
+  .library-continue-panel > .bar-line {
+    overflow: hidden;
+    border-radius: calc(var(--radius-m) - 1px) calc(var(--radius-m) - 1px) 0 0;
+  }
+  /* the title's first line sits on the button's centre line, whatever follows it */
+  .library-lead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-4);
+  }
+  .library-lead-text {
+    display: flex;
+    flex: 1 1 20em;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    padding-top: calc(
+      (var(--control-h) - var(--fs-title) * var(--lh-title)) / 2
+    );
+  }
+  .library-lead-title {
+    font: 600 var(--fs-title) / var(--lh-title) var(--font);
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+  .library-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-4);
+    min-width: 0;
+    color: var(--ink-2);
+  }
+  /* the last two columns start where a shelf row's facts and its reading state start (frame.css .shelf-row) */
+  .library-also {
+    grid-template-columns: minmax(0, 1fr) 9em minmax(0, 15em) calc(
+        14.5em + var(--space-4)
+      );
+    padding-block: 0;
+  }
+  .library-also .link-strong {
+    padding-block: var(--space-3);
+  }
+  .library-also-meta {
+    display: contents;
+  }
+  .library-also-meta > span {
+    min-width: 0;
+    color: var(--ink-2);
+  }
+  /* within one project (frame.md F323, F328): no row names the project, so a row's facts are two columns, on the project page's own edges:
+     the title and the facts share the row 1.4 : 1 as the documents table's title and tags do, and the last column starts on a book row's state */
+  .library-continue.is-project .library-also {
+    grid-template-columns: minmax(12em, 1.4fr) minmax(0, 1fr) calc(
+        14.5em + var(--space-4)
+      );
+  }
+  @container librarycontinue (max-width: 52em) {
+    .library-continue.is-project .library-also {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .library-also {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .library-also-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-4);
+      margin-top: calc(-1 * var(--space-2));
+      padding-bottom: var(--space-3);
+    }
+  }
+  @container librarycontinue (max-width: 30em) {
+    .library-lead > .btn {
+      flex: 1 0 100%;
+    }
+  }
+
+  /* ── the documents table (LibraryDocs.dc.html, frame.md F322): a head with its count (or the page's own toolbar), then one panel that holds
+     the search, the rows and the pager. The library's All documents adds the project filter and the project column (.has-project) ── */
+  .libdocs-panel {
+    container: libdocs / inline-size;
+  }
+  .libdocs-head .meta {
+    font-variant-numeric: tabular-nums;
+  }
+  /* the search: the field takes what is left, the two buttons end the row */
+  .libdocs-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+  .libdocs-q {
+    flex: 1 1 100%;
+    width: auto;
+    min-width: 0;
+  }
+  .libdocs-go {
+    flex: none;
+    max-width: 100%;
+    margin-left: auto;
+  }
+  .libdocs-pick {
+    flex: 1 1 9em;
+    width: auto;
+    min-width: 0;
+  }
+  .libdocs-panel.has-project .libdocs-q {
+    flex: 1 1 100%;
+  }
+  .libdocs-tools ~ .block {
+    border-top: 1px solid var(--line);
+  }
+  /* a row: the title, its tags, its date, then Delete at the row's end; every cell on the title's first baseline.
+     The date and Delete tracks are fixed (8.5em + 6em = a shelf row's state and date, 10em + 4.5em) and the title and tags share the rest
+     1.4 : 1, so on a project's page the tags start on the edge a book row's facts and Continue reading's facts start on (frame.md F328) */
+  .libdocs-panel > ul:first-child > .libdocs-row:first-child {
+    border-top: 0;
+  }
+  .libdocs-row {
+    grid-template-columns: minmax(12em, 1.4fr) minmax(0, 1fr) 8.5em 6em;
+    padding-block: var(--space-1);
+  }
+  .libdocs-panel.is-visitor .libdocs-row {
+    grid-template-columns: minmax(12em, 1.4fr) minmax(0, 1fr) 6.5em;
+  }
+  /* with the project column: 16em holds the longest project name on one line (bootstrap_agentic_workspace; a longer one breaks after an
+     underscore), and the title and the tags share the rest 1 : 1, so the longest title and the longest three tags each keep one line and
+     every full page of 25 rows is one height */
+  .libdocs-panel.has-project .libdocs-row {
+    grid-template-columns: minmax(12em, 1fr) minmax(0, 16em) minmax(
+        0,
+        1fr
+      ) 6.5em 6em;
+  }
+  .libdocs-project {
+    min-width: 0;
+    padding-block: var(--space-3);
+    color: var(--ink-2);
+    overflow-wrap: break-word;
+  }
+  .libdocs-name {
+    min-width: 0;
+  }
+  .libdocs-open {
+    padding-block: var(--space-3);
+  }
+  .libdocs-snippet {
+    max-width: 64ch;
+    margin-top: calc(-1 * var(--space-2));
+    padding-bottom: var(--space-3);
+    overflow-wrap: anywhere;
+  }
+  /* where a search matched: a tint behind ink at the heading weight, so it is not colour alone (the documents list's mark) */
+  .libdocs-hit {
+    border-radius: var(--radius-xs);
+    background: var(--accent-tint);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .libdocs-facts {
+    display: contents;
+  }
+  .libdocs-date {
+    padding-block: var(--space-3);
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .libdocs-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-3);
+    min-width: 0;
+    padding-block: var(--space-3);
+    color: var(--ink-2);
+    font-size: var(--fs-meta);
+    line-height: var(--lh-meta);
+  }
+  .libdocs-tags > li {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .libdocs-more {
+    margin-left: var(--space-3);
+  }
+  .libdocs-delete {
+    justify-self: end;
+  }
+  .libdocs-error {
+    grid-column: 1 / -1;
+    margin-bottom: var(--space-3);
+  }
+  /* the pager closes the panel under a rule */
+  .libdocs-panel .pager {
+    border-top: 1px solid var(--line);
+  }
+  .libdocs-wait {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+  }
+  /* from 34em of the list the search is one line */
+  @container libdocs (min-width: 34em) {
+    .libdocs-q {
+      flex: 999 1 16em;
+    }
+  }
+  /* with the project filter the search is one line from 48em: the field, the project (14em), the two buttons */
+  @container libdocs (min-width: 48em) {
+    .libdocs-panel.has-project .libdocs-q {
+      flex: 999 1 16em;
+    }
+    .libdocs-pick {
+      flex: 0 0 14em;
+    }
+  }
+  /* under 46em of the list the facts go under the title: the date, then the tags beside it in a box of their own that wraps inside itself,
+     so every row's date starts the line and the tags never drop under it (project-library critique-01 C02); Delete keeps the end of the first line */
+  @container libdocs (max-width: 46em) {
+    .libdocs-row,
+    .libdocs-panel.is-visitor .libdocs-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .libdocs-facts {
+      grid-column: 1;
+      grid-row: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-4);
+      min-width: 0;
+      margin-top: calc(-1 * var(--space-2));
+      padding-bottom: var(--space-3);
+    }
+    .libdocs-date,
+    .libdocs-tags {
+      padding-block: 0;
+    }
+    .libdocs-date {
+      order: -1;
+      text-align: left;
+    }
+    .libdocs-tags {
+      flex: 1 1 0;
+    }
+    .libdocs-delete {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
+    .libdocs-error {
+      grid-row: 3;
+    }
+  }
+  /* with the project column the facts go under the title from 58em: the date and the project on one line, the tags on the next, in every row */
+  @container libdocs (max-width: 58em) {
+    .libdocs-panel.has-project .libdocs-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .libdocs-panel.has-project .libdocs-facts {
+      grid-column: 1;
+      grid-row: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-1) var(--space-4);
+      min-width: 0;
+      margin-top: calc(-1 * var(--space-2));
+      padding-bottom: var(--space-3);
+    }
+    .libdocs-panel.has-project .libdocs-date,
+    .libdocs-panel.has-project .libdocs-tags,
+    .libdocs-panel.has-project .libdocs-project {
+      padding-block: 0;
+    }
+    .libdocs-panel.has-project .libdocs-date {
+      order: -2;
+      text-align: left;
+    }
+    .libdocs-panel.has-project .libdocs-project {
+      order: -1;
+    }
+    .libdocs-panel.has-project .libdocs-tags {
+      flex: 1 1 100%;
+    }
+    .libdocs-panel.has-project .libdocs-delete {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
+    .libdocs-panel.has-project .libdocs-error {
+      grid-row: 3;
+    }
+  }
+  /* under 18em everything is one column, and Delete ends the row */
+  @container libdocs (max-width: 18em) {
+    .libdocs-row,
+    .libdocs-panel.is-visitor .libdocs-row,
+    .libdocs-panel.has-project .libdocs-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .libdocs-delete,
+    .libdocs-panel.has-project .libdocs-delete {
+      grid-column: 1;
+      grid-row: 3;
+      justify-self: start;
+      margin-bottom: var(--space-2);
+    }
+    .libdocs-error,
+    .libdocs-panel.has-project .libdocs-error {
+      grid-row: 4;
+    }
+  }
+}

@@ -39,7 +39,7 @@ const KEPT = [
   "src/components/review/card.tsx",
   "src/components/review/inline.tsx",
   "src/lib/review/foot.ts",
-  "src/hi2vi/review/old-view.tsx",
+  "src/sikstack/review/old-view.tsx",
   "src/app/review.css",
   "src/app/reader.css",
 ];
@@ -90,10 +90,10 @@ describe("the old Listen and Review views (P64-3y)", () => {
       "src/app/layout.tsx",
     ]);
     expect(importersOf("src/components/review/card.tsx")).toEqual([
-      "src/hi2vi/review/review-frame.tsx",
+      "src/sikstack/review/review-frame.tsx",
     ]);
     expect(importersOf("src/app/review.css")).toEqual([
-      "src/hi2vi/review/old-view.tsx",
+      "src/sikstack/review/old-view.tsx",
     ]);
     // the legacy html reader keeps its sheet and its Display panel
     const legacy = importersOf("src/app/reader.css");
@@ -145,7 +145,7 @@ const fieldsOf = (rel: string, name: string): string[] => {
 describe("the retired views' tail (P64-3y.F7): nothing only they read comes back", () => {
   it("ReaderHead takes no `listen` (the old control's place), and no sheet or part draws `.read-listen`", () => {
     const props = fieldsOf(
-      "src/hi2vi/reader/reader-head.tsx",
+      "src/sikstack/reader/reader-head.tsx",
       "ReaderHeadProps",
     );
     expect(props).toContain("audio");
@@ -158,10 +158,10 @@ describe("the retired views' tail (P64-3y.F7): nothing only they read comes back
   });
 
   it("the old root carries no Listen: no `docked`, no `after` and no `slot` to render it", () => {
-    const value = fieldsOf("src/hi2vi/reader/old-root.tsx", "OldBodyValue");
+    const value = fieldsOf("src/sikstack/reader/old-root.tsx", "OldBodyValue");
     expect(value).toEqual(expect.arrayContaining(["settings", "topH"]));
     expect(value.filter((f) => f === "docked" || f === "after")).toEqual([]);
-    expect(code("src/hi2vi/reader/old-root.tsx")).not.toMatch(
+    expect(code("src/sikstack/reader/old-root.tsx")).not.toMatch(
       /\b(docked|after|slot)\b/,
     );
     expect(
@@ -177,8 +177,8 @@ describe("the retired views' tail (P64-3y.F7): nothing only they read comes back
 
   it("what stays is named with its reader: the frame re-renders on the Listen store, so `useSlotLift` measures the dock coming and going", () => {
     for (const rel of [
-      "src/hi2vi/reader/chapter-reader.tsx",
-      "src/hi2vi/reader/document/document-reader.tsx",
+      "src/sikstack/reader/chapter-reader.tsx",
+      "src/sikstack/reader/document/document-reader.tsx",
     ]) {
       const src = code(rel);
       expect(src).toMatch(/\buseListen\(\);/);
@@ -214,14 +214,14 @@ describe("the retired views' tail (P64-3y.F7): nothing only they read comes back
 
   it("no comment of the tail's files points at a retired view or says `/review` waits outside the Shell for a rebuild", () => {
     const files = [
-      "src/hi2vi/reader/reader-head.tsx",
-      "src/hi2vi/reader/old-root.tsx",
-      "src/hi2vi/styles/library/reader.css",
+      "src/sikstack/reader/reader-head.tsx",
+      "src/sikstack/reader/old-root.tsx",
+      "src/sikstack/styles/library/reader.css",
       "src/lib/listen/view.ts",
       "src/lib/review/actions.ts",
       "src/lib/review/model.ts",
-      "src/hi2vi/shell/legacy-page.tsx",
-      "src/hi2vi/shell/shell.css",
+      "src/sikstack/shell/legacy-page.tsx",
+      "src/sikstack/shell/shell.css",
     ];
     const retired = RETIRED.map((p) =>
       p.replace(/^src\//, "").replace(/\.tsx$/, ""),
@@ -242,8 +242,8 @@ describe("the retired views' tail (P64-3y.F7): nothing only they read comes back
 });
 
 describe("the retired views' last traces (P64-3y.F8): no line of this change promises a step that is done", () => {
-  const HI2VI = ["listen", "review", "reader"].flatMap((d) =>
-    walk(join(SRC, "hi2vi", d))
+  const SIKSTACK = ["listen", "review", "reader"].flatMap((d) =>
+    walk(join(SRC, "sikstack", d))
       .filter((f) => /\.(tsx?|css)$/.test(f))
       .map((f) => relative(WEB, f)),
   );
@@ -252,7 +252,7 @@ describe("the retired views' last traces (P64-3y.F8): no line of this change pro
     const retired = RETIRED.map((p) =>
       p.replace(/^src\//, "").replace(/\.tsx$/, ""),
     );
-    const hits = HI2VI.flatMap((rel) => {
+    const hits = SIKSTACK.flatMap((rel) => {
       const text = read(rel);
       return [
         ...(text.match(
@@ -265,10 +265,10 @@ describe("the retired views' last traces (P64-3y.F8): no line of this change pro
   });
 
   it("the bridge says what it holds today (the undrawn-form card, no end), and the reader's barrel what `OldRoot` holds (no Listen)", () => {
-    expect(read("src/hi2vi/review/old-view.tsx")).not.toMatch(
+    expect(read("src/sikstack/review/old-view.tsx")).not.toMatch(
       /end of a session until|old card and end/,
     );
-    expect(read("src/hi2vi/reader/index.ts")).not.toMatch(/\(Listen,/);
+    expect(read("src/sikstack/reader/index.ts")).not.toMatch(/\(Listen,/);
   });
 
   it("the end's continue fixture carries no removed `lede`", () => {

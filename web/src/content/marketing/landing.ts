@@ -1,17 +1,21 @@
 // The public landing at `/`: every word and link it shows (job 06, round 01-landing, signed; its
-// `## Build` and the ledger F250 to F264). The page (src/hi2vi/landing/) holds no copy of its own.
+// `## Build` and the ledger F250 to F264). The page (src/sikstack/landing/) holds no copy of its own.
 //
 // - The picture's data is the frame's fixture F13, verbatim (platform's phases, documents, feedback and
 //   counts; times as of its "now", Nov 15, 2026, 10:00), and the landing's made-up items F261.
 // - The commands come from the retired landing content (the install line of its hero terminal, the two
 //   variable names of its `~/.zshenv` snippet); the token is the record's visible fake `vk_…`.
 // - The record's GitHub placeholder is operator decision D5: the repository for guides and repositories and the
-//   footer's GitHub, its `plugin/` folder for the plugin.
+//   footer's GitHub.
 // - `how` (the diagram's section) is job 08, round 01-landing-diagram-feedback, signed: its `## Build`
-//   3a and 3b, verbatim; its Coming mark is `workspace.coming`.
+//   3a and 3b, verbatim, less the Workspace's Coming mark (job 09).
+// - `install` (the install section, between the Workspace and the Library) is job 09, round
+//   01-install-and-connect, signed: its `## Build` *The landing's block (S5)*; the commands are the fixture's
+//   `SKX.commands`, literal. Job 09 also drops the Workspace's Coming mark everywhere it showed and the
+//   Connect section's Claude Code part (`connect.claude`, `connect.skill`, `connect.plugin`).
 // - Not said here (F262): a price, tiers, the retrieval API, figures, logos, quotes.
 
-const REPO = "https://github.com/leetusik/platform";
+const REPO = "https://github.com/leetusik/sikstack";
 
 export const LANDING_LINKS = {
   signIn: "/login",
@@ -32,12 +36,12 @@ export type LandingStatus = "idle" | "live" | "active" | "done";
 
 export const LANDING = {
   meta: {
-    title: "hi2vi — One place for your project’s work with its coding agents",
+    title: "sikstack — One place for your project’s work with its coding agents",
     description:
       "What your agents plan and run, what they write for you to read, and what your users said about it.",
-    siteName: "hi2vi",
+    siteName: "sikstack",
   },
-  wordmark: "hi2vi",
+  wordmark: "sikstack",
   header: {
     nav: "Landing",
     signIn: "Sign in",
@@ -54,7 +58,7 @@ export const LANDING = {
   /** The hero's picture: platform's overview (F13), static. */
   picture: {
     label:
-      "A project in hi2vi, platform: its phases in the Workspace, its documents in the Library, and what its users said in Feedback.",
+      "A project in sikstack, platform: its phases in the Workspace, its documents in the Library, and what its users said in Feedback.",
     org: "Personal",
     project: "platform",
     visibility: "Private",
@@ -64,7 +68,7 @@ export const LANDING = {
       phases: [
         {
           id: "P57",
-          name: "hi2vi design",
+          name: "sikstack design",
           word: "In progress",
           status: "live",
           count: "1/7",
@@ -78,7 +82,7 @@ export const LANDING = {
         },
         {
           id: "P56",
-          name: "One platform at hi2vi.com",
+          name: "One platform at sikstack.com",
           word: "In review",
           status: "active",
           count: "6/6",
@@ -125,7 +129,7 @@ export const LANDING = {
     title: "How the parts fit together",
     text: "Feedback becomes work in the Workspace; finished work becomes documents in the Library.",
     label:
-      "How the parts of hi2vi fit together. Feedback is what your users said; a piece of it becomes an agenda item in the Workspace, which is coming. Your coding agent, Claude Code, Codex or any agent that speaks REST, works the agenda, and the Workspace syncs from the agent’s workspace. The agent writes what it made to the Library, as books and documents for you to read.",
+      "How the parts of sikstack fit together. Feedback is what your users said; a piece of it becomes an agenda item in the Workspace. Your coding agent, Claude Code, Codex or any agent that speaks REST, works the agenda, and the Workspace syncs from the agent’s workspace. The agent writes what it made to the Library, as books and documents for you to read.",
     feedback: { name: "Feedback", line: "What your users said" },
     toWorkspace: "A piece becomes an agenda item",
     workspace: { name: "Workspace", line: "The agenda and its phases" },
@@ -139,7 +143,6 @@ export const LANDING = {
   },
   workspace: {
     title: "Workspace",
-    coming: "Coming",
     text: "What your agents plan and run: an agenda of things to deal with, the phases each one becomes, their slices and verdicts, and the project’s docs. It syncs from your agents’ workspace.",
     picture: {
       label:
@@ -170,6 +173,48 @@ export const LANDING = {
           status: "done",
         },
       ],
+    },
+  },
+  /** The install section (job 09): the plugin's three commands, then how work starts. */
+  install: {
+    title: "Install sikstack in Claude Code",
+    noAccount:
+      "No account needed. Setup asks for an email; your work stays on your machine.",
+    signInBefore: "To see it on the web, sign in later with ",
+    signIn: "/sikstack:sign-in",
+    signInAfter: ".",
+    needs: [
+      "Needs Claude Code, ",
+      { code: "git" },
+      ", and ",
+      { code: "python3" },
+      " 3.8 or later.",
+    ],
+    repo: { label: "The plugin on GitHub", href: REPO },
+    steps: [
+      {
+        n: "1",
+        title: "Add the marketplace",
+        command: "/plugin marketplace add leetusik/sikstack",
+        what: "Marketplace command",
+      },
+      {
+        n: "2",
+        title: "Install the plugin",
+        command: "/plugin install sikstack@sikstack",
+        what: "Plugin install command",
+      },
+      {
+        n: "3",
+        title: "Set up, once per machine",
+        command: "/sikstack:setup",
+        what: "Setup command",
+      },
+    ],
+    work: {
+      title: "Then start working",
+      command: "/sikstack:sik-mode",
+      what: "sik-mode command",
     },
   },
   library: {
@@ -214,12 +259,12 @@ export const LANDING = {
   },
   connect: {
     title: "Connect your agent",
-    text: "Your agents write to hi2vi over REST, with a key from your org.",
+    text: "Your agents write to sikstack over REST, with a key from your org.",
     guides: { label: "Guides and repositories on GitHub", href: REPO },
     install: {
       title: "Install",
       what: "Install command",
-      command: "curl -fsSL https://hi2vi.com/install.sh | bash",
+      command: "curl -fsSL https://sikstack.com/install.sh | bash",
     },
     env: {
       title: "Two variables",
@@ -228,17 +273,9 @@ export const LANDING = {
       textAfter: ", with an org key from the app.",
       what: "The two variables",
       command:
-        'export KB_API_BASE_URL="https://hi2vi.com"\nexport KB_API_TOKEN="vk_…"',
+        'export KB_API_BASE_URL="https://sikstack.com"\nexport KB_API_TOKEN="vk_…"',
       mintOrgKey: "Mint an org key",
     },
-    claude: {
-      title: "Claude Code",
-      textBefore: "The plugin’s ",
-      textAfter:
-        " skill writes a chapter from the code and saves it to your Library.",
-    },
-    skill: "/knowledge:explain",
-    plugin: { label: "The plugin on GitHub", href: `${REPO}/tree/main/plugin` },
   },
   footer: {
     nav: "Footer",

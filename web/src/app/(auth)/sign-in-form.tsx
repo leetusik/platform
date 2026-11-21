@@ -13,7 +13,8 @@ import {
   Input,
   Label,
   Notice,
-} from "@/hi2vi/ui";
+} from "@/sikstack/ui";
+import { isConnectNext } from "@/lib/connect/model";
 import { safeNextPath, SIGN_IN_LANDING_PATH } from "@/lib/next-path";
 
 import { useAuthEmail } from "./auth-email";
@@ -38,6 +39,9 @@ import { useAuthEmail } from "./auth-email";
  *   a panel holding one `.block` (the Empty block of `Block.dc.html`, here with no head)
  *   with the sentence and the email used, then the link back to sign in on the link
  *   line. Nothing is stored: a reload shows the form.
+ * - Sent from the connect page (`next` is `/connect?code=…`, job 09), a waitlisted answer
+ *   goes back there instead: the email and that `next` ride in the `(auth)` layout's memory
+ *   (`useAuthEmail().setWaitlisted`), and the connect page shows its own waitlisted state.
  */
 export type SignInScreen = "sign-in" | "sign-up";
 
@@ -81,7 +85,7 @@ export function SignInForm({
   const copy = SIGN_IN_COPY.screens[screen];
   const up = screen === "sign-up";
 
-  const { email, setEmail } = useAuthEmail();
+  const { email, setEmail, setWaitlisted: carryWaitlisted } = useAuthEmail();
   const [password, setPassword] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<SignInError | null>(null);
@@ -135,6 +139,14 @@ export function SignInForm({
       waitlistedAnswer = body?.waitlisted === true;
     } catch {
       // a bare status is enough below
+    }
+    if (res.ok && waitlistedAnswer && isConnectNext(next)) {
+      // Back to the connect page, which says the account waits (job 09).
+      carryWaitlisted({ email: email.trim(), next });
+      setPassword("");
+      setPhase("done");
+      router.replace(next);
+      return;
     }
     if (res.ok && waitlistedAnswer) {
       setWaitlisted(email.trim());

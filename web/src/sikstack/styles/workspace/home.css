@@ -1,0 +1,59 @@
+/* sikstack — the Workspace's project home's Workspace panel sheet (design job 02, round 02-agenda-and-links). Holds the panel on a project's home once its workspace is linked (job 01 `ProjectHomeWorkspace`).
+   The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
+   never redefined here (src/sikstack/styles/README.md). Loaded once, through ../index.css.
+
+   A phase's row (`ProjectHomeWorkspace.dc.html`), value for value: id, name, status, then the count and the steps.
+   One line from 44em of list width, two under it (the count and the steps below), and under 22em the status takes
+   a line of its own. The board's `.ph-progress`, `.ph-count`, `.ph-track-cell` and `.ph-track` are the frame's
+   `.progress`, `.progress-count`, `.steps-cell` and `.steps` (F39, the same values), its `--ph-n` is `--steps-n` and
+   its Done check is `.status-done` (F37); the list's size container is `.ph-list` (the route's sheet).
+   Changed from the board: from 44em the status column is the Workspace's status width (`--status-w`, frame.md F43),
+   not the board's 7.5em, which drew only the short statuses and cannot hold Waiting on operator. */
+@scope (.ui) to ([data-ui-legacy]) {
+  .ph-phase {
+    grid-template-columns: 3em minmax(0, 1fr);
+    grid-template-areas: "id name" ". status" ". progress";
+    row-gap: var(--space-1);
+    padding-block: 0 var(--space-3);
+  }
+  .ph-id {
+    grid-area: id;
+  }
+  .ph-name {
+    grid-area: name;
+  }
+  /* a long word in a phase's name or its slice breaks inside the row, never pushing the panel sideways */
+  .ph-phase .ph-name-text,
+  .ph-phase .ph-sub {
+    overflow-wrap: anywhere;
+  }
+  .ph-state {
+    grid-area: status;
+  }
+  .ph-progress {
+    grid-area: progress;
+  }
+  .ph-progress > .progress-count {
+    width: 3em;
+  }
+  @container (min-width: 22em) {
+    .ph-phase {
+      grid-template-columns: 3em minmax(0, 1fr) auto;
+      grid-template-areas: "id name status" ". progress progress";
+      row-gap: 0;
+    }
+  }
+  @container (min-width: 44em) {
+    .ph-phase {
+      grid-template-columns: 3em minmax(10em, 19em) var(--status-w) minmax(
+          0,
+          1fr
+        );
+      grid-template-areas: "id name status progress";
+      padding-block: 0;
+    }
+    .ph-progress > .progress-count {
+      text-align: right;
+    }
+  }
+}

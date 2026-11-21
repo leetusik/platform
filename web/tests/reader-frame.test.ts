@@ -15,7 +15,7 @@ vi.mock("@/lib/reader/actions", () => ({
 }));
 
 import { FIGURE_SPACE, READER_FRAME } from "@/content/reader-frame";
-import { Bar } from "@/hi2vi/library/bar";
+import { Bar } from "@/sikstack/library/bar";
 import {
   chromeOf,
   endAction,
@@ -27,19 +27,19 @@ import {
   scrollBars,
   showBars,
   type ReaderBars,
-} from "@/hi2vi/reader/model";
-import { ReaderEnd } from "@/hi2vi/reader/reader-end";
-import { ReaderFoot } from "@/hi2vi/reader/reader-foot";
+} from "@/sikstack/reader/model";
+import { ReaderEnd } from "@/sikstack/reader/reader-end";
+import { ReaderFoot } from "@/sikstack/reader/reader-foot";
 import {
   ChapterReader,
   type ChapterReaderProps,
-} from "@/hi2vi/reader/chapter-reader";
+} from "@/sikstack/reader/chapter-reader";
 import {
   ReaderLoading,
   ReaderMissing,
   ReaderSegment,
   type ReaderSegmentValue,
-} from "@/hi2vi/reader/reader-states";
+} from "@/sikstack/reader/reader-states";
 import type { ReaderView } from "@/lib/reader/types";
 import {
   AppRouterContext,

@@ -40,12 +40,12 @@ vi.mock("next/navigation", async (real) => ({
   usePathname: () => "/review",
 }));
 
-const model = await import("@/hi2vi/review/model");
+const model = await import("@/sikstack/review/model");
 const { REVIEW } = await import("@/content/review");
 const { parseReaderCookie, READER_COOKIE } =
   await import("@/lib/reader-cookie");
 const ReviewPage = (await import("@/app/review/page")).default;
-const { ReviewLoading, Schedule } = await import("@/hi2vi/review");
+const { ReviewLoading, Schedule } = await import("@/sikstack/review");
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -291,7 +291,7 @@ describe("Review settings' save (F219): the same PATCH /profile payload", () => 
     }
   });
   it("is what the page sends: the frame passes the plan's input to saveReviewSettings", () => {
-    const src = readFileSync(`${web}src/hi2vi/review/review-frame.tsx`, "utf8");
+    const src = readFileSync(`${web}src/sikstack/review/review-frame.tsx`, "utf8");
     // the two sends of the profile: the save, and the first review's time zone (unchanged)
     expect(
       [...src.matchAll(/saveReviewSettings\(([^)]*)\)/g)].map((m) => m[1]),
@@ -359,7 +359,7 @@ describe("/review in the focused frame (F201)", () => {
     );
     // the bar: the wordmark and Library to the library, Settings and Display; the line at 100%
     expect(out).toMatch(
-      /<a class="mark" aria-label="hi2vi, home" href="\/library">hi2vi<\/a>/,
+      /<a class="mark" aria-label="sikstack, home" href="\/library">sikstack<\/a>/,
     );
     expect(out).toMatch(
       /<a class="back bar-back" href="\/library"><span>Library<\/span><\/a>/,

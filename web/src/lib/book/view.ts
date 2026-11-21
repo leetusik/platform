@@ -1,10 +1,10 @@
 /**
- * What the book page draws (hi2vi Library, job 03 round 02, `## Build` § Page: book, its *Data shapes*):
+ * What the book page draws (sikstack Library, job 03 round 02, `## Build` § Page: book, its *Data shapes*):
  * the plain, serialisable view the loader builds from the reads and the components render. Every href is
  * already built (`reader-href.ts`, with the way back carried on by `withFrom`) and every sentence already
  * written (`@/content/book-page`); no component computes either.
  */
-import type { StatusState } from "@/hi2vi/ui";
+import type { StatusState } from "@/sikstack/ui";
 
 import type { Viewer } from "./model";
 

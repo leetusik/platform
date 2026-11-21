@@ -1,0 +1,152 @@
+/* sikstack — the old-page boundary (see ./README.md).
+
+   The system is scoped to `@scope (.ui) to ([data-ui-legacy])`, so none of its rules reaches an element at or under
+   `[data-ui-legacy]`. Two things cross a scope boundary anyway, because they inherit: the custom properties the system
+   declares on the `.ui` root (several share a name with the old styles: `--font-sans`, `--font-mono`, `--radius-xs`,
+   `--accent`), and the inherited properties the root sets (colour, font, numerals, word breaks, colour scheme).
+
+   1. On `:root`, each system custom property is copied, as the old page sees it there, into a new name of its own
+      (`--sikstack-legacy-*`). Nothing reads those names but the rule below, so no element outside `.ui` changes: these
+      declarations add names and change no value.
+   2. At the boundary, every system custom property is set back to that copy, and every inherited property the `.ui`
+      root sets is set back to what the old pages inherit from `<body>` (the root layout's `font-sans text-ink
+      antialiased` on Tailwind's preflight: `line-height: 1.5` and the default font features on `html`).
+
+   A page's old content inside the shell therefore sees exactly what it saw as a child of `<body>`.
+   tests/sikstack-styles.test.ts holds the list below equal to every custom property the system declares. */
+:root {
+  --sikstack-legacy-bg: var(--bg);
+  --sikstack-legacy-surface: var(--surface);
+  --sikstack-legacy-ink: var(--ink);
+  --sikstack-legacy-ink-2: var(--ink-2);
+  --sikstack-legacy-line: var(--line);
+  --sikstack-legacy-edge: var(--edge);
+  --sikstack-legacy-accent: var(--accent);
+  --sikstack-legacy-accent-tint: var(--accent-tint);
+  --sikstack-legacy-on-accent: var(--on-accent);
+  --sikstack-legacy-danger: var(--danger);
+  --sikstack-legacy-danger-tint: var(--danger-tint);
+  --sikstack-legacy-hover: var(--hover);
+  --sikstack-legacy-scrim: var(--scrim);
+  --sikstack-legacy-shadow: var(--shadow);
+  --sikstack-legacy-space-1: var(--space-1);
+  --sikstack-legacy-space-2: var(--space-2);
+  --sikstack-legacy-space-3: var(--space-3);
+  --sikstack-legacy-space-4: var(--space-4);
+  --sikstack-legacy-space-5: var(--space-5);
+  --sikstack-legacy-space-6: var(--space-6);
+  --sikstack-legacy-space-7: var(--space-7);
+  --sikstack-legacy-space-8: var(--space-8);
+  --sikstack-legacy-radius-xs: var(--radius-xs);
+  --sikstack-legacy-radius-s: var(--radius-s);
+  --sikstack-legacy-radius-m: var(--radius-m);
+  --sikstack-legacy-fs-meta: var(--fs-meta);
+  --sikstack-legacy-fs-text: var(--fs-text);
+  --sikstack-legacy-fs-head: var(--fs-head);
+  --sikstack-legacy-fs-title: var(--fs-title);
+  --sikstack-legacy-fs-figure: var(--fs-figure);
+  --sikstack-legacy-lh-meta: var(--lh-meta);
+  --sikstack-legacy-lh-text: var(--lh-text);
+  --sikstack-legacy-lh-head: var(--lh-head);
+  --sikstack-legacy-lh-title: var(--lh-title);
+  --sikstack-legacy-lh-figure: var(--lh-figure);
+  --sikstack-legacy-font-sans: var(--font-sans);
+  --sikstack-legacy-font-mono: var(--font-mono);
+  --sikstack-legacy-font: var(--font);
+  --sikstack-legacy-rail-w: var(--rail-w);
+  --sikstack-legacy-top-h: var(--top-h);
+  --sikstack-legacy-content-max: var(--content-max);
+  --sikstack-legacy-control-h: var(--control-h);
+  --sikstack-legacy-pill-h: var(--pill-h);
+  --sikstack-legacy-mark-h: var(--mark-h);
+  --sikstack-legacy-mark-pad: var(--mark-pad);
+  --sikstack-legacy-dot: var(--dot);
+  --sikstack-legacy-plot-h: var(--plot-h);
+  --sikstack-legacy-gutter: var(--gutter);
+  --sikstack-legacy-gutter-narrow: var(--gutter-narrow);
+  --sikstack-legacy-focus-w: var(--focus-w);
+  --sikstack-legacy-dock-w: var(--dock-w);
+  --sikstack-legacy-ico: var(--ico);
+  --sikstack-legacy-seek-track: var(--seek-track);
+  --sikstack-legacy-seek-thumb: var(--seek-thumb);
+  --sikstack-legacy-measure: var(--measure);
+  --sikstack-legacy-steps-seg: var(--steps-seg);
+  --sikstack-legacy-steps-seg-compact: var(--steps-seg-compact);
+  --sikstack-legacy-id-w: var(--id-w);
+  --sikstack-legacy-status-w: var(--status-w);
+  --sikstack-legacy-outline-w: var(--outline-w);
+  --sikstack-legacy-code-pad: var(--code-pad);
+}
+
+.ui [data-ui-legacy] {
+  --bg: var(--sikstack-legacy-bg);
+  --surface: var(--sikstack-legacy-surface);
+  --ink: var(--sikstack-legacy-ink);
+  --ink-2: var(--sikstack-legacy-ink-2);
+  --line: var(--sikstack-legacy-line);
+  --edge: var(--sikstack-legacy-edge);
+  --accent: var(--sikstack-legacy-accent);
+  --accent-tint: var(--sikstack-legacy-accent-tint);
+  --on-accent: var(--sikstack-legacy-on-accent);
+  --danger: var(--sikstack-legacy-danger);
+  --danger-tint: var(--sikstack-legacy-danger-tint);
+  --hover: var(--sikstack-legacy-hover);
+  --scrim: var(--sikstack-legacy-scrim);
+  --shadow: var(--sikstack-legacy-shadow);
+  --space-1: var(--sikstack-legacy-space-1);
+  --space-2: var(--sikstack-legacy-space-2);
+  --space-3: var(--sikstack-legacy-space-3);
+  --space-4: var(--sikstack-legacy-space-4);
+  --space-5: var(--sikstack-legacy-space-5);
+  --space-6: var(--sikstack-legacy-space-6);
+  --space-7: var(--sikstack-legacy-space-7);
+  --space-8: var(--sikstack-legacy-space-8);
+  --radius-xs: var(--sikstack-legacy-radius-xs);
+  --radius-s: var(--sikstack-legacy-radius-s);
+  --radius-m: var(--sikstack-legacy-radius-m);
+  --fs-meta: var(--sikstack-legacy-fs-meta);
+  --fs-text: var(--sikstack-legacy-fs-text);
+  --fs-head: var(--sikstack-legacy-fs-head);
+  --fs-title: var(--sikstack-legacy-fs-title);
+  --fs-figure: var(--sikstack-legacy-fs-figure);
+  --lh-meta: var(--sikstack-legacy-lh-meta);
+  --lh-text: var(--sikstack-legacy-lh-text);
+  --lh-head: var(--sikstack-legacy-lh-head);
+  --lh-title: var(--sikstack-legacy-lh-title);
+  --lh-figure: var(--sikstack-legacy-lh-figure);
+  --font-sans: var(--sikstack-legacy-font-sans);
+  --font-mono: var(--sikstack-legacy-font-mono);
+  --font: var(--sikstack-legacy-font);
+  --rail-w: var(--sikstack-legacy-rail-w);
+  --top-h: var(--sikstack-legacy-top-h);
+  --content-max: var(--sikstack-legacy-content-max);
+  --control-h: var(--sikstack-legacy-control-h);
+  --pill-h: var(--sikstack-legacy-pill-h);
+  --mark-h: var(--sikstack-legacy-mark-h);
+  --mark-pad: var(--sikstack-legacy-mark-pad);
+  --dot: var(--sikstack-legacy-dot);
+  --plot-h: var(--sikstack-legacy-plot-h);
+  --gutter: var(--sikstack-legacy-gutter);
+  --gutter-narrow: var(--sikstack-legacy-gutter-narrow);
+  --focus-w: var(--sikstack-legacy-focus-w);
+  --dock-w: var(--sikstack-legacy-dock-w);
+  --ico: var(--sikstack-legacy-ico);
+  --seek-track: var(--sikstack-legacy-seek-track);
+  --seek-thumb: var(--sikstack-legacy-seek-thumb);
+  --measure: var(--sikstack-legacy-measure);
+  --steps-seg: var(--sikstack-legacy-steps-seg);
+  --steps-seg-compact: var(--sikstack-legacy-steps-seg-compact);
+  --id-w: var(--sikstack-legacy-id-w);
+  --status-w: var(--sikstack-legacy-status-w);
+  --outline-w: var(--sikstack-legacy-outline-w);
+  --code-pad: var(--sikstack-legacy-code-pad);
+  color-scheme: normal;
+  color: var(--color-ink);
+  font: 400 1rem/1.5 var(--font-sans);
+  font-feature-settings: var(--default-font-feature-settings, normal);
+  font-variation-settings: var(--default-font-variation-settings, normal);
+  font-variant-numeric: normal;
+  word-break: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

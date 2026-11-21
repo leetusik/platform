@@ -12,7 +12,7 @@ import {
 } from "react";
 
 import { ORG_HOME } from "@/content/dashboard";
-import { publishToast } from "@/hi2vi/shell";
+import { publishToast } from "@/sikstack/shell";
 import {
   Block,
   BlockText,
@@ -25,7 +25,7 @@ import {
   Notice,
   Panel,
   PanelHead,
-} from "@/hi2vi/ui";
+} from "@/sikstack/ui";
 import { plural } from "@/lib/format";
 
 import {

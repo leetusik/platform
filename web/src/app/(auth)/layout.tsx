@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SIGN_IN_COPY } from "@/content/auth";
-import { UiRoot } from "@/hi2vi/ui";
+import { UiRoot } from "@/sikstack/ui";
 
 import { AuthEmailProvider } from "./auth-email";
 import "./signin.css";
 
-// `/login` and `/signup` (job 01 *Sign in*, round 03-instrument): the app's light scheme
+// `/login`, `/signup` and `/connect` (job 01 *Sign in*, round 03-instrument; job 09 for
+// `/connect`, which sits in this frame): the app's light scheme
 // (frame:Q4), a top bar holding only the wordmark (the Shell's bar with nobody signed in:
 // the account's slot kept, hidden, so the wordmark sits where the Shell has it, F33), and
 // `main` with the 26em column the pages render. Deliberately UNGUARDED: the session gate
