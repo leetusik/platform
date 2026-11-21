@@ -7,8 +7,8 @@ works/events.jsonl merge=union
 # The files below are GENERATED -- never hand-authored -- from the folders that
 # hold the real truth (works/phases/**, works/deferred/**, works/agenda/**):
 #
-#   works/state.json   works/index.json   works/backlog.md   works/deferred.md
-#   works/agenda.md
+#   works/state.json   works/index.json   works/deferred.md   works/agenda.md
+#   backlog.md
 #
 # They deliberately get NO custom merge driver. A driver (merge=ours and friends)
 # only works where `git config merge.<driver>.driver` has been set in that clone,
@@ -28,7 +28,7 @@ works/events.jsonl merge=union
 # the PR rule's size count (`pr check`) skips them. Only the workspace's own paths
 # are listed, so a product's own docs/ files stay visible, and so do docs/current/
 # (hand-written docs: a reviewer reads them and pr check counts them). A nested
-# install never puts this state in a host PR at all (it lives in workflow/, its own
+# install never puts this state in a host PR at all (it lives in .sikstack/, its own
 # repo), so there these lines are harmless.
 works/** linguist-generated=true
 docs/versions/** linguist-generated=true

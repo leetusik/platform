@@ -13,7 +13,9 @@ adapters/claude_code/ (`sikstack-adapter`), which imports this file and calls ru
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import traceback
 from pathlib import Path
 
 # Never leave scripts/__pycache__/ beside the engine: a Python with no pycache_prefix writes one there on the first
@@ -23,18 +25,71 @@ _HERE = str(Path(__file__).resolve().parent)
 if sys.path[:1] != [_HERE]:
     sys.path.insert(0, _HERE)  # the modules sit beside this file, however it was started (a path, runpy, importlib)
 
+# The friction offer: a refused or failed command (exit 1 or 2: a refusal, a usage error, a crash) ends with this one
+# line on stderr, so the session can relay it (the contract and sik-mode say: once, and send only on a yes). Never on
+# a success, an advice or status exit (0, or sign-in's 3), a dry run, a check's verdict (pr check, design-check),
+# `feedback` itself, the finder's no-workspace and old-install lines (it exits while importing, before any command),
+# or a run under OFFER_ENV: each run sets it, so an engine run inside another (migrate's next and check, init's check)
+# stays silent, and the plugin's hooks set it too. The line carries nothing: the report it invites is drafted by
+# /sikstack:feedback, shown, and sent only on the user's yes.
+OFFER_ENV = "SIKSTACK_NO_OFFER"
+OFFER_LINE = "If this looks like sikstack's fault, `/sikstack:feedback` drafts a short report and sends it only on a yes."
+OFFER_EXITS = (1, 2)
+NO_OFFER_COMMANDS = ("feedback", "pr check", "design-check")
+
+
+def _offers(tokens: list) -> bool:
+    words = [t for t in tokens if not t.startswith("-")]
+    cmd = " ".join(words[:2]) if words[:1] == ["pr"] else (words[0] if words else "")
+    if cmd in NO_OFFER_COMMANDS or "--dry-run" in tokens:
+        return False
+    return not (cmd == "migrate" and "--apply" not in tokens)  # migrate is a dry run without --apply
+
+
+def _flush(stream) -> None:
+    try:
+        stream.flush()
+    except (OSError, ValueError):  # a closed or broken pipe: nothing more reaches it anyway
+        pass
+
+
+def with_offer(entry, tokens: list) -> int:
+    """Run `entry()` (a command's whole run) and return its exit code, ending a refusal or an error with OFFER_LINE once."""
+    nested = bool(os.environ.get(OFFER_ENV))
+    os.environ[OFFER_ENV] = "1"
+    try:
+        code = entry()
+    except SystemExit as exc:
+        code = exc.code
+        if code is not None and not isinstance(code, int):
+            _flush(sys.stdout)  # as Python itself does: what the command printed comes first, then its exit line
+            print(code, file=sys.stderr)
+            code = 1
+    except KeyboardInterrupt:
+        raise
+    except BaseException:  # noqa: BLE001 - an engine crash: its traceback, then the offer
+        _flush(sys.stdout)
+        traceback.print_exc()
+        code = 1
+    code = 0 if code is None else code
+    if code in OFFER_EXITS and not nested and _offers(tokens):
+        _flush(sys.stdout)
+        print(OFFER_LINE, file=sys.stderr)
+    return code
+
+
 if __name__ == "__main__" and sys.argv[1:2] == ["init"]:  # before the finder: there is no workspace yet
     import wf_init  # noqa: E402
-    raise SystemExit(wf_init.init_main(sys.argv[2:]))
+    raise SystemExit(with_offer(lambda: wf_init.init_main(sys.argv[2:]), sys.argv[1:]))
 if __name__ == "__main__" and sys.argv[1:2] == ["setup"]:  # per machine: needs no workspace
     import wf_setup  # noqa: E402
-    raise SystemExit(wf_setup.setup_main(sys.argv[2:]))
+    raise SystemExit(with_offer(lambda: wf_setup.setup_main(sys.argv[2:]), sys.argv[1:]))
 if __name__ == "__main__" and sys.argv[1:2] == ["feedback"]:  # per machine: the install id, no workspace
     import wf_setup  # noqa: E402
     raise SystemExit(wf_setup.feedback_main(sys.argv[2:]))
 if __name__ == "__main__" and sys.argv[1:2] == ["migrate"]:  # reads an old workflow/ install, which the finder refuses
     import wf_migrate  # noqa: E402
-    raise SystemExit(wf_migrate.migrate_main(sys.argv[2:]))
+    raise SystemExit(with_offer(lambda: wf_migrate.migrate_main(sys.argv[2:]), sys.argv[1:]))
 
 import wf_store  # noqa: E402 -- first: it finds the workspace, or exits 2 with one line
 import wf_git  # noqa: E402
@@ -294,7 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--evidence", default=None, help="mandatory with --record: what showed it (the detection's evidence, the operator's word)")
     p.set_defaults(func=cmd_pr_team)
 
-    p = pr("check", help="Read-only: measure each recorded PR branch and its body, one key=value per line -- diff_base= (origin/<base> when that remote-tracking ref exists, else the local <base>), size= (git diff --numstat <diff_base>...<branch> minus linguist-generated paths, lockfiles and whole-file deletions; binary rows excluded and counted), size_status=info (no default limit: the count is information) or, with a team's --limit <n>, size_status=ok|over plus size_over= (a warning), body= and the budgets first_screen=/1500, visible=/3500, whole=/6000 (topics/pr-body[-<repo>].md, or --body), leak= (phase or slice IDs, workflow/ paths, workspace file names: a fail) and leak_warn= (orchestrator, executor, phase notebook, slice), headings= against the repo's PR template's H2s in order, else Summary, Review, What is changed, Why, Related issue (template=), pr_rules=<n> decided, and pr_check=pass|warn|fail: a missing body is never a pass (body=missing is a warning; a missing --body file a fail). Exit 1 on a fail, else 0. With no recorded branch, measures the checked-out branch against the default base. By hand, outside a phase: pr check --body <file> [--base <branch>] [--branch <b>] measures the checked-out branch (or --branch) against --base, else the default branch, and checks that body. On a multi-repo host each line starts repo=<name>")
+    p = pr("check", help="Read-only: measure each recorded PR branch and its body, one key=value per line -- diff_base= (origin/<base> when that remote-tracking ref exists, else the local <base>), size= (git diff --numstat <diff_base>...<branch> minus linguist-generated paths, lockfiles and whole-file deletions; binary rows excluded and counted), size_status=info (no default limit: the count is information) or, with a team's --limit <n>, size_status=ok|over plus size_over= (a warning), body= and the budgets first_screen=/1500, visible=/3500, whole=/6000 (topics/pr-body[-<repo>].md, or --body), leak= (phase or slice IDs, .sikstack/ or old workflow/ paths, workspace file names: a fail) and leak_warn= (orchestrator, executor, phase notebook, slice), headings= against the repo's PR template's H2s in order, else Summary, Review, What is changed, Why, Related issue (template=), pr_rules=<n> decided, and pr_check=pass|warn|fail: a missing body is never a pass (body=missing is a warning; a missing --body file a fail). Exit 1 on a fail, else 0. With no recorded branch, measures the checked-out branch against the default base. By hand, outside a phase: pr check --body <file> [--base <branch>] [--branch <b>] measures the checked-out branch (or --branch) against --base, else the default branch, and checks that body. On a multi-repo host each line starts repo=<name>")
     p.add_argument("phase", nargs="?", default=None, help=PHASE_ARG_HELP + "; omit it only with --body, for the by-hand route outside a phase")
     p.add_argument("--repo", default=None, metavar="NAME", help="multi-repo host only: check only this registered repo's branch(es); without it every recorded branch is checked in turn (by hand: the repo whose branch is measured, required there)")
     p.add_argument("--branch", default=None, help="check only this recorded branch (a stack records several per repo); by hand, the branch to measure instead of the checked-out one")
@@ -386,4 +441,4 @@ for _module in (wf_store, wf_git, wf_design, wf_agenda, wf_cloud):
             setattr(_module, _name, globals()[_name] if _owner == "workflow" else getattr(sys.modules[_owner], _name))
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(with_offer(main, sys.argv[1:]))

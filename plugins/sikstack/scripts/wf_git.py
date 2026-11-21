@@ -4162,7 +4162,8 @@ _PR_LEAKS = (
     ("slice_id", re.compile(r"\bS\d+[ \t]*(?:[\u2013\u2014/,-]|\band\b|\bto\b)[ \t]*S\d+\b")),
     ("phase_id", re.compile(r"\bP\d+(?:-[a-z0-9]{2,4})?\b")),
     ("phase_id", re.compile(r"\bP-[a-z0-9]{4}\b")),
-    ("workflow_path", re.compile(r"(?<![\w./-])workflow/")),
+    # The workspace's own folder, today's `.sikstack/` (bare or as a path) and the old installer's `workflow/`.
+    ("workspace_path", re.compile(r"(?<![\w./-])(?:workflow/|\.sikstack(?![\w-]))")),
     ("workspace_file", re.compile(r"(?<![\w.-])(?:phase|result|plan|intent)\.md\b|(?<![\w.-])(?:slice|phase)\.json\b")),
 )
 # Workspace vocabulary: a warning, never a fail ("slice" is also an ordinary word, a Go slice).

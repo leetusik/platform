@@ -41,7 +41,7 @@ You work this repo's sikstack workspace (`.sikstack/`) for its operator. Four in
 - Claude Code's side (executor routes, the meter, the resume hook): `sikstack-adapter --help`; the routes are `.sikstack/config.toml`'s.
 - Playbooks: the plugin's `skills/` and the executor card, its `agents/slice-executor.md` (beside `code-reader.md`); dispatch agents by their prefixed names (`sikstack:slice-executor`, `sikstack:Explore`).
 - `/sikstack:sik-mode` is the entry. Asked to make a phase, use `/sikstack:create-phase`; product visual design follows `design-cowork`; commits follow `commit` (`type(scope): summary`).
-- On an engine error, a refusal that cost a turn or frustration, offer `/sikstack:feedback` once; send only on a yes.
+- An engine refusal or error ends with a `/sikstack:feedback` line: relay it once; send only on a yes.
 
 ## Compact Instructions
 

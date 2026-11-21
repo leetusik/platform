@@ -32,6 +32,10 @@ SKA="$PLUGIN/bin/sikstack-adapter"
 export PATH="$PLUGIN/bin:$PATH"   # the bare commands the engine prints (`sikstack ...`) run as printed
 export ENG ADP PLUGIN
 unset SIKSTACK_ROOT WORKFLOW_CMD
+# A refused command's own line is what most tests read, so the friction offer the engine adds after it (one line naming
+# /sikstack:feedback) is held off here, the way an engine run inside another holds it off; Test 29(g) lifts it and
+# checks the offer itself.
+export SIKSTACK_NO_OFFER=1
 
 FAILS=0
 TMPDIRS=()
@@ -1970,9 +1974,9 @@ else bad "stream claim or Streams row wrong -- worktree: $wt_next -- main: $main
 grep -F '`P1.DECOMP`' "$NW/backlog.md" | grep -qF '`in_progress`' && grep -qF '_Read live from its worktree `' "$NW/backlog.md" \
   && ok "a slice status changed in the worktree shows in the main checkout's backlog, with nothing run there" \
   || bad "the main backlog did not follow the worktree -- $(grep -F 'P1.' "$NW/backlog.md")"
-hook_out=$(cd "$NS" && printf '{"session_id":"t","source":"compact","cwd":"%s"}' "$HWT" | CLAUDE_PROJECT_DIR="$NH" python3 "$PLUGIN/hooks/compact_resume.py" 2>&1)
+hook_out=$(cd "$NS" && printf '{"session_id":"t","source":"compact","cwd":"%s"}' "$HWT" | CLAUDE_PROJECT_DIR="$NH" python3 "$PLUGIN/hooks/session_start.py" 2>&1)
 printf '%s\n' "$hook_out" | grep -q "^stream=phase/P1-" && printf '%s\n' "$hook_out" | grep -q "^pointer: phase P1 " \
-  && ok "the plugin's compact-resume hook, given the worktree's cwd, answers from the worktree's own .sikstack/ stream" \
+  && ok "the plugin's SessionStart hook on a compaction, given the worktree's cwd, answers from the worktree's own .sikstack/ stream" \
   || bad "the compaction hook did not follow the worktree cwd -- $hook_out"
 printf 'product\n' > "$HWT/src/side.py" && git -C "$HWT" add src/side.py >/dev/null 2>&1 && git -C "$HWT" commit -qm "side" >/dev/null 2>&1
 mkdir -p "$HWT/.sikstack/temp" && printf 'note\n' > "$HWT/.sikstack/temp/note.txt"
@@ -2155,7 +2159,8 @@ def body(review="Check the parser.", changed="The parser reads two more lines.",
 bodies = {"ok": body(), "first": body(review="word " * 320), "visible": body(changed="word " * 720),
           "whole": body(extra="<!--\n" + "word " * 1300 + "\n-->\n"), "phase": body(why="It was planned in P51."),
           "path": body(why="See workflow/docs/current/qa.md."), "warn": body(why="One slice was enough."),
-          "pass": body(why="The S3 bucket p95 latency dropped."),
+          "sik": body(why="Moved the notes under .sikstack/works/ for later."), "sikbare": body(why="The `.sikstack` folder holds them."),
+          "pass": body(why="The S3 bucket p95 latency dropped, as sikstack and foo.sikstack.dev measured."),
           "order": body(order=["Summary", "Review", "Why", "What is changed", "Related issue"]),
           "missing": body(order=["Summary", "Review", "What is changed", "Why"])}
 for k, v in bodies.items():
@@ -2166,12 +2171,13 @@ pcl() { grep -qx "$2" "$PRW/check-$1.txt"; }
 if [ "$(pcb ok)" = 0 ] && pcl ok 'pr_check=pass' && pcl ok 'headings=ok' && pcl ok 'leaks=none' \
     && [ "$(pcb first)" = 1 ] && pcl first 'first_screen=[0-9]*/1500 over' && [ "$(pcb visible)" = 1 ] && pcl visible 'visible=[0-9]*/3500 over' && pcl visible 'first_screen=[0-9]*/1500 ok' \
     && [ "$(pcb whole)" = 1 ] && pcl whole 'whole=[0-9]*/6000 over' && pcl whole 'visible=[0-9]*/3500 ok' \
-    && [ "$(pcb phase)" = 1 ] && grep -q '^leak=phase_id:P51 ' "$PRW/check-phase.txt" && [ "$(pcb path)" = 1 ] && grep -q '^leak=workflow_path:workflow/ ' "$PRW/check-path.txt" \
+    && [ "$(pcb phase)" = 1 ] && grep -q '^leak=phase_id:P51 ' "$PRW/check-phase.txt" && [ "$(pcb path)" = 1 ] && grep -q '^leak=workspace_path:workflow/ ' "$PRW/check-path.txt" \
+    && [ "$(pcb sik)" = 1 ] && grep -q '^leak=workspace_path:.sikstack ' "$PRW/check-sik.txt" && [ "$(pcb sikbare)" = 1 ] && grep -q '^leak=workspace_path:.sikstack ' "$PRW/check-sikbare.txt" \
     && [ "$(pcb warn)" = 0 ] && grep -q '^leak_warn=slice x1 ' "$PRW/check-warn.txt" && pcl warn 'pr_check=warn' \
     && [ "$(pcb pass)" = 0 ] && pcl pass 'leaks=none' && pcl pass 'pr_check=pass' \
     && [ "$(pcb order)" = 1 ] && pcl order 'headings=order:Why' && [ "$(pcb missing)" = 1 ] && pcl missing 'headings=missing:Related issue'; then
-  ok "pr check bodies: each of the three budgets fails over and passes within; P51 and workflow/ fail; 'slice' alone warns (exit 0); 'S3 bucket' and 'p95' pass; out-of-order and missing headings fail against the default order"
-else bad "pr check body checks wrong -- $(for k in ok first visible whole phase path warn pass order missing; do printf '[%s] %s ' "$k" "$(grep -E 'first_screen|visible=|whole=|leak|headings|pr_check=' "$PRW/check-$k.txt" | tr '\n' ' ')"; done)"; fi
+  ok "pr check bodies: each of the three budgets fails over and passes within; P51, workflow/ and .sikstack (as a path or bare) fail; 'slice' alone warns (exit 0); 'S3 bucket', 'p95' and the plain word sikstack pass; out-of-order and missing headings fail against the default order"
+else bad "pr check body checks wrong -- $(for k in ok first visible whole phase path sik sikbare warn pass order missing; do printf '[%s] %s ' "$k" "$(grep -E 'first_screen|visible=|whole=|leak|headings|pr_check=' "$PRW/check-$k.txt" | tr '\n' ' ')"; done)"; fi
 mkdir -p "$PRR/.github"; printf '## Summary\n\n## What is changed\n\n## Why\n\n## Related issue\n' > "$PRR/.github/pull_request_template.md"
 if [ "$(pcb ok)" = 0 ] && pcl ok 'template=.github/pull_request_template.md' && [ "$(pcb order)" = 1 ] && pcl order 'headings=order:Why' \
     && [ "$(pcb missing)" = 1 ] && pcl missing 'headings=missing:Related issue' && pcl missing 'template=.github/pull_request_template.md'; then
@@ -4599,7 +4605,7 @@ done
   && ok "close: a phase with no worktree prints the 11 steps, no commit-pass" || bad "close: a phase with no worktree printed a commit-pass step -- $c_dn"
 
 # ---------------------------------------------------------------------------
-echo "== Test 29: the plugin -- the engine roots in the nearest .sikstack/ and nowhere else, init is idempotent and hides .sikstack/, the guard hook's decisions, the compact-resume hook is silent outside a workspace, and no shipped text names an unprefixed agent or a workflow/scripts path =="
+echo "== Test 29: the plugin -- the engine roots in the nearest .sikstack/ and nowhere else, init is idempotent and hides .sikstack/, the guard hook's decisions, the SessionStart hook's card on every source (the resume card after it on a compaction), no shipped text or template names an unprefixed agent, a workflow/scripts path or the old layout, and a refusal ends with the one /sikstack:feedback line =="
 # (a) The finder (P74 finding 1). A copy of the plugin in a scratch folder outside every workspace: its own folder
 # holds templates/ (and once a works/), never a .sikstack/, so from inside it the engine exits 2 with one line and
 # writes nothing. Two nested repos each with a .sikstack/ (the inner made first: init refuses inside another workspace): a folder deep in the inner one roots there, a folder in
@@ -4673,45 +4679,124 @@ done
 gd_reason=$(python3 -c 'import json; print(json.dumps({"tool_name":"Bash","tool_input":{"command":"rm -rf x"}}))' | python3 "$PLUGIN/hooks/guard.py")
 gd_junk=$(printf 'not json' | python3 "$PLUGIN/hooks/guard.py"; echo "rc=$?")
 [ -z "$gd_bad" ] && printf '%s\n' "$gd_reason" | python3 -c 'import json,sys; o=json.load(sys.stdin)["hookSpecificOutput"]; assert o["hookEventName"]=="PreToolUse" and o["permissionDecisionReason"].startswith("sikstack guard: ") and "\n" not in o["permissionDecisionReason"], o' \
-  && [ "$gd_junk" = "rc=0" ] && python3 -c 'import json,sys; h=json.load(open(sys.argv[1]))["hooks"]; assert [m["matcher"] for m in h["PreToolUse"]] == ["Bash"] and [m["matcher"] for m in h["SessionStart"]] == ["startup|resume", "compact"], h' "$PLUGIN/hooks/hooks.json" \
+  && [ "$gd_junk" = "rc=0" ] && python3 -c 'import json,sys; h=json.load(open(sys.argv[1]))["hooks"]; assert [m["matcher"] for m in h["PreToolUse"]] == ["Bash"] and len(h["SessionStart"]) == 1, h' "$PLUGIN/hooks/hooks.json" \
   && ok "the guard denies every force-push form (--force, -f, --force-with-lease, a +refspec) and rm -rf / -fr / -r -f, each with a one-line reason; allows playwright-cli and its pinned install alone; passes the rest, other tools and bad input through" \
   || bad "the guard hook decided wrong --$gd_bad / $gd_reason / $gd_junk"
-# (d) the compact-resume hook: silent outside any workspace, the card inside one (from the session's cwd).
-cr_none=$(cd "$FDW" && printf '{"source":"compact","cwd":"%s"}' "$FDW/plugin" | env -u CLAUDE_PROJECT_DIR python3 "$PLUGIN/hooks/compact_resume.py"; echo "rc=$?")
-cr_in=$(cd "$FDW" && printf '{"source":"compact","cwd":"%s"}' "$FDW/outer/a/inner/src/deep" | env -u CLAUDE_PROJECT_DIR python3 "$PLUGIN/hooks/compact_resume.py" 2>&1)
-[ "$cr_none" = "rc=0" ] && [ "$(printf '%s\n' "$cr_in" | head -1)" = "compaction=done source=compact" ] && printf '%s\n' "$cr_in" | grep -q '^pointer: phase P7 ' \
-  && ok "the compact-resume hook prints nothing outside a workspace, and the card of the .sikstack/ that owns the session's cwd inside one" \
-  || bad "the compact-resume hook wrong -- outside: $cr_none / inside: $cr_in"
-# (e) the shipped text (C3): no skill, agent or contract line names the engine by a workflow/scripts path or a
+# (d) the SessionStart hook on every source: a fresh, resumed, cleared, compacted or forked session gets the card
+# (the contract, at most 4,096 B) inside a workspace; a compaction gets the card and then the resume card in one hook,
+# within Claude Code's 10,000-character cap on a hook's stdout (an oversized resume card is cut, never the card);
+# outside any workspace one line, never a resume card. hooks.json's one SessionStart entry names all five sources,
+# so dropping one fails here. Each source runs as Claude Code would: every entry whose matcher matches it.
+if python3 - "$PLUGIN" "$FDW/outer/a/inner/src/deep" "$FDW/plugin" <<'PY'
+import json, os, re, subprocess, sys
+from pathlib import Path
+plugin, inside, outside = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+contract = (plugin / "contract.md").read_text(encoding="utf-8").rstrip("\n")
+entries = json.loads((plugin / "hooks/hooks.json").read_text())["hooks"]["SessionStart"]
+env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_DATA")}
+def session(source, cwd):
+    out = []
+    for e in entries:
+        m = e.get("matcher", "")
+        if m in ("", "*") or re.fullmatch(m, source):
+            for h in e["hooks"]:
+                p = subprocess.run(h["command"].replace("${CLAUDE_PLUGIN_ROOT}", str(plugin)), shell=True, env=env,
+                                   input=json.dumps({"session_id": "t", "source": source, "cwd": cwd}), capture_output=True, text=True)
+                assert p.returncode == 0, (source, p.returncode, p.stderr)
+                out.append(p.stdout)
+    return out
+for source in ("startup", "resume", "clear", "compact", "fork"):
+    out = session(source, inside)
+    assert len(out) == 1, (source, len(out))  # one hook per source: the order inside it is the order the session sees
+    text = out[0]
+    assert text.startswith(contract + "\n\n"), (source, text[:200])
+    card = text.split("\ncompaction=done source=compact\n")[0]
+    assert len(card.encode("utf-8")) <= 4096 and card.count("\n") == contract.count("\n") + 3, (source, len(card.encode()))
+    assert "Nothing is pushed, merged or paid for without the operator's word" in card, source
+    if source == "compact":
+        assert "\ncompaction=done source=compact\n" in text and re.search(r"^pointer: phase P7 ", text, re.M), text[-600:]
+        assert text.index("compaction=done") > text.index("Reports are truthful"), "the resume card came before the card"
+    else:
+        assert "compaction=done" not in text and "pointer:" not in text, (source, text[-300:])
+    assert len(text) <= 10000, (source, len(text))
+for source in ("startup", "compact", "clear"):
+    out = "".join(session(source, outside))
+    assert out.count("\n") == 1 and "no .sikstack/ workspace is here" in out and "compaction=done" not in out, (source, out)
+# the cap: an oversized resume card is cut to fit, the card kept whole
+sys.path.insert(0, str(plugin / "hooks")); import session_start as ss
+big = ss.fit("C" * 4000 + "\n", "".join(f"line {i} " + "x" * 90 + "\n" for i in range(200)))
+assert len(big) <= ss.HOOK_CAP and big.startswith("C" * 4000 + "\n") and big.rstrip("\n").endswith(ss.CUT_LINE), len(big)
+small = ss.fit("C\n", "r\n"); assert small == "C\n\nr\n", repr(small)
+PY
+then ok "the SessionStart hook prints the card (the contract, at most 4,096 B) on startup, resume, clear, compact and fork inside a workspace; on compact the card comes first and the resume card after it, within the 10,000-character cap (an oversized resume card is cut); outside a workspace one line and no resume card"
+else bad "the SessionStart hook missed a source, an order or a cap (above)"; fi
+# (e) the shipped text (C3): no skill, agent, contract or template line names the engine by a workflow/scripts path or a
 # script path, a sync-agents step, or a plugin agent without its sikstack: prefix (a bare Explore reaches the
 # built-in one); the bin/ commands exist and run.
-if python3 - "$PLUGIN" <<'PY'
+# The templates `init` seeds (docs, works, config.toml, gitattributes) get the engine-path and old-layout checks too: a
+# planted `python3 scripts/workflow.py` line in a copy's templates fails the scan.
+shipped_scan() { python3 - "$1" <<'PY'
 import re, sys
 from pathlib import Path
 root = Path(sys.argv[1])
-files = sorted(list((root / "skills").rglob("*.md")) + list((root / "agents").glob("*.md")) + [root / "contract.md"])
+texts = sorted(list((root / "skills").rglob("*.md")) + list((root / "agents").glob("*.md")) + [root / "contract.md"])
+templates = sorted(f for f in (root / "templates").rglob("*") if f.is_file())
 agents = sorted(p.stem for p in (root / "agents").glob("*.md"))
 assert agents == ["Explore", "code-reader", "design-critic", "design-drafter", "pr-reader", "slice-executor"], agents
+assert len(templates) >= 9, [str(t) for t in templates]
 hyph = "|".join(a for a in agents if "-" in a)
 problems = []
-for f in files:
+for f in texts + templates:
     for n, line in enumerate(f.read_text(encoding="utf-8").split("\n"), 1):
         where = f"{f.relative_to(root)}:{n}"
         if re.match(r"^name:\s", line):
             continue
         if re.search(r"workflow/scripts|scripts/workflow\.py|adapters/claude_code/adapter\.py|(?<![\w-])adapter\.py\b|sync-agents|executors\.toml", line):
             problems.append(f"{where}: engine path: {line.strip()[:120]}")
+        # the old layout: the old state folder (named only as "an old workflow/ install") and the old dashboard path
+        if re.search(r"(?<!old )(?<![\w./-])workflow/|works/backlog\.md", line):
+            problems.append(f"{where}: old layout: {line.strip()[:120]}")
+        if f in templates:
+            continue
         if re.search(r"(?<![\w:/.-])(" + hyph + r")(?![\w-]|\.md)", line):
             problems.append(f"{where}: unprefixed agent: {line.strip()[:120]}")
         if re.search(r"`Explore`|subagent_type[:=]\s*`?(Explore|" + hyph + r")\b", line):
             problems.append(f"{where}: unprefixed Explore or subagent_type: {line.strip()[:120]}")
 assert not problems, "\n".join(problems)
 PY
-then ok "no shipped skill, agent or contract line names workflow/scripts, a script path, sync-agents or executors.toml, or a plugin agent without its sikstack: prefix"
-else bad "a shipped line names an engine path or an unprefixed plugin agent (above)"; fi
+}
+newtmp SCW; cp -R "$PLUGIN" "$SCW/plugin"; printf 'Run `python3 scripts/workflow.py next` first.\n' >> "$SCW/plugin/templates/docs/qa.md"
+sc_plant=$(shipped_scan "$SCW/plugin" 2>&1); sc_plant_rc=$?
+if shipped_scan "$PLUGIN" && [ "$sc_plant_rc" -ne 0 ] && printf '%s\n' "$sc_plant" | grep -q 'templates/docs/qa.md:[0-9]*: engine path: Run `python3 scripts/workflow.py next`'; then
+  ok "no shipped skill, agent, contract or template line names workflow/scripts, a script path, sync-agents, executors.toml or the old workflow/ layout, nor (outside templates) a plugin agent without its sikstack: prefix; a planted template line fails the scan"
+else bad "a shipped line names an engine path, the old layout or an unprefixed plugin agent, or the planted template line passed (rc=$sc_plant_rc) -- $sc_plant"; fi
 bin_out=$( cd "$FDW/outer/b/c" && "$SK" next 2>&1 | grep -x 'current_phase=P1'; cd "$FDW/outer/b/c" && "$SKA" route --explore 2>&1 | grep -x 'subagent_type=sikstack:Explore' )
 [ -x "$SK" ] && [ -x "$SKA" ] && [ "$(printf '%s\n' "$bin_out" | wc -l | tr -d ' ')" = 2 ] \
   && ok "bin/sikstack and bin/sikstack-adapter run the engine and the adapter as bare commands" || bad "the bin/ commands did not run -- $bin_out"
+# (g) the friction offer: a refused or failed command (exit 1 or 2) ends with one line naming /sikstack:feedback, once,
+# on stderr; never on a success, an advice exit, a dry run, a check's verdict, feedback itself, the finder's
+# no-workspace line, a run nested in another engine run, or the SessionStart hook; the contract and sik-mode say to
+# relay it once and send only on a yes.
+unset SIKSTACK_NO_OFFER   # the offer as a user's session sees it; set again after (g)
+OFFER="If this looks like sikstack's fault, \`/sikstack:feedback\` drafts a short report and sends it only on a yes."
+of() { ( cd "$FDW/outer/b/c" && "$@" ) 2>&1 >/dev/null; }
+ofn() { printf '%s\n' "$1" | grep -cxF "$OFFER"; }  # the offer line itself (the hook's card names the skill in the contract)
+of_ref=$(of "$SK" slice status P9.S1 done); of_use=$(of "$SK" no-such-command); of_crash=$(of "$SKA" route NOPE.S9)
+of_ok=$(of "$SK" next); of_adv=$(of "$SK" gate P1); of_help=$(of "$SK" slice --help)
+of_dry=$(of "$SK" section P1 Nope --to-topic x --dry-run); of_mig=$(of "$SK" migrate)
+printf '## Summary\n\nSee P51.\n' > "$FDW/leaky.md"; of_pr=$(of "$SK" pr check --body "$FDW/leaky.md")
+of_fb=$(of "$SK" feedback --data-dir "$FDW/nodata" --message hi); of_none=$(cd "$FDW" && "$SK" next 2>&1)
+of_nest=$(cd "$FDW/outer/b/c" && SIKSTACK_NO_OFFER=1 "$SK" slice status P9.S1 done 2>&1)
+of_hook=$(cd "$FDW" && printf '{"source":"compact","cwd":"%s"}' "$FDW/outer/b/c" | env -u CLAUDE_PROJECT_DIR python3 "$PLUGIN/hooks/session_start.py" 2>&1)
+if [ "$(ofn "$of_ref")" = 1 ] && [ "$(printf '%s\n' "$of_ref" | tail -1)" = "$OFFER" ] && printf '%s\n' "$of_ref" | head -1 | grep -q '^slice not found: P9.S1$' \
+    && [ "$(ofn "$of_use")" = 1 ] && [ "$(printf '%s\n' "$of_use" | tail -1)" = "$OFFER" ] && [ "$(ofn "$of_crash")" = 1 ] \
+    && [ "$(ofn "$of_ok$of_adv$of_help$of_dry$of_mig$of_pr$of_fb$of_none$of_nest$of_hook")" = 0 ] && ( cd "$FDW/outer/b/c" && "$SK" pr check --body "$FDW/leaky.md" 2>/dev/null ) | grep -q '^leak=phase_id:P51 ' \
+    && grep -qF -- '- An engine refusal or error ends with a `/sikstack:feedback` line: relay it once; send only on a yes.' "$PLUGIN/contract.md" \
+    && grep -qF 'relay that offer to the operator once in the session' "$PLUGIN/skills/sik-mode/SKILL.md" \
+    && ! grep -q 'sikstack:feedback' "$PLUGIN/hooks/guard.py"; then
+  ok "a refused command, a usage error and an adapter refusal each end with the one /sikstack:feedback line; a success, gate's advice, --help, a dry run, migrate's dry run, pr check's verdict, feedback, the no-workspace line, a nested run and the SessionStart hook print none; the contract and sik-mode say relay once, send only on a yes"
+export SIKSTACK_NO_OFFER=1
+else export SIKSTACK_NO_OFFER=1; bad "the friction offer -- refused=[$of_ref] usage=[$(printf '%s' "$of_use" | tail -1)] adapter=[$of_crash] ok=[$of_ok] advice=[$of_adv] dry=[$of_dry] migrate=[$of_mig] pr=[$(printf '%s' "$of_pr" | tail -2)] fb=[$of_fb] none=[$of_none] nested=[$of_nest]"; fi
 # (f) the plugin's manifest: valid JSON naming sikstack with a semver version; `claude plugin validate` where the CLI is installed (CI has none).
 if python3 -c 'import json,re,sys; m=json.load(open(sys.argv[1])); assert m["name"]=="sikstack" and re.fullmatch(r"\d+\.\d+\.\d+", m["version"]), m' "$PLUGIN/.claude-plugin/plugin.json"; then
   ok "plugin.json names sikstack with a semver version"

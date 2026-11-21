@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
-"""The rules-card SessionStart hook (matcher `startup|resume`). Its stdout reaches the main session as context.
+"""The SessionStart hook, on every source (`startup`, `resume`, `clear`, `compact`, `fork`): a fresh, cleared, compacted
+or forked session has lost what came before, so each one gets the card again. Its stdout reaches the main session as
+context.
 
 - Inside a repo with a `.sikstack/` (found from the session's `cwd`, the hook's stdin, else `$CLAUDE_PROJECT_DIR`,
   walking up the way the engine does): the card, which is the plugin's `contract.md` (the one copy of the contract)
-  plus one line on how to start. At most 4,096 bytes.
+  plus one line on how to start, at most 4,096 bytes. After a compaction the adapter's resume card follows it (one
+  hook, so the order holds), and the two together stay within the HOOK_CAP characters Claude Code shows of a hook's
+  stdout.
 - Elsewhere: one line saying sikstack is installed and how to start (an old `workflow/` install above gets the
   `sikstack migrate` line instead).
-- First, when setup left the registration pending in `$CLAUDE_PLUGIN_DATA`, it retries it once with a short timeout.
+- First, outside a compaction, when setup left the registration pending in `$CLAUDE_PLUGIN_DATA`, it retries it once
+  with a short timeout.
 
-Never blocks or fails the session: every error ends in exit 0."""
+Never blocks or fails the session: every error ends in exit 0. Nothing it runs offers `/sikstack:feedback`: it sets
+SIKSTACK_NO_OFFER for the engine code it calls."""
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 CONTRACT = PLUGIN_ROOT / "contract.md"
+ADAPTER = PLUGIN_ROOT / "adapters" / "claude_code" / "adapter.py"
 STATE_DIR = ".sikstack"
 OLD_MARKER = Path("workflow") / ".agentic-nested.json"
+CARD_MAX = 4096  # bytes
+HOOK_CAP = 10_000  # characters: Claude Code shows a hook's plain stdout up to this, else a file path and a preview
+RESUME_TIMEOUT = 13  # the hook's own timeout is 15 s
+CUT_LINE = "(resume card cut to fit the hook's limit: run `sikstack next` for the rest)"
 START_LINE = "This repo has a sikstack workspace: start or continue with `/sikstack:sik-mode` (it reads `sikstack next`)."
 OUTSIDE_LINE = ("sikstack is installed, but no .sikstack/ workspace is here: `/sikstack:sik-mode` starts one in a git "
                 "repo (`sikstack init`){setup}.")
@@ -48,7 +60,34 @@ def card(state: Path) -> str:
     return f"{text}\n\n{START_LINE}\n"
 
 
+def resume_card(state: Path, raw: str) -> str:
+    """The adapter's `compact-resume` output, rooted in `state` (it follows the session into a worktree); "" on any
+    error."""
+    try:
+        proc = subprocess.run([sys.executable, str(ADAPTER), "compact-resume"], input=raw, capture_output=True,
+                              text=True, cwd=str(state.parent), timeout=RESUME_TIMEOUT,
+                              env={**os.environ, "SIKSTACK_ROOT": str(state)})
+        return proc.stdout
+    except Exception:  # noqa: BLE001 - the card still prints
+        return ""
+
+
+def fit(head: str, tail: str) -> str:
+    """`head` whole, then as much of `tail` as keeps the total within HOOK_CAP characters (whole lines, then CUT_LINE)."""
+    if len(head) + 1 + len(tail) <= HOOK_CAP:
+        return f"{head}\n{tail}" if tail else head
+    room = HOOK_CAP - len(head) - 1 - len(CUT_LINE) - 1
+    kept, used = [], 0
+    for line in tail.splitlines(keepends=True):
+        if used + len(line) > room:
+            break
+        kept.append(line)
+        used += len(line)
+    return f"{head}\n{''.join(kept)}{CUT_LINE}\n"
+
+
 def main() -> int:
+    os.environ["SIKSTACK_NO_OFFER"] = "1"  # a hook never offers /sikstack:feedback (the engine reads this)
     try:
         raw = sys.stdin.read()
     except Exception:  # noqa: BLE001
@@ -57,8 +96,10 @@ def main() -> int:
         hook = json.loads(raw or "null")
     except ValueError:
         hook = None
+    hook = hook if isinstance(hook, dict) else {}
+    source = hook.get("source") if isinstance(hook.get("source"), str) else ""
     data_dir = os.environ.get("CLAUDE_PLUGIN_DATA") or ""
-    if data_dir and os.path.isdir(data_dir):
+    if data_dir and os.path.isdir(data_dir) and source != "compact":  # a compaction leaves the hook's time to the card
         try:
             sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
             sys.dont_write_bytecode = True
@@ -66,11 +107,14 @@ def main() -> int:
             wf_setup.retry_pending(data_dir)
         except Exception:  # noqa: BLE001 - the card still prints
             pass
-    cwd = hook.get("cwd") if isinstance(hook, dict) else None
+    cwd = hook.get("cwd")
     found = _walk(cwd if isinstance(cwd, str) else None) or _walk(os.environ.get("CLAUDE_PROJECT_DIR"))
     try:
         if found and found[0] == "state":
-            sys.stdout.write(card(found[1]))
+            out = card(found[1])
+            if source == "compact":
+                out = fit(out, resume_card(found[1], raw))
+            sys.stdout.write(out)
         elif found:
             sys.stdout.write(OLD_LINE.format(where=found[1]) + "\n")
         else:

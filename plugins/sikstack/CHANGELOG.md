@@ -24,8 +24,8 @@ integer version per release, `## v<N>` below; that history continues here.
   compact-resume) on the Bash tool's PATH. Skills, agents and the contract say `sikstack …` and name agents with the
   `sikstack:` prefix; every route row takes an Agent-tool alias and is passed per dispatch.
 - **The guard is a hook.** A PreToolUse hook denies a force push (`--force`, `-f`, `--force-with-lease`, a `+refspec`)
-  and `rm -rf`, each with a one-line reason, and allows `playwright-cli`; the compact-resume SessionStart hook moves into
-  the plugin too. A plugin's settings permissions are ignored by Claude Code, so nothing is merged into settings.
+  and `rm -rf`, each with a one-line reason, and allows `playwright-cli`; the compact-resume step moves into the
+  plugin's SessionStart hook too. A plugin's settings permissions are ignored by Claude Code, so nothing is merged into settings.
 - **`/sikstack:sik-mode`** is the entry: it reads `sikstack next` and offers `init`, starts a phase, runs the one in
   flight, or relays a waiting stop or an open gate.
 - **The checks moved with the source.** `tests/smoke.sh` (was `tests/retrofit_smoke.sh`) builds every workspace with
@@ -40,9 +40,11 @@ integer version per release, `## v<N>` below; that history continues here.
   `SIKSTACK_SERVER`; a short timeout; an email already registered there is not sent again) and sets
   `autoCompactWindow: 500000` in the user's Claude Code settings, changing nothing else in that file. When the server
   cannot be reached it still finishes and marks the registration pending (`registration.json`).
-- **The rules card is a SessionStart hook** (`startup|resume`; the compact-resume hook stays on `compact`). Inside a
+- **The rules card is a SessionStart hook, on every source:** `startup`, `resume`, `clear`, `compact` and `fork`, so
+  the contract comes back after `/clear`, a compaction or a forked session, as the old CLAUDE.md import did. Inside a
   repo with `.sikstack/` it prints the plugin's `contract.md` plus one line on starting with `/sikstack:sik-mode`
-  (under 4,096 B); elsewhere one line saying sikstack is installed (or, above an old install, naming `sikstack
+  (under 4,096 B); after a compaction the resume card follows it in the same hook, the two within Claude Code's
+  10,000-character limit on a hook's output (an oversized resume card is cut, never the card). Elsewhere one line saying sikstack is installed (or, above an old install, naming `sikstack
   migrate`). It first retries a pending registration once, with a short timeout, and never blocks or fails the session.
 - **`sikstack migrate`** moves an old `workflow/` install (v102, the last installer release; an older one is refused
   with its `--update` step) into `.sikstack/`. A dry run by default; `--apply` renames `workflow/` to `.sikstack/` (its
@@ -70,8 +72,17 @@ integer version per release, `## v<N>` below; that history continues here.
 - **`/sikstack:feedback` sends a short report on a yes.** The skill drafts it (what happened, what was expected, the
   plugin version), shows it and sends it only when the user says yes: `sikstack feedback --data-dir …` posts it
   with the install id (`POST <server>/api/installs/feedback`), so it needs no sign-in, and refuses a report naming a
-  path outside the plugin or the repo's folder. The contract and `sik-mode` offer it once after an engine error, a
-  refusal that cost a turn, or the user's frustration.
+  path outside the plugin or the repo's folder.
+- **A refusal offers it, deterministically.** A `sikstack` or `sikstack-adapter` command that is refused or fails (exit
+  1 or 2: a refusal, a usage error, a crash) ends with one stderr line naming `/sikstack:feedback`, once. A success, an
+  advice or status exit, a dry run, `pr check`'s and `design-check`'s verdicts, `feedback` itself, the no-workspace
+  line, an engine run inside another (`SIKSTACK_NO_OFFER`) and the plugin's hooks print none. The contract and
+  `sik-mode` say to relay that line once and send only on a yes; the line carries nothing, and the report is the
+  skill's as before.
+- **`pr check` knows the new folder.** A PR body or details file naming `.sikstack` (as a path or bare) fails as a
+  `workspace_path` leak, like the old `workflow/` (the kind was `workflow_path`). The templates `init` seeds name
+  `sikstack …` commands and the `.sikstack/` layout (`docs/current/architecture.md` and `qa.md`, `.gitattributes`),
+  and the smoke suite's shipped-text scan now covers `templates/` too.
 - **Every name reads sikstack.** The engine's printed lines name sikstack, not hi2vi; the sync's requests carry
   `X-Sikstack-Checkout`, `X-Sikstack-Engine` and `X-Sikstack-Base` (the server still takes the `X-Hi2vi-*` names an
   older engine sends). The sync's bookkeeping stays in `.sikstack/.hi2vi/`, and a key in the older

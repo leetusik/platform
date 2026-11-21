@@ -6,17 +6,17 @@ __PROJECT_NAME__ is newly bootstrapped. This document should describe stable sys
 
 ## Current Repo Shape
 
-- `CLAUDE.md`: the contract on one screen (four invariants, named principles, a rule table naming each enforcer)
-- `docs/current/`: the durable docs, plain files edited in place
-- `works/state.json`: current/next pointer
-- `works/index.json`: generated machine index
-- `works/backlog.md`: generated human dashboard
-- `works/phases/active/`: active phase folders
-- `works/phases/archived/`: archived phase folders
-- `works/deferred/`: deferred job folders
-- `works/agenda/`: agenda item folders; `works/agenda.md` is the generated list
-- `scripts/workflow.py`: workflow and docs version manager
-- `.claude/`: Claude Code entry points (skills, subagents, settings)
+- `<product folders>`: <what each top-level folder holds>
+
+The sikstack workspace is `.sikstack/`, its own git repo, hidden from this repo's git (`sikstack --help` names the engine's commands):
+
+- `.sikstack/docs/current/`: the durable docs, plain files edited in place
+- `.sikstack/config.toml`: the executor routes and the cloud link
+- `.sikstack/backlog.md`: generated human dashboard
+- `.sikstack/works/state.json`: current/next pointer; `.sikstack/works/index.json`: generated machine index
+- `.sikstack/works/phases/active/` and `.sikstack/works/phases/archived/`: phase folders
+- `.sikstack/works/deferred/`: deferred job folders
+- `.sikstack/works/agenda/`: agenda item folders; `.sikstack/works/agenda.md` is the generated list
 
 ## System Shape
 

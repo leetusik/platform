@@ -5,8 +5,8 @@
   one dispatch's row, model, effort and plugin agent (`sikstack:<agent>`);
 - meter: what a phase cost, metered from Claude Code's transcripts, and each slice's verdict read from its
   result.md (its `status:` line) or slice.json;
-- compact-resume: the SessionStart hook (matcher compact), which prints the engine's resume card with the
-  session's running spans.
+- compact-resume: run by the SessionStart hook after a compaction (hooks/session_start.py prints the rules card
+  first), it prints the engine's resume card with the session's running spans.
 
 It reads the workspace through the plugin's engine (../../scripts/: workflow.py and its modules), imported
 in-process, and runs every command through workflow.run (the id normalising and, in a linked checkout, the
@@ -1320,7 +1320,7 @@ def _meter_slice_order(windows: "_MeterWindows"):
 
 
 def _hook_stdin() -> str:
-    """The hook's stdin, read once; never raises. The plugin's hook script (hooks/compact_resume.py) has already
+    """The hook's stdin, read once; never raises. The plugin's hook script (hooks/session_start.py, on a compaction) has already
     rooted this run in the `.sikstack/` that owns the session's `cwd` (it follows the session into a worktree), and
     stays silent outside any workspace."""
     try:
@@ -1414,7 +1414,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--transcripts", action="append", metavar="DIR", help="read this projects/<slug> directory instead of discovering the session root's (repeatable)")
     p.set_defaults(func=cmd_meter)
 
-    p = sub.add_parser("compact-resume", help="The SessionStart hook (matcher compact): after a compaction, print compaction=done source=compact and the engine's resume card with the running spans of the hook's transcript_path session, falling back to the plain pointer on any error; never fails, always exits 0")
+    p = sub.add_parser("compact-resume", help="Run by the SessionStart hook after a compaction, below the rules card: print compaction=done source=compact and the engine's resume card with the running spans of the hook's transcript_path session, falling back to the plain pointer on any error; never fails, always exits 0")
     p.set_defaults(func=cmd_compact_resume)
     return parser
 
@@ -1425,4 +1425,4 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(workflow.with_offer(main, sys.argv[1:]))  # compact-resume never fails, so never offers

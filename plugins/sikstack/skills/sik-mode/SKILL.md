@@ -17,4 +17,4 @@ Read the contract first: `${CLAUDE_PLUGIN_ROOT}/contract.md` (its four invariant
 
 Read a skill named here as a file and follow it; the Skill tool may refuse it (those skills are operator-invoked). The mode word stays the operator's: `auto` (the default) takes your own recommendations and lists them; `gate` stops for each plan. Dispatch agents by their prefixed names (`sikstack:slice-executor`, `sikstack:Explore`), with the model and effort `sikstack-adapter route` prints.
 
-After an engine error, a refusal that cost a turn, or the operator's frustration, offer `/sikstack:feedback` once (it drafts a short report and sends it only on their yes); never send one yourself. To see this repo's work on the web, `/sikstack:sign-in` connects the install and links the repo.
+A refused or failed `sikstack` command ends with one line naming `/sikstack:feedback`: relay that offer to the operator once in the session (and offer it once at their frustration); it drafts a short report and sends it only on their yes, so never send one yourself. To see this repo's work on the web, `/sikstack:sign-in` connects the install and links the repo.
