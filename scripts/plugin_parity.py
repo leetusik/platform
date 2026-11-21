@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Plugin template drift guard (P7.S3) — ROOT-ONLY; never shipped in the payload.
 
-Proves that ``plugin/templates/kb/`` and the live repo cannot silently diverge.
+Proves that ``plugins/explain/templates/kb/`` and the live repo cannot silently diverge.
 It reuses the SAME manifest and the SAME renderer the setup skill uses
-(``plugin/setup/render.py``), so a scaffold rendered for a new user is exactly
+(``plugins/explain/setup/render.py``), so a scaffold rendered for a new user is exactly
 the code this repo runs.
 
 Three checks, from the manifest file classes:
 
-  * ``identical``     — byte-compare ``plugin/templates/kb/<path>`` against
+  * ``identical``     — byte-compare ``plugins/explain/templates/kb/<path>`` against
     ``<repo>/<path>`` directly (no render needed).
   * ``parameterized`` — render the whole tree with ``params.operator.json`` (the
     operator's real values) into a temp dir, then byte-compare the rendered
@@ -40,17 +40,17 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TEMPLATES_DIR = REPO_ROOT / "plugin" / "templates"
+TEMPLATES_DIR = REPO_ROOT / "plugins" / "explain" / "templates"
 KB_DIR = TEMPLATES_DIR / "kb"
 MANIFEST_PATH = TEMPLATES_DIR / "manifest.json"
-RENDER_PY = REPO_ROOT / "plugin" / "setup" / "render.py"
+RENDER_PY = REPO_ROOT / "plugins" / "explain" / "setup" / "render.py"
 OPERATOR_PARAMS = TEMPLATES_DIR / "params.operator.json"
 
 _PYCACHE_EXCLUDE = {"__pycache__"}
 
 
 def _load_render():
-    """Import ``plugin/setup/render.py`` as a module (it is not on sys.path)."""
+    """Import ``plugins/explain/setup/render.py`` as a module (it is not on sys.path)."""
     spec = importlib.util.spec_from_file_location("kb_render", RENDER_PY)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -94,7 +94,7 @@ def main() -> int:
         for rel in files.get("identical", []):
             tmpl, root = KB_DIR / rel, REPO_ROOT / rel
             if not tmpl.is_file():
-                drift.append(f"[identical] template missing: plugin/templates/kb/{rel}")
+                drift.append(f"[identical] template missing: plugins/explain/templates/kb/{rel}")
                 continue
             if not root.is_file():
                 drift.append(f"[identical] repo file missing: {rel}")

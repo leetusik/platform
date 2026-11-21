@@ -9,7 +9,7 @@ import {
   boundaryRetry,
   StateBlock,
   type BoundaryRetryProps,
-} from "@/hi2vi/states";
+} from "@/sikstack/states";
 import { statePlace } from "@/lib/book/place";
 
 // Error (`Book.dc.html`, preset Error; F5's whole): under the Bar, This page did not load, Try again

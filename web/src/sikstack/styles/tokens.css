@@ -1,0 +1,101 @@
+/* sikstack — the product's copy of the signed system's tokens.css (design-system/hi2vi/project/tokens.css).
+   Every value is the signed file's. Four changes, all of them isolation (see ./README.md), and the Library's
+   scheme gap (below):
+   - the whole file is scoped: it applies inside a `.ui` root and stops at `[data-ui-legacy]`;
+   - `:root` reads `:scope` (the `.ui` root); inside @scope a bare selector matches descendants only, so the
+     dark roles also name `:scope[...]` to reach the root's own attribute;
+   - `--font-sans` and `--font-mono` read the self-hosted faces' variables (src/lib/fonts.ts) where the
+     signed file names the hosted families.
+   The Library's reader sets its own scheme on its root (job 03 frame.md F57: `data-scheme` light, dark or sepia,
+   the reader's root only). Two additions make that hold, and change no other page (no element but the reader's
+   root carries them):
+   - the light roles also answer to `data-scheme="light"`, so Light holds on a device set to dark;
+   - Sepia, the reader's third scheme: the same roles, with the values and contrasts of frame.md F57 (a token gap
+     the signed system did not have; drawn in the job's frame.css section 1). */
+/* sikstack Design System — generated from tokens.json */
+/* The dark roles also answer to data-scheme="dark", the attribute the signed boards set. */
+@scope (.ui) to ([data-ui-legacy]) {
+  :scope, [data-theme="light"], [data-scheme="light"] {
+    --bg: #f2f4f7;
+    --surface: #ffffff;
+    --ink: #14171c;
+    --ink-2: #4a5362;
+    --line: #d9dde3;
+    --edge: #7c8594;
+    --accent: #1d4ed8;
+    --accent-tint: #e6ecfb;
+    --on-accent: #ffffff;
+    --danger: #b42318;
+    --danger-tint: #fdeceb;
+    --hover: rgba(20, 23, 28, 0.07);
+    --scrim: rgba(20, 23, 28, 0.48);
+    --shadow: 0 8px 24px rgba(20, 23, 28, 0.16);
+    color-scheme: light;
+  }
+  :scope[data-theme="dark"], :scope[data-scheme="dark"], [data-theme="dark"], [data-scheme="dark"] {
+    --bg: #14171c;
+    --surface: #1c2027;
+    --ink: #e9ecf1;
+    --ink-2: #a7b0bd;
+    --line: #2f3541;
+    --edge: #7f8999;
+    --accent: #8fb0ff;
+    --accent-tint: #22304f;
+    --on-accent: #0e1116;
+    --danger: #ff9486;
+    --danger-tint: #3d2320;
+    --hover: rgba(233, 236, 241, 0.1);
+    --scrim: rgba(0, 0, 0, 0.6);
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+  /* Sepia (job 03 frame.md F57): ink 13.70:1 on surface, ink-2 7.15:1, edge 3.90:1, accent 7.21:1, danger 6.42:1. */
+  [data-scheme="sepia"] {
+    --bg: #ece2cf;
+    --surface: #f7f0e2;
+    --ink: #2a2318;
+    --ink-2: #5a4e3c;
+    --line: #d9ccb3;
+    --edge: #85765e;
+    --accent: #1c44b8;
+    --accent-tint: #e3dfd9;
+    --on-accent: #ffffff;
+    --danger: #a4271a;
+    --danger-tint: #f4ddd2;
+    --hover: rgba(42, 35, 24, 0.08);
+    --scrim: rgba(42, 35, 24, 0.5);
+    --shadow: 0 8px 24px rgba(42, 35, 24, 0.18);
+    color-scheme: light;
+  }
+  :scope {
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+    --radius-xs: 2px;
+    --radius-s: 4px;
+    --radius-m: 6px;
+    --fs-meta: 12px;
+    --fs-text: 14px;
+    --fs-head: 16px;
+    --fs-title: 22px;
+    --fs-figure: 28px;
+    --lh-meta: calc(16 / 12);
+    --lh-text: calc(20 / 14);
+    --lh-head: calc(24 / 16);
+    --lh-title: calc(28 / 22);
+    --lh-figure: calc(32 / 28);
+    --font-sans: var(--font-plex-sans), var(--font-plex-sans-kr), system-ui, sans-serif;
+    --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  }
+  .type-figure { font-family: var(--font-sans); font-size: 28px; line-height: 32px; font-weight: 600; }
+  .type-title { font-family: var(--font-sans); font-size: 22px; line-height: 28px; font-weight: 600; }
+  .type-head { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
+  .type-text { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+  .type-meta { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+  .type-mono { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; }
+}

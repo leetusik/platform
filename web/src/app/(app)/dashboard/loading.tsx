@@ -1,6 +1,6 @@
-import { Keys, Trend, Usage } from "@/hi2vi/frame";
-import { SendFeedback } from "@/hi2vi/send-feedback";
-import { Grid, Stack } from "@/hi2vi/ui";
+import { Keys, Trend, Usage } from "@/sikstack/frame";
+import { SendFeedback } from "@/sikstack/send-feedback";
+import { Grid, Stack } from "@/sikstack/ui";
 import { ORG_HOME } from "@/content/dashboard";
 import { requireIdentity } from "@/lib/auth-guards";
 import { feedbackControl } from "@/lib/send-feedback/config";

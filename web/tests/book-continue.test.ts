@@ -192,7 +192,7 @@ beforeEach(() => {
 
 /** How the reader lands on an address from the book page: a hash naming an element wins over the resume. */
 function landing(href: string) {
-  const hash = new URL(href, "https://hi2vi.invalid").hash.length > 1;
+  const hash = new URL(href, "https://sikstack.invalid").hash.length > 1;
   return landingFor({ hash, note: false, resume: true, navigated: true });
 }
 
@@ -229,7 +229,7 @@ describe("the book's Continue reading resumes the saved place (F242: at its kept
     });
     expect(c.href).not.toContain("#");
     expect(
-      new URL(c.href, "https://hi2vi.invalid").searchParams.get("lang"),
+      new URL(c.href, "https://sikstack.invalid").searchParams.get("lang"),
     ).toBe("ko");
     expect(landing(c.href)).toBe("resume");
     expect(c.facts).toContain("Left off at 동작 방식");

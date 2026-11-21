@@ -1,4 +1,4 @@
-// The words of an html document in its Original layout (src/hi2vi/reader/document/original.tsx; P63-fk.S13).
+// The words of an html document in its Original layout (src/sikstack/reader/document/original.tsx; P63-fk.S13).
 // Verbatim from the signed boards of Library round 02 (job 03: `Document.dc.html`'s state Original layout,
 // `ReaderHead.dc.html`, `Bar.dc.html`; frame.md's Bar `tag` and its list of tags). Everything else the page says is
 // the document page's (`@/content/reader-document`), the frame's (`@/content/reader-frame`) or, for the parts

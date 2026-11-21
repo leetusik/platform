@@ -3,9 +3,9 @@
 import { useParams } from "next/navigation";
 
 import { WS_PLACES } from "@/content/workspace/frame";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
-import { PhaseFailed } from "@/hi2vi/workspace/phase/states";
-import { PHASE_ID } from "@/hi2vi/workspace/phase/model";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
+import { PhaseFailed } from "@/sikstack/workspace/phase/states";
+import { PHASE_ID } from "@/sikstack/workspace/phase/model";
 import { backlogHref } from "@/lib/workspace/address";
 
 /**

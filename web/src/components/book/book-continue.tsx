@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { BOOK_PAGE } from "@/content/book-page";
-import { Skeleton } from "@/hi2vi/ui";
+import { Skeleton } from "@/sikstack/ui";
 import type { ContView } from "@/lib/book/view";
 
 /**

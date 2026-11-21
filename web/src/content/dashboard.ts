@@ -169,7 +169,7 @@ export const DASHBOARD = {
     /** Accessible name for the input (visually carried by the heading). */
     label: "Org slug",
     hint: "2–40 characters: lowercase letters, numbers and single hyphens. Changing an already-claimed name breaks links you've already shared.",
-    placeholder: "e.g. hi2vi",
+    placeholder: "e.g. sikstack",
     submitLabel: "Save",
     submitPendingLabel: "Saving…",
     /** Mono eyebrow beside the org's public library URL (`/@{slug}`, P37-1p). */
@@ -299,14 +299,14 @@ export const ORG_HOME = {
   url: {
     heading: "Public URL",
     change: "Change",
-    /** The claimed address: `hi2vi.com/@<slug>`. */
-    address: (slug: string) => `hi2vi.com/@${slug}`,
+    /** The claimed address: `sikstack.com/@<slug>`. */
+    address: (slug: string) => `sikstack.com/@${slug}`,
     copyLabel: "Copy public URL",
     empty:
       "No public URL. Claim a name and shared documents get a readable address.",
     label: "Org slug",
-    prefix: "hi2vi.com/@",
-    placeholder: "e.g. hi2vi",
+    prefix: "sikstack.com/@",
+    placeholder: "e.g. sikstack",
     cancel: "Cancel",
     save: "Save",
     saving: "Saving…",

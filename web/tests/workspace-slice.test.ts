@@ -31,8 +31,8 @@ const {
   SlicePage,
   verdictFields,
   verdictFiles,
-} = await import("@/hi2vi/workspace/slice");
-const { wsSyncLine } = await import("@/hi2vi/workspace/frame");
+} = await import("@/sikstack/workspace/slice");
+const { wsSyncLine } = await import("@/sikstack/workspace/frame");
 const SliceRoute = (
   await import("@/app/(app)/projects/[projectId]/workspace/slices/[sliceId]/page")
 ).default;

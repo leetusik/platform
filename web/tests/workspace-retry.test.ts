@@ -57,7 +57,7 @@ vi.mock("next/headers", () => ({
 }));
 
 const { markWsRetry, WsNav, WsSync, wsSyncLine } =
-  await import("@/hi2vi/workspace/frame");
+  await import("@/sikstack/workspace/frame");
 
 const W = "@/app/(app)/projects/[projectId]/workspace";
 const AgendaPage = (await import(`${W}/page`)).default;

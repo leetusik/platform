@@ -72,6 +72,10 @@ integer version per release, `## v<N>` below; that history continues here.
   with the install id (`POST <server>/api/installs/feedback`), so it needs no sign-in, and refuses a report naming a
   path outside the plugin or the repo's folder. The contract and `sik-mode` offer it once after an engine error, a
   refusal that cost a turn, or the user's frustration.
+- **Every name reads sikstack.** The engine's printed lines name sikstack, not hi2vi; the sync's requests carry
+  `X-Sikstack-Checkout`, `X-Sikstack-Engine` and `X-Sikstack-Base` (the server still takes the `X-Hi2vi-*` names an
+  older engine sends). The sync's bookkeeping stays in `.sikstack/.hi2vi/`, and a key in the older
+  `…/hi2vi/workspace-keys.json` is still read. The smoke suite's fake server is `tests/fake_sikstack.py`.
 - **Migration notes.** Run `/sikstack:setup` once per machine. An existing `workflow/` install keeps running its own
   engine until `sikstack migrate --apply` moves it into `.sikstack/` (run the bare `sikstack migrate` first to read the
   plan); nothing reads the old layout meanwhile.

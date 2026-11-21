@@ -42,7 +42,7 @@ const {
   gripKey,
   liftedOrder,
   movePlace,
-} = await import("@/hi2vi/workspace/agenda");
+} = await import("@/sikstack/workspace/agenda");
 const { dates, phaseLookup } = await import("@/lib/workspace/model");
 const { begin, EMPTY_OVERLAY, view } =
   await import("@/lib/workspace/optimistic");
@@ -174,7 +174,7 @@ describe("the grip", () => {
   it("holds the sheet's grip: 44 px, the 14 × 8 mark, touch-action none, the accent while lifted, the slide off under reduced motion", () => {
     const css = readFileSync(
       fileURLToPath(
-        new URL("../src/hi2vi/styles/workspace/agenda.css", import.meta.url),
+        new URL("../src/sikstack/styles/workspace/agenda.css", import.meta.url),
       ),
       "utf8",
     );

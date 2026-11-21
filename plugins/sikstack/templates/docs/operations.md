@@ -40,17 +40,17 @@ the operator, it never assumes. Remove the `Status:` line once the fields above 
 |---|---|---|---|
 | <NAME> | yes/no | <purpose> | <notes> |
 
-## Knowledge (/knowledge:explain)
+## Explain (/explain:explain)
 
 Explaining a topic, a change or a phase into your knowledge base is done by the
-**knowledge plugin**, not by this workspace. The plugin owns the skill, the CLI and the
+**explain plugin** (`explain@sikstack`, beside `sikstack` in the same marketplace), not by this workspace. The plugin owns the skill, the CLI and the
 document API, so they stay in step. Install it once:
 
-    /plugin marketplace add leetusik/knowledge
-    /plugin install knowledge@knowledge
+    /plugin marketplace add leetusik/sikstack
+    /plugin install explain@sikstack
 
-then run `/knowledge:setup` once (connect to the hosted KB, or scaffold your own) and use
-`/knowledge:explain <topic>`. Every explain is its own **explain phase**, one per publishable
+then run `/explain:setup` once (connect to the hosted KB, or scaffold your own) and use
+`/explain:explain <topic>`. Every explain is its own **explain phase**, one per publishable
 unit: a standalone document by default, a book or one chapter of a book only when you ask. After
 one confirmation the phase is created **and** run, in its own worktree under `.claude/worktrees/`,
 and merged back by itself (a nested install names no host branch for it): one writer reads this
@@ -61,10 +61,10 @@ phase first. A book still stops for its outline sign-off and its acceptance gate
 0.10.0 or later is required. The writer runs on your session's permissions: auto mode needs
 nothing, and manual mode needs the rules the explain skill's §3.2 *Permissions, and the payload
 builder* prints, in `.claude/settings.local.json` (the plugin's README, *Explain: permissions*).
-To update: `/plugin marketplace update knowledge`, then update `knowledge@knowledge` from the
-`/plugin` panel's Installed tab (or, from a shell, `claude plugin update knowledge@knowledge`).
+To update: `/plugin marketplace update sikstack`, then update `explain@sikstack` from the
+`/plugin` panel's Installed tab (or, from a shell, `claude plugin update explain@sikstack`).
 The review never writes an explainer; it only reports
-`explain: not written — run /knowledge:explain P<N> for a document, or ask it for a book`.
+`explain: not written — run /explain:explain P<N> for a document, or ask it for a book`.
 
 ## Deployment
 

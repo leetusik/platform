@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 
-import { AgendaItemLoading } from "@/hi2vi/workspace/agenda-item";
+import { AgendaItemLoading } from "@/sikstack/workspace/agenda-item";
 
 import { agendaItemBack } from "./back";
 

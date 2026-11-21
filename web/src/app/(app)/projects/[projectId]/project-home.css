@@ -1,12 +1,12 @@
 /*
  * Project home's page classes (job 01, round 03-instrument: `ProjectHomeHead`, `ProjectHomeLibrary`,
  * `ProjectHomeFeedback` and `ProjectHomeWorkspace` boards), copied value for value. Scoped like the
- * system's sheets (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block,
+ * system's sheets (src/sikstack/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block,
  * imported by the route's files, never through `globals.css`.
  *
  * Not carried: `.ph-keep` (frame.md F26: `.ui` already sets `word-break: keep-all`) and the canvas-only
  * `.ph-pair > .sc-host` wrapper rules (the panels are the grid's own children here). The Workspace
- * panel's phase rows live in the Workspace's own sheet, `src/hi2vi/styles/workspace/home.css`.
+ * panel's phase rows live in the Workspace's own sheet, `src/sikstack/styles/workspace/home.css`.
  */
 @scope (.ui) to ([data-ui-legacy]) {
   /* the head: the button's three labels share one cell, so it keeps its width through the change */

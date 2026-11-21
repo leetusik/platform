@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectSwitchHref, railFor } from "@/hi2vi/shell/model";
+import { projectSwitchHref, railFor } from "@/sikstack/shell/model";
 
 // P63 — a project's library and the Shell (job 03 round 02, F321): the rail's Library with a project
 // picked goes to that project's library and reads current there; the project switcher on a library

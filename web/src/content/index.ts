@@ -60,10 +60,10 @@ export { CHAPTER } from "./chapter";
 export { READER } from "./reader";
 
 // The library's title (the way back's label). `BOOK` and `LISTEN` left the barrel with the old Listen views
-// (P64-3y.S10): job 07's Listen (`hi2vi/listen/**`) imports `@/content/book` and `@/content/listen` directly.
+// (P64-3y.S10): job 07's Listen (`sikstack/listen/**`) imports `@/content/book` and `@/content/listen` directly.
 export { LIBRARY } from "./library";
 
-// hi2vi's own feedback control (job 08, round 01-landing-diagram-feedback, `## Build` §2 and §5): the
+// sikstack's own feedback control (job 08, round 01-landing-diagram-feedback, `## Build` §2 and §5): the
 // trigger, the dialog, its states and the check's sentences, on the landing and on org home.
 export { feedbackNumber, SEND_FEEDBACK } from "./send-feedback";
 export type { SendFeedbackCopy } from "./send-feedback";

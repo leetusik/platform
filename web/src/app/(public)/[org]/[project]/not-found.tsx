@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 
-import { requestNonce } from "@/hi2vi/shell/data";
-import { StateBlock } from "@/hi2vi/states";
+import { requestNonce } from "@/sikstack/shell/data";
+import { StateBlock } from "@/sikstack/states";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { loginHref, REQUEST_PATH_HEADER } from "@/lib/next-path";
 import { publicBack } from "@/lib/project-library/place";

@@ -233,7 +233,7 @@ def test_logout_nulls_the_session_and_preserves_the_api_token(home, api):
     assert main.main(["--base-url", "http://api.test", "logout"]) == 0
     data = cfg(home)
     assert data["auth"]["session_token"] is None  # deep-merge has no delete; null == absent
-    assert data["api"]["token"] == VK  # the non-expiring key /knowledge:explain reads
+    assert data["api"]["token"] == VK  # the non-expiring key /explain:explain reads
     assert config.resolve().api_token == VK
 
 
@@ -265,7 +265,7 @@ def test_whoami_without_a_session_says_so(home):
     assert main.main(["--base-url", "http://api.test", "whoami"]) == 1
 
 
-# --- the waitlist (KB_SIGNUP_WAITLIST on, as at hi2vi.com) ----------------------
+# --- the waitlist (KB_SIGNUP_WAITLIST on, as at sikstack.com) ----------------------
 
 
 class WaitlistApi(FakeApi):

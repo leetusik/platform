@@ -29,7 +29,7 @@ from sqlalchemy import create_engine, make_url, text
 
 _RAW_DSN = os.environ.get("KB_TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 _SMTP_ENV = ("KB_SMTP_HOST", "KB_SMTP_PORT", "KB_SMTP_USER", "KB_SMTP_PASSWORD", "KB_SMTP_FROM")
-_ENGINE_HEADERS = {"X-Hi2vi-Checkout": "test-checkout", "X-Hi2vi-Engine": "v99"}
+_ENGINE_HEADERS = {"X-Sikstack-Checkout": "test-checkout", "X-Sikstack-Engine": "v99"}
 _FIXTURES = Path(__file__).parent / "fixtures" / "workspace"
 
 
@@ -335,7 +335,7 @@ def test_every_item_route_reads_the_sync_line_of_now(store):
     path = "works/agenda/A1-h7/agenda.json"
     data = json.loads(_tree()["files"][path])
     data["note"] = "다시 느려졌어요."
-    newer = {**key, "X-Hi2vi-Engine": "v100"}
+    newer = {**key, "X-Sikstack-Engine": "v100"}
     _commit(client, project_id, newer,
             [_put(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n",
                   answer["revs"][path])])

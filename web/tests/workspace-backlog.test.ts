@@ -23,7 +23,7 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ get: () => undefined })),
   headers: vi.fn(
     async () =>
-      new Headers({ host: "hi2vi.localhost", "x-forwarded-proto": "https" }),
+      new Headers({ host: "sikstack.localhost", "x-forwarded-proto": "https" }),
   ),
 }));
 vi.mock("next/navigation", async (real) => ({
@@ -39,9 +39,9 @@ const PROJECT = "3f6c2a9e-8b1d-4e7a-9c05-6d2e1f4b7a10";
 const BASE = `/projects/${PROJECT}/workspace`;
 
 const { backlogView, idleSentence, askedPage } =
-  await import("@/hi2vi/workspace/backlog");
+  await import("@/sikstack/workspace/backlog");
 const { BacklogNow, BacklogPhases, BacklogWaiting } =
-  await import("@/hi2vi/workspace/backlog");
+  await import("@/sikstack/workspace/backlog");
 const BacklogPage = (
   await import("@/app/(app)/projects/[projectId]/workspace/backlog/page")
 ).default;
@@ -89,14 +89,14 @@ function phase(
 }
 
 const LIVE: PhaseRow[] = [
-  phase("P12-q4", "Apply hi2vi: Workspace", "in_progress", 9, 18, {
+  phase("P12-q4", "Apply sikstack: Workspace", "in_progress", 9, 18, {
     current: "S9",
   }),
   phase("P13-r2", "The assistant on the Workspace", "planned", 0, 1),
-  phase("P11-k9", "Apply hi2vi: Feedback", "pending", 12, 12, {
+  phase("P11-k9", "Apply sikstack: Feedback", "pending", 12, 12, {
     gate: { ...GATE, state: "open" },
   }),
-  phase("P10-d6", "Apply hi2vi: Library", "in_review", 16, 16),
+  phase("P10-d6", "Apply sikstack: Library", "in_review", 16, 16),
   phase("P9-c7", "Workspace sync to the cloud", "done", 8, 8),
   phase("P7-m3", "검색 결과를 문단까지", "blocked", 2, 5, { current: "S3" }),
 ];
@@ -114,7 +114,7 @@ const ARCHIVE_NAMES = [
   "Ids with a tail",
   "Rotate the backlog",
   "Drafter model per phase",
-  "One platform at hi2vi.com",
+  "One platform at sikstack.com",
   "Reader bookmark sync",
   "Sign-in lands on org home",
   "Search relevance tuning",
@@ -312,7 +312,7 @@ describe("what waits on the operator (F83)", () => {
       ["stop", "P7-m3.S3", `${BASE}/slices/P7-m3.S3`],
     ]);
     expect(w.map((x) => x.kind)).toEqual(["Operator action", null, "Decision"]);
-    expect(w[1].name).toBe("Apply hi2vi: Feedback");
+    expect(w[1].name).toBe("Apply sikstack: Feedback");
     expect(w[1].words).toBe("“accept” clears the gate and closes the phase.");
     expect(w[0].words).toBe("fill the Operator Runtime, then say go");
     expect(w.every((x) => x.what === null)).toBe(true);
@@ -411,7 +411,7 @@ describe("Now", () => {
           {
             id: "w1",
             label: "Feedback",
-            branch: "feat/hi2vi-feedback",
+            branch: "feat/sikstack-feedback",
             phase: "P11-k9",
             slice: null,
           },
@@ -514,7 +514,7 @@ describe("slices by their stored name and status", () => {
     const w = backlogView(named(), PROJECT).waiting;
     expect(w.map((x) => [x.id, x.name, x.lang])).toEqual([
       ["P12-q4.S14", "Fidelity: the Agenda and its item", "en"],
-      ["P11-k9", "Apply hi2vi: Feedback", "en"],
+      ["P11-k9", "Apply sikstack: Feedback", "en"],
       ["P7-m3.S3", "색인을 문단 단위로 다시 만들기", "ko"],
     ]);
     const html = renderToStaticMarkup(BacklogWaiting({ items: w }));
@@ -620,7 +620,7 @@ describe("the backlog page", () => {
     const html = await page();
     expect(html).toContain("No workspace linked yet.");
     expect(html).toContain(
-      `workflow.py link https://hi2vi.localhost/projects/${PROJECT}`,
+      `workflow.py link https://sikstack.localhost/projects/${PROJECT}`,
     );
     expect(html).not.toContain('aria-label="Now"');
   });

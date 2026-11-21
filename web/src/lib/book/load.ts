@@ -59,7 +59,7 @@ import {
 import type { BookView, LangLinkView, RowView, VersionGroupView } from "./view";
 
 /**
- * The book page's data (hi2vi Library, job 03 round 02, `## Build` § Page: book): the book's manifest
+ * The book page's data (sikstack Library, job 03 round 02, `## Build` § Page: book): the book's manifest
  * (`GET /app/orgs/{org}/{project}/books/{book}`, public-gated) and, signed in, the reader's state of it
  * (`GET /app/reader/books/…`), plus the reads the page composes from: the book's marks, the named
  * chapter's lede and section, and the dates of a chapter that has an earlier version. Every miss on the

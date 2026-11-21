@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { DocumentFailed } from "@/hi2vi/reader/document";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
+import { DocumentFailed } from "@/sikstack/reader/document";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
 
 // P63-fk.S12 — Error, in the bar's frame (`Document.dc.html`, F5's words). Try again shows Loading, then the
 // document: `boundaryRetry` re-fetches the route; a failure that persists arrives as a new error, which shows

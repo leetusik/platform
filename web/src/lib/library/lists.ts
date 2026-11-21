@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, F320 to F323, F328; `LB.shelves`, `LB.search`) — the view
+ * sikstack Library (`03-library` round 02, F320 to F323, F328; `LB.shelves`, `LB.search`) — the view
  * model of the three list pages (the library, a project's page, the public library): a project's
  * section (`Shelf`: its books, its five newest documents, its count and the way to its page) and the
  * documents table (`LibraryDocs`: the search over titles, tags and text, the project filter, 25 a

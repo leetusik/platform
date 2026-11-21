@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02) — what the list pages read, composed in the BFF from reads
+ * sikstack Library (`03-library` round 02) — what the list pages read, composed in the BFF from reads
  * that already exist; no server route is added for them.
  *
  * - The org's listing (`GET /app/orgs/{org}/library`): the books and the loose documents, over the

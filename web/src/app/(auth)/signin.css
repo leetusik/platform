@@ -1,7 +1,7 @@
 /*
  * The sign-in screens' page classes (job 01 *Sign in*, round 03-instrument, `SignIn.dc.html`
  * and `SignInForm.dc.html`), copied value for value. Scoped like the system's sheets
- * (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block, imported by
+ * (src/sikstack/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])` block, imported by
  * the `(auth)` layout, never through `globals.css`.
  */
 @scope (.ui) to ([data-ui-legacy]) {

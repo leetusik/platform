@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { CONNECT_COPY, CONNECT_TITLES } from "@/content/connect";
-import { buttonClass, Swap } from "@/hi2vi/ui";
+import { buttonClass, Swap } from "@/sikstack/ui";
 import {
   codeGroups,
   codeOfNext,

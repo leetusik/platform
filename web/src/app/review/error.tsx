@@ -2,8 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 
-import { ReviewLoading, ReviewRouteFailed } from "@/hi2vi/review/route-states";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
+import { ReviewLoading, ReviewRouteFailed } from "@/sikstack/review/route-states";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
 import { readReaderCookie } from "@/lib/reader-cookie";
 
 // P64-3y.S7 — Failed in Review's focused frame (job 07 frame.md F221, review FG1), when the page itself could

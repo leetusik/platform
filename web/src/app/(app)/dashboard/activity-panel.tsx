@@ -1,5 +1,5 @@
 import { ORG_HOME } from "@/content/dashboard";
-import { Block, BlockText, Panel, PanelHead } from "@/hi2vi/ui";
+import { Block, BlockText, Panel, PanelHead } from "@/sikstack/ui";
 
 import { ACTIVITY_ROW_STYLE } from "./org-home-loading";
 import type { ActivityLineView } from "./org-home-model";

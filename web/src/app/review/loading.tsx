@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import { ReviewLoading } from "@/hi2vi/review/route-states";
+import { ReviewLoading } from "@/sikstack/review/route-states";
 import { parseReaderCookie, READER_COOKIE } from "@/lib/reader-cookie";
 
 // P64-3y.S7 — Loading in Review's focused frame (job 07 frame.md F221): the bar whole with an empty line,

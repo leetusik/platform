@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BookListenSeedView } from "@/hi2vi/listen";
+import type { BookListenSeedView } from "@/sikstack/listen";
 import type { KbListenPosition, KbListenState } from "@/lib/knowledge/listen";
 import type { ListenKey } from "@/lib/listen/machine";
 import type { Listen, ListenSeed } from "@/lib/listen/types";
@@ -23,7 +23,7 @@ vi.mock("@/lib/listen/actions", () => ({
 }));
 
 const { createEngine } = await import("@/lib/listen/engine");
-const { bookControlOf, controlOf } = await import("@/hi2vi/listen");
+const { bookControlOf, controlOf } = await import("@/sikstack/listen");
 const { keepsPlace, leavesListen, PLACED } = await import("@/lib/listen/leave");
 const { getKept, getListen, listenActions, setEngine, setKept, setListen } =
   await import("@/lib/listen/store");

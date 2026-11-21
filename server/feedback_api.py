@@ -27,7 +27,7 @@ Three families, each with its own gate:
   ``/api/project/feedback*`` + ``/api/project/usage``): ``resolve_api_read`` for
   reads, ``resolve_api_write`` for ``PATCH``/``DELETE``/comment ``POST``; both answer
   a ``capture`` key 403.
-- **Session reads** (``/app/feedback*``): ``require_user`` (honours ``X-Hi2vi-Org``).
+- **Session reads** (``/app/feedback*``): ``require_user`` (honours ``X-Sikstack-Org``).
 
 Scope: every key and session route resolves its project set in one place,
 :func:`_scope_project_ids` — a project-bound key's one project, else every project
@@ -683,7 +683,7 @@ def _org_bucket(ctx: ApiAuthContext, request: Request) -> str:
     active org, tenant #1 for the master bearer. Every key and session of one org
     shares it, so minting more keys buys no more budget, and one org never spends
     another's. Never an address or a header the caller chose (a session's
-    ``X-Hi2vi-Org`` names only an org it is a member of). A context without a
+    ``X-Sikstack-Org`` names only an org it is a member of). A context without a
     tenant is legacy mode, which 404s before this; it falls back to the bearer.
     """
 

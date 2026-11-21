@@ -1,0 +1,85 @@
+/* sikstack — the Workspace's backlog sheet (design job 02, round 02-agenda-and-links). Holds the backlog: what waits on the operator, Now, Phases and Archived phases (`Backlog*.dc.html`, frame.md F304).
+   The boards' own rules, as signed (`BacklogWaiting.dc.html`, `BacklogNow.dc.html`, `BacklogPhases.dc.html`); the
+   frame's and the system's classes are never redefined here (src/sikstack/styles/README.md). Loaded once, through
+   ../index.css. */
+@scope (.ui) to ([data-ui-legacy]) {
+
+/* what waits on the operator: the thing as the row's link (it carries the row's 12 px, as a Workspace row's name does), then what is asked and what the operator's words will do */
+.backlog-wait { container: backlog-wait / inline-size; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-1); padding-top: 0; }
+.backlog-wait > p { max-width: var(--measure); }
+/* both panels sit on one page: every rule of the id and name is scoped to its panel, so neither reaches the other's */
+/* the link's text: trimmed to its cap height and its baseline, so its ink, not its line box, is centred in the control
+   (the line height stays as the fallback). The 16 px above and below are what one line has in a control's 44 px, so a link that wraps
+   keeps a single line's distance to the row's edge and to the text under it */
+.backlog-wait .backlog-ref { display: flex; flex-direction: column; min-width: 0; padding-block: var(--space-4); }
+.backlog-wait .backlog-ref > span { min-width: 0; text-box: trim-both cap alphabetic; }
+/* a long word in a name breaks inside its link (as wide as its text), never pushing the page sideways */
+.backlog-ref > span { overflow-wrap: anywhere; }
+/* an id and its name. Under 20em of row width (a 320 px phone, enlarged text): the id over the name, one line step apart,
+   as a Workspace row does, so a long word has the whole line */
+.backlog-wait .backlog-ref > span:not(:last-child) { text-box-trim: trim-start; }
+.backlog-wait .backlog-ref > span + span { text-box-trim: trim-end; }
+/* from 20em the name sits beside its id and wraps there, never under it */
+@container backlog-wait (min-width: 20em) {
+  .backlog-wait .backlog-ref { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+  .backlog-wait .backlog-ref > span:not(:last-child), .backlog-wait .backlog-ref > span + span { text-box-trim: trim-both; }
+}
+
+/* the pointer: a cell a fact, three across while 20em each fits. Cells share their rows (label, name, state),
+   so names and states sit on shared lines whatever wraps; an empty track keeps a second stream's cells under the first's */
+.backlog-pointer { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(20em, 100%), 1fr)); gap: var(--space-4) var(--space-5); }
+.backlog-cell { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; min-width: 0; }
+.backlog-pointer.is-facts > .backlog-cell { grid-row: span 2; }
+/* a value's text is centred in a box one control tall: 12 px of the box stand in for the body's own space under it */
+.backlog-facts { padding-bottom: var(--space-1); }
+.backlog-cell > dt { color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: var(--lh-meta); }
+/* the value: one control tall, at the head step. It is the size container of the id and the name it holds */
+.backlog-value { container: backlog-value / inline-size; display: flex; align-items: center; min-width: 0; min-height: var(--control-h); font: 600 var(--fs-head)/var(--lh-head) var(--font); }
+.backlog-value > .link-strong { font-weight: 600; }
+.backlog-value.is-none { color: var(--ink-2); font-weight: 400; }
+/* a value's text, every value alike: trimmed to its cap height and its baseline, so its ink, not its line box, is centred in the control
+   (the line height stays as the fallback). The 16 px above and below are what one line has in a control's 44 px, so a value that wraps
+   keeps a single line's distance to its label and to its state */
+.backlog-value .backlog-ref { display: flex; flex-direction: column; min-width: 0; padding-block: var(--space-4); }
+.backlog-value .backlog-ref > span { min-width: 0; text-box: trim-both cap alphabetic; }
+/* an id and its name. Narrower than the cell's own least width (a 320 px phone, enlarged text): the id over the name, one line step apart,
+   as a Workspace row does, so a long word has the whole line */
+.backlog-value .backlog-ref > span:not(:last-child) { text-box-trim: trim-start; }
+.backlog-value .backlog-ref > span + span { text-box-trim: trim-end; }
+/* from that width (20em of the body's text is 17.5em at the head step) the name sits beside its id and wraps there, never under it */
+@container backlog-value (min-width: 17.5em) {
+  .backlog-value .backlog-ref { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+  .backlog-value .backlog-ref > span:not(:last-child), .backlog-value .backlog-ref > span + span { text-box-trim: trim-both; }
+}
+.backlog-state { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); min-width: 0; }
+
+/* a phase's own cell holds two things: its review verdict, then its progress.
+   Under 30em of list width each takes a line; from 30em they share the line under the name; from 68em the row is one line */
+.backlog-end { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); }
+.backlog-verdict { position: relative; display: flex; flex: 1 1 100%; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.backlog-end > .progress { flex: 1 1 12em; }
+/* under 68em the verdict says what it is; from 68em the column's label does */
+.backlog-k, .backlog-col { color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: var(--lh-meta); }
+.backlog-cols { display: none; }
+/* a row still loading keeps a row's height */
+.backlog-skel { display: flex; align-items: center; min-height: var(--control-h); }
+/* archived phases: a table of their own under the phases, the same columns, ten a page with the one pager (frame.md F300, F304) */
+.backlog-foot { padding-inline: var(--space-4); }
+/* the pager sizes itself by its own width: its host takes the foot's whole line */
+.backlog-foot > * { flex: 1 1 100%; min-width: 0; }
+@container (min-width: 30em) {
+  .backlog-verdict { flex: 0 0 14em; }
+}
+@container (min-width: 52em) and (max-width: 67.99em) {
+  /* five cells do not fit one line yet: the row keeps the two lines it has from 30em */
+  .backlog-phases .ws-row { grid-template-columns: var(--id-w) minmax(0, 1fr) var(--status-w); grid-template-areas: "id name status" ". end end"; padding-block: 0 var(--space-3); }
+}
+@container (min-width: 68em) {
+  /* one line: id, name, status, review, slices. The name gives room to the two cells a phase adds */
+  .backlog-phases .ws-row { grid-template-columns: var(--id-w) minmax(12em, 1.2fr) var(--status-w) minmax(0, 2fr); }
+  .backlog-verdict { flex: 0 0 var(--status-w); }
+  .backlog-cols { display: grid; padding-block: var(--space-2); }
+  .backlog-cols > :first-child { grid-area: id; }
+  .backlog-k { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+}
+}

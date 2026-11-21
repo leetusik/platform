@@ -190,7 +190,7 @@ const OLD_FOCUS: QuizFocus = {
 
 /**
  * P63-fk.S10 — the quiz's state and its one save path, shared by both looks (this file's `QuizBlock` and the
- * Library's `LibraryQuiz`, `@/hi2vi/reader/aids`): each item's state from the view model, the reducer, the send
+ * Library's `LibraryQuiz`, `@/sikstack/reader/aids`): each item's state from the view model, the reducer, the send
  * of a graded attempt (`saveQuizAttempt`, the same payload, at the same moment) and its reply landing only on the
  * send that started it (`landSend`), Sign in to save once per view for a signed-out reader, and the focus moved
  * (never scrolled) to the next step. Moved here unchanged from `QuizBlock`.

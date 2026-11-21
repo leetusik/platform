@@ -1,0 +1,49 @@
+/* sikstack — the Library: a book's notes (`BookNotes.dc.html`). Owner: P63-fk.S14; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+   The rules are the board's own <style> block, less its state bar (canvas only). */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* the line of facts under the title: the book, then the count, then `N unanchored` */
+  .bn-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-4);
+    min-width: 0;
+    color: var(--ink-2);
+  }
+  .bn-facts > .strong {
+    color: var(--ink);
+  }
+  /* a chapter's head: "Chapter 3", then its title, one run of text in one heading; it wraps as a sentence with its
+   lines balanced, so the label is never a line of its own over the title and no word is left alone */
+  .bn-chapter {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+  .bn-chapter-n {
+    color: var(--ink-2);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  /* since the join each row carries its own 8 px above and under (frame.md F95): the panel adds none */
+  .bn-rows {
+    padding-block: 0;
+  }
+  .bn-rows .mark-list > .mark-row:first-child {
+    border-top: 0;
+  }
+  /* under 30em of the app (a phone, or enlarged text) a choice's label may take a second line instead of running
+   out of the column */
+  @container app (max-width: 30em) {
+    .bn-filter > .btn {
+      height: auto;
+      min-height: var(--control-h);
+      padding-block: var(--space-2);
+      line-height: var(--lh-text);
+      white-space: normal;
+    }
+  }
+}

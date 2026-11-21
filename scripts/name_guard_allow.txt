@@ -1,0 +1,75 @@
+# The name guard's allowlist (scripts/name_guard.py): the lines that may still say hi2vi.
+# One entry per line: `<path glob> | <regex>`; `*` as the regex allows every line of the path.
+# Each group says why. Anything else naming hi2vi fails the guard: rename it to sikstack.
+
+# The guard itself.
+scripts/name_guard.py | *
+scripts/name_guard_allow.txt | *
+.github/workflows/name-guard.yml | *
+
+# The live box's config. Production stays on hi2vi.com until P70-bp moves the domain and DNS;
+# main must stay deployable there until then. P70-bp rewrites these (vhosts, deploy scripts, the
+# runbooks' host lines, the compose domain values and env names, the deploy workflow's smoke hosts).
+deploy/* | *
+compose.prod.yml | *
+.github/workflows/deploy-production.yml | *
+CLAUDE.md | the apex `hi2vi\.conf`|^- Name guard:
+server/feedback_api.py | deploy/hi2vi\.conf
+plugins/explain/templates/kb/server/feedback_api.py | deploy/hi2vi\.conf
+web/src/app/api/auth/org/route.ts | deploy/hi2vi\.conf
+web/src/lib/knowledge/connect.ts | deploy/hi2vi\.conf
+
+# Old records: the design rounds of the knowledge app, frozen as drawn.
+web/design/* | *
+
+# History notes in changelogs.
+*CHANGELOG.md | *
+
+# Compatibility reads of old names: the old hosts (they only redirect, and a client never follows
+# a redirect), the request headers an older engine or web build sends, the box's older env names.
+.agents/skills/explain/SKILL.md | knowledge\.hi2vi\.com.*hi2vi\.com
+plugins/explain/skills/explain/SKILL.md | knowledge\.hi2vi\.com.*hi2vi\.com
+web/public/SKILL.md | knowledge\.hi2vi\.com.*hi2vi\.com
+tests/test_explain_resolver.py | knowledge\.hi2vi\.com|https://hi2vi\.com"
+cli/src/knowledge_cli/config.py | knowledge\.hi2vi\.com|^# hi2vi\.com\)
+cli/tests/test_config.py | knowledge\.hi2vi\.com
+mcp-server/CONTRACT.md | old public host `knowledge\.hi2vi\.com`
+skills/vocky-feedback/SKILL.md | old `vocky\.hi2vi\.com`
+web/public/feedback/SKILL.md | old `vocky\.hi2vi\.com`
+server/accounts/auth.py | X-Hi2vi-|named hi2vi before sikstack
+plugins/explain/templates/kb/server/accounts/auth.py | X-Hi2vi-|named hi2vi before sikstack
+server/workspace_api.py | ``X-Hi2vi-\*`` names are read the same
+plugins/explain/templates/kb/server/workspace_api.py | ``X-Hi2vi-\*`` names are read the same
+tests/test_workspace_store.py | X-Hi2vi-
+plugins/explain/templates/kb/tests/test_workspace_store.py | X-Hi2vi-
+web/src/lib/send-feedback/config.ts | HI2VI_FEEDBACK_|product was hi2vi before sikstack
+web/tests/send-feedback.test.ts | HI2VI_FEEDBACK_
+
+# The engine's compatibility with installs from before the rename: the sync's bookkeeping folder
+# `.sikstack/.hi2vi/` (kept, so a migrated host keeps syncing), the older key file
+# `…/hi2vi/workspace-keys.json`, and `sikstack migrate`, which reads an old `workflow/.hi2vi/`.
+plugins/sikstack/scripts/wf_cloud.py | \.hi2vi\b|"hi2vi" / "workspace-keys\.json"|hi2vi/workspace-keys|old hi2vi one
+plugins/sikstack/scripts/wf_init.py | /\.hi2vi/
+plugins/sikstack/scripts/wf_migrate.py | \.hi2vi\b|_exclude_hi2vi
+plugins/sikstack/tests/smoke.sh | \.hi2vi\b|\$CLX/hi2vi|\$MGX/hi2vi/workspace-keys
+
+# The earlier hi2vi product and its repositories (hi2vi_web, the hi2vi content agent and its
+# OpenClaw CS bot, the library's `hi2vi` and `hi2vi_web` projects): names of other things, not
+# this product's. Kept where code was ported from them or a fixture uses their real names.
+* | hi2vi_web
+mcp-server/CONTRACT.md | OpenClaw|For hi2vi, whose|single hi2vi|hi2vi P18\.S5
+mcp-server/scripts/e2e_smoke.py | OpenClaw
+mcp-server/src/knowledge_mcp/config.py | OpenClaw
+server/api_auth.py | live hi2vi agent
+plugins/explain/templates/kb/server/api_auth.py | live hi2vi agent
+server/config.py | hi2vi content agent
+plugins/explain/templates/kb/server/config.py | hi2vi content agent
+server/main.py | the hi2vi agent runs server-side
+plugins/explain/templates/kb/server/main.py | the hi2vi agent runs server-side
+server/reindex.py | hi2vi corpus
+plugins/explain/templates/kb/server/reindex.py | hi2vi corpus
+server/seed.py | ``hi2vi``, ``hi2vi_web``
+plugins/explain/templates/kb/server/seed.py | ``hi2vi``, ``hi2vi_web``
+
+# The signed design system's folder in the workspace that drew it (`design-system/hi2vi/`).
+web/src/sikstack/* | design-system/hi2vi

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { StateBlock } from "@/hi2vi/states";
+import { StateBlock } from "@/sikstack/states";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { REQUEST_PATH_HEADER } from "@/lib/next-path";
 import { signInFrom } from "@/lib/public-library/model";

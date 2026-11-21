@@ -45,13 +45,13 @@ function stubKb(body: unknown, status = 200) {
 
 describe("resolveDocument", () => {
   it("GETs /app/orgs/{org}/{project}/{slug} with the bearer, no-store", async () => {
-    stubKb({ id: 42, title: "Hi", canonical_path: "/@hi2vi/kb/hello" });
+    stubKb({ id: 42, title: "Hi", canonical_path: "/@sikstack/kb/hello" });
 
     await expect(
-      resolveDocument(TOKEN, "hi2vi", "kb", "hello"),
+      resolveDocument(TOKEN, "sikstack", "kb", "hello"),
     ).resolves.toMatchObject({ id: 42 });
     expect(fetch).toHaveBeenCalledWith(
-      "http://kb.test:8766/app/orgs/hi2vi/kb/hello",
+      "http://kb.test:8766/app/orgs/sikstack/kb/hello",
       expect.objectContaining({
         method: "GET",
         cache: "no-store",
@@ -70,10 +70,10 @@ describe("resolveDocument", () => {
   });
 
   it("resolves TOKENLESS when there is no session (a shared link)", async () => {
-    stubKb({ id: 42, canonical_path: "/@hi2vi/kb/hello" });
+    stubKb({ id: 42, canonical_path: "/@sikstack/kb/hello" });
 
     await expect(
-      resolveDocument(undefined, "hi2vi", "kb", "hello"),
+      resolveDocument(undefined, "sikstack", "kb", "hello"),
     ).resolves.toMatchObject({ id: 42 });
     const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit)
       .headers as Record<string, string>;

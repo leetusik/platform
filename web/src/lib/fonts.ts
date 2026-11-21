@@ -53,9 +53,9 @@ export const jetbrains = localFont({
 });
 
 /*
- * The hi2vi design system's three faces (`public/fonts/plex/`, see the fonts README): IBM Plex Sans,
+ * The sikstack design system's three faces (`public/fonts/plex/`, see the fonts README): IBM Plex Sans,
  * IBM Plex Sans KR and IBM Plex Mono, static weights only, the ones the system sets. Their variables
- * are read by `src/hi2vi/styles/tokens.css` (`--font-sans`, `--font-mono`) inside a `.ui` root and
+ * are read by `src/sikstack/styles/tokens.css` (`--font-sans`, `--font-mono`) inside a `.ui` root and
  * nowhere else, so the old pages keep the faces above.
  *
  * `preload: false`: a root-layout font preloads on every route, and only `.ui` pages use these, so an

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // One failed state for every item page (frame.md F49, F84; F5's app error): a phase, a slice, an agenda item, a
 // deferred job and a doc that did not load all draw the back row with the sync line (the workspace answered, the
 // item's own read did not), F5's block with Try again and the item's way back, the reference when the error has a
-// digest (the route's boundary), and the item's id as the tab's title (`<id> · hi2vi`). Node only: server
+// digest (the route's boundary), and the item's id as the tab's title (`<id> · sikstack`). Node only: server
 // renders, the item's read mocked to fail and the Workspace's to answer.
 
 const PROJECT = "3f9c2a10-6d4e-4b8a-9f1e-2c7d5b8a0e41";

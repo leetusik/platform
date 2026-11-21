@@ -1,10 +1,10 @@
 import "server-only";
 
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { READER_DOCUMENT } from "@/content/reader-document";
-import { DocumentOriginal, DocumentReader } from "@/hi2vi/reader/document";
-import { documentMarks, type DocMark } from "@/hi2vi/reader/document/model";
-import { ChapterBody } from "@/hi2vi/reader/body/body";
+import { DocumentOriginal, DocumentReader } from "@/sikstack/reader/document";
+import { documentMarks, type DocMark } from "@/sikstack/reader/document/model";
+import { ChapterBody } from "@/sikstack/reader/body/body";
 import { ApiError } from "@/lib/knowledge/client";
 import { docSeed, readListenState } from "@/lib/listen/seed";
 import type { ListenSeed } from "@/lib/listen/types";
@@ -123,7 +123,7 @@ export function missTitle(error: unknown): string {
     error instanceof ApiError && (error.status === 404 || error.status === 400);
   return isNotFound(error) || miss
     ? READER_DOCUMENT.notFound.title
-    : HI2VI_STATES.error.title;
+    : SIKSTACK_STATES.error.title;
 }
 
 export function firstOf(value: string | string[] | undefined): string | null {

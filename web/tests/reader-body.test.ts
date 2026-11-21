@@ -8,8 +8,8 @@ import { SaxesParser } from "saxes";
 import { describe, expect, it } from "vitest";
 
 import { READER_BLOCKS } from "@/content/reader-blocks";
-import { MissingMedia } from "@/hi2vi/reader/body";
-import { LIBRARY_PAINT } from "@/hi2vi/reader/marks/model";
+import { MissingMedia } from "@/sikstack/reader/body";
+import { LIBRARY_PAINT } from "@/sikstack/reader/marks/model";
 import { NativeChapter, type NativeChapterProps } from "@/lib/native";
 import {
   BODY_HOOKS,
@@ -220,8 +220,8 @@ describe("a sideways box (frame.md F60's fit recipe)", () => {
     expect(seq.at(-1)).toEqual(first);
     // and no rule keyed on the state changes the box or its content: only the sentence after it shows
     const keyed = [
-      "src/hi2vi/styles/library/frame.css",
-      "src/hi2vi/styles/library/blocks.css",
+      "src/sikstack/styles/library/frame.css",
+      "src/sikstack/styles/library/blocks.css",
     ].flatMap((f) =>
       rules(read(f)).flatMap((r) =>
         r.selectors.filter((s) => s.includes("data-scrolls")),
@@ -232,7 +232,7 @@ describe("a sideways box (frame.md F60's fit recipe)", () => {
   });
 
   it("is followed by its sentence, hidden but while it scrolls", () => {
-    const frame = rules(read("src/hi2vi/styles/library/frame.css"));
+    const frame = rules(read("src/sikstack/styles/library/frame.css"));
     const hint = frame.find((r) => r.selectors.includes(".scroll-hint"));
     expect(hint?.body).toMatch(/display:\s*none/);
     const shown = frame.find((r) =>
@@ -285,10 +285,10 @@ describe("an external link's label wraps with its words (D258-t8)", () => {
   it("the Library's link and its label carry no class a no-wrap rule names", () => {
     const { a, span } = label("library");
     const held = nowrapClasses([
-      "src/hi2vi/styles/tokens.css",
-      "src/hi2vi/styles/bundle.css",
-      "src/hi2vi/styles/library/frame.css",
-      "src/hi2vi/styles/library/blocks.css",
+      "src/sikstack/styles/tokens.css",
+      "src/sikstack/styles/bundle.css",
+      "src/sikstack/styles/library/frame.css",
+      "src/sikstack/styles/library/blocks.css",
       ...OLD_SHEETS,
     ]);
     expect(classes(a)).toEqual(["link"]);
@@ -335,7 +335,7 @@ describe("a missing figure keeps its ratio and its words", () => {
   });
 
   it("the sheet keeps the ratio and lets the words grow the place", () => {
-    const blocks = rules(read("src/hi2vi/styles/library/blocks.css"));
+    const blocks = rules(read("src/sikstack/styles/library/blocks.css"));
     const media = blocks.find((r) => r.selectors.includes(".blocks-fig-media"));
     expect(media?.body).toMatch(
       /aspect-ratio:\s*var\(--fig-w\)\s*\/\s*var\(--fig-h\)/,

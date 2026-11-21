@@ -1,4 +1,4 @@
-import { notFoundState, StateBlock } from "@/hi2vi/states";
+import { notFoundState, StateBlock } from "@/sikstack/states";
 import { requireIdentity } from "@/lib/auth-guards";
 
 /**

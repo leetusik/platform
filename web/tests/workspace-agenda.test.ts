@@ -29,7 +29,7 @@ vi.mock("next/navigation", async (orig) => ({
   },
 }));
 const dialogs = vi.hoisted(() => ({ props: [] as Record<string, unknown>[] }));
-vi.mock("@/hi2vi/frame/dialog", async () => {
+vi.mock("@/sikstack/frame/dialog", async () => {
   const { createElement: h } = await import("react");
   return {
     Dialog: (props: Record<string, unknown>) => {
@@ -75,7 +75,7 @@ const {
   endedShown,
   unplacedDone,
   writeShown,
-} = await import("@/hi2vi/workspace/agenda");
+} = await import("@/sikstack/workspace/agenda");
 const { EMPTY_OVERLAY, reconcile, view } =
   await import("@/lib/workspace/optimistic");
 const { dates, phaseLookup } = await import("@/lib/workspace/model");

@@ -97,7 +97,7 @@ def normalize_org_slug(value: str) -> str:
 
     Mixed case and surrounding whitespace are **accepted on input and normalized**
     (trimmed + lowercased) — the stored and URL forms are always lowercase, so
-    ``Hi2Vi`` and ``hi2vi`` are the same slug and cannot both be claimed.
+    ``Sikstack`` and ``sikstack`` are the same slug and cannot both be claimed.
     """
 
     if not isinstance(value, str):

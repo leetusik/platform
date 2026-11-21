@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { headOf } from "@/hi2vi/listen";
+import { headOf } from "@/sikstack/listen";
 import type { KbListenPosition, KbListenState } from "@/lib/knowledge/listen";
 import type { Listen, ListenKept, ListenSeed } from "@/lib/listen/types";
 

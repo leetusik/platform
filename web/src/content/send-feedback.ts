@@ -1,4 +1,4 @@
-// hi2vi's own feedback control: its words, word for word from the signed `08-landing-diagram-feedback`
+// sikstack's own feedback control: its words, word for word from the signed `08-landing-diagram-feedback`
 // round `01-landing-diagram-feedback` (`result.md` `## Build` §2 and §5; `frame.md` F400 to F405;
 // `SendFeedback.dc.html`). English only, like the landing. The sentences that carry a value are
 // functions, so the count, the limit and the reply address are built from one source; every number
@@ -13,7 +13,7 @@ export const SEND_FEEDBACK = {
   /** The trigger, on both pages (F400, F407). */
   trigger: "Send feedback",
   /** The dialog's title and accessible name, then the sent view's (F400, F405). */
-  title: "Feedback about hi2vi",
+  title: "Feedback about sikstack",
   sentTitle: "Feedback sent",
   /** The fields (F403). */
   message: "Message",
@@ -40,7 +40,7 @@ export const SEND_FEEDBACK = {
   /** `refused`, a signed-in user: the account's limit. */
   refusedAccount: "Too many messages for now. Try again later.",
   /** `refused-site`, a visitor only: the site's daily ceiling. */
-  refusedSite: "hi2vi has had too many messages today. Try again tomorrow.",
+  refusedSite: "sikstack has had too many messages today. Try again tomorrow.",
   /** The check's sentences (F404), each under its field. */
   messageEmpty: "Enter a message.",
   messageLong: (limit: number): string =>

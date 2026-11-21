@@ -13,7 +13,7 @@ import {
   Input,
   Label,
   Notice,
-} from "@/hi2vi/ui";
+} from "@/sikstack/ui";
 import { isConnectNext } from "@/lib/connect/model";
 import { safeNextPath, SIGN_IN_LANDING_PATH } from "@/lib/next-path";
 

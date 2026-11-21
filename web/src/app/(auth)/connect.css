@@ -1,7 +1,7 @@
 /*
  * The connect page's classes (job 09 *Install and connect*, round 01, `frame.css` 9b–9e and
  * `ConnectColumn.dc.html`), copied value for value, beside `signin.css`. Scoped like the
- * system's sheets (src/hi2vi/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])`
+ * system's sheets (src/sikstack/styles/README.md): one `@scope (.ui) to ([data-ui-legacy])`
  * block, imported by the connect page, never through `globals.css`.
  */
 @scope (.ui) to ([data-ui-legacy]) {

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { BOOK_PAGE } from "@/content/book-page";
-import { Skeleton, Status } from "@/hi2vi/ui";
+import { Skeleton, Status } from "@/sikstack/ui";
 import type { HeadView } from "@/lib/book/view";
 
 /** The head's id: the bar shows the book's title once this has scrolled away under it. */

@@ -50,7 +50,7 @@
  */
 
 /**
- * Where a missing or rejected `next` lands: org home, the landing after sign-in (hi2vi,
+ * Where a missing or rejected `next` lands: org home, the landing after sign-in (sikstack,
  * frame:Q6; it was the library from P30.S22). A safe `next` still wins.
  */
 export const SIGN_IN_LANDING_PATH = "/dashboard";

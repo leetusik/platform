@@ -6,7 +6,7 @@ import {
   boundaryRetry,
   StateBlock,
   type BoundaryRetryProps,
-} from "@/hi2vi/states";
+} from "@/sikstack/states";
 import { publicBack } from "@/lib/project-library/place";
 
 import {

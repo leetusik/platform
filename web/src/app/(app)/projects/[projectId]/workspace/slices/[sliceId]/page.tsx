@@ -8,15 +8,15 @@ import {
   WsItemFailed,
   wsNotFoundState,
   wsSyncLine,
-} from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/frame";
 import {
   SliceMissing,
   SlicePage,
   sliceCommits,
   slicePhaseOf,
-} from "@/hi2vi/workspace/slice";
-import { segmentId } from "@/hi2vi/workspace/slice/address";
-import { loadSliceOnce } from "@/hi2vi/workspace/slice/load";
+} from "@/sikstack/workspace/slice";
+import { segmentId } from "@/sikstack/workspace/slice/address";
+import { loadSliceOnce } from "@/sikstack/workspace/slice/load";
 import { requireIdentity } from "@/lib/auth-guards";
 import {
   decodeWorkspaceFrom,

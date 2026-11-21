@@ -10,7 +10,7 @@ import {
   renderDocument,
 } from "@/components/reader/document-page";
 import { READER_DOCUMENT } from "@/content/reader-document";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { requestNonce } from "@/sikstack/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { resolveDocument } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
@@ -47,7 +47,7 @@ import { viewerTimeZone } from "@/lib/time-zone";
 // variant, `01-reader`); `?v=N` reads an older version. P30.S25 — an html explainer (or
 // an html version) opens in the LEGACY READER (`09-legacy-and-print`), with no app shell.
 //
-// P63-fk.S12 — a native or md document reads in the Library's reader (`@/hi2vi/reader/document`, job 03
+// P63-fk.S12 — a native or md document reads in the Library's reader (`@/sikstack/reader/document`, job 03
 // Library round 02, § Page: document; `renderDocument`): the way back by `?from=` (F328), an earlier version
 // at `?v=n` (one that does not exist is Document not found), Version history, the marks by format (OQ14).
 // Library round 02 drew no Listen on a document (job 07 draws it; P64-3y.S6 below).

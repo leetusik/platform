@@ -25,7 +25,7 @@ from sqlalchemy import create_engine, make_url, text
 
 _RAW_DSN = os.environ.get("KB_TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 _SMTP_ENV = ("KB_SMTP_HOST", "KB_SMTP_PORT", "KB_SMTP_USER", "KB_SMTP_PASSWORD", "KB_SMTP_FROM")
-_ENGINE_HEADERS = {"X-Hi2vi-Checkout": "test-checkout", "X-Hi2vi-Engine": "v99"}
+_ENGINE_HEADERS = {"X-Sikstack-Checkout": "test-checkout", "X-Sikstack-Engine": "v99"}
 
 
 @pytest.fixture
@@ -394,8 +394,33 @@ def test_another_projects_key_gets_404_on_every_route(store):
     own = _ok(client.get(f"/api/workspace/{project_a}/head", headers=key_a))
     assert own["head"] == 1 and own["project_id"] == project_a and own["inbox_pending"] == 0
     assert client.get(f"/api/workspace/{project_a}/head").status_code == 401
-    no_engine = {k: v for k, v in key_a.items() if k != "X-Hi2vi-Engine"}
+    no_engine = {k: v for k, v in key_a.items() if k != "X-Sikstack-Engine"}
     assert client.get(f"/api/workspace/{project_a}/head", headers=no_engine).status_code == 400
+
+
+@pytest.mark.parametrize("prefix", ["X-Sikstack-", "X-Hi2vi-"])
+def test_an_engine_syncs_under_either_header_name(store, prefix):
+    """A sikstack engine sends ``X-Sikstack-*``; one from before the rename sends
+    ``X-Hi2vi-*``. Both link, commit, read the manifest and count a head probe."""
+
+    client, _url, sync_engine = store
+    project_id, _tid, key = _linked(client)
+    auth = {"Authorization": key["Authorization"]}
+    engine = {**auth, f"{prefix}Checkout": f"co-{prefix}", f"{prefix}Engine": "v101"}
+    assert _ok(client.get(f"/api/workspace/{project_id}/head", headers=engine))["head"] == 0
+    answer = _ok(_commit(client, project_id, engine, [_put("works/a.md", "a body", None)]))
+    assert answer["head"] == 1
+    changes = _ok(client.get(f"/api/workspace/{project_id}/manifest", params={"since": 0},
+                             headers=engine))["changes"]
+    assert [c["path"] for c in changes] == ["works/a.md"]
+    probe = {**engine, f"{prefix}Base": str(answer["head"])}
+    assert _ok(client.get(f"/api/workspace/{project_id}/head", headers=probe))["head"] == 1
+    with sync_engine.connect() as conn:
+        row = conn.execute(text(
+            "SELECT checkout, engine_version FROM workspace_batches WHERE project_id = :p"
+        ), {"p": project_id}).one()
+    assert tuple(row) == (f"co-{prefix}", "v101")
+    assert client.get(f"/api/workspace/{project_id}/head", headers=auth).status_code == 400
 
 
 def test_blobs_are_stored_once_per_sha(store):

@@ -11,15 +11,15 @@ import "server-only";
 
 /** The defaults the operator's decision 2 sets; each is overridable by its env value. */
 export const FEEDBACK_DEFAULTS = {
-  /** `HI2VI_FEEDBACK_MAX_CHARS`: the length cap, the [LIMIT] shown on screen. */
+  /** `SIKSTACK_FEEDBACK_MAX_CHARS`: the length cap, the [LIMIT] shown on screen. */
   maxChars: 2000,
-  /** `HI2VI_FEEDBACK_IP_LIMIT` messages per `HI2VI_FEEDBACK_IP_WINDOW_S`, per visitor address. */
+  /** `SIKSTACK_FEEDBACK_IP_LIMIT` messages per `SIKSTACK_FEEDBACK_IP_WINDOW_S`, per visitor address. */
   ipLimit: 5,
   ipWindowS: 600,
-  /** `HI2VI_FEEDBACK_ACCOUNT_LIMIT` per `HI2VI_FEEDBACK_ACCOUNT_WINDOW_S`, per signed-in account. */
+  /** `SIKSTACK_FEEDBACK_ACCOUNT_LIMIT` per `SIKSTACK_FEEDBACK_ACCOUNT_WINDOW_S`, per signed-in account. */
   accountLimit: 10,
   accountWindowS: 600,
-  /** `HI2VI_FEEDBACK_DAILY_CEILING`: landing messages per sliding 24 hours, site-wide. */
+  /** `SIKSTACK_FEEDBACK_DAILY_CEILING`: landing messages per sliding 24 hours, site-wide. */
   dailyCeiling: 200,
 } as const;
 
@@ -32,9 +32,18 @@ export interface FeedbackSettings {
   dailyCeiling: number;
 }
 
+/**
+ * `SIKSTACK_FEEDBACK_<name>`, else the box's older `HI2VI_FEEDBACK_<name>` (the
+ * product was hi2vi before sikstack; production sets the old names until it moves).
+ */
+function feedbackEnv(name: string): string | undefined {
+  const value = process.env[`SIKSTACK_FEEDBACK_${name}`];
+  return value !== undefined ? value : process.env[`HI2VI_FEEDBACK_${name}`];
+}
+
 /** The env value as a positive integer, or `fallback` when unset, blank or anything else. */
 function positiveInt(name: string, fallback: number): number {
-  const raw = process.env[name];
+  const raw = feedbackEnv(name);
   if (typeof raw !== "string") return fallback;
   const text = raw.trim();
   if (!/^[0-9]+$/.test(text)) return fallback;
@@ -46,24 +55,24 @@ function positiveInt(name: string, fallback: number): number {
 export function feedbackSettings(): FeedbackSettings {
   return {
     maxChars: positiveInt(
-      "HI2VI_FEEDBACK_MAX_CHARS",
+      "MAX_CHARS",
       FEEDBACK_DEFAULTS.maxChars,
     ),
-    ipLimit: positiveInt("HI2VI_FEEDBACK_IP_LIMIT", FEEDBACK_DEFAULTS.ipLimit),
+    ipLimit: positiveInt("IP_LIMIT", FEEDBACK_DEFAULTS.ipLimit),
     ipWindowS: positiveInt(
-      "HI2VI_FEEDBACK_IP_WINDOW_S",
+      "IP_WINDOW_S",
       FEEDBACK_DEFAULTS.ipWindowS,
     ),
     accountLimit: positiveInt(
-      "HI2VI_FEEDBACK_ACCOUNT_LIMIT",
+      "ACCOUNT_LIMIT",
       FEEDBACK_DEFAULTS.accountLimit,
     ),
     accountWindowS: positiveInt(
-      "HI2VI_FEEDBACK_ACCOUNT_WINDOW_S",
+      "ACCOUNT_WINDOW_S",
       FEEDBACK_DEFAULTS.accountWindowS,
     ),
     dailyCeiling: positiveInt(
-      "HI2VI_FEEDBACK_DAILY_CEILING",
+      "DAILY_CEILING",
       FEEDBACK_DEFAULTS.dailyCeiling,
     ),
   };
@@ -71,11 +80,11 @@ export function feedbackSettings(): FeedbackSettings {
 
 /**
  * The project-bound `capture` key the send presents, or `null` when
- * `HI2VI_FEEDBACK_CAPTURE_KEY` is unset or blank. For the send only: never put it in
+ * `SIKSTACK_FEEDBACK_CAPTURE_KEY` (else `HI2VI_FEEDBACK_CAPTURE_KEY`) is unset or blank. For the send only: never put it in
  * a prop, a result or a log line.
  */
 export function readCaptureKey(): string | null {
-  const raw = process.env.HI2VI_FEEDBACK_CAPTURE_KEY;
+  const raw = feedbackEnv("CAPTURE_KEY");
   if (typeof raw !== "string") return null;
   const key = raw.trim();
   return key === "" ? null : key;

@@ -276,7 +276,7 @@ def test_a_workspace_key_reaches_no_capture_and_no_library_route(ws):
         assert res.status_code == 202, (scope, res.text)
 
 
-_ENGINE = {"X-Hi2vi-Checkout": "wskey-checkout", "X-Hi2vi-Engine": "v99"}
+_ENGINE = {"X-Sikstack-Checkout": "wskey-checkout", "X-Sikstack-Engine": "v99"}
 
 
 def _last_used(client: TestClient, owner: dict, credential_id: str, *, project_id: str | None = None):

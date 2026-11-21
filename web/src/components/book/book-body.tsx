@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { BOOK_PAGE } from "@/content/book-page";
-import { ReadingData, type ReadingDataPhase } from "@/hi2vi/library";
+import { ReadingData, type ReadingDataPhase } from "@/sikstack/library";
 import {
   AudioHead,
   bookHeadOf,
@@ -14,7 +14,7 @@ import {
   ListenTrack,
   type BookListenSeedView,
   type ListenWhat,
-} from "@/hi2vi/listen";
+} from "@/sikstack/listen";
 import { clearBookReadingData } from "@/lib/book/actions";
 import { clearedView } from "@/lib/book/model";
 import type { BookView } from "@/lib/book/view";

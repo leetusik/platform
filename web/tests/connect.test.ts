@@ -44,7 +44,10 @@ function view(raw: unknown): ConnectView {
 
 function render(initial: ConnectView, waitlisted: { email: string; next: string } | null = null): string {
   return renderToStaticMarkup(
-    createElement(AuthEmailProvider, { initialWaitlisted: waitlisted }, createElement(ConnectColumn, { initial })),
+    createElement(AuthEmailProvider, {
+      initialWaitlisted: waitlisted,
+      children: createElement(ConnectColumn, { initial }),
+    }),
   );
 }
 

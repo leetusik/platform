@@ -1,0 +1,54 @@
+/* sikstack — the Workspace's Markdown body sheet (design job 02, round 02-agenda-and-links). Holds `.md` and its parts: text on the measure, three heading steps, lists, inline code and a code block, a table, a quote, the way to a section (`Md.dc.html`, frame.md F46, F84).
+   The boards' own rules, as signed, added by the build of that part; the frame's and the system's classes are
+   never redefined here (src/sikstack/styles/README.md). Loaded once, through ../index.css.
+   Section 8 of the signed frame.css, its declarations as signed; the renderer (src/sikstack/workspace/md) gives its
+   output these classes. Changed from the signed sheet: `.md` breaks a long word anywhere (was `break-word`), so
+   a word longer than its line never sets the least width of a paragraph, a list item or a cell. */
+@scope (.ui) to ([data-ui-legacy]) {
+
+/* Markdown: .md, always on a surface (frame.md F46) */
+.md-wrap { container: md / inline-size; }
+.md-layout { display: flex; flex-direction: column; gap: var(--space-4); }
+.md { display: flex; flex: 1 1 0; flex-direction: column; align-items: flex-start; gap: var(--space-3); width: 100%; min-width: 0; line-height: var(--lh-head); overflow-wrap: anywhere; }
+/* text keeps a measure; a table and a code block may use the body's whole width */
+.md > * { max-width: min(100%, var(--measure)); }
+.md > .md-code, .md > .md-table { width: fit-content; min-width: min(100%, var(--measure)); max-width: 100%; }
+/* three heading steps: 16 semibold, 14 semibold, 14 medium in ink-2; space above says where a part starts */
+.md-h1 { padding-top: var(--space-5); font: 600 var(--fs-head)/var(--lh-head) var(--font); }
+.md-h2 { padding-top: var(--space-3); font: 600 var(--fs-text)/var(--lh-head) var(--font); }
+.md-h3 { padding-top: var(--space-1); color: var(--ink-2); font: 500 var(--fs-text)/var(--lh-head) var(--font); }
+.md > :first-child { padding-top: 0; }
+.md strong { font-weight: 600; }
+.md ul, .md ol { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-5); }
+.md ul { list-style: disc; }
+.md ol { list-style: decimal; }
+.md li > ul { padding-top: var(--space-1); }
+.md li::marker { color: var(--ink-2); }
+.md blockquote { margin: 0; padding-left: var(--space-4); border-left: 2px solid var(--edge); color: var(--ink-2); }
+/* code: the mono face at the meta step, inline and in a block */
+/* the chip hangs 3 px left of its text, so code that starts a line keeps the body's left edge */
+.md code { padding: 1px var(--code-pad) 1px 0; border-radius: var(--radius-xs); background: var(--bg); box-shadow: calc(-1 * var(--code-pad)) 0 0 var(--bg); font-family: var(--font-mono); font-size: var(--fs-meta); }
+.md-code { border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--bg); }
+.md-code > pre { width: max-content; min-width: 100%; box-sizing: border-box; margin: 0; padding: var(--space-3) var(--space-4); font: 400 var(--fs-meta)/var(--lh-head) var(--font-mono); white-space: pre; }
+.md-code code { padding: 0; background: transparent; box-shadow: none; }
+/* a table keeps the body's left edge and scrolls in its own box */
+.md-table { border-bottom: 1px solid var(--line); }
+.md-table > .table { width: max-content; min-width: 100%; }
+.md-table .table th, .md-table .table td { max-width: 24em; line-height: var(--lh-text); }
+.md-table .table th:first-child, .md-table .table td:first-child { padding-left: 0; }
+.md-table .table th { background: var(--surface); }
+/* the way to a section: a closed list above the body; from 60em a list beside it that stays in view */
+.md-jump > summary { display: flex; align-items: center; gap: var(--space-2); width: fit-content; min-height: var(--control-h); font-weight: 500; cursor: pointer; list-style: none; }
+.md-jump > summary::-webkit-details-marker { display: none; }
+.md-jump > summary::after { content: ""; width: 6px; height: 6px; margin-top: -3px; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); }
+.md-jump[open] > summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.md-outline { display: none; }
+.md-outline-title { padding-bottom: var(--space-1); color: var(--ink-2); font-size: var(--fs-meta); font-weight: 500; line-height: var(--lh-meta); }
+.md-outline-link { display: flex; align-items: center; min-height: var(--control-h); color: var(--ink-2); line-height: var(--lh-text); text-decoration: none; text-wrap: balance; overflow-wrap: anywhere; }
+.md-outline-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+@container md (min-width: 60em) {
+  .md-layout { flex-direction: row; align-items: baseline; gap: var(--space-6); }
+  .md-jump { display: none; }
+  .md-outline { position: sticky; top: var(--space-4); display: block; flex: none; width: var(--outline-w); max-height: calc(100vh - 2 * var(--space-4)); overflow-y: auto; }
+}
+}

@@ -13,7 +13,7 @@ import {
   docsHref,
 } from "@/lib/workspace/address";
 import { readWorkspace } from "@/lib/workspace/read";
-import { WsNav, wsSyncLine, type WsSyncLine } from "@/hi2vi/workspace/frame";
+import { WsNav, wsSyncLine, type WsSyncLine } from "@/sikstack/workspace/frame";
 import {
   askedPage,
   BacklogFailed,
@@ -21,7 +21,7 @@ import {
   BacklogPhases,
   BacklogWaiting,
   backlogView,
-} from "@/hi2vi/workspace/backlog";
+} from "@/sikstack/workspace/backlog";
 
 import { requestOrigin } from "../../model";
 

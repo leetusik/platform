@@ -1,4 +1,4 @@
-// The book page's words (hi2vi Library, job 03 round 02, `## Build` § Page: book; the boards `Book`,
+// The book page's words (sikstack Library, job 03 round 02, `## Build` § Page: book; the boards `Book`,
 // `BookHead`, `BookContinue`, `BookChapters`). Verbatim from the boards; the shared parts' words (the bar,
 // Your reading data, a version's row) are `@/content/library-frame`'s. Imported by its own path, never
 // through `content/index.ts`.

@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, F320, F324, F325) — a list's place, read from its address,
+ * sikstack Library (`03-library` round 02, F320, F324, F325) — a list's place, read from its address,
  * and the arithmetic of a page of it. Pure, and NOT `server-only`: the pages read it on the server and
  * the list parts build their links with it in the browser.
  *
@@ -8,7 +8,7 @@
  * project filter (a project's name). A project's page keeps `page` and `q`. Switching views keeps the
  * other three (F320). 25 rows a page (`LB.PAGE`).
  */
-import { pagerRange } from "@/hi2vi/library/pager-model";
+import { pagerRange } from "@/sikstack/library/pager-model";
 import { libraryHref, type ListPlace } from "@/lib/reader-href";
 
 /** Rows a page of a documents table (`LB.PAGE`). */

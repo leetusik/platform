@@ -6,7 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { Md, type MdProps, mdSections } from "@/hi2vi/workspace/md";
+import { Md, type MdProps, mdSections } from "@/sikstack/workspace/md";
 
 // The Workspace's Markdown body (design job 02, frame.md F46): a real renderer whose output carries the `.md`
 // classes: three heading steps counted from `level`, a code block and a table in their own focusable scroll
@@ -213,7 +213,7 @@ describe("Md on a real plan", () => {
 
 describe("Md's sheet", () => {
   const css = readFileSync(
-    join(fileURLToPath(new URL("..", import.meta.url)), "src/hi2vi/styles/workspace/md.css"),
+    join(fileURLToPath(new URL("..", import.meta.url)), "src/sikstack/styles/workspace/md.css"),
     "utf8",
   );
   it("styles every class the renderer emits", () => {

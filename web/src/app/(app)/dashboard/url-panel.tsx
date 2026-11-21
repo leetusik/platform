@@ -3,7 +3,7 @@
 import { useEffect, useId, useReducer, useRef, type FormEvent } from "react";
 
 import { ORG_HOME } from "@/content/dashboard";
-import { Copy } from "@/hi2vi/frame";
+import { Copy } from "@/sikstack/frame";
 import {
   BlockText,
   Button,
@@ -16,7 +16,7 @@ import {
   Panel,
   PanelBody,
   PanelHead,
-} from "@/hi2vi/ui";
+} from "@/sikstack/ui";
 
 import {
   initialUrlForm,

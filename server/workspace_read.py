@@ -42,7 +42,7 @@ linked, no batch landed), else ``fresh`` while ``last_sync_at`` is under
 ``SYNC_FRESH_FOR`` old and ``behind`` from then on. ``last_sync_at`` moves on every
 landed batch (the service) and on an up-to-date head probe, at most once per
 ``TOUCH_EVERY`` (:func:`note_head_probe`). ``version`` is the engine version the last
-batch named (``X-Hi2vi-Engine``).
+batch named (``X-Sikstack-Engine``).
 
 **Memo.** A page's data is computed on request and kept per ``(project, head,
 derived)``, where ``derived`` is a hash of the two derived records (a batch that
@@ -1416,7 +1416,7 @@ async def note_head_probe(
 ) -> bool:
     """Count an up-to-date head probe as a sync: move ``last_sync_at`` (throttled).
 
-    For the head route: a probe whose ``X-Hi2vi-Base`` equals the head means the
+    For the head route: a probe whose ``X-Sikstack-Base`` equals the head means the
     checkout holds the head, so a read-only day of work still reads as synced. Moves
     the row at most once per ``TOUCH_EVERY``; returns whether it moved.
     """

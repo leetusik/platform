@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { DASHBOARD } from "@/content/dashboard";
-import { Keys, Trend, Usage } from "@/hi2vi/frame";
-import { SendFeedback } from "@/hi2vi/send-feedback";
-import { Grid, Stack } from "@/hi2vi/ui";
+import { Keys, Trend, Usage } from "@/sikstack/frame";
+import { SendFeedback } from "@/sikstack/send-feedback";
+import { Grid, Stack } from "@/sikstack/ui";
 import { requireIdentity } from "@/lib/auth-guards";
 import { feedbackControl } from "@/lib/send-feedback/config";
 import type { FormatOptions } from "@/lib/format";
@@ -47,7 +47,7 @@ import { UrlPanel } from "./url-panel";
  * panel's own state (Projects did not load.); any other failure is the route's error page. Dates are
  * in the viewer's zone (`kb_tz`), UTC until it is known.
  *
- * At the end of the page head, hi2vi's own feedback control (job 08, round
+ * At the end of the page head, sikstack's own feedback control (job 08, round
  * 01-landing-diagram-feedback, `## Build` §5) as the signed-in user, `Sends as` the Shell's account,
  * only where the server holds the control's key; without it the head is the title alone.
  */

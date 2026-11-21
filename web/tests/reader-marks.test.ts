@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { READER } from "@/content";
 import { MARK_ROW, SAVE } from "@/content/library-frame";
 import { READER_MARKS } from "@/content/reader-marks";
-import { markWord } from "@/hi2vi/library/mark-row-model";
+import { markWord } from "@/sikstack/library/mark-row-model";
 import {
   barKind,
   besideNote,
@@ -23,7 +23,7 @@ import {
   railFits,
   railTops,
   rowOf,
-} from "@/hi2vi/reader/marks/model";
+} from "@/sikstack/reader/marks/model";
 import {
   MarkBox,
   MarksBar,
@@ -33,8 +33,8 @@ import {
   SlotLine,
   BesideButton,
   type MarkBoxProps,
-} from "@/hi2vi/reader/marks/parts";
-import { undoClock, type Timers } from "@/hi2vi/reader/marks/undo";
+} from "@/sikstack/reader/marks/parts";
+import { undoClock, type Timers } from "@/sikstack/reader/marks/undo";
 import {
   bookmarkWire,
   cleanLabel,
@@ -46,7 +46,7 @@ import {
   reviewWire,
   sectionNoteWire,
   snapshotOf,
-} from "@/hi2vi/reader/marks/wire";
+} from "@/sikstack/reader/marks/wire";
 import { NativeChapter } from "@/lib/native";
 import {
   capture,
@@ -769,7 +769,7 @@ describe("the note's count line never moves the buttons", () => {
   });
 
   it("the sheet stacks the count over its longest sentence, which holds the line's height", () => {
-    const css = read("src/hi2vi/styles/library/annotations.css");
+    const css = read("src/sikstack/styles/library/annotations.css");
     expect(css).toMatch(/\.marks-box-count \{\s*display: grid;/);
     expect(css).toMatch(/\.marks-box-count > \* \{\s*grid-area: 1 \/ 1;/);
     expect(css).toMatch(/\.marks-box-count-size \{\s*visibility: hidden;/);
@@ -1173,7 +1173,7 @@ describe("the marks are the Library's own: no old sheet styles them (P63-fk.S11)
   });
 
   it("the signed paint's states are the sheet's, and the bridge in blocks.css is gone", () => {
-    const css = read("src/hi2vi/styles/library/annotations.css");
+    const css = read("src/sikstack/styles/library/annotations.css");
     for (const sel of [
       ".an-m.is-2",
       ".an-m.has-note",
@@ -1195,13 +1195,13 @@ describe("the marks are the Library's own: no old sheet styles them (P63-fk.S11)
       open: "is-active",
       pending: "an-pending",
     });
-    expect(strip(read("src/hi2vi/styles/library/blocks.css"))).not.toMatch(
+    expect(strip(read("src/sikstack/styles/library/blocks.css"))).not.toMatch(
       /an-m|an-pending/,
     );
   });
 
   it("the Library's layer sits in no old root", () => {
-    const b = read("src/hi2vi/reader/body/body.tsx");
+    const b = read("src/sikstack/reader/body/body.tsx");
     expect(b).toMatch(/<AnnotationLayer[\s\S]*?look="library"/);
     const i = b.indexOf("<AnnotationLayer");
     const before = b.slice(0, i);

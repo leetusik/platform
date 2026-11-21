@@ -30,7 +30,7 @@ from sqlalchemy import create_engine, make_url, text
 
 _RAW_DSN = os.environ.get("KB_TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 _SMTP_ENV = ("KB_SMTP_HOST", "KB_SMTP_PORT", "KB_SMTP_USER", "KB_SMTP_PASSWORD", "KB_SMTP_FROM")
-_ENGINE_HEADERS = {"X-Hi2vi-Checkout": "test-checkout", "X-Hi2vi-Engine": "v99"}
+_ENGINE_HEADERS = {"X-Sikstack-Checkout": "test-checkout", "X-Sikstack-Engine": "v99"}
 _FIXTURES = Path(__file__).parent / "fixtures" / "workspace"
 _REFUSAL = "Enter a title of 1–200 characters."
 # The engine's agenda id rule, word for word: a number and a two-symbol tail of
@@ -517,7 +517,7 @@ def test_a_change_naming_an_id_the_workspace_lacks_is_refused_at_once(store):
 def test_a_batch_naming_an_applied_entry_is_409_and_applies_nothing(store):
     client, engine = store
     owner, project_id, key, answer = _linked(client)
-    other = {**key, "X-Hi2vi-Checkout": "another-checkout"}
+    other = {**key, "X-Sikstack-Checkout": "another-checkout"}
 
     entry = _change(client, owner, project_id, "defer", ["A2-k5"]).json()["entry"]
     result = {"id": entry["id"], "state": "applied", "exit": 0}
@@ -659,14 +659,14 @@ def test_an_up_to_date_head_probe_counts_as_a_sync(store):
     set_last(old)
     for stale in ("", "nope", str(answer["head"] - 1)):
         res = client.get(f"/api/workspace/{project_id}/head",
-                         headers={**key, "X-Hi2vi-Base": stale})
+                         headers={**key, "X-Sikstack-Base": stale})
         assert res.status_code == 200
         assert last() == old, stale
     assert _sync_of(client, owner, project_id)  # still readable
     assert client.get(_base(project_id), headers=_session(owner)).json()["sync"]["state"] == "behind"
 
     res = client.get(f"/api/workspace/{project_id}/head",
-                     headers={**key, "X-Hi2vi-Base": str(answer["head"])})
+                     headers={**key, "X-Sikstack-Base": str(answer["head"])})
     assert res.status_code == 200
     assert last() > old + timedelta(hours=29)
     assert client.get(_base(project_id), headers=_session(owner)).json()["sync"]["state"] == "fresh"

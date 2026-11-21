@@ -1,4 +1,4 @@
-// ── hi2vi sign-in (job 01 *Sign in*, round 03-instrument; P58) ──────────────────
+// ── sikstack sign-in (job 01 *Sign in*, round 03-instrument; P58) ──────────────────
 // The two screens' words, verbatim from the signed boards (`SignInForm.dc.html`,
 // frame.md F4), read by `src/app/(auth)/` through this file's own path.
 
@@ -17,8 +17,8 @@ export interface SignInScreenCopy {
 }
 
 export const SIGN_IN_COPY = {
-  wordmark: "hi2vi",
-  wordmarkLabel: "hi2vi, home",
+  wordmark: "sikstack",
+  wordmarkLabel: "sikstack, home",
   email: "Email",
   password: "Password",
   passwordHint: "Use at least 8 characters.",
@@ -64,12 +64,12 @@ export const WAITLIST_COPY = {
   "sign-up": {
     title: "Account created",
     text: (email: string) =>
-      `hi2vi is still being built, so your account is on the waitlist. We will email ${email} when it opens.`,
+      `sikstack is still being built, so your account is on the waitlist. We will email ${email} when it opens.`,
   },
   "sign-in": {
     title: "Still on the waitlist",
     text: (email: string) =>
-      `Your account is still on the waitlist. We will email ${email} when hi2vi opens.`,
+      `Your account is still on the waitlist. We will email ${email} when sikstack opens.`,
   },
   back: "Back to sign in",
 } as const;

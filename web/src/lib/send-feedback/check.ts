@@ -3,7 +3,7 @@
 // honest one would. Pure and free of `server-only`: it holds no key and reads no env,
 // so a client island may import it. The server stays the authority.
 
-/** What a send of hi2vi's own feedback control answers. */
+/** What a send of sikstack's own feedback control answers. */
 export type SendFeedbackResult =
   | { status: "sent" }
   | { status: "failed" }

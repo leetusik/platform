@@ -1,6 +1,6 @@
 "use client";
 
-import { Keys, type KeyRow, type MintInput } from "@/hi2vi/frame";
+import { Keys, type KeyRow, type MintInput } from "@/sikstack/frame";
 import type { FormatOptions } from "@/lib/format";
 
 import { mintCredentialAction, revokeCredentialAction } from "./actions";

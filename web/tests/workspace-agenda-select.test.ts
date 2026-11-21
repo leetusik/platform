@@ -20,7 +20,7 @@ vi.mock("next/navigation", async (orig) => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 const dialogs = vi.hoisted(() => ({ props: [] as Record<string, unknown>[] }));
-vi.mock("@/hi2vi/frame/dialog", async () => {
+vi.mock("@/sikstack/frame/dialog", async () => {
   const { createElement: h } = await import("react");
   return {
     Dialog: (props: Record<string, unknown>) => {
@@ -62,7 +62,7 @@ const {
   sendOrder,
   toggleAll,
   toggleRow,
-} = await import("@/hi2vi/workspace/agenda");
+} = await import("@/sikstack/workspace/agenda");
 const { AGENDA } = await import("@/content/workspace/agenda");
 const { dates, phaseLookup } = await import("@/lib/workspace/model");
 const { begin, EMPTY_OVERLAY, view } =

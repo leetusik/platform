@@ -68,13 +68,13 @@ The executor writes chapter `<k>` by §9.3 *A chapter: its evidence, then the dr
    a gap is stated or dropped, and a section the evidence cannot carry is cut to `## Not used`.
 
    Any other verdict is handled as usual (`reference/verdicts.md`), and no critic runs.
-2. **Span 2, you dispatch the critic:** `knowledge:explain-critic`, with its model on the call (*The
+2. **Span 2, you dispatch the critic:** `explain:explain-critic`, with its model on the call (*The
    critic's model*, below), and like every span (`reference/verdicts.md`): in the background, waiting for
    its completion notification. §4.10 *D8: the critic, one revision, then publish* has its writer dispatch
    the critic in the foreground, because a headless `claude -p` session stopped a background critic after
    ten idle minutes; that is the writer's rule inside its own run, and your main thread is the interactive
    session the workspace runs in. The prompt is the line `slice: <id>`, then the dispatch block of B5
-   *Critic (`knowledge:explain-critic`)*, its *Your dispatch*, filled in, every path from the repo root. The
+   *Critic (`explain:explain-critic`)*, its *Your dispatch*, filled in, every path from the repo root. The
    field set is that block's, read from the installed skill at dispatch; these blocks are that set filled
    with this workspace's paths, a line B5 has and a block lacks is filled from B5, and B5 wins on any
    difference:
@@ -95,7 +95,7 @@ The executor writes chapter `<k>` by §9.3 *A chapter: its evidence, then the dr
 
    It is a long span (up to 120 turns, its frontmatter's `maxTurns`) and writes `book/critique/<key>.md`:
    findings by severity (`must-fix`, `should-fix`, `note`), confidence and evidence, checked against the code
-   at the commit and the record lines themselves (B5 *Critic (`knowledge:explain-critic`)*, *How you
+   at the commit and the record lines themselves (B5 *Critic (`explain:explain-critic`)*, *How you
    check*): a sentence from outside the code and the records (`outside`) is a must-fix even when true, and
    a reader task the chapter does not serve (`reader`) is a must-fix. Read **only its verdict block** (its
    `trace:` and `coverage:` lines among it). A `blocked` critic (a wrong model, a missing outline, a denied
@@ -165,7 +165,7 @@ The review swaps `check` for `save`; nothing else in the line changes.
 ## The critic's model
 
 The critic runs on **a model of the other family from the writer's** (§4.10 *D8: the critic, one
-revision, then publish*, step 1; B5 *Critic (`knowledge:explain-critic`)*, *Your model*). Name it on the
+revision, then publish*, step 1; B5 *Critic (`explain:explain-critic`)*, *Your model*). Name it on the
 call: **`model: sonnet`** when span 1 ran on an Opus model (the high row's default), and `model: opus`
 when it ran on any other. The dispatch never says `same-model: accepted`: that line is for a host that
 cannot pick a model, and this one picks it per call. A critic that returns `blocked` for the writer's
@@ -223,7 +223,7 @@ operator's `accept`.
   Then *The read-through and the check*, `result.md` with its `## Publish` section, and `done` with
   `critic_ready: yes`. A stop is span 1's of a book's chapter (`FAILED: permissions`).
 - **Span 2, you dispatch the critic:** as for a book, in the background, with the model by *The critic's
-  model*, the B5 *Critic (`knowledge:explain-critic`)* dispatch block for a **document** (a chapter unit is
+  model*, the B5 *Critic (`explain:explain-critic`)* dispatch block for a **document** (a chapter unit is
   judged as a document too; the order against its book is the review's check):
 
   ```

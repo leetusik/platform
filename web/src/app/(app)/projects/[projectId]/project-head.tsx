@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useReducer, useState } from "react";
 
 import { PROJECT_HOME } from "@/content/project";
-import { publishToast } from "@/hi2vi/shell";
-import { Badge, buttonClass, Notice, Skeleton } from "@/hi2vi/ui";
+import { publishToast } from "@/sikstack/shell";
+import { Badge, buttonClass, Notice, Skeleton } from "@/sikstack/ui";
 
 import { setProjectVisibilityAction } from "./actions";
 import {

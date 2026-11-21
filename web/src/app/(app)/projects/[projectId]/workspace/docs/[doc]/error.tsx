@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 
 import { WS_PLACES, WS_STATES } from "@/content/workspace/frame";
-import { boundaryRetry, type BoundaryRetryProps } from "@/hi2vi/states";
-import { WsItemFailed } from "@/hi2vi/workspace/frame/failed";
+import { boundaryRetry, type BoundaryRetryProps } from "@/sikstack/states";
+import { WsItemFailed } from "@/sikstack/workspace/frame/failed";
 import { docsHref } from "@/lib/workspace/address";
 
 /**

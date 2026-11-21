@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import { READER } from "@/content";
 import { MARK_ROW } from "@/content/library-frame";
 import { READER_MARKS } from "@/content/reader-marks";
-import type { Mark } from "@/hi2vi/library";
+import type { Mark } from "@/sikstack/library";
 import {
   barKind,
   besideNote,
@@ -44,7 +44,7 @@ import {
   type BesideNote,
   type BoxKind,
   type Send,
-} from "@/hi2vi/reader/marks/model";
+} from "@/sikstack/reader/marks/model";
 import {
   BesideButton,
   MarkBox,
@@ -59,8 +59,8 @@ import {
   type BoxPick,
   type MarkBoxProps,
   type SheetRow,
-} from "@/hi2vi/reader/marks/parts";
-import { undoClock } from "@/hi2vi/reader/marks/undo";
+} from "@/sikstack/reader/marks/parts";
+import { undoClock } from "@/sikstack/reader/marks/undo";
 import {
   bookmarkWire,
   cleanLabel,
@@ -73,7 +73,7 @@ import {
   sectionNoteWire,
   snapshotOf as snapshotFor,
   type Wire,
-} from "@/hi2vi/reader/marks/wire";
+} from "@/sikstack/reader/marks/wire";
 import { readerHref, type ReaderTarget } from "@/lib/reader-href";
 import {
   editAnnotation,
@@ -240,7 +240,7 @@ interface Toast {
   retry?: () => void;
 }
 
-// A write as data (`Wire`, `@/hi2vi/reader/marks/wire`, P63-fk.S11: the payloads are built there for both looks),
+// A write as data (`Wire`, `@/sikstack/reader/marks/wire`, P63-fk.S11: the payloads are built there for both looks),
 // so the ones a lapsed session stopped can outlive a sign-in.
 const runWire = (w: Wire): Promise<AnnotationResult> => {
   switch (w.op) {
@@ -330,7 +330,7 @@ export interface AnnotationLayerProps {
   /**
    * P63-fk.S11: how the marks look. `old` (the default) is the old reader's, unchanged, for the document routes and
    * the legacy reader. `library` is the signed Library look (job 03, round 02, § Page: annotations), drawn by
-   * `@/hi2vi/reader/marks`: the same marks, the same writes at the same moments, the same anchoring; only what the
+   * `@/sikstack/reader/marks`: the same marks, the same writes at the same moments, the same anchoring; only what the
    * reader sees and where it sits differ, and a note's save waits for its answer (`Saving…`, `Could not save`).
    */
   look?: "old" | "library";
@@ -458,7 +458,7 @@ export function AnnotationLayer({
   const queue = useRef<Job[]>([]);
   const paused = useRef<Job[]>([]);
   const running = useRef(false);
-  /** Deletes waiting out their undo line (`@/hi2vi/reader/marks/undo`, moved out of `scheduleDelete`). */
+  /** Deletes waiting out their undo line (`@/sikstack/reader/marks/undo`, moved out of `scheduleDelete`). */
   const clock = useRef(undoClock());
   /** A row's delete, as its `MarkRow` hears it (the Library's Notes sheet): settled by the send. */
   const rowSends = useRef(new Map<string, Promise<void>>());

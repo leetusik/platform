@@ -38,8 +38,8 @@ vi.mock("next/headers", () => ({
 }));
 
 const { loadLooseReader, versionDate } = await import("@/lib/reader/load");
-const { versionItems } = await import("@/hi2vi/reader/model");
-const { Versions } = await import("@/hi2vi/library");
+const { versionItems } = await import("@/sikstack/reader/model");
+const { Versions } = await import("@/sikstack/library");
 const { loadBook } = await import("@/lib/book/load");
 const { headOf } = await import("@/lib/book/model");
 const { secondTitleLang, shelvesOf } = await import("@/lib/library/lists");

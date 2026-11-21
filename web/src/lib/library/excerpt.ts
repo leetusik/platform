@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, `LibraryDocs`, F322; `LB.match`) — where a search matched a
+ * sikstack Library (`03-library` round 02, `LibraryDocs`, F322; `LB.match`) — where a search matched a
  * document, as the documents table marks it. Pure, and NOT `server-only` (the table marks in the
  * browser too).
  *

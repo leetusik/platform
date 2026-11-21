@@ -16,7 +16,7 @@ import {
   ListenTrack,
   shellOf,
   type BookListenSeedView,
-} from "@/hi2vi/listen";
+} from "@/sikstack/listen";
 import type { KbListenEntry, KbListenState } from "@/lib/knowledge/listen";
 import { contOf, planContinue } from "@/lib/book/model";
 import type { HeadView, RowView } from "@/lib/book/view";
@@ -319,7 +319,7 @@ describe("`.listen-book` (listen:FG2, C01)", () => {
     expect(src).toMatch(/<div className=\{track\.wrap\}>/);
     expect(src).toMatch(/track\.track \? \(\s*<ListenTrack/);
     const css = readFileSync(
-      join(__dirname, "../src/hi2vi/styles/listen/listen.css"),
+      join(__dirname, "../src/sikstack/styles/listen/listen.css"),
       "utf8",
     );
     expect(css).toContain(

@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { BOOK_NOTES } from "@/content/book-notes";
-import { Bar } from "@/hi2vi/library";
+import { Bar } from "@/sikstack/library";
 import {
   BookNotesBody,
   NotesFrame,
   notesOpening,
-} from "@/hi2vi/reader/book-notes";
-import { requestNonce } from "@/hi2vi/shell/data";
+} from "@/sikstack/reader/book-notes";
+import { requestNonce } from "@/sikstack/shell/data";
 import { requireIdentity } from "@/lib/auth-guards";
 import { loadNotesPage } from "@/lib/reader/book-notes-load";
 import { LIBRARY_HREF } from "@/lib/reader-href";
 
-// Notes in this book (hi2vi Library, job 03 round 02, `## Build` § Page: book-notes): `/@{org}/{project}/notes/{book}`,
+// Notes in this book (sikstack Library, job 03 round 02, `## Build` § Page: book-notes): `/@{org}/{project}/notes/{book}`,
 // beside `books/` so a chapter keyed `notes` keeps its address. Wholly new on the Bar's frame (`.ui > .page >
 // .app.bare > Bar + main.app-main > .column.is-narrow`). The reader's own marks, so it needs a session: a visitor
 // is sent to sign in and back here (`requireIdentity`). Every miss (an unknown org, project or book, a private

@@ -276,8 +276,8 @@ def test_a_user_in_two_orgs_sees_each_only_under_its_header(fb):
         get_accounts_service().create_tenant_with_owner, UUID(a["user"]["id"]), "second"
     )
     org_b = str(tenant_b.id)
-    in_a = {**a["session"], "X-Hi2vi-Org": org_a}
-    in_b = {**a["session"], "X-Hi2vi-Org": org_b}
+    in_a = {**a["session"], "X-Sikstack-Org": org_a}
+    in_b = {**a["session"], "X-Sikstack-Org": org_b}
     ea = _capture(fb, in_a, message="in a")["request_id"]
     eb = _capture(fb, in_b, message="in b")["request_id"]
     ids_a = {r["id"] for r in fb.get("/app/feedback", headers=in_a).json()["records"]}
@@ -381,13 +381,13 @@ def test_the_limiter_buckets_the_edge_by_address_and_the_mcp_hop_by_org(fb, monk
 
     # Another org's key is never counted with org A, and no header moves a bucket.
     org_a = a["tenant"]["id"]
-    _capture(fb, {**_h(key_b), "X-Hi2vi-Org": org_a, "X-Forwarded-For": "198.51.100.7"})
+    _capture(fb, {**_h(key_b), "X-Sikstack-Org": org_a, "X-Forwarded-For": "198.51.100.7"})
     _capture(fb, _h(key_b))
     assert fb.post("/api/feedback", json=body, headers=_h(key_b)).status_code == 429
     for spoof in (
         {"X-Forwarded-For": "198.51.100.7"},
         {"X-Forwarded-For": "10.0.0.1, 10.0.0.2"},
-        {"X-Hi2vi-Org": b["tenant"]["id"]},
+        {"X-Sikstack-Org": b["tenant"]["id"]},
     ):
         assert fb.post("/api/feedback", json=body, headers={**_h(key_a), **spoof}).status_code == 429
     api_auth._tenant_one_cache = None

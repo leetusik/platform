@@ -9,9 +9,9 @@ import {
   wsHeadOf,
   WsItemFailed,
   wsSyncLine,
-} from "@/hi2vi/workspace/frame";
-import { AgendaItemPage } from "@/hi2vi/workspace/agenda-item";
-import { itemProse } from "@/hi2vi/workspace/agenda-item/prose";
+} from "@/sikstack/workspace/frame";
+import { AgendaItemPage } from "@/sikstack/workspace/agenda-item";
+import { itemProse } from "@/sikstack/workspace/agenda-item/prose";
 import { requireIdentity } from "@/lib/auth-guards";
 import { decodeWorkspaceFrom } from "@/lib/workspace/address";
 import { readWorkspace } from "@/lib/workspace/read";
@@ -24,7 +24,7 @@ import { loadAgendaItem, requestClock } from "./load";
  * `/projects/<id>/workspace/agenda/<item>`, in the Shell with Workspace current. The server reads (`load.ts`) and
  * hands the client page the item, its rows, the sync line and the viewer's zone; the client page writes.
  *
- * The tab title is the Workspace's (F36), or the item's id when it did not load (`<id> · hi2vi`): the read is
+ * The tab title is the Workspace's (F36), or the item's id when it did not load (`<id> · sikstack`): the read is
  * shared with the page (`loadOnce`). A failed read is the page's own Error under the back row with the sync line
  * (F49, F84); a render that throws is the route's (`error.tsx`).
  */

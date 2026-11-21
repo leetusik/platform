@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { PROJECT_HOME } from "@/content/project";
-import { Button } from "@/hi2vi/ui";
+import { Button } from "@/sikstack/ui";
 
 import { LibraryPanel } from "./parts";
 

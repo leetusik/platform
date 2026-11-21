@@ -2,11 +2,12 @@
 
 A linked checkout's workflow engine calls these with its project's ``workspace`` key
 as the bearer, and every request names the checkout and the engine's version
-(``X-Hi2vi-Checkout``, ``X-Hi2vi-Engine``; 400 without them):
+(``X-Sikstack-Checkout``, ``X-Sikstack-Engine``; 400 without them; an older engine's
+``X-Hi2vi-*`` names are read the same, ``server.accounts.auth.sikstack_header``):
 
 - ``GET  /api/workspace/{project_id}/head`` → ``{head, org_id, project_id,
   inbox_pending}``. The first probe links the project (its store row at head 0). An
-  ``X-Hi2vi-Base: <synced head>`` equal to the head counts as a sync for the web's
+  ``X-Sikstack-Base: <synced head>`` equal to the head counts as a sync for the web's
   sync line (``server.workspace_read.note_head_probe``, throttled).
 - ``GET  /api/workspace/{project_id}/inbox`` → ``{entries: [{id, created_at, kind,
   items, fields, minted_id}]}``, the web's pending agenda changes, oldest first; the
@@ -53,6 +54,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from server.accounts.auth import sikstack_header
 from server.api_auth import ApiAuthContext, resolve_api_workspace
 from server.usage.metering import stamp_credential_used
 from server.workspace import (
@@ -107,12 +109,12 @@ async def _caller(
     except ValueError:
         pid = _NO_PROJECT
     ctx = await resolve_api_workspace(request, pid)
-    checkout = request.headers.get("x-hi2vi-checkout") or ""
-    engine = request.headers.get("x-hi2vi-engine") or ""
+    checkout = sikstack_header(request, "Checkout") or ""
+    engine = sikstack_header(request, "Engine") or ""
     if not checkout.strip() or not engine.strip():
-        raise _bad("X-Hi2vi-Checkout and X-Hi2vi-Engine are required")
+        raise _bad("X-Sikstack-Checkout and X-Sikstack-Engine are required")
     if len(checkout) > _MAX_HEADER or len(engine) > _MAX_HEADER:
-        raise _bad(f"X-Hi2vi-Checkout and X-Hi2vi-Engine must be at most {_MAX_HEADER} characters")
+        raise _bad(f"X-Sikstack-Checkout and X-Sikstack-Engine must be at most {_MAX_HEADER} characters")
     writer = Writer(
         credential_id=ctx.credential_id,
         checkout=checkout.strip(),
@@ -322,9 +324,9 @@ def _store_unavailable(exc: Exception) -> HTTPException:
 
 
 def _synced_base(request: Request) -> int | None:
-    """``X-Hi2vi-Base``, the head the checkout last synced, when it is a head number."""
+    """``X-Sikstack-Base``, the head the checkout last synced, when it is a head number."""
 
-    raw = (request.headers.get("x-hi2vi-base") or "").strip()
+    raw = (sikstack_header(request, "Base") or "").strip()
     if not raw.isascii() or not raw.isdigit() or len(raw) > 18:
         return None
     return int(raw)

@@ -5,8 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LIBRARY_PAGE } from "@/content/library-page";
-import { Shelf } from "@/hi2vi/library/lists/shelf";
-import { continueRows } from "@/hi2vi/library/lists/continue-model";
+import { Shelf } from "@/sikstack/library/lists/shelf";
+import { continueRows } from "@/sikstack/library/lists/continue-model";
 import { sectionPlace, type ContinueItem } from "@/lib/library/continue";
 import { excerptOf, plainText } from "@/lib/library/excerpt";
 import {

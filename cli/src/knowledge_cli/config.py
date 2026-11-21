@@ -1,11 +1,11 @@
 """The `knowledge-kb` config seam — the first *code* implementation of it.
 
 `$XDG_CONFIG_HOME/knowledge-kb/config.json` (default
-`~/.config/knowledge-kb/config.json`) is the file the `/knowledge:explain` plugin
+`~/.config/knowledge-kb/config.json`) is the file the `/explain:explain` plugin
 skill reads to find a knowledge base. Until this module, that seam existed
 **only as prose**: an inline `python3 -c` heredoc in
-`plugin/skills/explain/SKILL.md:31-78` (the resolver) and hand-written JSON in
-`plugin/skills/setup/SKILL.md:185-224` (the writer).
+`plugins/explain/skills/explain/SKILL.md:31-78` (the resolver) and hand-written JSON in
+`plugins/explain/skills/setup/SKILL.md:185-224` (the writer).
 
 `resolve()` is a faithful port of that heredoc — same precedence, same defaults,
 same statuses, same vocabulary.
@@ -25,10 +25,10 @@ be read (`setup/SKILL.md:189-201`)::
       "site": {"base_url": "..."}
     }
 
-`save()` has no counterpart in the skill: `/knowledge:setup` writes this file by
+`save()` has no counterpart in the skill: `/explain:setup` writes this file by
 hand and "never writes a bearer token" (`setup/SKILL.md:203`), leaving
 `api.token` as JSON `null`. Writing a real `vk_` key there is what lights up the
-hosted SaaS for `/knowledge:explain` with zero code change — so `save()` is also
+hosted SaaS for `/explain:explain` with zero code change — so `save()` is also
 the first place `chmod 600` is *enforced* rather than merely instructed
 (`setup/SKILL.md:223` is prose nothing checks).
 """
@@ -48,7 +48,7 @@ from urllib.parse import urlsplit
 DEFAULT_API_BASE_URL = "http://localhost:8766"
 DEFAULT_SITE_BASE_URL = "http://localhost:8765"
 
-# The pre-/knowledge:setup convention (explain/SKILL.md:50-51,105-108): keeps
+# The pre-/explain:setup convention (explain/SKILL.md:50-51,105-108): keeps
 # machines that predate the config file working.
 LEGACY_ROOT_PARTS = ("projects", "personal", "knowledge")
 
@@ -58,17 +58,18 @@ ENV_KB_ROOT = "KB_ROOT"
 ENV_API_BASE_URL = "KB_API_BASE_URL"
 ENV_API_TOKEN = "KB_API_TOKEN"
 
-# The hosted service moved to the apex. The old host only answers a 308 to it,
-# and the client never follows a redirect (a bearer must not cross hosts), so a
-# config or env var still naming it is read as the apex. The file is not rewritten.
-OLD_HOSTED_HOST = "knowledge.hi2vi.com"
-HOSTED_BASE_URL = "https://hi2vi.com"
+# The hosted service is sikstack.com. Its old hosts (knowledge.hi2vi.com, then
+# hi2vi.com) only answer a 308 to it, and the client never follows a redirect (a
+# bearer must not cross hosts), so a config or env var still naming one is read as
+# sikstack.com. The file is not rewritten.
+OLD_HOSTED_HOSTS = ("knowledge.hi2vi.com", "hi2vi.com")
+HOSTED_BASE_URL = "https://sikstack.com"
 
 
 def apex_base_url(url: str) -> str:
-    """`url`, unless its host is exactly the old hosted one: then the apex."""
+    """`url`, unless its host is exactly an old hosted one: then sikstack.com."""
 
-    if url and urlsplit(url).hostname == OLD_HOSTED_HOST:
+    if url and urlsplit(url).hostname in OLD_HOSTED_HOSTS:
         return HOSTED_BASE_URL
     return url
 
@@ -275,12 +276,12 @@ def save(updates: Mapping[str, Any], path: str | None = None) -> str:
     """Merge `updates` into the config file and write it back. Returns the path.
 
     Read-modify-write, deep-merged: keys this CLI does not own are preserved. A
-    user may have a `/knowledge:setup`-written config (or hand-added fields), and
+    user may have a `/explain:setup`-written config (or hand-added fields), and
     clobbering them would break the very skill this seam exists to serve.
 
     `updates` uses the nested schema — a flat shape will not be read::
 
-        save({"api": {"base_url": "https://hi2vi.com", "token": "vk_..."}})
+        save({"api": {"base_url": "https://sikstack.com", "token": "vk_..."}})
 
     Raises `ConfigError` rather than overwrite a config file that exists but
     cannot be parsed: refusing to destroy an unreadable file the user may want to

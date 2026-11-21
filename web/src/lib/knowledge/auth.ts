@@ -57,7 +57,7 @@ export function isWaitlisted(answer: KbAuthAnswer): answer is KbWaitlisted {
 interface RawMeResponse {
   user: KbUser;
   tenants?: KbTenant[];
-  /** The tenant this request acts in (the `X-Hi2vi-Org` org, else the first). */
+  /** The tenant this request acts in (the `X-Sikstack-Org` org, else the first). */
   active_tenant_id?: string;
 }
 

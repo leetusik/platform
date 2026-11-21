@@ -43,24 +43,24 @@ from server.feedback import notify
 
 logger = logging.getLogger(__name__)
 
-WAITLIST_SUBJECT = "You're on the hi2vi waitlist"
+WAITLIST_SUBJECT = "You're on the sikstack waitlist"
 WAITLIST_BODY = """\
 Hi,
 
-Your hi2vi account for {email} has been created.
+Your sikstack account for {email} has been created.
 
-hi2vi is still under development, so new accounts start on a waitlist. We will email you when your account opens.
+sikstack is still under development, so new accounts start on a waitlist. We will email you when your account opens.
 
-hi2vi
+sikstack
 """
 
-APPROVAL_SUBJECT = "Your hi2vi account is open"
+APPROVAL_SUBJECT = "Your sikstack account is open"
 APPROVAL_BODY = """\
 Hi,
 
-Your hi2vi account for {email} is open. Sign in at {login_url}
+Your sikstack account for {email} is open. Sign in at {login_url}
 
-hi2vi
+sikstack
 """
 
 

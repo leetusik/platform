@@ -2,7 +2,7 @@
 
 ``require_user`` resolves an opaque ``Authorization: Bearer`` token to the
 active user plus the tenant the request acts in (``active_tenant``: the
-``X-Hi2vi-Org`` header's org, else the user's first), raising ``AuthError`` on any
+``X-Sikstack-Org`` header's org, else the user's first), raising ``AuthError`` on any
 session miss and a 403 on a header naming an org the user is not in. S3/S4
 import ``require_user`` / ``AuthContext`` / ``AuthError`` from here;
 ``auth_error_handler`` (registered on the app) renders the shared generic 401.
@@ -68,7 +68,18 @@ def extract_bearer_token(request: Request) -> str | None:
 
 #: The header a signed-in session names its active org with (a tenant id). Read only
 #: after a session resolved; ``vk_`` keys and the master bearer never read it.
-ORG_HEADER = "X-Hi2vi-Org"
+ORG_HEADER = "X-Sikstack-Org"
+
+
+def sikstack_header(request: Request, name: str) -> str | None:
+    """The request's ``X-Sikstack-<name>`` header, else its older ``X-Hi2vi-<name>``.
+
+    The product was named hi2vi before sikstack: a client that still sends the old
+    names (an engine or a web build from before the rename) is read the same way.
+    """
+
+    value = request.headers.get(f"X-Sikstack-{name}")
+    return value if value is not None else request.headers.get(f"X-Hi2vi-{name}")
 
 
 def _not_a_member() -> HTTPException:
@@ -82,14 +93,14 @@ def active_tenant(
     """Return the tenant a resolved session acts in for this request.
 
     ``tenants`` is the user's memberships in the order the user joined them (never
-    empty), so joining an older org never moves the first. With no ``X-Hi2vi-Org``
+    empty), so joining an older org never moves the first. With no ``X-Sikstack-Org``
     header (or a blank one) the session acts in its first tenant, exactly as before
     multi-org sessions. A header naming one of ``tenants`` picks
     it; any other value — another org's id, an unknown id or a malformed one — is a
     **403**, never a 404 and never a fallback to another tenant.
     """
 
-    raw = request.headers.get(ORG_HEADER) if request is not None else None
+    raw = sikstack_header(request, "Org") if request is not None else None
     if raw is None or not raw.strip():
         return tenants[0]
     try:
@@ -106,7 +117,7 @@ async def require_user(request: Request) -> AuthContext:
     """Resolve the request's bearer token to an ``AuthContext`` or raise.
 
     Extract the token, hash it, look up the active session, load the user, and
-    pick their active tenant (``active_tenant``: the ``X-Hi2vi-Org`` header's org,
+    pick their active tenant (``active_tenant``: the ``X-Sikstack-Org`` header's org,
     or the first tenant). A session miss, or a user who is not ``approved`` (a
     waitlisted account), raises ``AuthError`` (generic 401); a header naming an org
     the user is not in raises a 403.
@@ -153,7 +164,7 @@ async def optional_user(request: Request) -> AuthContext | None:
     successful resolve — but **returns ``None`` instead of raising** on every miss
     path (no header, unknown/expired token, missing or waitlisted user, no tenant). It never
     raises ``AuthError``. Once a session resolved, the active tenant is picked by
-    ``active_tenant`` exactly as in ``require_user``, so an ``X-Hi2vi-Org`` naming an
+    ``active_tenant`` exactly as in ``require_user``, so an ``X-Sikstack-Org`` naming an
     org the user is not in is a 403 here too (never a silent anonymous read).
 
     This backs the anonymous-capable read surface: a route depending on it gets a

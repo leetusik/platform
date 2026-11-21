@@ -13,9 +13,9 @@
  * Where a rule here and a `.kb-ch` quiz rule meet at the same weight, the rule here is written
  * with `.rv-card` in front so it wins whatever the order the two files load in.
  */
-/* P64-3y.S10: what is left of the old review page's sheet. Job 07 rebuilt /review (`hi2vi/review/**`, its sheet
-   `hi2vi/styles/review/review.css`); this sheet now serves only the undrawn-form fallback, a card with several right
-   answers or several blanks in today's look (`components/review/card.tsx`, bridged by `hi2vi/review/old-view.tsx`),
+/* P64-3y.S10: what is left of the old review page's sheet. Job 07 rebuilt /review (`sikstack/review/**`, its sheet
+   `sikstack/styles/review/review.css`); this sheet now serves only the undrawn-form fallback, a card with several right
+   answers or several blanks in today's look (`components/review/card.tsx`, bridged by `sikstack/review/old-view.tsx`),
    plus `.rv-sk` below. The queue header, the end and empty states and the settings form left with their views.
    The review surface (job 08-review, round 01-review). A component gap, drawn as markup: the card frame, the
    two-rating foot and the way back into the chapter.
@@ -93,7 +93,7 @@
 .rv-suspend:disabled { opacity: 1; color: var(--kb-secondary); }
 
 /* ---------- The loading card's frame ----------
-   No old view draws `.rv-sk` any more; the new skeleton (`hi2vi/review/states.tsx`) does, and its sheet's bridge holds
+   No old view draws `.rv-sk` any more; the new skeleton (`sikstack/review/states.tsx`) does, and its sheet's bridge holds
    the signed margin, padding and border against this rule. What it keeps from here is the column (display, direction):
    it stays until the bridge and this sheet go together. */
 .rv-sk { margin-top: calc(var(--kb-space-md) * var(--rd-k)); padding-top: calc(var(--kb-space-sm) * var(--rd-k)); border-top: 1px solid var(--kb-border-strong); display: flex; flex-direction: column; }

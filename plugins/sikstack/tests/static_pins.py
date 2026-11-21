@@ -72,15 +72,15 @@ for gone in ("ask which design tool", "Design tool: drafter", "Design tool: clau
 assert "## The explain route" in create_phase and "## Explain" in create_phase
 for ref in ("explain-decomposition.md", "explain-chapter.md", "explain-review.md"):
     assert f"${CLAUDE_PLUGIN_ROOT}/skills/do-whole-phase/reference/{ref}" in LIVE and f"${CLAUDE_PLUGIN_ROOT}/skills/do-next-slice/reference/{ref}" not in LIVE, ref
-POINTER = "not written — run /knowledge:explain P<N> for a document, or ask it for a book"
+POINTER = "not written — run /explain:explain P<N> for a document, or ask it for a book"
 for rel in ("claude/skills/do-whole-phase/playbooks/review.md", "claude/skills/review-phase/SKILL.md"):
     assert POINTER in _pay(rel).read_text(encoding="utf-8"), rel
-OLD_POINTER = "run /knowledge:explain P<N> for one chapter, or create an explain phase for a book"
+OLD_POINTER = "run /explain:explain P<N> for one chapter, or create an explain phase for a book"
 for p in [*_shipped("*.md"), root / "templates/docs/operations.md"]:
     assert OLD_POINTER not in p.read_text(encoding="utf-8"), p
 for p in [*_shipped("*.md"), root / "templates/docs/operations.md"]:
     t = p.read_text(encoding="utf-8")
-    assert "run /explain for this phase" not in t and "run /knowledge:explain for this phase" not in t, p
+    assert "run /explain for this phase" not in t and "run /explain:explain for this phase" not in t, p
 assert "must-cover" in create_phase and "0.10.0" in create_phase and "**A confirmed proposal.**" in create_phase
 assert "- **unit**:" in create_phase and "- **phases**:" in create_phase and "- phases: P30, P33-n3" in create_phase
 assert "**no `run:` line and no `mode:` line**" in create_phase
@@ -88,7 +88,7 @@ assert "- run: full" not in create_phase and "- mode: codebase" not in create_ph
 assert "## The research route" in create_phase and "Research: <subject>" in create_phase
 assert "--kind research --risk high" in create_phase and "**If the request carries a `Research: <subject>` block**" in create_phase
 _chapter = (root / "skills/do-whole-phase/reference/explain-chapter.md").read_text(encoding="utf-8")
-assert "knowledge:explain-critic" in _chapter and "kind: chapter" in _chapter and "trace-<key>.md" in _chapter
+assert "explain:explain-critic" in _chapter and "kind: chapter" in _chapter and "trace-<key>.md" in _chapter
 assert "**`model: sonnet`** when span 1 ran on an Opus model" in _chapter and "`model: opus`" in _chapter
 assert "answers-<key>.md" in _chapter and "scratch: works/" not in _chapter
 _decomp = (root / "skills/do-whole-phase/reference/explain-decomposition.md").read_text(encoding="utf-8")
@@ -763,7 +763,7 @@ for gone in ("loop-sign", "loop-unpark", "loop-tick", "total_usd"):
     assert gone not in claude, gone
 _rows = [ln for ln in claude.splitlines() if ln.startswith("| ") and not ln.startswith("| Rule")]
 assert len(_rows) >= 9 and all(ln.count(" | ") == 1 and ln.split(" | ")[1].strip(" |") for ln in _rows), _rows
-cloud_skip = ("In a linked checkout (`next` prints `store=cloud`), skip this commit: hi2vi's revisions"
+cloud_skip = ("In a linked checkout (`next` prints `store=cloud`), skip this commit: sikstack's revisions"
               " are the workflow's history. Product commits are unchanged.")
 for rel in ("commit/SKILL.md", "create-phase/SKILL.md", "rotate-backlog/SKILL.md",
             "do-whole-phase/reference/verdicts.md", "do-whole-phase/reference/wave.md"):

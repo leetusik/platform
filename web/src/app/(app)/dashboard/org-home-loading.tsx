@@ -1,5 +1,5 @@
 import { ORG_HOME } from "@/content/dashboard";
-import { Button, Panel, PanelBody, PanelHead, Skeleton } from "@/hi2vi/ui";
+import { Button, Panel, PanelBody, PanelHead, Skeleton } from "@/sikstack/ui";
 
 /**
  * Org home's own skeletons (`OrgHomeProjects.dc.html`, `OrgHomeUrl.dc.html`,

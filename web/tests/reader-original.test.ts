@@ -51,9 +51,9 @@ import {
   originalScroll,
   originalTag,
   runBookmarkWire,
-} from "@/hi2vi/reader/document";
-import { ReaderHead } from "@/hi2vi/reader/reader-head";
-import { labelWire, removeBookmarkWire } from "@/hi2vi/reader/marks/wire";
+} from "@/sikstack/reader/document";
+import { ReaderHead } from "@/sikstack/reader/reader-head";
+import { labelWire, removeBookmarkWire } from "@/sikstack/reader/marks/wire";
 import { validateChapter } from "@/lib/native";
 import type { KbVariantState } from "@/lib/knowledge/reader";
 import type { KbDocument } from "@/lib/knowledge/types";
@@ -310,7 +310,7 @@ describe("the Original layout's head is ReaderHead with its tag", () => {
     });
 
   it("is the head the page mounts (no copy of it of its own)", () => {
-    const src = read("src/hi2vi/reader/document/original.tsx");
+    const src = read("src/sikstack/reader/document/original.tsx");
     expect(src).toMatch(/<ReaderHead[\s\S]*?tag=\{READER_ORIGINAL\.tag\}/);
     expect(src).not.toContain("OriginalHead");
   });
@@ -361,7 +361,7 @@ describe("the html renders through the same frame element as today (a guard)", (
   });
 
   it("the page hands it the relay, the title and the look it was given, keyed by the attempt", () => {
-    const src = read("src/hi2vi/reader/document/original.tsx");
+    const src = read("src/sikstack/reader/document/original.tsx");
     const call = /<OriginalFrame\b[^>]*\/>/.exec(src)?.[0] ?? "";
     for (const prop of [
       "key={attempt}",
@@ -374,7 +374,7 @@ describe("the html renders through the same frame element as today (a guard)", (
   });
 
   it("fills the window under the bar, the whole width, and stays the document's only scroller", () => {
-    const css = read("src/hi2vi/styles/library/document.css");
+    const css = read("src/sikstack/styles/library/document.css");
     expect(css).toMatch(
       /\.read-flow\[data-original\] \{[^}]*width: 100cqw;[^}]*height: calc\(100dvh - var\(--original-bar\)\);[^}]*margin-inline: calc\(50% - 50cqw\);/,
     );
@@ -413,11 +413,11 @@ describe("⌘P still prints the notice sheet", () => {
     );
     expect(html.startsWith('<div class="ui"')).toBe(true);
     // …and the new markup hides the rest on paper: the frame here, the bar, head and foot in reader.css
-    const doc = read("src/hi2vi/styles/library/document.css");
+    const doc = read("src/sikstack/styles/library/document.css");
     expect(doc).toMatch(
       /@media print \{\s*\.reader \.read-flow\[data-original\] \{\s*display: none;/,
     );
-    const reader = read("src/hi2vi/styles/library/reader.css");
+    const reader = read("src/sikstack/styles/library/reader.css");
     expect(reader).toMatch(
       /@media print \{\s*\.reader \.bar-wrap,\s*\.reader \.read-head,\s*\.reader \.read-end,\s*\.reader \.reader-foot \{\s*display: none;/,
     );

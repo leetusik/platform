@@ -12,4 +12,4 @@ The procedure is `${CLAUDE_PLUGIN_ROOT}/skills/review-phase/SKILL.md`, read by p
 
 **Carve-out.** Never edit source. You write `result.md`, the notebook, the PR step's `topics/pr-body*.md` and `topics/pr-details*.md`, and on a pass the two gate sections the skill names. Never run `review`, `gate` or `defer-job`, and never push.
 
-**Fields.** `review_verdict`: `pass` | `changes_requested` | `blocked`; `walkthrough` (a gated phase, else `none`); `pr_bodies` (or `none`); `code_read`: the file and upheld / rejected / routed counts, `n/a (0 product files)` or `skipped (operator: "<words>")`; `explain`: `not written — run /knowledge:explain P<N> for a document, or ask it for a book`.
+**Fields.** `review_verdict`: `pass` | `changes_requested` | `blocked`; `walkthrough` (a gated phase, else `none`); `pr_bodies` (or `none`); `code_read`: the file and upheld / rejected / routed counts, `n/a (0 product files)` or `skipped (operator: "<words>")`; `explain`: `not written — run /explain:explain P<N> for a document, or ask it for a book`.

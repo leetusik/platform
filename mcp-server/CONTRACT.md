@@ -3,10 +3,10 @@
 The stable, versioned handshake surface for the platform's MCP service. One process
 serves two endpoints:
 
-- **The Library** at `/mcp` (`https://hi2vi.com/mcp`): the read tools `search` and
+- **The Library** at `/mcp` (`https://sikstack.com/mcp`): the read tools `search` and
   `fetch_document`. Everything below up to [Feedback endpoint](#feedback-endpoint-feedbackmcp)
   describes it.
-- **Feedback** at `/feedback/mcp` (`https://hi2vi.com/feedback/mcp`): **write-only**,
+- **Feedback** at `/feedback/mcp` (`https://sikstack.com/feedback/mcp`): **write-only**,
   one tool, `capture_feedback`. See [Feedback endpoint](#feedback-endpoint-feedbackmcp).
 
 
@@ -55,7 +55,7 @@ The service is **dual-reachable** — a consumer picks the path by where it runs
 | Path | URL | Who uses it |
 |------|-----|-------------|
 | **Internal** (no edge hop) | `http://knowledge-mcp:9000/mcp`, `http://knowledge-mcp:9000/feedback/mcp` | a co-tenant agent on `changple_shared_network` (e.g. OpenClaw in prod) |
-| **Public** (via the edge) | `https://hi2vi.com/mcp`, `https://hi2vi.com/feedback/mcp` | off-box / local-dev agents |
+| **Public** (via the edge) | `https://sikstack.com/mcp`, `https://sikstack.com/feedback/mcp` | off-box / local-dev agents |
 
 Both paths serve the identical surfaces. The old public host `knowledge.hi2vi.com`
 answers with a `308` to the apex; not every MCP client follows a redirect on a `POST`,
@@ -283,15 +283,15 @@ reachability path:
 python mcp-server/scripts/e2e_smoke.py --url http://localhost:9000/mcp --key <bearer>
 
 # public path — operator post-deploy, with a real vk_ key
-python mcp-server/scripts/e2e_smoke.py --url https://hi2vi.com/mcp --key vk_...
+python mcp-server/scripts/e2e_smoke.py --url https://sikstack.com/mcp --key vk_...
 
 # the Feedback endpoint alone, with one real capture (writes an event)
-python mcp-server/scripts/e2e_smoke.py --url https://hi2vi.com/mcp --feedback-only \
+python mcp-server/scripts/e2e_smoke.py --url https://sikstack.com/mcp --feedback-only \
   --capture --capture-key vk_...
 ```
 
 - The **direct path is proven locally** (client → mcp → `/api` → grounded hit; and a
   capture stored and read back through the API).
 - The **public-path run with a real `vk_` key is operator post-deploy verification**
-  — it re-runs the same script against `https://hi2vi.com/mcp` after the Production
+  — it re-runs the same script against `https://sikstack.com/mcp` after the Production
   Deploy of the `knowledge-mcp` container + edge routing.

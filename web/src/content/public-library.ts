@@ -1,7 +1,7 @@
 // The words of an org's public library (job 03, Library round 02, `PublicLibrary.dc.html`,
 // `PublicLibraryHead.dc.html`; `## Build` § Page: public-library; frame.md F71). Verbatim from the signed
 // boards. The shelves' own words (a section's count, its foot link, a row's facts) are
-// `@/content/library-page`'s; Error's are `@/content/hi2vi-states`'. Imported by its own path, never
+// `@/content/library-page`'s; Error's are `@/content/sikstack-states`'. Imported by its own path, never
 // through `content/index.ts`.
 
 export const PUBLIC_LIBRARY = {

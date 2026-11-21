@@ -2665,7 +2665,7 @@ if ! printf '%s\n' "$fp1$fpb" | grep -q 'fix_passes=' && printf '%s\n' "$fp1" | 
 else bad "the fix-pass count is wrong ($fp2n/$fppn/$fp3n) -- $fp1 / $fpb / $fp2 / $fpp / $fp3"; fi
 
 # ---------------------------------------------------------------------------
-echo "== Test 21: cloud mode at the command boundary -- inert without a [cloud] link in config.toml (no socket opened, no .hi2vi written); with a link, against a local fake hi2vi: one batch after a command (its own files origin command, an agent's result.md origin carried, the P9 records, both headers, the key only as a Bearer), equal content sends nothing, an archive goes as move ops and events.jsonl only as appends, a cloud-only change is pulled at the next command and the generated files rebuilt =="
+echo "== Test 21: cloud mode at the command boundary -- inert without a [cloud] link in config.toml (no socket opened, no .hi2vi written); with a link, against a local fake sikstack: one batch after a command (its own files origin command, an agent's result.md origin carried, the P9 records, both headers, the key only as a Bearer), equal content sends nothing, an archive goes as move ops and events.jsonl only as appends, a cloud-only change is pulled at the next command and the generated files rebuilt =="
 cl_t0=$(date +%s)
 newtmp CLW; CL="$CLW/host"; CLX="$CLW/xdg"; CL_OUT="$CLW/out.txt"; : > "$CL_OUT"
 cl() { ( cd "$CL" && XDG_CONFIG_HOME="$CLX" python3 "$ENG" "$@" ) 2>&1 | tee -a "$CL_OUT"; }
@@ -2697,15 +2697,15 @@ done
 [ -z "$cl_in" ] && [ ! -e "$CL/.sikstack/.hi2vi" ] && [ -d "$CL/.sikstack/works/phases/active/P2" ] \
   && ok "local mode: with no [cloud] link, next, phase new, defer-job, agenda-add, check, check --no-rebuild and next --card open no socket and write no .hi2vi/" \
   || bad "local mode reached the network or wrote .hi2vi/ --$cl_in $(ls -a "$CL/.sikstack/.hi2vi" 2>/dev/null)"
-# (b) link the checkout by hand to a fake hi2vi on a free port (the link command itself is not part of this check).
+# (b) link the checkout by hand to a fake sikstack on a free port (the link command itself is not part of this check).
 CLK="cloud-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s\n' "$CLK" > "$CLW/key"; chmod 600 "$CLW/key"
-python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$CLW/fake" --port-file "$CLW/port" --key-file "$CLW/key" \
+python3 "$REPO_ROOT/tests/fake_sikstack.py" --dir "$CLW/fake" --port-file "$CLW/port" --key-file "$CLW/key" \
   --project proj-1 --org org-1 --lifetime 600 > "$CLW/fake.txt" 2>&1 &
 CL_PID=$!
 for _ in $(seq 1 100); do [ -s "$CLW/port" ] && break; sleep 0.1; done
 CLS="http://127.0.0.1:$(cat "$CLW/port" 2>/dev/null)"
-# The key sits in the pre-plugin engine's key file ($XDG_CONFIG_HOME/hi2vi/), which the engine still reads.
+# The key sits in the pre-plugin engine's key file ($XDG_CONFIG_HOME/sikstack/), which the engine still reads.
 mkdir -p "$CL/.sikstack/.hi2vi" "$CLX/hi2vi" && chmod 700 "$CLX/hi2vi" && set_link "$CL/.sikstack" "$CLS"
 python3 - "$CLX/hi2vi/workspace-keys.json" "$CLS" "$CLW/key" <<'PY' || bad "cloud probe: could not write the link"
 import json, os, sys
@@ -2738,7 +2738,7 @@ def need(cond, why):
         print(why)
         sys.exit(1)
 need(R and all(r["checkout"] and (r["engine"] or "").startswith("v") and r["auth"] == "ok" for r in R),
-     f"a request lacked X-Hi2vi-Checkout, X-Hi2vi-Engine: v<NN> or the Bearer key: {R[:1]}")
+     f"a request lacked X-Sikstack-Checkout, X-Sikstack-Engine: v<NN> or the Bearer key: {R[:1]}")
 need(all(op["op"] != "put" or op["path"] != "works/events.jsonl" for op in ops), "works/events.jsonl went as a put")
 if check == "first":
     need(len(C) == 1 and C[0]["status"] == 200, f"one batch expected, got {[c['status'] for c in C]}")
@@ -2776,12 +2776,12 @@ elif check == "pulled":
     need(any(r["path"].endswith("/manifest") for r in R), "no manifest was read")
     need(any("works/phases/active/P2/phase.json" in (r.get("paths") or []) for r in R), "phase.json was not fetched")
     need(base.get("head") == S["head"], f"base head {base.get('head')} != cloud head {S['head']}")
-    need(json.loads((root / "works/phases/active/P2/phase.json").read_text())["name"] == "Two, renamed in hi2vi", "disk not pulled")
+    need(json.loads((root / "works/phases/active/P2/phase.json").read_text())["name"] == "Two, renamed in sikstack", "disk not pulled")
 print("ok")
 PY
 }
 cl_m=$(cl_mark); cl next >/dev/null; cl_r=$(cl_check "$cl_m" first)
-[ "$cl_r" = ok ] && ok "linked: the first command sends the truth set as one carried batch (works/events.jsonl as an append, never generated files, templates or the version marker), with the two P9 records; every request carries X-Hi2vi-Checkout, X-Hi2vi-Engine: v<NN> and the Bearer key; base.json holds the cloud's head" \
+[ "$cl_r" = ok ] && ok "linked: the first command sends the truth set as one carried batch (works/events.jsonl as an append, never generated files, templates or the version marker), with the two P9 records; every request carries X-Sikstack-Checkout, X-Sikstack-Engine: v<NN> and the Bearer key; base.json holds the cloud's head" \
   || bad "linked first batch wrong -- $cl_r"
 # (c) an agent writes result.md with plain file I/O; the next command's batch carries it.
 printf 'an agent wrote this\n' > "$CL/.sikstack/works/phases/active/P1/slices/P1.DECOMP/result.md"
@@ -2805,7 +2805,7 @@ python3 - "$CLS" "$CL/.sikstack/works/phases/active/P2/phase.json" <<'PY' || bad
 import http.client, json, sys
 from urllib.parse import urlparse
 data = json.load(open(sys.argv[2]))
-data["name"] = "Two, renamed in hi2vi"
+data["name"] = "Two, renamed in sikstack"
 u = urlparse(sys.argv[1])
 conn = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
 conn.request("POST", "/_fake/write", json.dumps({"path": "works/phases/active/P2/phase.json",
@@ -2813,8 +2813,8 @@ conn.request("POST", "/_fake/write", json.dumps({"path": "works/phases/active/P2
 assert conn.getresponse().status == 200
 PY
 cl_m=$(cl_mark); cl section P2 Objective >/dev/null; cl_r=$(cl_check "$cl_m" pulled)
-[ "$cl_r" = ok ] && grep -qF 'Two, renamed in hi2vi' "$CL/.sikstack/backlog.md" \
-  && grep -qF 'Two, renamed in hi2vi' "$CL/.sikstack/works/index.json" \
+[ "$cl_r" = ok ] && grep -qF 'Two, renamed in sikstack' "$CL/.sikstack/backlog.md" \
+  && grep -qF 'Two, renamed in sikstack' "$CL/.sikstack/works/index.json" \
   && ok "a cloud-only change is pulled at the next command's begin step (manifest, fetch, base.json at the cloud's head) and backlog.md and index.json are rebuilt from it" \
   || bad "the cloud-only change was not pulled and rebuilt -- $cl_r / $(grep -F 'Two' "$CL/.sikstack/backlog.md" | head -2)"
 # (g) the key never reaches the tree, the command output or the fake's request log.
@@ -2824,7 +2824,7 @@ kill "$CL_PID" 2>/dev/null; wait "$CL_PID" 2>/dev/null
 echo "cloud mode test runtime: $(( $(date +%s) - cl_t0 ))s"
 
 # ---------------------------------------------------------------------------
-echo "== Test 22: cloud mode's safety half, against the local fake hi2vi -- offline a command is refused with the one P8 line and the tree unchanged, and compact-resume fails open; a lost commit answer is resent with the same batch_id and lands once; a batch never sent goes at the next command; a command that dies midway leaves the journal running and the next command refuses naming sync; a pull killed at any step of an append-only file's merge (the event log, a local order of its own) leaves each line in hi2vi once; a stale write (409) keeps the disk, writes nothing in hi2vi and exits 1, then the mismatch refuses with nothing changed; two engine processes in one checkout are serialized by .hi2vi/lock; a change over 8,000,000 B goes as several batches, and one file too big for any batch is refused; every failure inside the boundary is one line, never a traceback (a cut or malformed answer, a commit answer cut mid-body, a fetch that does not decode, a write error during a pull), and the hook's note; compact-resume stays inside the hook's 15 s on a slow, dripping or slow-but-moving server; a request fails only when it stalls: a slow but moving pull, push and pushing resend each finish past 10 s, a stalled or dripping server ends an ordinary command in one line in bounded time, a 409 whose body stalls keeps its batch (never 0 conflicts), and no late timer turns a whole answer into a failure; every wait is judged, the set-up included: behind an HTTPS proxy that answers its CONNECT late or drips it, the hook keeps its 9 s and an ordinary command ends in one line; over TLS a byte counts as it crosses the socket and the handshake still verifies; a key holding a control character is refused unquoted =="
+echo "== Test 22: cloud mode's safety half, against the local fake sikstack -- offline a command is refused with the one P8 line and the tree unchanged, and compact-resume fails open; a lost commit answer is resent with the same batch_id and lands once; a batch never sent goes at the next command; a command that dies midway leaves the journal running and the next command refuses naming sync; a pull killed at any step of an append-only file's merge (the event log, a local order of its own) leaves each line in sikstack once; a stale write (409) keeps the disk, writes nothing in sikstack and exits 1, then the mismatch refuses with nothing changed; two engine processes in one checkout are serialized by .hi2vi/lock; a change over 8,000,000 B goes as several batches, and one file too big for any batch is refused; every failure inside the boundary is one line, never a traceback (a cut or malformed answer, a commit answer cut mid-body, a fetch that does not decode, a write error during a pull), and the hook's note; compact-resume stays inside the hook's 15 s on a slow, dripping or slow-but-moving server; a request fails only when it stalls: a slow but moving pull, push and pushing resend each finish past 10 s, a stalled or dripping server ends an ordinary command in one line in bounded time, a 409 whose body stalls keeps its batch (never 0 conflicts), and no late timer turns a whole answer into a failure; every wait is judged, the set-up included: behind an HTTPS proxy that answers its CONNECT late or drips it, the hook keeps its 9 s and an ordinary command ends in one line; over TLS a byte counts as it crosses the socket and the handshake still verifies; a key holding a control character is refused unquoted =="
 sf_t0=$(date +%s)
 newtmp SFW; SF="$SFW/host"; SFX="$SFW/xdg"; SF_OUT="$SFW/out.txt"; : > "$SF_OUT"
 sf() { ( cd "$SF" && XDG_CONFIG_HOME="$SFX" python3 "$(wf_entry "$1")" "$@" ) 2>&1 | tee -a "$SF_OUT"; return "${PIPESTATUS[0]}"; }
@@ -2865,7 +2865,7 @@ PY
   || bad "cloud safety probe: the install failed -- $(tail -3 "$SFW/setup.txt")"
 SFK="cloud-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s\n' "$SFK" > "$SFW/key"; chmod 600 "$SFW/key"
-python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$SFW/fake" --port-file "$SFW/port" --key-file "$SFW/key" \
+python3 "$REPO_ROOT/tests/fake_sikstack.py" --dir "$SFW/fake" --port-file "$SFW/port" --key-file "$SFW/key" \
   --project proj-1 --org org-1 --lifetime 600 > "$SFW/fake.txt" 2>&1 &
 SF_PID=$!
 for _ in $(seq 1 100); do [ -s "$SFW/port" ] && break; sleep 0.1; done
@@ -2889,7 +2889,7 @@ conn.request("POST", "/_fake/control", sys.argv[2], {"Content-Type": "applicatio
 assert conn.getresponse().status == 200
 PY
 }
-# sf_put <path> <file>: another checkout writes <file>'s text to <path> in hi2vi.
+# sf_put <path> <file>: another checkout writes <file>'s text to <path> in sikstack.
 sf_put() { python3 - "$SFS" "$1" "$2" <<'PY' || bad "cloud safety probe: the fake write failed"
 import http.client, json, sys
 from urllib.parse import urlparse
@@ -2926,14 +2926,14 @@ def need(cond, why):
         print(why)
         sys.exit(1)
 def synced():
-    """base.json, hi2vi and the disk agree: the head, every record's rev, every file's sha, the event log's bytes."""
+    """base.json, sikstack and the disk agree: the head, every record's rev, every file's sha, the event log's bytes."""
     outbox = root / ".hi2vi/outbox"
     need(journal is None and (not outbox.exists() or not any(outbox.iterdir())), f"the journal or the outbox is left: {journal}")
-    need(base.get("head") == S["head"], f"base head {base.get('head')} != hi2vi head {S['head']}")
-    need(set(base["files"]) == set(live), f"base and hi2vi hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
+    need(base.get("head") == S["head"], f"base head {base.get('head')} != sikstack head {S['head']}")
+    need(set(base["files"]) == set(live), f"base and sikstack hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
     for p, f in live.items():
-        need(base["files"][p]["rev"] == f["rev"], f"{p}: base rev {base['files'][p]['rev']} != hi2vi rev {f['rev']}")
-        need((root / p).is_file() and sha(p) == f["sha256"], f"{p}: the disk differs from hi2vi")
+        need(base["files"][p]["rev"] == f["rev"], f"{p}: base rev {base['files'][p]['rev']} != sikstack rev {f['rev']}")
+        need((root / p).is_file() and sha(p) == f["sha256"], f"{p}: the disk differs from sikstack")
 if check == "first":
     need(len(C) == 1 and C[0]["status"] == 200, f"one first batch expected: {[c['status'] for c in C]}")
     synced()
@@ -2941,7 +2941,7 @@ elif check == "lost":  # extra: revisions before the command
     need(len(C) == 1 and str(C[0]["status"]).startswith("drop-after"), f"the commit's answer was not lost: {[c['status'] for c in C]}")
     need(journal is not None and journal.get("state") == "pushing" and journal.get("batches") == [C[0]["batch"]["batch_id"]],
          f"the journal does not name the lost batch: {journal}")
-    need(S["revisions"] > int(extra[0]), "the batch did not land in hi2vi")
+    need(S["revisions"] > int(extra[0]), "the batch did not land in sikstack")
 elif check == "unsent":  # extra: revisions before the command
     need(len(C) == 1 and C[0]["status"] == "drop-before", f"the commit was not dropped: {[c['status'] for c in C]}")
     need(journal is not None and journal.get("state") == "pushing" and journal.get("batches") == [C[0]["batch"]["batch_id"]],
@@ -2961,9 +2961,9 @@ elif check == "interrupted":  # extra: the crash's class or -
 elif check == "stale":  # extra: the path, revisions and head before, the cloud's content
     path, revs, head, cloud = extra[0], int(extra[1]), int(extra[2]), extra[3]
     need(len(C) == 1 and C[0]["status"] == 409, f"one refused batch expected: {[c['status'] for c in C]}")
-    need(S["head"] == head + 1 and S["revisions"] == revs + 1, f"hi2vi wrote more than the other checkout's change: {S['head']} {S['revisions']}")
+    need(S["head"] == head + 1 and S["revisions"] == revs + 1, f"sikstack wrote more than the other checkout's change: {S['head']} {S['revisions']}")
     content = base64.b64decode(get("/_fake/file?path=" + quote(path))[1]["content"]).decode()
-    need(content == cloud, "hi2vi's copy is not the other checkout's")
+    need(content == cloud, "sikstack's copy is not the other checkout's")
     need("changed here" in (root / path).read_text(), "the disk lost this checkout's change")
     need(base["files"][path]["sha256"] != sha(path), "base.json no longer names the unsent change")
     need(journal is None, f"a refused batch left the journal: {journal}")
@@ -2972,20 +2972,20 @@ elif check == "serialized":
     heads = [r for r in R if r["path"].endswith("/head")]
     need(len(heads) == 2, f"each process asks head once: {len(heads)}")
     dj = sorted(p for p in live if p.endswith("/deferred.json"))
-    need(dj == sorted(str(p.relative_to(root)) for p in (root / "works/deferred/open").glob("*/deferred.json")), "hi2vi lacks a deferred job")
+    need(dj == sorted(str(p.relative_to(root)) for p in (root / "works/deferred/open").glob("*/deferred.json")), "sikstack lacks a deferred job")
     synced()
 elif check == "split":  # extra: the number of big files
     need(len(C) >= 2 and all(c["status"] == 200 for c in C), f"several landed batches expected: {[(c['status'], c.get('bytes')) for c in C]}")
     need(all(0 < c["bytes"] < 8_000_000 for c in C), f"a batch over 8,000,000 B: {[c.get('bytes') for c in C]}")
     need(len({c["batch"]["batch_id"] for c in C}) == len(C), "two batches shared a batch_id")
-    need(len([p for p in live if "/topics/big-" in p]) == int(extra[0]), "a big file is missing in hi2vi")
+    need(len([p for p in live if "/topics/big-" in p]) == int(extra[0]), "a big file is missing in sikstack")
     synced()
 elif check == "toobig":
     need(not C, f"a batch was sent: {[(c['status'], c.get('bytes')) for c in C]}")
     need(journal is None, f"the journal is left: {journal}")
 elif check == "synced":
     synced()
-elif check == "once":  # extra: the append-only paths (comma-separated), then marks each once in hi2vi
+elif check == "once":  # extra: the append-only paths (comma-separated), then marks each once in sikstack
     import collections
     need(journal is None and base.get("head") == S["head"], f"not settled: journal {journal}, base head {base.get('head')} vs {S['head']}")
     cloud_lines = []
@@ -2993,12 +2993,12 @@ elif check == "once":  # extra: the append-only paths (comma-separated), then ma
         c = base64.b64decode(get("/_fake/file?path=" + quote(p))[1]["content"]).decode().splitlines()
         d = (root / p).read_text().splitlines()
         twice = sorted(l for l, n in collections.Counter(c).items() if n > 1)
-        need(not twice, f"{p}: hi2vi holds {len(twice)} line(s) twice, first {twice[:1]}")
-        need(collections.Counter(c) == collections.Counter(d), f"{p}: the disk's lines and hi2vi's differ")
+        need(not twice, f"{p}: sikstack holds {len(twice)} line(s) twice, first {twice[:1]}")
+        need(collections.Counter(c) == collections.Counter(d), f"{p}: the disk's lines and sikstack's differ")
         cloud_lines += c
     for mark in extra[1:]:
         n = sum(mark in l for l in cloud_lines)
-        need(n == 1, f"{mark}: {n} line(s) in hi2vi, not 1")
+        need(n == 1, f"{mark}: {n} line(s) in sikstack, not 1")
 print("ok")
 PY
 }
@@ -3017,23 +3017,23 @@ sf_m=$(sf_mark); sf next >/dev/null; sf_r=$(sf_check "$sf_m" first)
 sf_ctl '{"offline": true}'
 sf_t1=$(sf_tree); sf defer-job --title off --reason r --trigger t --source manual > "$SFW/a.txt"; sf_rc=$?; sf_t2=$(sf_tree)
 [ "$sf_rc" = 1 ] && [ "$(grep -c '' "$SFW/a.txt")" = 1 ] && [ "$sf_t1" = "$sf_t2" ] \
-  && grep -qE '^hi2vi is not reachable at http://127\.0\.0\.1:[0-9]+ \(.+\): in cloud mode nothing runs offline, and nothing was changed\.$' "$SFW/a.txt" \
+  && grep -qE '^sikstack is not reachable at http://127\.0\.0\.1:[0-9]+ \(.+\): in cloud mode nothing runs offline, and nothing was changed\.$' "$SFW/a.txt" \
   && ok "offline: defer-job is refused before it runs with exit 1 and P8's one line, and the workflow tree's sha list is equal before and after" \
   || bad "offline refusal wrong -- rc=$sf_rc $(head -3 "$SFW/a.txt") $(diff <(echo "$sf_t1") <(echo "$sf_t2") | head -3)"
 echo '{}' | sf compact-resume > "$SFW/a2.txt"; sf_rc=$?
-[ "$sf_rc" = 0 ] && grep -q '^compaction=done' "$SFW/a2.txt" && grep -qE '^note: hi2vi is not reachable at ' "$SFW/a2.txt" \
+[ "$sf_rc" = 0 ] && grep -q '^compaction=done' "$SFW/a2.txt" && grep -qE '^note: sikstack is not reachable at ' "$SFW/a2.txt" \
   && ok "offline: compact-resume (the session hook) fails open: exit 0, the resume card from the disk, P8's line as a note" \
   || bad "compact-resume offline did not fail open -- rc=$sf_rc $(head -3 "$SFW/a2.txt")"
 sf_ctl '{"offline": false}'
 # (b) a crash after the push landed and before the base was updated (the answer lost): the next command resends the
-# same batch_id first, hi2vi answers it once (a replay), and base.json, hi2vi and the disk agree.
+# same batch_id first, sikstack answers it once (a replay), and base.json, sikstack and the disk agree.
 sf_ctl '{"commit": "drop-after"}'; sf_v=$(sf_revs revisions); sf_m=$(sf_mark)
 sf defer-job --title lost --reason r --trigger t --source manual > "$SFW/b.txt"; sf_rc=$?
 sf_r=$(sf_check "$sf_m" lost "$sf_v"); sf_bid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["batches"][0])' "$SF/.sikstack/.hi2vi/journal.json" 2>/dev/null)
 sf_v=$(sf_revs revisions); sf_m=$(sf_mark); sf next > "$SFW/b2.txt"; sf_rc2=$?; sf_r2=$(sf_check "$sf_m" resent "$sf_bid" "$sf_v" replay)
-[ "$sf_rc" = 1 ] && tail -1 "$SFW/b.txt" | grep -q '^this change is on disk but not in hi2vi (hi2vi unreachable: .*): run sync$' \
+[ "$sf_rc" = 1 ] && tail -1 "$SFW/b.txt" | grep -q '^this change is on disk but not in sikstack (sikstack unreachable: .*): run sync$' \
   && [ "$sf_r" = ok ] && [ "$sf_rc2" = 0 ] && [ "$sf_r2" = ok ] \
-  && ok "a lost commit answer: the command exits 1 (on disk but not in hi2vi), the journal names the batch, the next command resends the same batch_id, hi2vi replays it (the revisions land once) and the base catches up" \
+  && ok "a lost commit answer: the command exits 1 (on disk but not in sikstack), the journal names the batch, the next command resends the same batch_id, sikstack replays it (the revisions land once) and the base catches up" \
   || bad "the lost-answer row wrong -- rc=$sf_rc/$sf_rc2 $sf_r / $sf_r2 / $(tail -1 "$SFW/b.txt")"
 # (c) a crash before the push landed (the batch never applied): the next command sends it, and it lands now.
 sf_ctl '{"commit": "drop-before"}'; sf_v=$(sf_revs revisions); sf_m=$(sf_mark)
@@ -3049,7 +3049,7 @@ sf_m=$(sf_mark); sf_crash kill defer-job --title killed --reason r --trigger t -
 sf_r=$(sf_check "$sf_m" interrupted -)
 sf_t1=$(sf_tree); sf next > "$SFW/d.txt"; sf_rc2=$?; sf_t2=$(sf_tree)
 [ "$sf_rc" = 9 ] && [ "$sf_r" = ok ] && [ "$sf_rc2" = 1 ] && [ "$(grep -c '' "$SFW/d.txt")" = 1 ] && [ "$sf_t1" = "$sf_t2" ] \
-  && grep -qE '^the last command here \(defer-job --title killed .*\) stopped before it finished: [0-9]+ file\(s\) changed by it are on disk but not in hi2vi \(interrupted\): run sync to see them \(nothing was changed\)$' "$SFW/d.txt" \
+  && grep -qE '^the last command here \(defer-job --title killed .*\) stopped before it finished: [0-9]+ file\(s\) changed by it are on disk but not in sikstack \(interrupted\): run sync to see them \(nothing was changed\)$' "$SFW/d.txt" \
   && ok "a command killed midway leaves the journal running; the next command is refused with one line naming sync, and the tree is unchanged" \
   || bad "the interrupted row (kill) wrong -- rc=$sf_rc/$sf_rc2 $sf_r / $(head -2 "$SFW/d.txt")"
 rm -f "$SF/.sikstack/.hi2vi/journal.json"; sf next >/dev/null
@@ -3060,8 +3060,8 @@ sf_r=$(sf_check "$sf_m" interrupted RuntimeError); sf next > "$SFW/d2.txt"; sf_r
   || bad "the interrupted row (raise) wrong -- rc=$sf_rc/$sf_rc2 $sf_r / $(head -2 "$SFW/d2.txt")"
 rm -f "$SF/.sikstack/.hi2vi/journal.json"; sf next >/dev/null
 # The crash table's last row: killed during a pull, after the file was written and before base.json was. The disk's
-# sha equals hi2vi's, which reads as the same: the next command is not refused and the base is fixed.
-printf 'renamed in hi2vi\n' > "$SFW/pulled.md"; sf_put works/phases/active/P1/intent.md "$SFW/pulled.md"
+# sha equals sikstack's, which reads as the same: the next command is not refused and the base is fixed.
+printf 'renamed in sikstack\n' > "$SFW/pulled.md"; sf_put works/phases/active/P1/intent.md "$SFW/pulled.md"
 sf_crash pull next; sf_rc=$?
 cmp -s "$SFW/pulled.md" "$SF/.sikstack/works/phases/active/P1/intent.md"; sf_w=$?
 sf_m=$(sf_mark); sf next > "$SFW/d3.txt"; sf_rc2=$?; sf_r=$(sf_check "$sf_m" synced)
@@ -3070,8 +3070,8 @@ sf_m=$(sf_mark); sf next > "$SFW/d3.txt"; sf_rc2=$?; sf_r=$(sf_check "$sf_m" syn
   || bad "the pull-crash row wrong -- rc=$sf_rc/$sf_rc2 written=$sf_w $sf_r / $(tail -1 "$SFW/d3.txt")"
 # The crash table's append rows. A pull merges another checkout's new lines into an append-only file (the event log)
 # around the lines this checkout has not sent yet, so the merged file differs from
-# hi2vi's and never reads as the same. Killed at any step of that pull, the next command sends only this checkout's own
-# lines: hi2vi holds each line exactly once.
+# sikstack's and never reads as the same. Killed at any step of that pull, the next command sends only this checkout's own
+# lines: sikstack holds each line exactly once.
 # sf_kill fetch|write|wrote|base <path> <args>: the command, killed (os._exit) once the pull has fetched <path>, just
 # before or just after the pull writes it, or once base.json is saved (before the generated files are rebuilt).
 sf_kill() { _s=$1; _f=$2; shift 2; ( cd "$SF" && XDG_CONFIG_HOME="$SFX" python3 - "$_s" "$_f" "$@" <<'PY'
@@ -3101,7 +3101,7 @@ if step == "base":
 sys.exit(mod.main(sys.argv[3:]))
 PY
 ) >> "$SF_OUT" 2>&1; }
-# sf_add <path> <line>...: another checkout appends these lines to <path> in hi2vi.
+# sf_add <path> <line>...: another checkout appends these lines to <path> in sikstack.
 sf_add() { python3 - "$SFS" "$@" <<'PY' || bad "cloud safety probe: the fake append failed"
 import http.client, json, sys
 from urllib.parse import urlparse
@@ -3120,16 +3120,16 @@ for sf_step in fetch write wrote base; do
   { [ "$sf_rc" = 9 ] && [ "$sf_rc2" = 0 ] && [ "$sf_r" = ok ]; } || sf_bad="$sf_bad [$sf_step: rc=$sf_rc/$sf_rc2 $sf_r]"
 done
 [ -z "$sf_bad" ] \
-  && ok "a pull merging another checkout's event line around a local one, killed after the fetch, before the write, after the write (before base.json) or after base.json: the next command sends only the local line, and hi2vi holds each line once" \
-  || bad "an append pull killed midway re-sent hi2vi's own lines --$sf_bad"
+  && ok "a pull merging another checkout's event line around a local one, killed after the fetch, before the write, after the write (before base.json) or after base.json: the next command sends only the local line, and sikstack holds each line once" \
+  || bad "an append pull killed midway re-sent sikstack's own lines --$sf_bad"
 sf_add "$sf_ev" '{"type": "agenda_added", "agenda": "cloud-alone"}'
 sf_kill wrote "$sf_ev" next; sf_rc=$?
 sf_m=$(sf_mark); sf next >/dev/null; sf_rc2=$?; sf_r=$(sf_check "$sf_m" once "$sf_ev" '"cloud-alone"'); sf_r2=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 9 ] && [ "$sf_rc2" = 0 ] && [ "$sf_r" = ok ] && [ "$sf_r2" = ok ] \
-  && ok "an append pull with nothing local past the offset, killed after its write: the file equals hi2vi's, reads as the same, and the base catches up" \
+  && ok "an append pull with nothing local past the offset, killed after its write: the file equals sikstack's, reads as the same, and the base catches up" \
   || bad "the plain append pull-crash row wrong -- rc=$sf_rc/$sf_rc2 $sf_r / $sf_r2"
-# A local order that already differs from hi2vi's (another checkout's line landed between this checkout's pull and its
-# push): the file never equals hi2vi's again, so a pull killed after its write must still send nothing of hi2vi's.
+# A local order that already differs from sikstack's (another checkout's line landed between this checkout's pull and its
+# push): the file never equals sikstack's again, so a pull killed after its write must still send nothing of sikstack's.
 printf '{"type": "smoke_local", "mark": "local-race"}\n' >> "$SF/.sikstack/$sf_ev"
 sf_ctl "$(python3 -c 'import json, sys; print(json.dumps({"race": {"path": sys.argv[1], "lines": [json.dumps({"type": "agenda_added", "agenda": "cloud-race"})]}}))' "$sf_ev")"
 sf next >/dev/null; sf next >/dev/null
@@ -3149,23 +3149,23 @@ sf_add "$sf_ev" '{"type": "agenda_added", "agenda": "cloud-order"}'
 sf_kill wrote "$sf_ev" next; sf_rc=$?
 sf_m=$(sf_mark); sf next >/dev/null; sf_rc2=$?; sf_r=$(sf_check "$sf_m" once "$sf_ev" '"cloud-order"' '"cloud-race"' '"local-race"')
 [ "$sf_ord" = differs ] && [ "$sf_rc" = 9 ] && [ "$sf_rc2" = 0 ] && [ "$sf_r" = ok ] \
-  && ok "an event log whose order already differs from hi2vi's, its pull killed after the write: the next command sends nothing of hi2vi's, each line once" \
+  && ok "an event log whose order already differs from sikstack's, its pull killed after the write: the next command sends nothing of sikstack's, each line once" \
   || bad "the differing-order append pull-crash row wrong -- order=$sf_ord rc=$sf_rc/$sf_rc2 $sf_r"
 sf sync --keep cloud "$sf_ev" >/dev/null; sf_m=$(sf_mark); sf next >/dev/null; sf_rc=$?; sf_r=$(sf_check "$sf_m" synced)
-[ "$sf_rc" = 0 ] && [ "$sf_r" = ok ] || bad "the event log did not settle on hi2vi's order after sync --keep cloud -- rc=$sf_rc $sf_r"
-# (e) a stale write: another checkout changes the same file between this command's begin and its commit. hi2vi refuses
+[ "$sf_rc" = 0 ] && [ "$sf_r" = ok ] || bad "the event log did not settle on sikstack's order after sync --keep cloud -- rc=$sf_rc $sf_r"
+# (e) a stale write: another checkout changes the same file between this command's begin and its commit. sikstack refuses
 # the whole batch (409), the disk keeps this checkout's change, exit 1 though next succeeded; then the begin step's
 # mismatch refuses with nothing changed, until the two sides agree.
 sf_p=works/phases/active/P1/intent.md; printf 'changed here\n' >> "$SF/.sikstack/$sf_p"
-sf_ctl "{\"race\": {\"path\": \"$sf_p\", \"content\": \"changed in hi2vi by another checkout\\n\"}}"
+sf_ctl "{\"race\": {\"path\": \"$sf_p\", \"content\": \"changed in sikstack by another checkout\\n\"}}"
 sf_v=$(sf_revs revisions); sf_h=$(sf_revs head); sf_m=$(sf_mark)
-sf next > "$SFW/e.txt"; sf_rc=$?; sf_r=$(sf_check "$sf_m" stale "$sf_p" "$sf_v" "$sf_h" "changed in hi2vi by another checkout
+sf next > "$SFW/e.txt"; sf_rc=$?; sf_r=$(sf_check "$sf_m" stale "$sf_p" "$sf_v" "$sf_h" "changed in sikstack by another checkout
 ")
-[ "$sf_rc" = 1 ] && [ "$(tail -1 "$SFW/e.txt")" = "this change is on disk but not in hi2vi (1 conflict(s)): run sync" ] && [ "$sf_r" = ok ] \
-  && ok "a stale write is refused: 409, nothing of the batch written in hi2vi, the disk keeps the change, base.json still names it, no journal left, and exit 1 though next itself succeeded" \
+[ "$sf_rc" = 1 ] && [ "$(tail -1 "$SFW/e.txt")" = "this change is on disk but not in sikstack (1 conflict(s)): run sync" ] && [ "$sf_r" = ok ] \
+  && ok "a stale write is refused: 409, nothing of the batch written in sikstack, the disk keeps the change, base.json still names it, no journal left, and exit 1 though next itself succeeded" \
   || bad "the stale write wrong -- rc=$sf_rc $sf_r / $(tail -1 "$SFW/e.txt")"
 sf_t1=$(sf_tree); sf next > "$SFW/e2.txt"; sf_rc=$?; sf_t2=$(sf_tree)
-[ "$sf_rc" = 1 ] && [ "$(cat "$SFW/e2.txt")" = "1 files differ between this checkout and hi2vi: run sync to see them (nothing was changed)" ] && [ "$sf_t1" = "$sf_t2" ] \
+[ "$sf_rc" = 1 ] && [ "$(cat "$SFW/e2.txt")" = "1 files differ between this checkout and sikstack: run sync to see them (nothing was changed)" ] && [ "$sf_t1" = "$sf_t2" ] \
   && ok "then the begin step's mismatch: the next command is refused with one line naming sync, and the tree is unchanged" \
   || bad "the mismatch refusal wrong -- rc=$sf_rc $(head -2 "$SFW/e2.txt")"
 sf_put "$sf_p" "$SF/.sikstack/$sf_p"
@@ -3173,14 +3173,14 @@ sf_m=$(sf_mark); sf next >/dev/null; sf_rc=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 0 ] && [ "$sf_r" = ok ] || bad "equal content on both sides did not clear the mismatch -- rc=$sf_rc $sf_r"
 # (f) two engine processes in one checkout at once. The fake holds the first two head requests until both arrive (or
 # 3 s pass), so without the lock both would begin at the same head and base and race (a double push of the event
-# lines, a lost base). The lock serializes them: each batch lands once and base.json, hi2vi and the disk agree.
+# lines, a lost base). The lock serializes them: each batch lands once and base.json, sikstack and the disk agree.
 sf_ctl '{"gate": {"route": "head", "count": 2, "timeout": 3}}'; sf_m=$(sf_mark)
 sf defer-job --title one --reason r --trigger t --source manual > "$SFW/f1.txt" & sf_p1=$!
 sf defer-job --title two --reason r --trigger t --source manual > "$SFW/f2.txt" & sf_p2=$!
 wait "$sf_p1"; sf_rc=$?; wait "$sf_p2"; sf_rc2=$?
 sf_ctl '{"gate": null}'; sf_r=$(sf_check "$sf_m" serialized)
 [ "$sf_rc" = 0 ] && [ "$sf_rc2" = 0 ] && [ "$sf_r" = ok ] \
-  && ok "two defer-job processes at once in one checkout are serialized by .hi2vi/lock: two batches, none resent, both jobs in hi2vi, and the event log, every rev and base.json's head agree" \
+  && ok "two defer-job processes at once in one checkout are serialized by .hi2vi/lock: two batches, none resent, both jobs in sikstack, and the event log, every rev and base.json's head agree" \
   || bad "two engine processes were not serialized -- rc=$sf_rc/$sf_rc2 $sf_r / $(tail -1 "$SFW/f1.txt") / $(tail -1 "$SFW/f2.txt")"
 # compact-resume while another process holds the lock: it waits a bounded time, then fails open with the line as a note.
 python3 -c 'import fcntl, os, sys, time
@@ -3203,7 +3203,7 @@ sf_m=$(sf_mark); sf next >/dev/null; sf_rc=$?; sf_r=$(sf_check "$sf_m" split 3)
   || bad "the big change was not split -- rc=$sf_rc $sf_r"
 python3 -c 'import sys; open(sys.argv[1], "w").write("x" * 8100000)' "$SF/.sikstack/works/phases/active/P1/topics/huge.md"
 sf_m=$(sf_mark); sf next > "$SFW/g.txt"; sf_rc=$?; sf_r=$(sf_check "$sf_m" toobig)
-[ "$sf_rc" = 1 ] && [ "$sf_r" = ok ] && tail -1 "$SFW/g.txt" | grep -qE "^works/phases/active/P1/topics/huge\.md is [0-9,]+ bytes as sent, over hi2vi's 8,000,000-byte batch limit: it is on disk but not in hi2vi" \
+[ "$sf_rc" = 1 ] && [ "$sf_r" = ok ] && tail -1 "$SFW/g.txt" | grep -qE "^works/phases/active/P1/topics/huge\.md is [0-9,]+ bytes as sent, over sikstack's 8,000,000-byte batch limit: it is on disk but not in sikstack" \
   && ok "one file too big for any batch is refused with one line naming it, exit 1, nothing sent" \
   || bad "the too-big file was not refused -- rc=$sf_rc $sf_r / $(tail -1 "$SFW/g.txt")"
 rm -f "$SF/.sikstack/works/phases/active/P1/topics/huge.md"
@@ -3219,15 +3219,15 @@ for sf_how in truncate:IncompleteRead status:BadStatusLine longline:LineTooLong;
   echo '{}' | sf compact-resume > "$SFW/i2.txt"; sf_rc2=$?
   sf_ctl '{"break": null}'
   [ "$sf_rc" = 1 ] && [ "$(grep -c '' "$SFW/i.txt")" = 1 ] && [ "$sf_t1" = "$sf_t2" ] \
-    && grep -qE "^hi2vi is not reachable at http://127\.0\.0\.1:[0-9]+ \(${sf_how#*:}.*\): in cloud mode nothing runs offline, and nothing was changed\.$" "$SFW/i.txt" \
-    && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/i2.txt" && grep -qE "^note: hi2vi is not reachable at .*\(${sf_how#*:}" "$SFW/i2.txt" && sf_no_tb "$SFW/i2.txt" \
+    && grep -qE "^sikstack is not reachable at http://127\.0\.0\.1:[0-9]+ \(${sf_how#*:}.*\): in cloud mode nothing runs offline, and nothing was changed\.$" "$SFW/i.txt" \
+    && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/i2.txt" && grep -qE "^note: sikstack is not reachable at .*\(${sf_how#*:}" "$SFW/i2.txt" && sf_no_tb "$SFW/i2.txt" \
     && ok "an answer cut or malformed at the begin step (${sf_how#*:}): the command is refused with P8's one line and the tree unchanged, and compact-resume prints its card with the line as a note, exit 0" \
     || bad "a ${sf_how#*:} at the begin step was not one line -- rc=$sf_rc/$sf_rc2 $(head -2 "$SFW/i.txt") / $(tail -2 "$SFW/i2.txt")"
 done
 # The answers that were already one line stay so: a proxy's 502 in front of a stopped API, a body that is not JSON.
 sf_bad=""
-for sf_how in "bad-gateway:^hi2vi is not reachable at .* \(HTTP 502 on head\): in cloud mode nothing runs offline, and nothing was changed\.$" \
-              "garbage:^hi2vi answered for project None, not proj-1: this checkout's link is broken, and nothing was changed$"; do
+for sf_how in "bad-gateway:^sikstack is not reachable at .* \(HTTP 502 on head\): in cloud mode nothing runs offline, and nothing was changed\.$" \
+              "garbage:^sikstack answered for project None, not proj-1: this checkout's link is broken, and nothing was changed$"; do
   sf_ctl "{\"break\": {\"route\": \"head\", \"how\": \"${sf_how%%:*}\"}}"
   sf next > "$SFW/i0.txt"; sf_rc=$?; sf_ctl '{"break": null}'
   { [ "$sf_rc" = 1 ] && [ "$(grep -c '' "$SFW/i0.txt")" = 1 ] && grep -qE "${sf_how#*:}" "$SFW/i0.txt"; } || sf_bad="$sf_bad [${sf_how%%:*}: rc=$sf_rc $(head -1 "$SFW/i0.txt")]"
@@ -3238,7 +3238,7 @@ sf_ctl '{"break": {"route": "commit", "how": "truncate"}}'
 sf defer-job --title cut --reason r --trigger t --source manual > "$SFW/i3.txt"; sf_rc=$?
 sf_ctl '{"break": null}'; sf_m=$(sf_mark); sf next >/dev/null; sf_rc2=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 1 ] && sf_no_tb "$SFW/i3.txt" && [ "$(tail -1 "$SFW/i3.txt")" != "" ] \
-  && tail -1 "$SFW/i3.txt" | grep -q '^this change is on disk but not in hi2vi (hi2vi unreachable: IncompleteRead(.*)): run sync$' \
+  && tail -1 "$SFW/i3.txt" | grep -q '^this change is on disk but not in sikstack (sikstack unreachable: IncompleteRead(.*)): run sync$' \
   && [ "$sf_rc2" = 0 ] && [ "$sf_r" = ok ] \
   && ok "a commit answer cut mid-body: the command exits 1 with the one on-disk line, and the next command resends the batch and settles" \
   || bad "a cut commit answer wrong -- rc=$sf_rc/$sf_rc2 $sf_r / $(tail -2 "$SFW/i3.txt")"
@@ -3249,12 +3249,12 @@ sf_t1=$(sf_tree); sf next > "$SFW/i4.txt"; sf_rc=$?; sf_t2=$(sf_tree)
 echo '{}' | sf compact-resume > "$SFW/i5.txt"; sf_rc2=$?
 sf_ctl '{"break": null}'; sf_m=$(sf_mark); sf next >/dev/null; sf_rc3=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 1 ] && [ "$(grep -c '' "$SFW/i4.txt")" = 1 ] && [ "$sf_t1" = "$sf_t2" ] \
-  && grep -qE '^hi2vi is not reachable at .* \(a fetched file did not decode as base64: works/phases/active/P1/topics/b64\.md\): in cloud mode nothing runs offline, and nothing was changed\.$' "$SFW/i4.txt" \
-  && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/i5.txt" && grep -q '^note: hi2vi is not reachable at .*did not decode as base64' "$SFW/i5.txt" \
+  && grep -qE '^sikstack is not reachable at .* \(a fetched file did not decode as base64: works/phases/active/P1/topics/b64\.md\): in cloud mode nothing runs offline, and nothing was changed\.$' "$SFW/i4.txt" \
+  && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/i5.txt" && grep -q '^note: sikstack is not reachable at .*did not decode as base64' "$SFW/i5.txt" \
   && [ "$sf_rc3" = 0 ] && [ "$sf_r" = ok ] \
   && ok "a fetch whose base64 does not decode: one line naming the file, nothing written, the hook's note; the next good answer pulls it" \
   || bad "bad base64 in a fetch wrong -- rc=$sf_rc/$sf_rc2/$sf_rc3 $sf_r / $(head -2 "$SFW/i4.txt") / $(tail -1 "$SFW/i5.txt")"
-# A write error during the pull (a file stands where hi2vi's folder goes): one line naming the path; the file pulled
+# A write error during the pull (a file stands where sikstack's folder goes): one line naming the path; the file pulled
 # before it is on disk and recorded in base.json with the head kept, and once the way is clear the pull resumes.
 printf 'pulled first\n' > "$SFW/pa.md"; printf 'pulled second\n' > "$SFW/pb.md"
 sf_put works/phases/active/P1/topics/a-first.md "$SFW/pa.md"; sf_put works/phases/active/P1/topics/blocked/b.md "$SFW/pb.md"
@@ -3275,7 +3275,7 @@ PY
 echo '{}' | sf compact-resume > "$SFW/i7.txt"; sf_rc2=$?
 rm -f "$SF/.sikstack/works/phases/active/P1/topics/blocked"; sf_m=$(sf_mark); sf next >/dev/null; sf_rc3=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 1 ] && [ "$(grep -c '' "$SFW/i6.txt")" = 1 ] && [ "$sf_rec" = ok ] \
-  && grep -qE '^works/phases/active/P1/topics/blocked/b\.md could not be written here from hi2vi \([A-Za-z]+Error: .*\): 1 pulled path\(s\) landed before it and are recorded in \.hi2vi/base\.json; fix it, then run the command again \(the pull resumes from there\)$' "$SFW/i6.txt" \
+  && grep -qE '^works/phases/active/P1/topics/blocked/b\.md could not be written here from sikstack \([A-Za-z]+Error: .*\): 1 pulled path\(s\) landed before it and are recorded in \.hi2vi/base\.json; fix it, then run the command again \(the pull resumes from there\)$' "$SFW/i6.txt" \
   && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/i7.txt" && grep -q '^note: works/phases/active/P1/topics/blocked/b\.md could not be written' "$SFW/i7.txt" \
   && [ "$sf_rc3" = 0 ] && [ "$sf_r" = ok ] \
   && ok "a write error during a pull: one line naming the path, what landed before it recorded in base.json (the head kept, no journal), the hook's note; then the pull resumes and settles" \
@@ -3289,7 +3289,7 @@ for sf_sw in "slow:5:answers each request 5 s late" "drip:1:sends its answers a 
   sf_ctl "{\"$sf_k\": $sf_n}"
   sf_s=$(date +%s); echo '{}' | sf compact-resume > "$SFW/i8.txt"; sf_rc=$?; sf_s=$(( $(date +%s) - sf_s ))
   sf_ctl "{\"$sf_k\": 0}"
-  [ "$sf_rc" = 0 ] && [ "$sf_s" -lt 15 ] && grep -q '^compaction=done' "$SFW/i8.txt" && grep -qF "note: hi2vi is not reachable at $SFS (the session hook's 9 s for hi2vi ran out)" "$SFW/i8.txt" \
+  [ "$sf_rc" = 0 ] && [ "$sf_s" -lt 15 ] && grep -q '^compaction=done' "$SFW/i8.txt" && grep -qF "note: sikstack is not reachable at $SFS (the session hook's 9 s for sikstack ran out)" "$SFW/i8.txt" \
     && ok "compact-resume on a server that $sf_lbl ends in ${sf_s}s, inside the hook's 15 s: exit 0, the card, the budget's line as a note" \
     || bad "compact-resume on a server that $sf_lbl -- rc=$sf_rc ${sf_s}s $(tail -2 "$SFW/i8.txt")"
 done
@@ -3303,13 +3303,13 @@ sf_big() { python3 -c 'import sys; open(sys.argv[1], "w").write((sys.argv[2] + "
 sf_big "$SFW/slowpull.md" pulled; sf_put works/phases/active/P1/topics/slow-pull.md "$SFW/slowpull.md"
 sf_ctl '{"rate": 48000}'
 sf_s=$(date +%s); echo '{}' | sf compact-resume > "$SFW/s1.txt"; sf_rc=$?; sf_s=$(( $(date +%s) - sf_s ))
-[ "$sf_rc" = 0 ] && [ "$sf_s" -lt 15 ] && grep -q '^compaction=done' "$SFW/s1.txt" && grep -qF "note: hi2vi is not reachable at $SFS (the session hook's 9 s for hi2vi ran out)" "$SFW/s1.txt" \
+[ "$sf_rc" = 0 ] && [ "$sf_s" -lt 15 ] && grep -q '^compaction=done' "$SFW/s1.txt" && grep -qF "note: sikstack is not reachable at $SFS (the session hook's 9 s for sikstack ran out)" "$SFW/s1.txt" \
   && ok "compact-resume with a 624 KB pull waiting on a slow link ends in ${sf_s}s, inside the hook's 15 s: exit 0, the card, the budget's line as a note" \
   || bad "compact-resume on a slow link -- rc=$sf_rc ${sf_s}s $(tail -2 "$SFW/s1.txt")"
 sf_s=$(date +%s); sf_m=$(sf_mark); sf next > "$SFW/s2.txt"; sf_rc=$?; sf_s=$(( $(date +%s) - sf_s )); sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 0 ] && [ "$sf_s" -gt 10 ] && [ "$sf_r" = ok ] && sf_no_tb "$SFW/s2.txt" \
-  && ok "a slow but moving pull finishes: a 624 KB file at 48,000 B/s takes ${sf_s}s, over 10 s, and lands whole (exit 0, base, hi2vi and the disk agree)" \
-  || bad "a slow but moving pull was refused -- rc=$sf_rc ${sf_s}s $sf_r / $(grep -m1 'hi2vi' "$SFW/s2.txt")"
+  && ok "a slow but moving pull finishes: a 624 KB file at 48,000 B/s takes ${sf_s}s, over 10 s, and lands whole (exit 0, base, sikstack and the disk agree)" \
+  || bad "a slow but moving pull was refused -- rc=$sf_rc ${sf_s}s $sf_r / $(grep -m1 'sikstack' "$SFW/s2.txt")"
 sf_big "$SF/.sikstack/works/phases/active/P1/topics/slow-push.md" pushed
 sf_s=$(date +%s); sf_m=$(sf_mark); sf next > "$SFW/s3.txt"; sf_rc=$?; sf_s=$(( $(date +%s) - sf_s )); sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 0 ] && [ "$sf_s" -gt 10 ] && [ "$sf_r" = ok ] && sf_no_tb "$SFW/s3.txt" \
@@ -3333,28 +3333,28 @@ for sf_sw in "slow:12:no byte moved for 10 s" "drip:1:fewer than 1024 bytes move
   sf_t1=$(sf_tree); sf_s=$(date +%s); sf next > "$SFW/s6.txt"; sf_rc=$?; sf_s=$(( $(date +%s) - sf_s )); sf_t2=$(sf_tree)
   sf_ctl "{\"$sf_k\": 0}"
   { [ "$sf_rc" = 1 ] && [ "$sf_s" -le 22 ] && [ "$sf_t1" = "$sf_t2" ] && [ "$(grep -c '' "$SFW/s6.txt")" = 1 ] \
-    && grep -qF "hi2vi is not reachable at $SFS ($sf_why): in cloud mode nothing runs offline, and nothing was changed." "$SFW/s6.txt"; } \
+    && grep -qF "sikstack is not reachable at $SFS ($sf_why): in cloud mode nothing runs offline, and nothing was changed." "$SFW/s6.txt"; } \
     || sf_bad="$sf_bad [$sf_k: rc=$sf_rc ${sf_s}s $(head -1 "$SFW/s6.txt")]"
 done
 [ -z "$sf_bad" ] && ok "a server that stalls (no byte for 10 s) or drips (a byte a second) ends an ordinary command in one line within 22 s, the tree unchanged" \
   || bad "a stalled or dripping server --$sf_bad"
 sleep 2
 # A 409 whose body stalls is no answer: it never reads as a batch with no conflicts. The journal keeps the batch; the
-# next command resends it and meets hi2vi's whole 409 (1 conflict), then the mismatch waits for sync.
+# next command resends it and meets sikstack's whole 409 (1 conflict), then the mismatch waits for sync.
 sf_p=works/phases/active/P1/topics/slow-pull.md; printf 'changed here\n' >> "$SF/.sikstack/$sf_p"
-sf_ctl "{\"race\": {\"path\": \"$sf_p\", \"content\": \"changed in hi2vi by another checkout\\n\"}, \"break\": {\"route\": \"commit\", \"how\": \"hold\"}}"
+sf_ctl "{\"race\": {\"path\": \"$sf_p\", \"content\": \"changed in sikstack by another checkout\\n\"}, \"break\": {\"route\": \"commit\", \"how\": \"hold\"}}"
 sf next > "$SFW/s7.txt"; sf_rc=$?; sf_ctl '{"break": null}'
 sf_j=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("state"))' "$SF/.sikstack/.hi2vi/journal.json" 2>/dev/null)
 sf next > "$SFW/s8.txt"; sf_rc2=$?
-[ "$sf_rc" = 1 ] && [ "$(tail -1 "$SFW/s7.txt")" = "this change is on disk but not in hi2vi (hi2vi unreachable: no byte moved for 10 s): run sync" ] \
+[ "$sf_rc" = 1 ] && [ "$(tail -1 "$SFW/s7.txt")" = "this change is on disk but not in sikstack (sikstack unreachable: no byte moved for 10 s): run sync" ] \
   && [ "$sf_j" = pushing ] && [ "$sf_rc2" = 1 ] && grep -qF "(1 conflict(s)): run sync" "$SFW/s8.txt" && sf_no_tb "$SFW/s8.txt" \
-  && ok "a 409 whose body stalls is one line and keeps the batch (never 0 conflicts); the resend meets hi2vi's whole 409 with its conflict" \
+  && ok "a 409 whose body stalls is one line and keeps the batch (never 0 conflicts); the resend meets sikstack's whole 409 with its conflict" \
   || bad "a 409 with a stalled body -- rc=$sf_rc/$sf_rc2 journal=$sf_j $(tail -1 "$SFW/s7.txt") / $(tail -1 "$SFW/s8.txt")"
 sf_put "$sf_p" "$SF/.sikstack/$sf_p"
 sf_m=$(sf_mark); sf next >/dev/null; sf_rc=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 0 ] && [ "$sf_r" = ok ] || bad "the checkout did not settle after the stalled 409 -- rc=$sf_rc $sf_r"
 # No timer can turn a whole answer into an unreachable one: with the limit at 1 s and 1.5 s spent after the answer is
-# read (where a wall-clock alarm would land), the request still returns hi2vi's answer.
+# read (where a wall-clock alarm would land), the request still returns sikstack's answer.
 sf_late=$( cd "$SF" && XDG_CONFIG_HOME="$SFX" python3 - <<'PY' 2>&1
 import importlib.util, sys, time
 spec = importlib.util.spec_from_file_location("workflow_engine", __import__("os").environ["ENG"])
@@ -3382,7 +3382,7 @@ PY
 # ordinary command in one line in about 10 s (the connect is one wait the idle limit bounds; then the floor judges each
 # step of the tunnel and the TLS handshake, its window counted from the request's start and only the peer's bytes counted
 # in it). The checkout points at an
-# https hi2vi only the proxy could reach (never resolved here: urllib hands the name to the proxy); each command is
+# https sikstack only the proxy could reach (never resolved here: urllib hands the name to the proxy); each command is
 # cut at 40 s by pid, so a hang fails the row, not the suite.
 cat > "$SFW/proxy.py" <<'PY'
 import os, socket, sys, threading, time
@@ -3445,22 +3445,22 @@ for sf_k in late drip; do
 done
 for _ in $(seq 1 50); do [ -s "$SFW/px-late" ] && [ -s "$SFW/px-drip" ] && break; sleep 0.1; done
 cp "$SF/.sikstack/config.toml" "$SFW/link.bak"; cp "$SFX/sikstack/workspace-keys.json" "$SFW/keys2.bak"
-set_link "$SF/.sikstack" "https://hi2vi.invalid"
+set_link "$SF/.sikstack" "https://sikstack.invalid"
 python3 - "$SFX/sikstack/workspace-keys.json" "$SFS" <<'PY'
 import json, sys
 keys, old = sys.argv[1:]
-k = json.load(open(keys)); k["https://hi2vi.invalid"] = k[old]; json.dump(k, open(keys, "w"))
+k = json.load(open(keys)); k["https://sikstack.invalid"] = k[old]; json.dump(k, open(keys, "w"))
 PY
 sf_bad=""
 for sf_k in late drip; do
   sf_px="http://127.0.0.1:$(cat "$SFW/px-$sf_k")"
   read -r sf_rc sf_s < <(sf_capped "$SFW/p-$sf_k-hook.txt" "$sf_px" compact-resume)
   { [ "$sf_rc" = 0 ] && [ "$sf_s" -le 11 ] && grep -q '^compaction=done' "$SFW/p-$sf_k-hook.txt" \
-    && grep -qF "note: hi2vi is not reachable at https://hi2vi.invalid (the session hook's 9 s for hi2vi ran out)" "$SFW/p-$sf_k-hook.txt"; } \
+    && grep -qF "note: sikstack is not reachable at https://sikstack.invalid (the session hook's 9 s for sikstack ran out)" "$SFW/p-$sf_k-hook.txt"; } \
     || sf_bad="$sf_bad [$sf_k hook: rc=$sf_rc ${sf_s}s $(tail -1 "$SFW/p-$sf_k-hook.txt")]"
   sf_t1=$(sf_tree); read -r sf_rc sf_s < <(sf_capped "$SFW/p-$sf_k-next.txt" "$sf_px" next); sf_t2=$(sf_tree)
   { [ "$sf_rc" = 1 ] && [ "$sf_s" -le 12 ] && [ "$sf_t1" = "$sf_t2" ] && [ "$(grep -c '' "$SFW/p-$sf_k-next.txt")" = 1 ] \
-    && grep -qF "hi2vi is not reachable at https://hi2vi.invalid (fewer than 1024 bytes moved in 10 s): in cloud mode nothing runs offline, and nothing was changed." "$SFW/p-$sf_k-next.txt"; } \
+    && grep -qF "sikstack is not reachable at https://sikstack.invalid (fewer than 1024 bytes moved in 10 s): in cloud mode nothing runs offline, and nothing was changed." "$SFW/p-$sf_k-next.txt"; } \
     || sf_bad="$sf_bad [$sf_k next: rc=$sf_rc ${sf_s}s $(head -1 "$SFW/p-$sf_k-next.txt")]"
 done
 kill "${sf_px_pids[@]}" 2>/dev/null; wait "${sf_px_pids[@]}" 2>/dev/null
@@ -3598,9 +3598,9 @@ sf_t1=$(sf_tree); sf_boom begin next > "$SFW/j.txt"; sf_rc=$?; sf_t2=$(sf_tree)
 echo '{}' | sf_boom begin compact-resume > "$SFW/j2.txt"; sf_rc2=$?
 sf_boom commit defer-job --title boom --reason r --trigger t --source manual > "$SFW/j3.txt"; sf_rc3=$?
 sf next > "$SFW/j4.txt"; sf_rc4=$?
-[ "$sf_rc" = 1 ] && [ "$(cat "$SFW/j.txt")" = "the step before the command stopped (RuntimeError: a failure inside the step), so the command did not run: run sync to see this checkout against hi2vi" ] \
+[ "$sf_rc" = 1 ] && [ "$(cat "$SFW/j.txt")" = "the step before the command stopped (RuntimeError: a failure inside the step), so the command did not run: run sync to see this checkout against sikstack" ] \
   && [ "$sf_t1" = "$sf_t2" ] && [ "$sf_rc2" = 0 ] && grep -q '^compaction=done' "$SFW/j2.txt" && grep -q '^note: the step before the command stopped (RuntimeError' "$SFW/j2.txt" \
-  && [ "$sf_rc3" = 1 ] && sf_no_tb "$SFW/j3.txt" && [ "$(tail -1 "$SFW/j3.txt")" = "this change is on disk but not in hi2vi (RuntimeError: a failure inside the step): run sync" ] \
+  && [ "$sf_rc3" = 1 ] && sf_no_tb "$SFW/j3.txt" && [ "$(tail -1 "$SFW/j3.txt")" = "this change is on disk but not in sikstack (RuntimeError: a failure inside the step): run sync" ] \
   && [ "$sf_rc4" = 1 ] && grep -qF 'stopped before it finished, RuntimeError: ' "$SFW/j4.txt" \
   && ok "any other failure of the begin or the commit step is one line: the command did not run (the hook's note), or its change is on disk only with the journal naming it to the next command" \
   || bad "a non-cloud failure inside the boundary -- rc=$sf_rc/$sf_rc2/$sf_rc3/$sf_rc4 $(head -1 "$SFW/j.txt") / $(tail -1 "$SFW/j2.txt") / $(tail -1 "$SFW/j3.txt") / $(head -1 "$SFW/j4.txt")"
@@ -3626,7 +3626,7 @@ kill "$SF_PID" 2>/dev/null; wait "$SF_PID" 2>/dev/null
 echo "cloud safety test runtime: $(( $(date +%s) - sf_t0 ))s"
 
 # ---------------------------------------------------------------------------
-echo "== Test 23: link, unlink and sync against the local fake hi2vi, with a scratch XDG_CONFIG_HOME -- init hides .hi2vi/ in the workflow repo; link refuses http:// to a non-local host, uncommitted changes, another worktree, a phase in flight on a stream, a key file open to group or others, a wrong key and an already-linked checkout, each with nothing written; link reads the key from stdin, keeps it 0600 in a 0700 folder and uploads the truth set in batches under 8,000,000 B; next prints store=cloud and head sends X-Hi2vi-Base; worktree start is refused in cloud mode with nothing written; a second checkout joins from an unused install (following fetch's rest) or an equal set, and a used one is refused with the list; a typed brief id is resolved after the pull (it names what another checkout made, on the first try, and a number shared once the pull lands is refused); sync pulls and pushes the clean changes, lists a stale write, shows its diff, refuses --keep with no path, on a folder and on a path on neither side, and resolves only on --keep local|cloud, lists an interrupted command's files and pushes none until --keep; unlink refuses on a mismatch, then leaves a local-mode tree that validates and opens no socket; unlink --from-disk runs offline; the key appears nowhere =="
+echo "== Test 23: link, unlink and sync against the local fake sikstack, with a scratch XDG_CONFIG_HOME -- init hides .hi2vi/ in the workflow repo; link refuses http:// to a non-local host, uncommitted changes, another worktree, a phase in flight on a stream, a key file open to group or others, a wrong key and an already-linked checkout, each with nothing written; link reads the key from stdin, keeps it 0600 in a 0700 folder and uploads the truth set in batches under 8,000,000 B; next prints store=cloud and head sends X-Sikstack-Base; worktree start is refused in cloud mode with nothing written; a second checkout joins from an unused install (following fetch's rest) or an equal set, and a used one is refused with the list; a typed brief id is resolved after the pull (it names what another checkout made, on the first try, and a number shared once the pull lands is refused); sync pulls and pushes the clean changes, lists a stale write, shows its diff, refuses --keep with no path, on a folder and on a path on neither side, and resolves only on --keep local|cloud, lists an interrupted command's files and pushes none until --keep; unlink refuses on a mismatch, then leaves a local-mode tree that validates and opens no socket; unlink --from-disk runs offline; the key appears nowhere =="
 lk_t0=$(date +%s)
 newtmp LKW; LKX="$LKW/xdg"; LK_OUT="$LKW/out.txt"; : > "$LK_OUT"
 LKA="$LKW/a"; LKB="$LKW/b"; LKC="$LKW/c"; LKR="$LKW/root"
@@ -3664,7 +3664,7 @@ PY
 lk_install "$LKA"; lk_install "$LKB"; lk_install "$LKC"
 LKK="link-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"; LKO="other-secret-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s\n' "$LKK" > "$LKW/key"; chmod 600 "$LKW/key"
-python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$LKW/fake" --port-file "$LKW/port" --key-file "$LKW/key" \
+python3 "$REPO_ROOT/tests/fake_sikstack.py" --dir "$LKW/fake" --port-file "$LKW/port" --key-file "$LKW/key" \
   --project proj-1 --org org-1 --lifetime 900 > "$LKW/fake.txt" 2>&1 &
 LK_PID=$!
 for _ in $(seq 1 100); do [ -s "$LKW/port" ] && break; sleep 0.1; done
@@ -3718,19 +3718,19 @@ def need(cond, why):
         sys.exit(1)
 def synced():
     need(journal is None, f"the journal is left: {journal}")
-    need(base.get("head") == S["head"], f"base head {base.get('head')} != hi2vi head {S['head']}")
-    need(set(base["files"]) == set(live), f"base and hi2vi hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
+    need(base.get("head") == S["head"], f"base head {base.get('head')} != sikstack head {S['head']}")
+    need(set(base["files"]) == set(live), f"base and sikstack hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
     for p, f in live.items():
-        need(base["files"][p]["rev"] == f["rev"] and (root / p).is_file() and sha(p) == f["sha256"], f"{p}: base, disk and hi2vi disagree")
+        need(base["files"][p]["rev"] == f["rev"] and (root / p).is_file() and sha(p) == f["sha256"], f"{p}: base, disk and sikstack disagree")
 if check == "nothing":  # a refusal: no request reached the fake
-    need(not R, f"a refused link reached hi2vi: {[r['path'] for r in R]}")
+    need(not R, f"a refused link reached sikstack: {[r['path'] for r in R]}")
 elif check == "upload":
     need(len(C) >= 2 and all(c["status"] == 200 for c in C), f"several landed batches expected: {[(c['status'], c.get('bytes')) for c in C]}")
     need(all(0 < c["bytes"] < 8_000_000 for c in C), f"a batch over 8,000,000 B: {[c.get('bytes') for c in C]}")
     need(all(c["batch"]["command"].startswith("link ") for c in C), "the upload's batches do not name link")
     ops = [op for c in C for op in c["batch"]["ops"]]
     need(all(op["op"] in ("put", "append") and op.get("base_rev") is None for op in ops), "the first upload only adds")
-    need(len([p for p in live if "/topics/big-" in p]) == 3 and "works/phases/active/P1/phase.json" in live, "a file is missing in hi2vi")
+    need(len([p for p in live if "/topics/big-" in p]) == 3 and "works/phases/active/P1/phase.json" in live, "a file is missing in sikstack")
     import re as _re
     table = _re.search(r"(?ms)^\[cloud\]\n(.*?)(?=^\[|\Z)", (root / "config.toml").read_text())
     link = dict(_re.findall(r'(?m)^(\w+) = "?([^"\n]*)"?$', table.group(1))) if table else {}
@@ -3739,7 +3739,7 @@ elif check == "upload":
     synced()
 elif check == "next":  # extra: the line next printed
     heads = [r for r in R if r["path"].endswith("/head")]
-    need(heads and all(r.get("base") == str(base.get("head")) for r in heads), f"head did not send X-Hi2vi-Base {base.get('head')}: {[r.get('base') for r in heads]}")
+    need(heads and all(r.get("base") == str(base.get("head")) for r in heads), f"head did not send X-Sikstack-Base {base.get('head')}: {[r.get('base') for r in heads]}")
     need(extra[0] == f"store=cloud server={server} project=proj-1", f"next's store line: {extra[0]!r}")
 elif check == "join":  # extra: page (the fetch followed rest)
     fetches = [r for r in R if r["path"].endswith("/fetch")]
@@ -3751,17 +3751,17 @@ elif check == "synced":
 elif check == "stale":  # extra: path, the cloud's content, revisions before
     path, content = extra[0], extra[1]
     need(all(op.get("path") != path for c in C for op in c["batch"]["ops"]), "sync sent the stale path")
-    need(cloud(path) == content, "hi2vi's copy changed")
+    need(cloud(path) == content, "sikstack's copy changed")
     need("changed here" in (root / path).read_text(), "the disk lost this checkout's change")
 elif check == "clean":  # extra: the pulled path, the pushed path
     need((root / extra[0]).is_file() and extra[0] in live and sha(extra[0]) == live[extra[0]]["sha256"], "the clean cloud change was not pulled")
     need(extra[1] in live and sha(extra[1]) == live[extra[1]]["sha256"], "the clean local change was not pushed")
 elif check == "kept-local":  # extra: path
     need(len(C) == 1 and C[0]["status"] == 200 and C[0]["batch"]["command"] == f"sync --keep local {extra[0]}", f"one keep batch expected: {[(c['status'], c['batch'].get('command')) for c in C]}")
-    need(cloud(extra[0]) == (root / extra[0]).read_text(), "hi2vi does not hold the disk's copy")
+    need(cloud(extra[0]) == (root / extra[0]).read_text(), "sikstack does not hold the disk's copy")
 elif check == "kept-cloud":  # extra: path, content
     need(not C, "keep cloud sent a batch")
-    need((root / extra[0]).read_text() == extra[1] == cloud(extra[0]), "the disk does not hold hi2vi's copy")
+    need((root / extra[0]).read_text() == extra[1] == cloud(extra[0]), "the disk does not hold sikstack's copy")
 elif check == "interrupted":  # extra: revisions before
     need(not C and S["revisions"] == int(extra[0]), "sync pushed an interrupted command's changes")
     need(journal is not None and journal.get("state") == "running", f"the journal is not running: {journal}")
@@ -3769,7 +3769,7 @@ elif check == "kept-append":
     ops = [op for c in C for op in c["batch"]["ops"] if op.get("path") == "works/events.jsonl"]
     need(len(C) == 1 and C[0]["status"] == 200 and [op["op"] for op in ops] == ["append"], f"events.jsonl kept as {[op['op'] for op in ops]}")
 elif check == "revs":  # extra: revisions before (unchanged)
-    need(S["revisions"] == int(extra[0]) and not C, "a refused sync changed hi2vi")
+    need(S["revisions"] == int(extra[0]) and not C, "a refused sync changed sikstack")
 elif check == "quiet":  # a refusal or a read after a pull: no batch sent, the pull recorded, no journal left
     need(not C, f"a batch was sent: {[c['batch'].get('command') for c in C]}")
     synced()
@@ -3807,7 +3807,7 @@ lk_ref() {  # lk_ref <label> <expected line ERE> <host> <engine> <args...>: run 
     && ok "link refuses $_l with one line, opens no socket and writes nothing" \
     || bad "link did not refuse $_l cleanly -- rc=$_rc $_r $(head -2 "$LKW/ref.txt") $(diff <(echo "$_t1") <(echo "$_t2") | head -3)"
 }
-lk_ref "http:// to a non-local host" '^hi2vi server http://hi2vi\.example must be https://' "$LKA/.sikstack" "$LKA/.sikstack/scripts/workflow.py" link http://hi2vi.example/projects/proj-1
+lk_ref "http:// to a non-local host" '^sikstack server http://sikstack\.example must be https://' "$LKA/.sikstack" "$LKA/.sikstack/scripts/workflow.py" link http://sikstack.example/projects/proj-1
 printf 'not committed\n' > "$LKA/.sikstack/works/phases/active/P1/topics/loose.md"
 lk_ref "uncommitted changes in the workflow repo" '^link refuses a workflow repo with uncommitted changes \(1 path\(s\), first works/phases/active/P1/topics/loose\.md\)' "$LKA/.sikstack" "$LKA/.sikstack/scripts/workflow.py" link "$LKU"
 rm -f "$LKA/.sikstack/works/phases/active/P1/topics/loose.md"
@@ -3828,8 +3828,8 @@ lk_ref "a key file open to group or others (with the chmod fix, never the key)" 
 grep -qF "$LKO" "$LKW/ref.txt" && bad "the 0644 refusal printed a key"
 chmod 600 "$LKX/sikstack/workspace-keys.json"
 lk_t1=$(lk_tree "$LKA/.sikstack"); printf 'not-the-key\n' | lk "$LKA" link "$LKU" > "$LKW/a6.txt"; lk_rc=$?; lk_t2=$(lk_tree "$LKA/.sikstack")
-[ "$lk_rc" = 1 ] && grep -qx "hi2vi refused this key (HTTP 401): make a workspace key under Keys on the project's page: nothing was written" "$LKW/a6.txt" && [ "$lk_t1" = "$lk_t2" ] && [ ! -e "$LKA/.sikstack/.hi2vi" ] \
-  && ok "link refuses a key hi2vi does not take (401) with one line and writes nothing (no .hi2vi/, the key file unchanged)" \
+[ "$lk_rc" = 1 ] && grep -qx "sikstack refused this key (HTTP 401): make a workspace key under Keys on the project's page: nothing was written" "$LKW/a6.txt" && [ "$lk_t1" = "$lk_t2" ] && [ ! -e "$LKA/.sikstack/.hi2vi" ] \
+  && ok "link refuses a key sikstack does not take (401) with one line and writes nothing (no .hi2vi/, the key file unchanged)" \
   || bad "a wrong key was not refused cleanly -- rc=$lk_rc $(tail -2 "$LKW/a6.txt")"
 # (b) the link: the key from stdin, kept owner-only beside the other server's; the truth set uploaded in batches.
 lk_m=$(lk_mark); printf '%s\n' "$LKK" | lk "$LKA" link "$LKU" > "$LKW/b.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" upload)
@@ -3840,8 +3840,8 @@ lk_keys=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(
   && ok "link reads the key from stdin, verifies it by head, keeps it in a 0700 folder's 0600 file beside the other server's key, writes the link as config.toml's [cloud] table without it (committed alone) and uploads the truth set as several batches under 8,000,000 B; the workflow repo stays clean (.hi2vi/ excluded)" \
   || bad "the link upload wrong -- rc=$lk_rc $lk_r modes=$lk_modes keys=$lk_keys $(tail -2 "$LKW/b.txt") $(git -C "$LKA/.sikstack" status --porcelain | head -3)"
 lk_m=$(lk_mark); lk "$LKA" next > "$LKW/b2.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" next "$(grep '^store=' "$LKW/b2.txt")")
-[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && ok "next prints store=cloud server=<server> project=<id> in a linked checkout, and its head request sends X-Hi2vi-Base: <synced head>" \
-  || bad "next's store line or X-Hi2vi-Base wrong -- rc=$lk_rc $lk_r"
+[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && ok "next prints store=cloud server=<server> project=<id> in a linked checkout, and its head request sends X-Sikstack-Base: <synced head>" \
+  || bad "next's store line or X-Sikstack-Base wrong -- rc=$lk_rc $lk_r"
 lk_ref "an already-linked checkout" '^this checkout is already linked \(store=cloud server=' "$LKB/.sikstack" "$LKA/.sikstack/scripts/workflow.py" link "$LKU"
 # (f) O7: in cloud mode a stream command is refused with one line, before any request, with nothing written.
 lk_t1=$(lk_tree "$LKA/.sikstack"); lk_m=$(lk_mark); lk_nosock "$LKA/.sikstack/scripts/workflow.py" worktree start P1 --host-branch side > "$LKW/f.txt"; lk_rc=$?; lk_t2=$(lk_tree "$LKA/.sikstack")
@@ -3862,23 +3862,23 @@ lk_t2=$(lk_tree "$LKA/.sikstack")
 # (c) a second checkout: an unused install joins (the fetch paged, following rest); a used one is refused with the list.
 lk_ctl '{"fetch_page": 4000}'; lk_m=$(lk_mark); printf '%s\n' "$LKK" | lk "$LKB" link "$LKU" > "$LKW/c.txt"; lk_rc=$?; lk_r=$(lk_check "$LKB/.sikstack" "$lk_m" join)
 lk_ctl '{"fetch_page": null}'
-[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && grep -q "^linked: joined hi2vi's workspace ([0-9]* file(s) taken from hi2vi, this unused install's seed files replaced)" "$LKW/c.txt" \
+[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && grep -q "^linked: joined sikstack's workspace ([0-9]* file(s) taken from sikstack, this unused install's seed files replaced)" "$LKW/c.txt" \
   && [ -f "$LKB/.sikstack/works/phases/active/P1/topics/big-2.md" ] && grep -qF 'One' "$LKB/.sikstack/backlog.md" \
-  && ok "a second checkout joins from an unused install: its seed files give way, every file is taken from hi2vi (fetch pages followed through rest) and the generated files are rebuilt" \
+  && ok "a second checkout joins from an unused install: its seed files give way, every file is taken from sikstack (fetch pages followed through rest) and the generated files are rebuilt" \
   || bad "the unused install did not join -- rc=$lk_rc $lk_r $(tail -3 "$LKW/c.txt")"
 lk_t1=$(lk_tree "$LKC/.sikstack"); lk_m=$(lk_mark); printf '%s\n' "$LKK" | lk "$LKC" link "$LKU" > "$LKW/c2.txt"; lk_rc=$?; lk_t2=$(lk_tree "$LKC/.sikstack")
-[ "$lk_rc" = 1 ] && grep -q "^link refuses: hi2vi already holds this project's workspace (r[0-9]*), and [0-9]* path(s) here differ from it" "$LKW/c2.txt" \
+[ "$lk_rc" = 1 ] && grep -q "^link refuses: sikstack already holds this project's workspace (r[0-9]*), and [0-9]* path(s) here differ from it" "$LKW/c2.txt" \
   && grep -qx 'differs  works/phases/active/P1/phase.json' "$LKW/c2.txt" && [ "$lk_t1" = "$lk_t2" ] && [ ! -e "$LKC/.sikstack/.hi2vi" ] \
   && ok "a used checkout is refused at the join with the list of differing paths, and nothing is written" \
   || bad "a used checkout's join was not refused with the list -- rc=$lk_rc $(head -4 "$LKW/c2.txt")"
 lk_nosock "$LKB/.sikstack/scripts/workflow.py" unlink --from-disk > "$LKW/c3.txt"; lk_rc=$?
-[ "$lk_rc" = 0 ] && [ ! -e "$LKB/.sikstack/.hi2vi" ] && grep -q '^unlinked from the disk, offline: changes made in hi2vi after r[0-9]* are not on this disk' "$LKW/c3.txt" \
+[ "$lk_rc" = 0 ] && [ ! -e "$LKB/.sikstack/.hi2vi" ] && grep -q '^unlinked from the disk, offline: changes made in sikstack after r[0-9]* are not on this disk' "$LKW/c3.txt" \
   && grep -qx 'local mode: the files on disk are the truth again; commit them (git -C .sikstack add -A && git -C .sikstack commit)' "$LKW/c3.txt" \
   && ok "unlink --from-disk runs offline (no socket), removes .hi2vi/ and says what the disk cannot hold" \
   || bad "unlink --from-disk wrong -- rc=$lk_rc $(head -3 "$LKW/c3.txt")"
 lk_commit "$LKB" unlinked; lk_m=$(lk_mark); printf '%s\n' "$LKK" | lk "$LKB" link "$LKU" > "$LKW/c4.txt"; lk_rc=$?; lk_r=$(lk_check "$LKB/.sikstack" "$lk_m" synced)
-[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && grep -q "^linked: joined hi2vi's workspace (0 file(s) taken from hi2vi)" "$LKW/c4.txt" \
-  && ok "a checkout whose files equal hi2vi's joins with nothing taken" || bad "an equal set did not join -- rc=$lk_rc $lk_r $(tail -2 "$LKW/c4.txt")"
+[ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && grep -q "^linked: joined sikstack's workspace (0 file(s) taken from sikstack)" "$LKW/c4.txt" \
+  && ok "a checkout whose files equal sikstack's joins with nothing taken" || bad "an equal set did not join -- rc=$lk_rc $lk_r $(tail -2 "$LKW/c4.txt")"
 # A typed id is resolved after the begin step's pull: a brief id names what another checkout made since this one
 # last pulled, on the first try (A makes each record, then B's very next command names it by its brief form).
 lk_bad=""
@@ -3910,41 +3910,41 @@ lk "$LKA" route 7-ab.S1 > "$LKW/br-e.txt"; lk_rc3=$?
   || bad "a number shared after the pull was not refused cleanly -- rc=$lk_rc/$lk_rc2/$lk_rc3 $lk_r / $lk_r2 $(head -2 "$LKW/br-c.txt")"
 # (d) sync in A: a stale write (409) beside a clean change on each side.
 lk_p=works/phases/active/P1/intent.md; printf 'changed here\n' >> "$LKA/.sikstack/$lk_p"
-lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"changed in hi2vi by another checkout\\n\"}}"
+lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"changed in sikstack by another checkout\\n\"}}"
 lk "$LKA" next > "$LKW/d0.txt"; lk_rc0=$?
-lk_put works/phases/active/P1/topics/cloud.md 'written in hi2vi
+lk_put works/phases/active/P1/topics/cloud.md 'written in sikstack
 '; printf 'written here\n' > "$LKA/.sikstack/works/phases/active/P1/topics/local.md"
 lk_v=$(lk_revs); lk_m=$(lk_mark); lk "$LKA" sync > "$LKW/d.txt"; lk_rc=$?
 lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" clean works/phases/active/P1/topics/cloud.md works/phases/active/P1/topics/local.md)
-lk_r2=$(lk_check "$LKA/.sikstack" "$lk_m" stale "$lk_p" 'changed in hi2vi by another checkout
+lk_r2=$(lk_check "$LKA/.sikstack" "$lk_m" stale "$lk_p" 'changed in sikstack by another checkout
 ' "$lk_v")
 [ "$lk_rc0" = 1 ] && [ "$lk_rc" = 1 ] && [ "$lk_r" = ok ] && [ "$lk_r2" = ok ] \
-  && grep -qE "^differs  $lk_p  here: changed since r[0-9]+ \(.+\)  hi2vi: r[0-9]+$" "$LKW/d.txt" && [ "$(grep -cE '^(differs|here only|cloud only|deleted|interrupted)' "$LKW/d.txt")" = 1 ] \
-  && ok "sync pulls the clean hi2vi change, pushes the clean local one, and lists the stale write (differs, both sides' facts), resolving nothing: exit 1" \
+  && grep -qE "^differs  $lk_p  here: changed since r[0-9]+ \(.+\)  sikstack: r[0-9]+$" "$LKW/d.txt" && [ "$(grep -cE '^(differs|here only|cloud only|deleted|interrupted)' "$LKW/d.txt")" = 1 ] \
+  && ok "sync pulls the clean sikstack change, pushes the clean local one, and lists the stale write (differs, both sides' facts), resolving nothing: exit 1" \
   || bad "sync's list wrong -- rc=$lk_rc0/$lk_rc $lk_r / $lk_r2 / $(head -4 "$LKW/d.txt")"
 lk "$LKA" sync --diff "$lk_p" > "$LKW/d2.txt"; lk_rc=$?
-[ "$lk_rc" = 0 ] && grep -qx -- '-changed in hi2vi by another checkout' "$LKW/d2.txt" && grep -qx -- '+changed here' "$LKW/d2.txt" && grep -q "^--- hi2vi/$lk_p (r[0-9]*)" "$LKW/d2.txt" \
-  && ok "sync --diff shows hi2vi's copy against the disk as a unified diff" || bad "sync --diff wrong -- rc=$lk_rc $(head -5 "$LKW/d2.txt")"
+[ "$lk_rc" = 0 ] && grep -qx -- '-changed in sikstack by another checkout' "$LKW/d2.txt" && grep -qx -- '+changed here' "$LKW/d2.txt" && grep -q "^--- sikstack/$lk_p (r[0-9]*)" "$LKW/d2.txt" \
+  && ok "sync --diff shows sikstack's copy against the disk as a unified diff" || bad "sync --diff wrong -- rc=$lk_rc $(head -5 "$LKW/d2.txt")"
 lk_v=$(lk_revs); lk_m=$(lk_mark); lk "$LKA" sync --keep local > "$LKW/d3.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" revs "$lk_v")
 lk "$LKA" next > "$LKW/d4.txt"; lk_rc2=$?
 [ "$lk_rc" != 0 ] && [ "$(grep -c '' "$LKW/d3.txt")" = 1 ] && grep -q '^sync --keep needs at least one path' "$LKW/d3.txt" && [ "$lk_r" = ok ] \
-  && [ "$lk_rc2" = 1 ] && grep -q '^1 files differ between this checkout and hi2vi: run sync' "$LKW/d4.txt" \
+  && [ "$lk_rc2" = 1 ] && grep -q '^1 files differ between this checkout and sikstack: run sync' "$LKW/d4.txt" \
   && ok "sync --keep with no path is refused with one line and nothing sent; the stale write still stops the next command" \
   || bad "sync --keep without a path was not refused -- rc=$lk_rc/$lk_rc2 $lk_r $(head -2 "$LKW/d3.txt") / $(head -1 "$LKW/d4.txt")"
 # --keep takes only a file on one side or the other: a folder, or a path on neither side, is refused with one line,
-# nothing sent and nothing written (never "hi2vi holds it now", never a traceback); so is --diff on a folder.
+# nothing sent and nothing written (never "sikstack holds it now", never a traceback); so is --diff on a folder.
 lk_bad=""
 for lk_args in "--keep local works/agenda" "--keep local works/no-such-file.md" "--keep cloud works/agenda" "--keep cloud works/no-such-file.md" "--diff works/agenda"; do
   lk_v=$(lk_revs); lk_m=$(lk_mark); lk_t1=$(lk_tree "$LKA/.sikstack")
   # shellcheck disable=SC2086
   lk "$LKA" sync $lk_args > "$LKW/d9.txt"; lk_rc=$?; lk_t2=$(lk_tree "$LKA/.sikstack"); lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" revs "$lk_v")
   case "$lk_args" in *agenda) lk_want='^works/agenda is a folder: sync takes file paths, one by one as sync lists them \(nothing was changed\)$' ;;
-    *) lk_want='^sync --keep refused: works/no-such-file\.md names no file here or in hi2vi; it takes the file paths sync lists \(nothing was changed\)$' ;; esac
+    *) lk_want='^sync --keep refused: works/no-such-file\.md names no file here or in sikstack; it takes the file paths sync lists \(nothing was changed\)$' ;; esac
   { [ "$lk_rc" = 1 ] && [ "$(grep -c '' "$LKW/d9.txt")" = 1 ] && grep -qE "$lk_want" "$LKW/d9.txt" && [ "$lk_r" = ok ] && [ "$lk_t1" = "$lk_t2" ]; } \
     || lk_bad="$lk_bad [sync $lk_args: rc=$lk_rc $lk_r $(head -1 "$LKW/d9.txt")]"
 done
 lk "$LKA" next > "$LKW/d4.txt"; lk_rc2=$?
-[ -z "$lk_bad" ] && [ "$lk_rc2" = 1 ] && grep -q '^1 files differ between this checkout and hi2vi: run sync' "$LKW/d4.txt" \
+[ -z "$lk_bad" ] && [ "$lk_rc2" = 1 ] && grep -q '^1 files differ between this checkout and sikstack: run sync' "$LKW/d4.txt" \
   && ok "sync --keep local|cloud on a folder or on a path on neither side, and sync --diff on a folder, are refused with one line each, nothing sent, the tree unchanged; the stale write still waits" \
   || bad "sync --keep on a folder or an unknown path was not refused --$lk_bad rc=$lk_rc2 $(head -1 "$LKW/d4.txt")"
 lk_m=$(lk_mark); lk "$LKA" sync --keep local "$lk_p" > "$LKW/d5.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" kept-local "$lk_p")
@@ -3952,15 +3952,15 @@ lk_m=$(lk_mark); lk "$LKA" sync > "$LKW/d6.txt"; lk_rc2=$?; lk_r2=$(lk_check "$L
 lk "$LKA" sync --status > "$LKW/d7.txt"; lk_rc3=$?
 [ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && [ "$lk_rc2" = 0 ] && [ "$lk_r2" = ok ] && grep -q '^in sync: ' "$LKW/d6.txt" && grep -qE '^in sync: head=r([0-9]+) base=r\1$' "$LKW/d5.txt" && [ "$lk_rc3" = 0 ] \
   && grep -qxE "store=cloud server=$LKS project=proj-1 head=r([0-9]+) base=r\1 here=0 differ=0 inbox=0" "$LKW/d7.txt" \
-  && ok "sync --keep local <path> pushes the disk's copy over hi2vi's revision (recorded as that command); then sync is clean and sync --status reads head=base, here=0 differ=0" \
+  && ok "sync --keep local <path> pushes the disk's copy over sikstack's revision (recorded as that command); then sync is clean and sync --status reads head=base, here=0 differ=0" \
   || bad "sync --keep local wrong -- rc=$lk_rc/$lk_rc2/$lk_rc3 $lk_r / $lk_r2 / $(cat "$LKW/d7.txt")"
 printf 'changed here again\n' >> "$LKA/.sikstack/$lk_p"
-lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"hi2vi wins this one\\n\"}}"; lk "$LKA" next >/dev/null
-lk_m=$(lk_mark); lk "$LKA" sync --keep cloud "$lk_p" > "$LKW/d8.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" kept-cloud "$lk_p" 'hi2vi wins this one
+lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"sikstack wins this one\\n\"}}"; lk "$LKA" next >/dev/null
+lk_m=$(lk_mark); lk "$LKA" sync --keep cloud "$lk_p" > "$LKW/d8.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" kept-cloud "$lk_p" 'sikstack wins this one
 ')
 lk_m=$(lk_mark); lk "$LKA" next >/dev/null; lk_rc2=$?; lk_r2=$(lk_check "$LKA/.sikstack" "$lk_m" synced)
 [ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && [ "$lk_rc2" = 0 ] && [ "$lk_r2" = ok ] \
-  && ok "sync --keep cloud <path> writes hi2vi's copy over the disk, and the next command runs synced" \
+  && ok "sync --keep cloud <path> writes sikstack's copy over the disk, and the next command runs synced" \
   || bad "sync --keep cloud wrong -- rc=$lk_rc/$lk_rc2 $lk_r / $lk_r2 $(tail -2 "$LKW/d8.txt")"
 # An interrupted command: sync lists its files as interrupted and pushes none of them until --keep.
 ( cd "$LKA" && XDG_CONFIG_HOME="$LKX" python3 - defer-job --title killed --reason r --trigger t --source manual <<'PY'
@@ -3993,7 +3993,7 @@ lk_m=$(lk_mark); lk "$LKA" next >/dev/null; lk_rc2=$?; lk_r=$(lk_check "$LKA/.si
 printf 'one more\n' >> "$LKA/.sikstack/$lk_p"
 lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"and another\\n\"}}"; lk "$LKA" next >/dev/null
 lk "$LKA" unlink > "$LKW/g.txt"; lk_rc=$?
-[ "$lk_rc" = 1 ] && grep -qx '\[cloud\]' "$LKA/.sikstack/config.toml" && grep -q '^unlink refused, the checkout is still linked: 1 files differ between this checkout and hi2vi' "$LKW/g.txt" \
+[ "$lk_rc" = 1 ] && grep -qx '\[cloud\]' "$LKA/.sikstack/config.toml" && grep -q '^unlink refused, the checkout is still linked: 1 files differ between this checkout and sikstack' "$LKW/g.txt" \
   && ok "unlink refuses on a mismatch with one line, and the checkout stays linked" || bad "unlink did not refuse on a mismatch -- rc=$lk_rc $(head -2 "$LKW/g.txt")"
 lk "$LKA" sync --keep local "$lk_p" >/dev/null
 lk_m=$(lk_mark); lk "$LKA" unlink > "$LKW/g2.txt"; lk_rc=$?
@@ -4018,7 +4018,7 @@ kill "$LK_PID" 2>/dev/null; wait "$LK_PID" 2>/dev/null
 echo "link test runtime: $(( $(date +%s) - lk_t0 ))s"
 
 # ---------------------------------------------------------------------------
-echo "== Test 24: the web's agenda inbox, applied by a linked engine against the local fake hi2vi -- at next and sync, entries oldest first, each run in-process as its agenda command: exit 0 applied, each in a batch of its own with exactly the files its command wrote; a refusal's one line sent verbatim with exit 1, a usage error's with exit 2; a brief id refused unrun with nothing written; an entry another checkout applied first is a 409, its change dropped here and hi2vi's copy pulled, never applied twice; a crash inside a command leaves the entry pending and the tree as it was; a delete clears its links in the same batch; the applier never deadlocks on .hi2vi/lock =="
+echo "== Test 24: the web's agenda inbox, applied by a linked engine against the local fake sikstack -- at next and sync, entries oldest first, each run in-process as its agenda command: exit 0 applied, each in a batch of its own with exactly the files its command wrote; a refusal's one line sent verbatim with exit 1, a usage error's with exit 2; a brief id refused unrun with nothing written; an entry another checkout applied first is a 409, its change dropped here and sikstack's copy pulled, never applied twice; a crash inside a command leaves the entry pending and the tree as it was; a delete clears its links in the same batch; the applier never deadlocks on .hi2vi/lock =="
 ib_t0=$(date +%s)
 newtmp IBW; IBX="$IBW/xdg"; IBA="$IBW/a"; IBL="$IBW/local"
 # ib <host> <args>: one engine command in that host's nested workspace, with the scratch XDG, killed after 60 s
@@ -4043,7 +4043,7 @@ ib_install "$IBA"; ib_install "$IBL"
   && git -C "$IBA/.sikstack" add -A && git -C "$IBA/.sikstack" commit -qm seed; } > "$IBW/seed.txt" 2>&1 || bad "inbox probe: the seed failed -- $(tail -3 "$IBW/seed.txt")"
 IBK="inbox-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s\n' "$IBK" > "$IBW/key"; chmod 600 "$IBW/key"
-python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$IBW/fake" --port-file "$IBW/port" --key-file "$IBW/key" \
+python3 "$REPO_ROOT/tests/fake_sikstack.py" --dir "$IBW/fake" --port-file "$IBW/port" --key-file "$IBW/key" \
   --project proj-1 --org org-1 --lifetime 900 > "$IBW/fake.txt" 2>&1 &
 IB_PID=$!
 for _ in $(seq 1 100); do [ -s "$IBW/port" ] && break; sleep 0.1; done
@@ -4105,10 +4105,10 @@ def need(cond, why):
         sys.exit(1)
 def synced():
     need(journal is None, f"the journal is left: {journal}")
-    need(base.get("head") == S["head"], f"base head {base.get('head')} != hi2vi head {S['head']}")
-    need(set(base["files"]) == set(live), f"base and hi2vi hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
+    need(base.get("head") == S["head"], f"base head {base.get('head')} != sikstack head {S['head']}")
+    need(set(base["files"]) == set(live), f"base and sikstack hold different paths: {sorted(set(base['files']) ^ set(live))[:4]}")
     for p, f in live.items():
-        need(base["files"][p]["rev"] == f["rev"] and (root / p).is_file() and sha(p) == f["sha256"], f"{p}: base, disk and hi2vi disagree")
+        need(base["files"][p]["rev"] == f["rev"] and (root / p).is_file() and sha(p) == f["sha256"], f"{p}: base, disk and sikstack disagree")
 def with_result(eid):
     return [c for c in C if any(r["id"] == eid for r in c["batch"]["inbox"])]
 if check == "applied":  # extra: the entry ids, oldest first; each applied, alone in its own landed batch with its files
@@ -4118,7 +4118,7 @@ if check == "applied":  # extra: the entry ids, oldest first; each applied, alon
     for eid, c in zip(ids, batches):
         need(c["status"] == 200 and len(c["batch"]["inbox"]) == 1, f"{eid}: not alone in a landed batch: {c['status']} {c['batch']['inbox']}")
         need(c["batch"]["inbox"][0] == {"id": eid, "state": "applied", "exit": 0, "reason": None}, f"{eid}: result {c['batch']['inbox'][0]}")
-        need(I[eid]["state"] == "applied" and I[eid]["batch_id"] == c["batch"]["batch_id"], f"{eid}: hi2vi holds {I[eid]['state']}")
+        need(I[eid]["state"] == "applied" and I[eid]["batch_id"] == c["batch"]["batch_id"], f"{eid}: sikstack holds {I[eid]['state']}")
         paths = sorted(op["path"] for op in c["batch"]["ops"])
         need(paths and all(p.startswith("works/agenda/") or p == "works/events.jsonl" for p in paths), f"{eid}: unrelated files ride its batch: {paths}")
         need(c["batch"]["command"].startswith("agenda-"), f"{eid}: the batch names {c['batch']['command']!r}")
@@ -4130,19 +4130,19 @@ elif check == "refused":  # extra: <entry id> <exit> <reason>; the result alone 
     c = with_result(eid)
     need(len(c) == 1 and c[0]["status"] == 200 and not c[0]["batch"]["ops"], f"{eid}: batches {[(x['status'], x['batch']['ops']) for x in c]}")
     need(c[0]["batch"]["inbox"] == [{"id": eid, "state": "refused", "exit": code, "reason": reason}], f"{eid}: sent {c[0]['batch']['inbox']}")
-    need(I[eid]["state"] == "refused" and I[eid]["reason"] == reason and I[eid]["exit"] == code, f"{eid}: hi2vi holds {I[eid]}")
+    need(I[eid]["state"] == "refused" and I[eid]["reason"] == reason and I[eid]["exit"] == code, f"{eid}: sikstack holds {I[eid]}")
     synced()
-elif check == "taken":  # extra: <entry id> <path>: one 409 batch, the disk equal to hi2vi's copy, applied once (by the other)
+elif check == "taken":  # extra: <entry id> <path>: one 409 batch, the disk equal to sikstack's copy, applied once (by the other)
     eid, path = extra
     c = with_result(eid)
     need(len(c) == 1 and c[0]["status"] == 409, f"{eid}: batches {[x['status'] for x in c]}")
-    need(I[eid]["state"] == "applied" and I[eid]["by"] == "checkout other", f"{eid}: hi2vi holds {I[eid]}")
-    need((root / path).read_text() == cloud(path), f"{path}: the disk is not hi2vi's copy")
+    need(I[eid]["state"] == "applied" and I[eid]["by"] == "checkout other", f"{eid}: sikstack holds {I[eid]}")
+    need((root / path).read_text() == cloud(path), f"{path}: the disk is not sikstack's copy")
     need("agenda_edited" not in (root / "works/events.jsonl").read_text(), "the dropped edit's event is still on disk")
     synced()
 elif check == "pending":  # extra: <entry id>: no result was sent and the entry waits
     eid = extra[0]
-    need(not with_result(eid) and I[eid]["state"] == "pending", f"{eid}: sent {len(with_result(eid))}, hi2vi holds {I[eid]['state']}")
+    need(not with_result(eid) and I[eid]["state"] == "pending", f"{eid}: sent {len(with_result(eid))}, sikstack holds {I[eid]['state']}")
     need(not any(c["batch"]["ops"] for c in C), f"a crashed entry's files were sent: {[c['batch']['ops'] for c in C]}")
     synced()
 elif check == "delete":  # extra: <entry id>: one batch holds the delete, the cleared links and the result
@@ -4199,15 +4199,15 @@ ib_r=$(ib_check "$ib_m" refused "$ib_e4" 1 "$ib_l4"); ib_r2=$(ib_check "$ib_m" r
 [ "$ib_rc" = 0 ] && [ "$ib_rc5" = 2 ] && [ "$ib_r" = ok ] && [ "$ib_r2" = ok ] && grep -qxF "inbox $ib_e4: refused, exit 1 (agenda-reopen A4-n5): $ib_l4" "$IBW/c.txt" \
   && ok "a refused agenda command's one line reaches its entry verbatim with exit 1, and a usage error's (as the engine prints it) with exit 2" \
   || bad "a refusal's line did not reach its entry -- rc=$ib_rc/$ib_rc5 $ib_r / $ib_r2 $(head -3 "$IBW/c.txt")"
-# (d) another checkout applies an entry first: A's batch is a 409, its change dropped, hi2vi's copy pulled, once.
+# (d) another checkout applies an entry first: A's batch is a 409, its change dropped, sikstack's copy pulled, once.
 ib_e6=$(ib_web '{"kind": "edit", "items": ["A3-x2"], "fields": {"title": "renamed"}}')
 ib_other=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); d.update(title="renamed", changed_at="2026-11-18T10:00:00+00:00"); print(json.dumps(d, indent=2))' "$IBA/.sikstack/works/agenda/A3-x2/agenda.json")
 ib_post /_fake/control "$(python3 -c 'import json, sys; print(json.dumps({"inbox_race": sys.argv[1], "race": {"path": "works/agenda/A3-x2/agenda.json", "content": sys.argv[2] + "\n"}}))' "$ib_e6" "$ib_other")" > /dev/null
 ib_m=$(ib_mark); ib "$IBA" sync > "$IBW/d.txt"; ib_rc=$?; ib_r=$(ib_check "$ib_m" taken "$ib_e6" works/agenda/A3-x2/agenda.json)
 ib "$IBA" sync > "$IBW/d2.txt"; ib_rc2=$?
-[ "$ib_rc" = 0 ] && [ "$ib_r" = ok ] && grep -qxF "inbox $ib_e6: not applied here (agenda-edit A3-x2): hi2vi holds it applied already (another checkout); this checkout's change was dropped and hi2vi's copy pulled" "$IBW/d.txt" \
+[ "$ib_rc" = 0 ] && [ "$ib_r" = ok ] && grep -qxF "inbox $ib_e6: not applied here (agenda-edit A3-x2): sikstack holds it applied already (another checkout); this checkout's change was dropped and sikstack's copy pulled" "$IBW/d.txt" \
   && [ "$ib_rc2" = 0 ] && ! grep -q "^inbox " "$IBW/d2.txt" \
-  && ok "an entry another checkout applied first is a 409: this checkout's change is dropped and hi2vi's copy pulled, never applied twice" \
+  && ok "an entry another checkout applied first is a 409: this checkout's change is dropped and sikstack's copy pulled, never applied twice" \
   || bad "an entry taken elsewhere was mishandled -- rc=$ib_rc/$ib_rc2 $ib_r $(head -3 "$IBW/d.txt")"
 # (e) a crash inside a command (A1-k2's folder cannot be removed) leaves the entry pending and the tree as it was.
 ib_e7=$(ib_web '{"kind": "delete", "items": ["A1-k2"]}')
@@ -4228,7 +4228,7 @@ kill "$IB_PID" 2>/dev/null; wait "$IB_PID" 2>/dev/null
 echo "inbox test runtime: $(( $(date +%s) - ib_t0 ))s"
 
 # ---------------------------------------------------------------------------
-echo "== Test 25: a linked checkout's waiting-commit record and update, against the local fake hi2vi -- next prints commits_waiting= (the done slices finished since the link with no committed_at, in finish order; none for one done before the link); mark-committed records it in slice.json (synced to hi2vi), refuses a slice not done and local mode with nothing written, and leaving done clears it; review records a passing REVIEW itself; local mode prints no line and writes no field; --update on a linked checkout leaves changed works/ files unchanged and uncommitted and prints the update's own paths to stage, never add -A; --to-multi-repo refuses a linked install =="
+echo "== Test 25: a linked checkout's waiting-commit record and update, against the local fake sikstack -- next prints commits_waiting= (the done slices finished since the link with no committed_at, in finish order; none for one done before the link); mark-committed records it in slice.json (synced to sikstack), refuses a slice not done and local mode with nothing written, and leaving done clears it; review records a passing REVIEW itself; local mode prints no line and writes no field; --update on a linked checkout leaves changed works/ files unchanged and uncommitted and prints the update's own paths to stage, never add -A; --to-multi-repo refuses a linked install =="
 wc_t0=$(date +%s)
 newtmp WCW; WCX="$WCW/xdg"; WCA="$WCW/a"; WCL="$WCW/local"
 wc() { _h=$1; shift; ( cd "$_h" && XDG_CONFIG_HOME="$WCX" python3 "$ENG" "$@" ) 2>&1; }
@@ -4243,7 +4243,7 @@ wc_seed() { { wc "$1" phase new --phase P1 --name One --objective toy && wc "$1"
 wc_install "$WCA"; wc_install "$WCL"; wc_seed "$WCA"; wc_seed "$WCL"
 WCK="record-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s\n' "$WCK" > "$WCW/key"; chmod 600 "$WCW/key"
-python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$WCW/fake" --port-file "$WCW/port" --key-file "$WCW/key" \
+python3 "$REPO_ROOT/tests/fake_sikstack.py" --dir "$WCW/fake" --port-file "$WCW/port" --key-file "$WCW/key" \
   --project proj-1 --org org-1 --lifetime 900 > "$WCW/fake.txt" 2>&1 &
 WC_PID=$!
 for _ in $(seq 1 100); do [ -s "$WCW/port" ] && break; sleep 0.1; done
@@ -4272,7 +4272,7 @@ wc_n3=$(wc "$WCA" next | grep '^commits_waiting=')
   && [ "$wc_rc2" = 1 ] && printf '%s\n' "$wc_o2" | grep -q "P1.S2 is todo, not done" && [ "$wc_t1" = "$wc_t2" ] \
   && [ "$wc_rc3" = 0 ] && printf '%s\n' "$wc_o3" | grep -q "^P1.S1: committed_at=" && [ "$wc_n3" = "commits_waiting=none" ] \
   && [ "$(wc_has P1.S1)" = yes ] && [ "$(wc_cloud_has works/phases/active/P1/slices/P1.S1/slice.json)" = yes ] \
-  && ok "a linked checkout's waiting commit: next lists a slice finished since the link (not the DECOMP done before it) in commits_waiting=, mark-committed refuses a slice not done with nothing written, then records committed_at (synced to hi2vi) and the line reads none" \
+  && ok "a linked checkout's waiting commit: next lists a slice finished since the link (not the DECOMP done before it) in commits_waiting=, mark-committed refuses a slice not done with nothing written, then records committed_at (synced to sikstack) and the line reads none" \
   || bad "the linked waiting-commit record is wrong -- [$wc_n0] [$wc_n1] has=$wc_h1 rc=$wc_rc2/$wc_rc3 [$wc_n3] $(printf '%s' "$wc_o2" | head -2)"
 # (b) leaving done clears the record (it waits again once done); a second finish keeps it; review records a REVIEW.
 wc "$WCA" slice status P1.S1 in_progress >/dev/null; wc_h4=$(wc_has P1.S1); wc "$WCA" slice finish P1.S1 --outcome again >/dev/null
@@ -4725,7 +4725,7 @@ else echo "note: claude CLI not installed; plugin validate skipped"; fi
 echo "== Test 30: setup, the registration retry and the rules card -- setup registers {install_id, email, plugin_version} once per new email under one install id and sets only autoCompactWindow in the user settings; with the server down it finishes, marks the registration pending, and the next SessionStart hook run registers it and clears the mark; the card is the contract inside a .sikstack/ repo (at most 4,096 B) and one line elsewhere =="
 newtmp SUW; printf 'setup-smoke\n' > "$SUW/key"
 su_fake() {  # su_fake <name> [port]: a fake server logging into $SUW/<name>/, its port in $SUW/<name>.port; prints its PID
-  python3 "$PLUGIN/tests/fake_hi2vi.py" --dir "$SUW/$1" --port-file "$SUW/$1.port" --key-file "$SUW/key" --project p --org o \
+  python3 "$PLUGIN/tests/fake_sikstack.py" --dir "$SUW/$1" --port-file "$SUW/$1.port" --key-file "$SUW/key" --project p --org o \
     --lifetime 300 ${2:+--port "$2"} > "$SUW/$1.txt" 2>&1 &
   _p=$!; for _ in $(seq 1 100); do [ -s "$SUW/$1.port" ] && break; sleep 0.1; done; echo "$_p"
 }
@@ -4964,7 +4964,7 @@ mg_rn=$( cd "$MGR" && python3 "$ME" next 2>&1 | grep -x 'current_phase=P3' )
 echo "== Test 32: sign-in and feedback -- sign-in refuses an unregistered machine and a dirty workflow repo with nothing written; it prints the code and the connect address (never opening a browser with --no-browser), waits while the code is pending (exit 3 after --wait), keeps the same code on the next run, and on approval keeps the key (never printed) in the key file, writes and commits the [cloud] table and uploads the workspace; a declined or expired code ends with one line and nothing written; feedback sends {install_id, message, plugin_version} with no auth, reports the per-install limit in one line, and refuses a report naming a path outside the plugin or the repo, sending nothing =="
 newtmp SIW; printf 'signin-smoke-key\n' > "$SIW/key"
 si_fake() {  # si_fake <name>: a fake server logging into $SIW/<name>/; prints its PID
-  python3 "$PLUGIN/tests/fake_hi2vi.py" --dir "$SIW/$1" --port-file "$SIW/$1.port" --key-file "$SIW/key" --project p-si --org o-si \
+  python3 "$PLUGIN/tests/fake_sikstack.py" --dir "$SIW/$1" --port-file "$SIW/$1.port" --key-file "$SIW/key" --project p-si --org o-si \
     --lifetime 300 > "$SIW/$1.txt" 2>&1 &
   _p=$!; for _ in $(seq 1 100); do [ -s "$SIW/$1.port" ] && break; sleep 0.1; done; echo "$_p"
 }

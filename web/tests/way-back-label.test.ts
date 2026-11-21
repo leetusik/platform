@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { documentBack } from "@/hi2vi/reader/document/model";
+import { documentBack } from "@/sikstack/reader/document/model";
 import { statePlace } from "@/lib/book/place";
 import { decodeFrom, LIBRARY_ORIGIN } from "@/lib/library/from";
 import { DEFAULT_READER_SETTINGS } from "@/lib/reader-cookie";
@@ -32,8 +32,8 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 const { bookBack } = await import("@/lib/book/load");
 const { DocumentLoading } =
-  await import("@/hi2vi/reader/document/document-states");
-const { ReaderSegmentContext } = await import("@/hi2vi/reader/reader-states");
+  await import("@/sikstack/reader/document/document-states");
+const { ReaderSegmentContext } = await import("@/sikstack/reader/reader-states");
 
 const book = {
   owner: "p63-fid",
@@ -71,7 +71,7 @@ describe("another org's public library is not trusted", () => {
   });
   it("the reproduced link reads the book's own org", () => {
     const raw =
-      "/@Session%20expired%20-%20sign%20in%20again%20at%20hi2vi-login.example";
+      "/@Session%20expired%20-%20sign%20in%20again%20at%20sikstack-login.example";
     expect(bookBack(decodeFrom(raw), visitorBook)).toEqual({
       href: "/@p63-fid",
       label: "Personal",

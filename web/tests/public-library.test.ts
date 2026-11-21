@@ -16,7 +16,7 @@ const auth = vi.hoisted(() => ({ optionalIdentity: vi.fn() }));
 vi.mock("@/lib/knowledge/app", () => app);
 vi.mock("@/lib/knowledge/reader", () => reader);
 vi.mock("@/lib/auth-guards", () => auth);
-vi.mock("@/hi2vi/shell/data", () => ({
+vi.mock("@/sikstack/shell/data", () => ({
   requestNonce: vi.fn(async () => undefined),
 }));
 vi.mock("next/headers", () => ({

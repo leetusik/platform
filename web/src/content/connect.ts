@@ -17,8 +17,6 @@ export const CONNECT_TITLES = {
 export const CONNECT_COPY = {
   /** The tab title. */
   pageTitle: "Connect this install",
-  wordmark: "sikstack",
-  wordmarkLabel: "sikstack, home",
   codeLabel: "Check that Claude Code shows this code",
   title: "Connect this install?",
   signedOut: "Sign in to connect this install and see its work on the web.",

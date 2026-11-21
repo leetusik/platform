@@ -61,7 +61,7 @@ describe("the addresses", () => {
   it("carries the list an item was opened from", () => {
     const from: WorkspaceList = { list: "deferred", q: "업로드", page: 2 };
     const href = jobHref(PROJECT, "D20-a3", from);
-    const url = new URL(href, "https://hi2vi.test");
+    const url = new URL(href, "https://sikstack.test");
     expect(url.pathname).toBe(`${ws}/deferred/D20-a3`);
     expect(url.searchParams.get(FROM_PARAM)).toBe(listHref(PROJECT, from));
     expect(
@@ -69,7 +69,7 @@ describe("the addresses", () => {
     ).toEqual(from);
     const doc = new URL(
       docHref(PROJECT, "product", { version: "v0001" }, { list: "docs" }),
-      "https://hi2vi.test",
+      "https://sikstack.test",
     );
     expect(doc.searchParams.get("version")).toBe("v0001");
     expect(doc.searchParams.get(FROM_PARAM)).toBe(`${ws}/docs`);
@@ -211,7 +211,7 @@ describe("the way back", () => {
       { list: "backlog", archived: 2 },
     );
     expect(back.to).toBe("phase");
-    const url = new URL(back.href, "https://hi2vi.test");
+    const url = new URL(back.href, "https://sikstack.test");
     expect(url.pathname).toBe(`${ws}/phases/P8-q4`);
     expect(
       decodeWorkspaceFrom(url.searchParams.get(FROM_PARAM), PROJECT),

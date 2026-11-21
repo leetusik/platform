@@ -29,7 +29,7 @@
  */
 
 import { AGENDA, AGENDA_STATUS_WORDS } from "@/content/feedback-agenda";
-import type { StatusState } from "@/hi2vi/ui/marks";
+import type { StatusState } from "@/sikstack/ui/marks";
 import { langOf } from "@/lib/feedback/lang";
 import { feedbackItemHref } from "@/lib/feedback/place";
 import type { Feedback } from "@/lib/feedback/types";

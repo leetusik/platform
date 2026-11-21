@@ -6,7 +6,7 @@ import {
   errorState,
   StateBlock,
   useShellOrgName,
-} from "@/hi2vi/states";
+} from "@/sikstack/states";
 
 /**
  * The signed-in app's whole-page error (job 01 round 03-instrument, Shared states: Error).

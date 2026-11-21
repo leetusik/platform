@@ -5,14 +5,14 @@ import { BookBar } from "@/components/book/book-bar";
 import { BookBody } from "@/components/book/book-body";
 import { BookFrame } from "@/components/book/book-frame";
 import { BOOK_PAGE } from "@/content/book-page";
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { loadBookOnce } from "@/lib/book/load";
 import type { BookView } from "@/lib/book/view";
 import { readBookSeed } from "@/lib/listen/seed";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { requestNonce } from "@/sikstack/shell/data";
 
-// The book page (hi2vi Library, job 03 round 02, `## Build` § Page: book): `/@{org}/{project}/books/{book}`,
+// The book page (sikstack Library, job 03 round 02, `## Build` § Page: book): `/@{org}/{project}/books/{book}`,
 // with `{org}` the org slug or the tenant id (the server's book read resolves both). Optional identity: a
 // signed-in reader reads with their bearer, anyone else tokenless (public projects only), and every miss
 // (an unknown org, project or book, a private project) is the same constant not-found.
@@ -74,7 +74,7 @@ export async function generateMetadata({
     return {
       title: isNotFound(error)
         ? BOOK_PAGE.states.notFound.title
-        : HI2VI_STATES.error.title,
+        : SIKSTACK_STATES.error.title,
     };
   }
 }

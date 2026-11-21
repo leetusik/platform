@@ -14,7 +14,7 @@ import {
   termClose,
   termPress,
   termRest,
-} from "@/hi2vi/reader/aids";
+} from "@/sikstack/reader/aids";
 import { ChapterView, validateChapter } from "@/lib/native";
 import type { QuizViewContext } from "@/lib/native/render";
 import { loadQuizSaved } from "@/lib/reader/quiz-saved";
@@ -198,7 +198,7 @@ describe("a send's result lands only on its own send", () => {
     );
   });
   it("the Library's quiz sends through the one save path (`useQuiz`), never its own", () => {
-    const lib = read("src/hi2vi/reader/aids/quiz.tsx");
+    const lib = read("src/sikstack/reader/aids/quiz.tsx");
     expect(lib).toMatch(/useQuiz\(props, FOCUS\)/);
     expect(lib).not.toContain("saveQuizAttempt");
     const old = read("src/components/reader/quiz.tsx");

@@ -1,7 +1,7 @@
 import { BOOK_PAGE } from "@/content/book-page";
-import { HI2VI_STATES } from "@/content/hi2vi-states";
-import { Skeleton } from "@/hi2vi/ui";
-import type { StateModel } from "@/hi2vi/states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
+import { Skeleton } from "@/sikstack/ui";
+import type { StateModel } from "@/sikstack/states";
 
 import { BookChapters } from "./book-chapters";
 import { BookContinue } from "./book-continue";
@@ -57,7 +57,7 @@ export function bookNotFound({
       signedIn
         ? {
             kind: "link",
-            label: HI2VI_STATES.back(back.label),
+            label: SIKSTACK_STATES.back(back.label),
             href: back.href,
             variant: "default",
           }
@@ -80,7 +80,7 @@ export function bookError({
   back: { href: string; label: string };
   digest?: string | null;
 }): StateModel {
-  const e = HI2VI_STATES.error;
+  const e = SIKSTACK_STATES.error;
   return {
     title: e.title,
     text: e.text,
@@ -88,7 +88,7 @@ export function bookError({
       { kind: "retry", label: e.retry, variant: "primary" },
       {
         kind: "link",
-        label: HI2VI_STATES.back(back.label),
+        label: SIKSTACK_STATES.back(back.label),
         href: back.href,
         variant: "default",
       },

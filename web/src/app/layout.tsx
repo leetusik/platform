@@ -13,7 +13,7 @@ import {
 } from "@/lib/fonts";
 import { TimeZoneCookie } from "@/lib/time-zone-cookie";
 import "./globals.css";
-import "@/hi2vi/styles/index.css";
+import "@/sikstack/styles/index.css";
 
 // Base metadata. `metadataBase` resolves canonical/OG URLs from SITE.url
 // (NEXT_PUBLIC_APP_URL → local-dev origin fallback). Icon / OG / robots /
@@ -38,9 +38,9 @@ export const metadata: Metadata = {
 // root. The body is scheme-neutral (bg-canvas / text-ink resolve to --kb-* per
 // the active scheme).
 //
-// The hi2vi design system's faces (IBM Plex Sans, Sans KR, Mono) add their three variables here too.
-// They are read only inside a `.ui` root (`src/hi2vi/styles/`), are never preloaded, and change no
-// old page; the scheme of a `.ui` root is its own `data-scheme`, set by `UiRoot` (`src/hi2vi/ui/`).
+// The sikstack design system's faces (IBM Plex Sans, Sans KR, Mono) add their three variables here too.
+// They are read only inside a `.ui` root (`src/sikstack/styles/`), are never preloaded, and change no
+// old page; the scheme of a `.ui` root is its own `data-scheme`, set by `UiRoot` (`src/sikstack/ui/`).
 //
 // P41-sr.W1: `ListenRoot` is Listen's persistent player, above every route so a Listen
 // survives moving between reader pages. It renders and loads nothing off a reader or

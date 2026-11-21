@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as Core from "@/lib/send-feedback/core";
 import type { FeedbackSettings } from "@/lib/send-feedback/config";
 
-// hi2vi's own feedback control: the guards of the send, on `core.ts` with injected
+// sikstack's own feedback control: the guards of the send, on `core.ts` with injected
 // headers, key, post and identity, and the env reading of `config.ts`. Each test gets
 // a fresh module graph, so the in-memory limiter starts empty.
 
@@ -88,7 +88,7 @@ describe("the visitor's guards", () => {
       {
         "sec-fetch-site": "",
         origin: "https://evil.example",
-        host: "hi2vi.com",
+        host: "sikstack.com",
       },
       { "sec-fetch-site": "" },
     ];
@@ -229,7 +229,7 @@ describe("the visitor's guards", () => {
     const [withEmail, without] = post.mock.calls.map((call) => call[0]);
     expect(withEmail).toEqual({
       message: "hello",
-      source: { product: "hi2vi", integration: "landing" },
+      source: { product: "sikstack", integration: "landing" },
       channel: "web",
       source_metadata: { reply_email: "reader@example.com" },
     });
@@ -287,7 +287,7 @@ describe("the signed-in guards", () => {
     });
     expect(post.mock.calls[0][0]).toEqual({
       message: "hello",
-      source: { product: "hi2vi", integration: "org-home" },
+      source: { product: "sikstack", integration: "org-home" },
       channel: "web",
       user_id: "user-1",
       source_metadata: { reply_email: "june@example.com" },
@@ -364,19 +364,19 @@ describe("the post", () => {
     const { cookies } = await import("next/headers");
     vi.mocked(cookies).mockResolvedValue({
       get: (name: string) =>
-        name === "hi2vi_org" ? { name, value: ORG } : undefined,
+        name === "sikstack_org" ? { name, value: ORG } : undefined,
     } as unknown as Awaited<ReturnType<typeof cookies>>);
     const sentHeaders = (call: number) =>
       fetchMock.mock.calls[call][1].headers as Record<string, string>;
     // The cookie is live: a token call that does not override the org names it.
     const { sendJson } = await import("@/lib/knowledge/client");
     await sendJson("/probe", "POST", {}, { token: "session-token" });
-    expect(sentHeaders(0)["X-Hi2vi-Org"]).toBe(ORG);
+    expect(sentHeaders(0)["X-Sikstack-Org"]).toBe(ORG);
 
     await core.postCapture(
       {
         message: "hi",
-        source: { product: "hi2vi", integration: "landing" },
+        source: { product: "sikstack", integration: "landing" },
         channel: "web",
       },
       KEY,
@@ -386,7 +386,7 @@ describe("the post", () => {
     const sent = sentHeaders(1);
     expect(sent.Authorization).toBe(`Bearer ${KEY}`);
     const names = Object.keys(sent).map((k) => k.toLowerCase());
-    expect(names).not.toContain("x-hi2vi-org");
+    expect(names).not.toContain("x-sikstack-org");
     expect(names).not.toContain("x-real-ip");
   });
 });
@@ -930,11 +930,11 @@ describe("the limiter's give-back", () => {
 describe("the config", () => {
   it("is not configured without a key, and never hands the key to a page", async () => {
     const { feedbackControl } = await import("@/lib/send-feedback/config");
-    vi.stubEnv("HI2VI_FEEDBACK_CAPTURE_KEY", "");
+    vi.stubEnv("SIKSTACK_FEEDBACK_CAPTURE_KEY", "");
     expect(feedbackControl()).toEqual({ configured: false, limit: 2000 });
-    vi.stubEnv("HI2VI_FEEDBACK_CAPTURE_KEY", "   ");
+    vi.stubEnv("SIKSTACK_FEEDBACK_CAPTURE_KEY", "   ");
     expect(feedbackControl().configured).toBe(false);
-    vi.stubEnv("HI2VI_FEEDBACK_CAPTURE_KEY", KEY);
+    vi.stubEnv("SIKSTACK_FEEDBACK_CAPTURE_KEY", KEY);
     const control = feedbackControl();
     expect(control).toEqual({ configured: true, limit: 2000 });
     expect(JSON.stringify(control)).not.toContain(KEY);
@@ -944,12 +944,12 @@ describe("the config", () => {
     const { feedbackSettings, FEEDBACK_DEFAULTS } =
       await import("@/lib/send-feedback/config");
     const names = [
-      "HI2VI_FEEDBACK_MAX_CHARS",
-      "HI2VI_FEEDBACK_IP_LIMIT",
-      "HI2VI_FEEDBACK_IP_WINDOW_S",
-      "HI2VI_FEEDBACK_ACCOUNT_LIMIT",
-      "HI2VI_FEEDBACK_ACCOUNT_WINDOW_S",
-      "HI2VI_FEEDBACK_DAILY_CEILING",
+      "SIKSTACK_FEEDBACK_MAX_CHARS",
+      "SIKSTACK_FEEDBACK_IP_LIMIT",
+      "SIKSTACK_FEEDBACK_IP_WINDOW_S",
+      "SIKSTACK_FEEDBACK_ACCOUNT_LIMIT",
+      "SIKSTACK_FEEDBACK_ACCOUNT_WINDOW_S",
+      "SIKSTACK_FEEDBACK_DAILY_CEILING",
     ];
     for (const bad of [
       undefined,
@@ -968,11 +968,26 @@ describe("the config", () => {
     expect(Object.values(feedbackSettings())).toEqual([7, 7, 7, 7, 7, 7]);
   });
 
+  it("reads the box's older HI2VI_FEEDBACK_* names when the new ones are unset", async () => {
+    const { feedbackControl, feedbackSettings, readCaptureKey } =
+      await import("@/lib/send-feedback/config");
+    vi.stubEnv("SIKSTACK_FEEDBACK_CAPTURE_KEY", undefined);
+    vi.stubEnv("HI2VI_FEEDBACK_CAPTURE_KEY", KEY);
+    vi.stubEnv("SIKSTACK_FEEDBACK_MAX_CHARS", undefined);
+    vi.stubEnv("HI2VI_FEEDBACK_MAX_CHARS", "900");
+    expect(feedbackControl()).toEqual({ configured: true, limit: 900 });
+    expect(readCaptureKey()).toBe(KEY);
+    vi.stubEnv("SIKSTACK_FEEDBACK_MAX_CHARS", "1200");
+    expect(feedbackSettings().maxChars).toBe(1200);
+    vi.stubEnv("HI2VI_FEEDBACK_CAPTURE_KEY", undefined);
+    vi.stubEnv("HI2VI_FEEDBACK_MAX_CHARS", undefined);
+  });
+
   it("reads the key only in server-only modules", () => {
     const dir = join(__dirname, "../src/lib/send-feedback");
     for (const file of readdirSync(dir)) {
       const text = readFileSync(join(dir, file), "utf8");
-      if (/HI2VI_FEEDBACK_CAPTURE_KEY|readCaptureKey|captureKey/.test(text)) {
+      if (/SIKSTACK_FEEDBACK_CAPTURE_KEY|readCaptureKey|captureKey/.test(text)) {
         expect(
           text.startsWith('import "server-only"') ||
             text.startsWith('"use server"'),

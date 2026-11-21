@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { PROJECT_LIBRARY } from "@/content/project-library";
-import { HI2VI_STATES } from "@/content/hi2vi-states";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
+import { requestNonce } from "@/sikstack/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import type { FormatOptions } from "@/lib/format";
 import { readProjectPlace } from "@/lib/library/list-place";
@@ -81,7 +81,7 @@ export async function generateMetadata({
     return {
       title: isNotFound(error)
         ? PROJECT_LIBRARY.notFound.title
-        : HI2VI_STATES.error.title,
+        : SIKSTACK_STATES.error.title,
     };
   }
 }

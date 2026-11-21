@@ -10,18 +10,18 @@ import {
   DocPage,
   DocStateBlock,
   docView,
-} from "@/hi2vi/workspace/docs";
-import { DocTop } from "@/hi2vi/workspace/docs/top";
-import { wsFailedTitle } from "@/hi2vi/workspace/frame/failed-model";
-import { WsItemFailed } from "@/hi2vi/workspace/frame/failed";
+} from "@/sikstack/workspace/docs";
+import { DocTop } from "@/sikstack/workspace/docs/top";
+import { wsFailedTitle } from "@/sikstack/workspace/frame/failed-model";
+import { WsItemFailed } from "@/sikstack/workspace/frame/failed";
 import {
   wsNotFoundState,
   type WsBack,
-} from "@/hi2vi/workspace/frame/states-model";
+} from "@/sikstack/workspace/frame/states-model";
 import {
   wsSyncLine,
   type WsSyncLine,
-} from "@/hi2vi/workspace/frame/sync-model";
+} from "@/sikstack/workspace/frame/sync-model";
 import { requireIdentity } from "@/lib/auth-guards";
 import { getProject } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";

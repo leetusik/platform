@@ -1,0 +1,59 @@
+/* sikstack — the Library: a book's page (`Book.dc.html`: BookHead, BookContinue, its contents). Owner: P63-fk.S7; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+   The rules are the boards' own <style> blocks (BookHead, BookContinue, BookChapters), less their `#dc-root`
+   rules (a board opened alone). The column's 24 px between parts is `.column`'s gap. */
+@scope (.ui) to ([data-ui-legacy]) {
+
+/* ── BookHead: the title on F32's line, the description, one row of facts ── */
+.book-head { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.book-sub { color: var(--ink-2); font: 400 var(--fs-head)/var(--lh-head) var(--font); }
+.book-desc { max-width: 60ch; }
+.book-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); min-width: 0; }
+/* progress through the book: the reader's progress line (frame.css .bar-line), finished chapters of all */
+.book-track { flex: 1 1 8em; height: var(--line-h); overflow: hidden; border-radius: var(--radius-xs); background: var(--line); }
+.book-track > i { display: block; height: 100%; background: var(--accent); }
+
+/* ── BookContinue: the reader's Next block (frame.css .end-next), with the page's one primary button ── */
+.book-cont-facts { display: flex; flex-wrap: wrap; gap: 0 var(--space-4); }
+.book-cont-lede { max-width: 60ch; }
+/* the way into the book's notes: a row whose name is a link carries the row's 12 px (F24) */
+.book-notes { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-4); padding-block: 0; }
+.book-notes .link-strong { padding-block: var(--space-3); }
+/* the count shares the link's first line; when it wraps under, it keeps the row's 12 px below */
+.book-notes-count { padding-bottom: var(--space-3); color: var(--ink-2); }
+/* while it loads the block keeps the height of its button */
+.book-cont-wait { justify-content: center; min-height: var(--control-h); }
+
+/* ── BookChapters: the frame's chapter row (frame.md F63), inside a panel ── */
+.book-list { padding: 0 var(--space-4); }
+/* a chapter with two languages or an earlier version: its variants on a second line, the toggle at the line's end */
+.book-vars { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--space-4); min-width: 0; }
+.book-langs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); min-width: 0; }
+/* a language and its tag: the tag goes under the link before either is cut (200% text) */
+.book-lang { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-2); min-width: 0; }
+.book-lang > .link-row { white-space: nowrap; }
+.book-one { display: flex; align-items: center; min-height: var(--control-h); color: var(--ink-2); }
+/* the toggle is a link, as Version history is in a chapter's head; its chevron turns when the list is open */
+.book-ver-btn { gap: var(--space-2); }
+.book-ver-btn::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: calc(var(--space-1) / 2); border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-25%) rotate(45deg); }
+.book-ver-btn[aria-expanded="true"]::after { transform: translateY(25%) rotate(-135deg); }
+/* the versions, opened in place: one group a language; View ends each row, on the edge the states end on */
+.book-versions { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding-bottom: var(--space-2); border-top: 1px solid var(--line); }
+.book-ver-group { display: flex; flex-direction: column; min-width: 0; }
+.book-ver-group > h3 { padding-top: var(--space-3); }
+/* a row that ends in a bordered View keeps a step of air on each side of it: the buttons of a three- or four-deep list stand apart and no divider touches one (book:FG9) */
+.book-versions .version-row { padding-block: var(--space-2); }
+.book-versions .version-facts { padding-block: 0; }
+/* a row still loading keeps a row's height (F24) */
+.book-wait { align-items: center; }
+@container chapters (max-width: 26em) {
+  .book-versions { grid-column: 1 / -1; }
+  /* a version's facts go under its number; View stays at the row's end */
+  .book-versions .version-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .book-versions .version-facts { grid-column: 1; grid-row: 2; }
+  .book-versions .version-row > .btn { grid-column: 2; grid-row: 1; }
+}
+
+}

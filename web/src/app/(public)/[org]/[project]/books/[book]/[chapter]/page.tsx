@@ -3,11 +3,11 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { LegacyReaderPage } from "@/components/reader/legacy-reader-page";
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { READER_FRAME } from "@/content/reader-frame";
-import { ChapterReader } from "@/hi2vi/reader";
-import { ChapterBody } from "@/hi2vi/reader/body/body";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { ChapterReader } from "@/sikstack/reader";
+import { ChapterBody } from "@/sikstack/reader/body/body";
+import { requestNonce } from "@/sikstack/shell/data";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { decodeFrom, FROM_PARAM } from "@/lib/library/from";
 import { chapterSeed, readListenState } from "@/lib/listen/seed";
@@ -29,7 +29,7 @@ import { viewerTimeZone } from "@/lib/time-zone";
 // document page). Settings come from the `kb_reader` cookie on the server render, so the
 // first paint already has the reader's text size and theme.
 //
-// P63-fk.S8 — a native or Markdown chapter reads in the hi2vi reader's frame (`@/hi2vi/reader`,
+// P63-fk.S8 — a native or Markdown chapter reads in the sikstack reader's frame (`@/sikstack/reader`,
 // job 03 Library round 02): the Bar, the head, the end, the foot and the sheets are new. P63-fk.S9:
 // the text is the Library's body (`ChapterBody`); its terms, quiz, highlights and notes keep their
 // old look until S10 and S11. `?from=` is
@@ -109,7 +109,7 @@ export async function generateMetadata({
   } catch (error) {
     // the page renders the miss or the failure itself; the tab names it the same way
     if (isNotFound(error)) return { title: READER_FRAME.notFound.title };
-    return { title: HI2VI_STATES.error.title };
+    return { title: SIKSTACK_STATES.error.title };
   }
   return { title: READER_FRAME.notFound.title };
 }

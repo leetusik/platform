@@ -1,6 +1,6 @@
 /**
  * P30.S24 — the review surface's rules (`08-review` round 01), as pure functions: no React and
- * no network. Review's views (`hi2vi/review/`, and the undrawn-form card, `components/review/card.tsx`) call
+ * no network. Review's views (`sikstack/review/`, and the undrawn-form card, `components/review/card.tsx`) call
  * them to word a preview, reuse a `review_id`, land a rating's reply on the local queue and say which end state
  * the queue is in; the tests pin the ones the product cannot afford to get wrong (the idempotent retry, the
  * interval words).

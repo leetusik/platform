@@ -18,9 +18,9 @@ import {
   type ItemRead,
   type PageState,
   type PhaseLine,
-} from "@/hi2vi/workspace/agenda-item";
-import { AgendaItemForm } from "@/hi2vi/workspace/agenda-item/form";
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/agenda-item";
+import { AgendaItemForm } from "@/sikstack/workspace/agenda-item/form";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
 import { EMPTY_OVERLAY, view } from "@/lib/workspace/optimistic";
 import type {
   AgendaItem,
@@ -60,7 +60,7 @@ const HEAD = {
 
 const ITEM: AgendaItem = {
   id: "A7-m3",
-  title: "One product at hi2vi.com, designed new",
+  title: "One product at sikstack.com, designed new",
   lang: "en",
   note: "The app, the reader and capture were three things with three looks. Make them one: one address, one sign-in, one design. Build only what is signed.",
   state: "in_progress",
@@ -109,10 +109,10 @@ function phase(
 }
 
 const PHASES: PhaseRow[] = [
-  phase("P57-4q", "hi2vi design", "in_progress", 3, 7, "S4"),
+  phase("P57-4q", "sikstack design", "in_progress", 3, 7, "S4"),
   phase("P9-x2", "Export to Markdown", "planned", 0, 1),
   phase("P58-r2", "Project switcher and org home", "planned", 0, 5),
-  phase("P56-t8", "One platform at hi2vi.com", "done", 5, 5),
+  phase("P56-t8", "One platform at sikstack.com", "done", 5, 5),
   phase("P55-m1", "Three repos under one host", "done", 4, 4),
 ];
 const JOBS: JobRow[] = [
@@ -386,7 +386,7 @@ describe("what a write leaves on the page", () => {
       ITEM.title ?? "",
     );
     expect(s.asking).toBe(false);
-    expect(s.gone).toBe("One product at hi2vi.com, designed new");
+    expect(s.gone).toBe("One product at sikstack.com, designed new");
     expect(itemView(read(), s.overlay)).toBeNull();
     // a read that no longer holds the item (the delete waits) does not undo it
     s = reduce(s, { type: "read", item: { ...ITEM, id: "A12-p8" } });
@@ -397,7 +397,7 @@ describe("what a write leaves on the page", () => {
     });
     expect(model).toMatchObject({
       title: "Item deleted",
-      text: "“One product at hi2vi.com, designed new” leaves the workspace at the next sync.",
+      text: "“One product at sikstack.com, designed new” leaves the workspace at the next sync.",
       actions: [
         {
           kind: "link",
@@ -492,7 +492,7 @@ describe("what a write leaves on the page", () => {
     s = reduce(s, {
       type: "change",
       field: "title",
-      value: "One product at hi2vi.com",
+      value: "One product at sikstack.com",
     });
     expect(s.phase).toBe("rest");
 

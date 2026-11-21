@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, unstable_rethrow } from "next/navigation";
 
-import { HI2VI_STATES } from "@/content/hi2vi-states";
+import { SIKSTACK_STATES } from "@/content/sikstack-states";
 import { PUBLIC_LIBRARY } from "@/content/public-library";
 import { optionalIdentity } from "@/lib/auth-guards";
 import { loginHref } from "@/lib/next-path";
@@ -58,7 +58,7 @@ export async function generateMetadata({
   } catch (error) {
     unstable_rethrow(error);
     // the page renders the failure itself
-    return { title: HI2VI_STATES.error.title };
+    return { title: SIKSTACK_STATES.error.title };
   }
 }
 

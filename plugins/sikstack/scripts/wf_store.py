@@ -1324,7 +1324,7 @@ def _resolve_slice_arg(raw: str) -> str:
 
 def normalize_id_args(args: argparse.Namespace) -> None:
     """The ONE choke point for an id typed on a command line, run once after argparse (in a linked checkout,
-    once after the begin step's pull, so an id reads the tree hi2vi holds: `cloud_boundary`): every `phase` /
+    once after the begin step's pull, so an id reads the tree sikstack holds: `cloud_boundary`): every `phase` /
     `--phase` argument is a phase id, every `deferred_id` and `defer-job --id` a deferred job's, and the `slice` attribute (positional `slice` and `--slice`) a
     slice whose phase part may be brief (`46.S1`). CREATING an id (`phase new --phase`, `defer-job --id`) reads
     it statically; `promote-deferred --create-phase --phase` references an existing phase when the number names
@@ -3996,7 +3996,7 @@ def cmd_next(args: argparse.Namespace) -> None:
     # confirmed the host's commit convention. Printed before every return below; silent at root.
     for line in nested_next_lines():
         print(line)
-    if cloud_linked():  # cloud mode: hi2vi's revisions are the history, so no workflow-repo commit
+    if cloud_linked():  # cloud mode: sikstack's revisions are the history, so no workflow-repo commit
         print(cloud_store_line())
         print(cloud_commits_waiting_line())  # the waiting-commit record git gives in local mode
     # Stream context. Both lines are silent on the default stream with no parallel

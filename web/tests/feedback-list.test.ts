@@ -78,7 +78,7 @@ beforeEach(() => {
 /** The org route's own element: the shared list's body, nothing around it. */
 async function orgPage() {
   const { default: Page } = await import("@/app/(app)/feedback/page");
-  const { FeedbackListPage } = await import("@/hi2vi/feedback/list");
+  const { FeedbackListPage } = await import("@/sikstack/feedback/list");
   const node = (await Page({
     searchParams: Promise.resolve({}),
   })) as ReactElement;
@@ -92,7 +92,7 @@ async function projectPage(
 ) {
   const { default: Page } =
     await import("@/app/(app)/projects/[projectId]/feedback/page");
-  const { FeedbackListPage } = await import("@/hi2vi/feedback/list");
+  const { FeedbackListPage } = await import("@/sikstack/feedback/list");
   const node = (await Page({
     params: Promise.resolve({ projectId }),
     searchParams: Promise.resolve(search),
@@ -104,7 +104,7 @@ async function projectPage(
 
 async function orgBody(search: Record<string, string> = {}) {
   const { default: Page } = await import("@/app/(app)/feedback/page");
-  const { FeedbackListPage } = await import("@/hi2vi/feedback/list");
+  const { FeedbackListPage } = await import("@/sikstack/feedback/list");
   const node = (await Page({
     searchParams: Promise.resolve(search),
   })) as ReactElement<Parameters<typeof FeedbackListPage>[0]>;
@@ -115,7 +115,7 @@ async function orgBody(search: Record<string, string> = {}) {
 
 describe("which body shows", () => {
   it("follows the record: failed, a request out, rows, no project, no match, none yet", async () => {
-    const { listBody } = await import("@/hi2vi/feedback/list/model");
+    const { listBody } = await import("@/sikstack/feedback/list/model");
     const all = { rows: 3, projects: 2, filtered: true };
     expect(listBody({ ...all, phase: "failed" })).toBe("failed");
     expect(listBody({ ...all, phase: "searching" })).toBe("waiting");
@@ -207,7 +207,7 @@ describe("the pager", () => {
   });
 
   it("marks the page asked for at once and keeps the rows while it loads", async () => {
-    const { FeedbackListView } = await import("@/hi2vi/feedback/list/view");
+    const { FeedbackListView } = await import("@/sikstack/feedback/list/view");
     const { AT_REST } = await import("@/lib/feedback/place");
     const html = renderToStaticMarkup(
       createElement(FeedbackListView, {

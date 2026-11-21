@@ -39,17 +39,17 @@ SEAMS = {
 
 
 # ---------------------------------------------------------------------------
-# Cloud mode: hi2vi holds this workspace's truth and the disk is its copy. A checkout is linked exactly
+# Cloud mode: sikstack holds this workspace's truth and the disk is its copy. A checkout is linked exactly
 # when `.sikstack/config.toml` holds a [cloud] table ({schema, server, org_id, project_id, linked_at}; no key; the
 # bookkeeping below stays in `.hi2vi/`, which only `sikstack migrate` reads a link.json from). Without
 # it `main()` calls the command exactly as before: nothing below is read, imported or run, and no socket
 # is opened. With it, the command boundary syncs: before the command, a fast-forward pull of what changed
-# in hi2vi (then the generated files are rebuilt); the command runs unchanged against the disk; after it,
+# in sikstack (then the generated files are rebuilt); the command runs unchanged against the disk; after it,
 # every truth-set difference against `.hi2vi/base.json` (the last-synced head, and each path's rev and sha256),
 # in all-or-nothing batches sent in order (over CLOUD_BATCH_MAX a change splits; a 409 on a later batch leaves the
 # earlier ones landed). Diffing the tree, not wrapping writes, also catches the files
 # agents write with their own tools (plan.md, result.md, topics/), which ride the next batch as `carried`.
-# The wire is hi2vi's workspace API under /api/workspace/<project_id>/: head, manifest?since=, fetch and
+# The wire is sikstack's workspace API under /api/workspace/<project_id>/: head, manifest?since=, fetch and
 # commit, with the workspace key only as a Bearer header, read from the user's config, never from argv.
 CLOUD_DIR = ".hi2vi"
 CLOUD_SCHEMA = 1
@@ -73,7 +73,7 @@ CLOUD_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 CLOUD_APPEND_RE = re.compile(r"works/events\.jsonl")
 CLOUD_DERIVED = ("works/state.json", "works/index.json")  # sent with every batch as the latest projection only
 CLOUD_RACY_NS = 2_000_000_000  # a stat-cache entry this close to the clock is hashed again next time
-CLOUD_BATCH_MAX = 8_000_000  # bytes per batch as sent: hi2vi answers 413 above 8 MiB, so a bigger change splits
+CLOUD_BATCH_MAX = 8_000_000  # bytes per batch as sent: sikstack answers 413 above 8 MiB, so a bigger change splits
 CLOUD_LOCK_WAIT = 120.0  # seconds a command waits for another command of this checkout before it refuses
 CLOUD_HOOK_LOCK_WAIT = 5.0  # the session hook's wait: it never holds a session start for long
 # The session hook's whole cloud time: the lock wait and every request of its boundary, against the hook's 15 s
@@ -81,12 +81,12 @@ CLOUD_HOOK_LOCK_WAIT = 5.0  # the session hook's wait: it never holds a session 
 CLOUD_HOOK_BUDGET = 9.0
 CLOUD_FAIL_OPEN = ("compact-resume",)  # the adapter's SessionStart hook (adapters/claude_code/adapter.py compact-resume, through
 # workflow.run): a cloud stop is a note, the command runs on the disk
-CLOUD_FETCH_PATHS = 5000  # paths per P3 request (hi2vi takes at most 20,000 and pages its answer by bytes)
+CLOUD_FETCH_PATHS = 5000  # paths per P3 request (sikstack takes at most 20,000 and pages its answer by bytes)
 # The safety half. One engine process per checkout: `fcntl.flock` on `.hi2vi/lock` around the whole boundary
 # (begin, command, commit). A journal, `.hi2vi/journal.json`, names every interrupted state: `running` from the
 # begin step's end until the commit step clears it (a command that died midway: the next command refuses and
 # names sync), and `pushing` with the batch ids still to send (their bodies in `.hi2vi/outbox/`), from just
-# before the push until the base is updated, so a lost answer is resent with the same batch_id, which hi2vi
+# before the push until the base is updated, so a lost answer is resent with the same batch_id, which sikstack
 # applies once. A pull needs no journal: a revisioned file it wrote equals the cloud's sha, which reads as "same";
 # an append file it merged around lines not yet sent (or in an order of its own) does not, so each merge's result
 # is saved in base.json (`pulling`) before its write and settled against the disk when base.json is next read
@@ -145,7 +145,7 @@ class _CloudWire:
         idle = CLOUD_TIMEOUT - (now - self.last)
         hook = None if self.deadline is None else self.deadline - now
         if hook is not None and hook < 0.1:
-            raise _CloudStall(f"the session hook's {CLOUD_HOOK_BUDGET:g} s for hi2vi ran out")
+            raise _CloudStall(f"the session hook's {CLOUD_HOOK_BUDGET:g} s for sikstack ran out")
         if idle <= 0:
             raise _CloudStall(f"no byte moved for {CLOUD_TIMEOUT:g} s")
         if judge and now - self.window >= CLOUD_TIMEOUT:
@@ -158,7 +158,7 @@ class _CloudWire:
     def timed_out(self) -> str:
         """The line for a connect that timed out (the one wait that is not a _CloudSocket step)."""
         if self.by_deadline:
-            return f"the session hook's {CLOUD_HOOK_BUDGET:g} s for hi2vi ran out"
+            return f"the session hook's {CLOUD_HOOK_BUDGET:g} s for sikstack ran out"
         return f"no byte moved for {CLOUD_TIMEOUT:g} s"
 
 
@@ -345,14 +345,14 @@ def cloud_stop_line(exc: BaseException, step: str) -> str:
         return str(exc)
     what = exc.__class__.__name__ + (f": {_one_line(str(exc))[:200]}" if _one_line(str(exc)) else "")
     if step == "commit":
-        return f"this change is on disk but not in hi2vi ({what}): run sync"
+        return f"this change is on disk but not in sikstack ({what}): run sync"
     if step == "begin":
-        return f"the step before the command stopped ({what}), so the command did not run: run sync to see this checkout against hi2vi"
-    return f"{step} stopped ({what}): run sync to see this checkout against hi2vi"
+        return f"the step before the command stopped ({what}), so the command did not run: run sync to see this checkout against sikstack"
+    return f"{step} stopped ({what}): run sync to see this checkout against sikstack"
 
 
 class CloudConflict(CloudError):
-    """A batch hi2vi refused with 409: it wrote nothing. `conflicts` is the answer's list (a file's, or an inbox
+    """A batch sikstack refused with 409: it wrote nothing. `conflicts` is the answer's list (a file's, or an inbox
     result's for an entry no longer pending: `{path: None, inbox, state}`)."""
 
     def __init__(self, message: str, conflicts=None) -> None:
@@ -686,7 +686,7 @@ def cloud_server_check(server: str) -> str:
     host = (parsed.hostname or "").lower()
     local = host in CLOUD_LOCAL_HOSTS or host.endswith(".localhost")
     if not host or not (parsed.scheme == "https" or (parsed.scheme == "http" and local)):
-        raise CloudError(f"hi2vi server {server} must be https:// (plain http:// only to localhost, "
+        raise CloudError(f"sikstack server {server} must be https:// (plain http:// only to localhost, "
                          "127.0.0.1, ::1 or *.localhost): nothing was changed")
     return server.rstrip("/")
 
@@ -751,7 +751,7 @@ class CloudLink:
         network error, a timeout, a cut or malformed answer (http.client's HTTPException), anything else the
         client raises; a 3xx is never followed (the key stays with the host it was meant for); a request fails
         when it stalls (_CloudWire), never while its bytes still move, and the session hook's request also when
-        its `deadline` passes. An answer that is not JSON reads as {}. `extra` adds headers (P1's X-Hi2vi-Base)."""
+        its `deadline` passes. An answer that is not JSON reads as {}. `extra` adds headers (P1's X-Sikstack-Base)."""
         import urllib.request
         from urllib.parse import quote
 
@@ -762,7 +762,7 @@ class CloudLink:
         url = f"{self.server}/api/workspace/{quote(self.project, safe='')}/{route}"
         data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
         headers = {"Authorization": "Bearer " + self._key, "Accept": "application/json",
-                   "X-Hi2vi-Checkout": self.checkout, "X-Hi2vi-Engine": self.engine}
+                   "X-Sikstack-Checkout": self.checkout, "X-Sikstack-Engine": self.engine}
         if data is not None:
             headers["Content-Type"] = "application/json"
         headers.update(extra or {})
@@ -819,7 +819,7 @@ class CloudLink:
 def cloud_settle_pull(base: dict) -> None:
     """A pull's write-ahead record (`pulling` in base.json: each append file's merged size, sha256 and base entry,
     saved before its write), settled against the disk after a pull that stopped midway: a file whose first `size`
-    bytes are the merge's took the write, so its entry is the merge's (hi2vi's lines are then inside the synced
+    bytes are the merge's took the write, so its entry is the merge's (sikstack's lines are then inside the synced
     offset, never sent back); any other file did not, so its entry stays as it was and the next pull merges again."""
     pulling = base.pop("pulling", None)
     if not isinstance(pulling, dict) or not isinstance(base.get("files"), dict):
@@ -860,13 +860,13 @@ class CloudSession:
         return data if isinstance(data, dict) else None
 
     def _unreachable(self, why: str) -> CloudError:
-        return CloudError(f"hi2vi is not reachable at {self.link.server} ({why}): in cloud mode nothing runs offline, "
+        return CloudError(f"sikstack is not reachable at {self.link.server} ({why}): in cloud mode nothing runs offline, "
                           "and nothing was changed.")
 
     def _ask(self, method: str, route: str, body=None) -> dict:
         """A begin-step request: anything but a 200 stops the command before it runs. P1 head names the head
-        this checkout last synced (X-Hi2vi-Base), so a read-only day still counts as synced in hi2vi."""
-        extra = {"X-Hi2vi-Base": str(self.base["head"])} if route == "head" else None
+        this checkout last synced (X-Sikstack-Base), so a read-only day still counts as synced in sikstack."""
+        extra = {"X-Sikstack-Base": str(self.base["head"])} if route == "head" else None
         try:
             status, payload = self.link.call(method, route, body, extra)
         except CloudUnreachable as exc:
@@ -876,7 +876,7 @@ class CloudSession:
         return payload
 
     def fetch(self, paths) -> dict:
-        """P3 for any number of paths: {rel: (item, bytes)} of the live ones. hi2vi answers one page at a time
+        """P3 for any number of paths: {rel: (item, bytes)} of the live ones. sikstack answers one page at a time
         (`rest` names the asked paths left for the next request) and a path with no live record is simply
         absent; each request asks for at most CLOUD_FETCH_PATHS paths. An answer that does not decode (not a
         list of files, content that is not text, base64 that is not base64) stops it before anything is written."""
@@ -957,7 +957,7 @@ class CloudSession:
         crashed = f", {entry['crashed']}" if isinstance(entry.get("crashed"), str) else ""
         changed = self._count_changed()
         raise CloudError(f"the last command here ({entry.get('command') or 'unknown'}) stopped before it finished"
-                         f"{crashed}: {changed} file(s) changed by it are on disk but not in hi2vi (interrupted): "
+                         f"{crashed}: {changed} file(s) changed by it are on disk but not in sikstack (interrupted): "
                          "run sync to see them (nothing was changed)")
 
     def _count_changed(self) -> int:
@@ -973,7 +973,7 @@ class CloudSession:
         self._recover()
         info = self._ask("GET", "head")
         if str(info.get("project_id")) != self.link.project:
-            raise CloudError(f"hi2vi answered for project {info.get('project_id')}, not {self.link.project}: "
+            raise CloudError(f"sikstack answered for project {info.get('project_id')}, not {self.link.project}: "
                              "this checkout's link is broken, and nothing was changed")
         self.inbox_pending = info.get("inbox_pending")
         disk = cloud_scan(self.cache)
@@ -987,7 +987,7 @@ class CloudSession:
         self.set_journal("running", pid=os.getpid())
 
     def _pull(self, disk: dict, strict: bool = True):
-        """Fast-forward the disk to hi2vi's head. A path changed on both sides is a mismatch: refused before
+        """Fast-forward the disk to sikstack's head. A path changed on both sides is a mismatch: refused before
         anything is written. Returns True when a file was written or deleted (the generated files are then
         rebuilt). Not `strict` (sync): the clean paths are pulled, the mismatched ones left as they are, the
         base's head kept (so the next manifest names them again), and the list of mismatched paths returned."""
@@ -1018,7 +1018,7 @@ class CloudSession:
             else:
                 mismatch.append(rel)
         if mismatch and strict:
-            raise CloudError(f"{len(mismatch)} files differ between this checkout and hi2vi: run sync to see them "
+            raise CloudError(f"{len(mismatch)} files differ between this checkout and sikstack: run sync to see them "
                              "(nothing was changed)")
         got = {}
         if fetch:
@@ -1051,8 +1051,8 @@ class CloudSession:
                 offset += len(added)
                 entry = {"rev": item.get("rev"), "sha256": _sha(merged[:offset]), "kind": "append", "offset": offset}
                 merges[rel] = (merged if added else None, entry)
-            # Write-ahead: the merged file differs from hi2vi's whenever this checkout holds lines past its offset (or
-            # an order of its own), so a pull stopped after a write would leave hi2vi's lines past the old offset, to
+            # Write-ahead: the merged file differs from sikstack's whenever this checkout holds lines past its offset (or
+            # an order of its own), so a pull stopped after a write would leave sikstack's lines past the old offset, to
             # be sent back as new. Each merge's result and its entry are in base.json before its write.
             pulling = {rel: {"size": len(merged), "sha256": _sha(merged), "entry": entry}
                        for rel, (merged, entry) in merges.items() if merged is not None}
@@ -1093,7 +1093,7 @@ class CloudSession:
                     cloud_rebuild(written)
             except Exception:  # noqa: BLE001 - the write error is the line to show
                 pass
-            raise CloudError(f"{at} could not be written here from hi2vi ({exc.__class__.__name__}: "
+            raise CloudError(f"{at} could not be written here from sikstack ({exc.__class__.__name__}: "
                              f"{exc.strerror or exc}): {len(written)} pulled path(s) landed before it and are recorded "
                              "in .hi2vi/base.json; fix it, then run the command again (the pull resumes from there)")
         self.base.pop("pulling", None)
@@ -1246,8 +1246,8 @@ class CloudSession:
         for item in planned:
             n = size(item[0]) + 1  # the op and its comma
             if envelope + n > CLOUD_BATCH_MAX:
-                raise CloudError(f"{item[2]} is {n:,} bytes as sent, over hi2vi's {CLOUD_BATCH_MAX:,}-byte batch "
-                                 "limit: it is on disk but not in hi2vi; make it smaller, then run any command")
+                raise CloudError(f"{item[2]} is {n:,} bytes as sent, over sikstack's {CLOUD_BATCH_MAX:,}-byte batch "
+                                 "limit: it is on disk but not in sikstack; make it smaller, then run any command")
             if current and used + n > CLOUD_BATCH_MAX:
                 groups.append(current)
                 current, used = [], envelope
@@ -1256,7 +1256,7 @@ class CloudSession:
         if current or (inbox and not groups):
             groups.append(current)
         if inbox and len(groups) > 1:
-            raise CloudError(f"an agenda change's files are over hi2vi's {CLOUD_BATCH_MAX:,}-byte batch limit, and they "
+            raise CloudError(f"an agenda change's files are over sikstack's {CLOUD_BATCH_MAX:,}-byte batch limit, and they "
                              "must land in one batch with its result")
         out = []
         for group in groups:
@@ -1270,13 +1270,13 @@ class CloudSession:
 
     def _push(self, ids: list, begin: bool = False) -> None:
         """Send the journal's batches in order. Each 200 updates the base and leaves the journal; a resent
-        batch_id gets hi2vi's first answer, so a batch lands once. A 409 is final (the batch wrote nothing,
+        batch_id gets sikstack's first answer, so a batch lands once. A 409 is final (the batch wrote nothing,
         the base still names the change, the journal is cleared); a lost answer or another status keeps the
         journal, so the next command resends the same batch."""
         def unsent(why: str) -> CloudError:
-            if begin and why.startswith("hi2vi unreachable"):
+            if begin and why.startswith("sikstack unreachable"):
                 return self._unreachable(why.split(": ", 1)[-1])
-            return CloudError(f"this change is on disk but not in hi2vi ({why}): run sync")
+            return CloudError(f"this change is on disk but not in sikstack ({why}): run sync")
 
         remaining = list(ids)
         while remaining:
@@ -1284,16 +1284,16 @@ class CloudSession:
             item = self._load(f"outbox/{bid}.json") if re.fullmatch(r"[0-9a-f]{32}", bid) else None
             if not isinstance(item, dict) or not isinstance(item.get("batch"), dict):
                 raise CloudError(f"the unsent batch {bid} is missing from {shown(self.dir / 'outbox')}: this change "
-                                 "is on disk but not in hi2vi (interrupted): run sync")
+                                 "is on disk but not in sikstack (interrupted): run sync")
             try:
                 status, answer = self.link.call("POST", "commit", item["batch"])
             except CloudUnreachable as exc:
-                raise unsent(f"hi2vi unreachable: {exc}")
+                raise unsent(f"sikstack unreachable: {exc}")
             if status == 409:
                 self._end_push()
                 raise CloudConflict(str(unsent(f"{len(answer.get('conflicts') or [])} conflict(s)")), answer.get("conflicts"))
             if status != 200 or not isinstance(answer.get("head"), int):
-                raise unsent(f"hi2vi answered HTTP {status}")
+                raise unsent(f"sikstack answered HTTP {status}")
             self._landed(answer, item.get("updates") or [])
             remaining.pop(0)
             if remaining:  # the journal keeps its command: a resend at the begin step is the earlier command's
@@ -1354,8 +1354,8 @@ def cloud_fail_open(args: argparse.Namespace, line: str):
 
 def cloud_boundary(args: argparse.Namespace, tokens: list, fail_open: bool = False, deadline=None):
     """The boundary itself, with the lock held. Every failure of the begin or the commit step is one line
-    (cloud_stop_line): a refusal before the command, or "on disk but not in hi2vi" after it. The command's typed
-    ids are resolved after the begin step's pull, against the tree hi2vi holds (a brief id names what another
+    (cloud_stop_line): a refusal before the command, or "on disk but not in sikstack" after it. The command's typed
+    ids are resolved after the begin step's pull, against the tree sikstack holds (a brief id names what another
     checkout made, and a number two phases now share is refused); an id refusal is a refusal like the
     command's own, so the commit step still runs."""
     try:
@@ -1413,7 +1413,7 @@ CLOUD_KEY_PROMPT = "Paste a workspace key for this project (make one under Keys 
 CLOUD_STREAM_REFUSED = ("worktree start", "worktree add-repo", "worktree gate", "worktree merge-finish",
                         "worktree teardown", "phase reopen")
 # An unused install's truth set: only what a fresh install seeds (the five plain docs; an older install's
-# docs/index.json and v0001 versions). Joining hi2vi from one replaces these.
+# docs/index.json and v0001 versions). Joining sikstack from one replaces these.
 CLOUD_SEED_RE = re.compile(r"docs/README\.md|docs/current/(?:product|architecture|operations|qa|decisions)\.md|docs/index\.json"
                            r"|docs/versions/[^/]+/v0001_bootstrap\.md|works/events\.jsonl")
 CLOUD_SHOWN_ROWS = 20
@@ -1439,7 +1439,7 @@ def cloud_store_line() -> str:
 
 # The waiting-commit record of a linked checkout. In local mode a `done` slice whose slice.json the workflow repo
 # has not committed is a commit that waits (the do-* skills read git); a linked checkout never commits workflow
-# state (hi2vi's revisions are the history), so there the record is explicit: `mark-committed <slice>` writes
+# state (sikstack's revisions are the history), so there the record is explicit: `mark-committed <slice>` writes
 # `committed_at` into slice.json (a truth file: it syncs) after the slice's product commit, or right after its
 # finish when it changed no product file. A slice leaving `done` loses it; a second finish keeps it (as a second
 # slice finish after a commit never waits in git). Slices done before the link were committed (link refuses an
@@ -1505,7 +1505,7 @@ def mark_committed(args: argparse.Namespace) -> None:
 
 
 def cloud_rebuild(rels) -> None:
-    """The generated files after the disk took files from hi2vi."""
+    """The generated files after the disk took files from sikstack."""
     rebuild_index_and_state()
 
 
@@ -1635,18 +1635,18 @@ def cloud_probe(link: CloudLink, route: str) -> dict:
     try:
         status, payload = link.call("GET", route)
     except CloudUnreachable as exc:
-        raise CloudError(f"hi2vi is not reachable at {link.server} ({exc}): nothing was written")
+        raise CloudError(f"sikstack is not reachable at {link.server} ({exc}): nothing was written")
     if status == 200:
         return payload
-    why = {401: "hi2vi refused this key (HTTP 401): make a workspace key under Keys on the project's page",
+    why = {401: "sikstack refused this key (HTTP 401): make a workspace key under Keys on the project's page",
            403: "this key cannot reach a workspace (HTTP 403: it is not a workspace key); make one under Keys on the "
                 "project's page",
-           404: f"hi2vi has no project {link.project} for this key (HTTP 404)"}.get(status, f"hi2vi answered HTTP {status}")
+           404: f"sikstack has no project {link.project} for this key (HTTP 404)"}.get(status, f"sikstack answered HTTP {status}")
     raise CloudError(f"{why}: nothing was written")
 
 
 def cloud_link(args: argparse.Namespace) -> int:
-    """link <server>/projects/<project-id>: make hi2vi the truth for this checkout in one step."""
+    """link <server>/projects/<project-id>: make sikstack the truth for this checkout in one step."""
     try:
         server, project = cloud_parse_address(args.address)
         problem = cloud_link_refusal() or cloud_key_problem(cloud_key_file())
@@ -1666,10 +1666,10 @@ def cloud_link_with(server: str, project: str, key: str, command: str = "link") 
         probe = CloudLink({"server": server, "project_id": project}, key=key)
         info = cloud_probe(probe, "head")
         if str(info.get("project_id")) != project:
-            raise CloudError(f"hi2vi answered for project {info.get('project_id')}, not {project}: nothing was written")
+            raise CloudError(f"sikstack answered for project {info.get('project_id')}, not {project}: nothing was written")
         manifest = cloud_probe(probe, "manifest?since=0")
         if not isinstance(manifest.get("head"), int) or not isinstance(manifest.get("changes"), list):
-            raise CloudError("hi2vi answered a malformed manifest: nothing was written")
+            raise CloudError("sikstack answered a malformed manifest: nothing was written")
     except CloudError as exc:
         raise SystemExit(str(exc))
     live = {c["path"]: c for c in manifest["changes"]
@@ -1690,7 +1690,7 @@ def cloud_link_with(server: str, project: str, key: str, command: str = "link") 
                     rows.append(f"cloud only  {rel}")
                 elif disk[rel] != live[rel].get("sha256"):
                     rows.append(f"differs  {rel}")
-            print(f"link refuses: hi2vi already holds this project's workspace (r{manifest['head']}), and {len(rows)} "
+            print(f"link refuses: sikstack already holds this project's workspace (r{manifest['head']}), and {len(rows)} "
                   "path(s) here differ from it; a second checkout joins only from an unused install or an equal set "
                   "(nothing was written)")
             for row in rows[:CLOUD_SHOWN_ROWS]:
@@ -1716,21 +1716,21 @@ def cloud_link_with(server: str, project: str, key: str, command: str = "link") 
     try:
         with CloudLock():
             session = CloudSession([command, f"{server}/projects/{project}"])
-            if mode == "unused":  # an unused install's seed files give way to hi2vi's copy
+            if mode == "unused":  # an unused install's seed files give way to sikstack's copy
                 for rel, sha in disk.items():
                     if (live.get(rel) or {}).get("sha256") != sha:
                         _cloud_remove(rel)
             elif mode == "upload":
-                session.base["head"] = manifest["head"]  # nothing live in hi2vi: every file goes up as new
+                session.base["head"] = manifest["head"]  # nothing live in sikstack: every file goes up as new
             session.begin()
             sent = session.commit()
     except Exception as exc:  # noqa: BLE001 - one line, whatever stopped the first sync
         raise SystemExit(f"{cloud_stop_line(exc, command)} (the link is made: [{CLOUD_TABLE}] in {shown(cloud_config_file())})")
     if mode == "upload":
-        print(f"linked: {sent} file(s) sent to hi2vi")
+        print(f"linked: {sent} file(s) sent to sikstack")
     else:
         pulled = sum(1 for rel, c in live.items() if disk.get(rel) != c.get("sha256"))
-        print(f"linked: joined hi2vi's workspace ({pulled} file(s) taken from hi2vi"
+        print(f"linked: joined sikstack's workspace ({pulled} file(s) taken from sikstack"
               + (", this unused install's seed files replaced)" if mode == "unused" else ")"))
     print(f"store=cloud server={server} project={project} head=r{session.base['head']}")
     return 0
@@ -1835,7 +1835,7 @@ def cloud_sign_in(args: argparse.Namespace) -> int:
 
 
 def cloud_unlink(args: argparse.Namespace) -> int:
-    """unlink: pull to hi2vi's head (refused on a mismatch), push what is here, remove `.hi2vi/`; local mode
+    """unlink: pull to sikstack's head (refused on a mismatch), push what is here, remove `.hi2vi/`; local mode
     again. --from-disk: the one offline command, which keeps the disk as it is."""
     if not cloud_linked():
         raise SystemExit("this checkout is not linked (no [cloud] table in config.toml): it is in local mode already")
@@ -1850,7 +1850,7 @@ def cloud_unlink(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001 - one line, whatever stopped it
         lock.release()
         line = cloud_stop_line(exc, "unlink")
-        offline = " (offline, unlink --from-disk keeps the disk as it is)" if line.startswith("hi2vi is not reachable") else ""
+        offline = " (offline, unlink --from-disk keeps the disk as it is)" if line.startswith("sikstack is not reachable") else ""
         raise SystemExit(f"unlink refused, the checkout is still linked{offline}: {line}")
     try:
         shutil.rmtree(str(ROOT / CLOUD_DIR))
@@ -1882,8 +1882,8 @@ def cloud_unlink_from_disk() -> int:
             cloud_drop_link()
     except CloudError as exc:
         raise SystemExit(f"unlink --from-disk refused, the checkout is still linked: {exc}")
-    print(f"unlinked from the disk, offline: changes made in hi2vi after r{head} are not on this disk"
-          + (f", and {unsent} file(s) changed here were never sent to hi2vi" if unsent else ""))
+    print(f"unlinked from the disk, offline: changes made in sikstack after r{head} are not on this disk"
+          + (f", and {unsent} file(s) changed here were never sent to sikstack" if unsent else ""))
     print(f"local mode: the files on disk are the truth again; commit them ({cloud_commit_hint()})")
     return 0
 
@@ -1899,7 +1899,7 @@ def cloud_rel_arg(raw: str) -> str:
     try:
         mode = os.lstat(str(ROOT / rel)).st_mode
     except OSError:
-        return rel  # absent here: sync --keep asks hi2vi whether it holds the file
+        return rel  # absent here: sync --keep asks sikstack whether it holds the file
     if stat.S_ISDIR(mode):
         raise SystemExit(f"{raw} is a folder: sync takes file paths, one by one as sync lists them (nothing was changed)")
     if not stat.S_ISREG(mode):
@@ -1909,7 +1909,7 @@ def cloud_rel_arg(raw: str) -> str:
 
 def cloud_keep_check(session: CloudSession, paths: list) -> None:
     """sync --keep's refusal before anything is sent or written: every path must be a file on disk or a file
-    hi2vi holds (a path on neither side has nothing to keep)."""
+    sikstack holds (a path on neither side has nothing to keep)."""
     absent = [rel for rel in paths if not (ROOT / rel).is_file()]
     if not absent:
         return
@@ -1917,7 +1917,7 @@ def cloud_keep_check(session: CloudSession, paths: list) -> None:
     unknown = [rel for rel in absent if rel not in got]
     if unknown:
         more = f" (and {len(unknown) - 1} more)" if len(unknown) > 1 else ""
-        raise CloudError(f"sync --keep refused: {unknown[0]}{more} names no file here or in hi2vi; it takes the file "
+        raise CloudError(f"sync --keep refused: {unknown[0]}{more} names no file here or in sikstack; it takes the file "
                          "paths sync lists (nothing was changed)")
 
 
@@ -1927,8 +1927,8 @@ def cloud_keep_check(session: CloudSession, paths: list) -> None:
 # Exit 0 is `applied`; 1 (a refusal) or 2 (a usage error) is `refused`, its one line the reason, verbatim; any
 # other end (a crash, another exit) sends no result, so the entry stays pending, and the tree is put back as the
 # command found it. Each entry's result travels in a batch of its own with exactly the files its command wrote,
-# so hi2vi's 409 for an entry no longer pending (another checkout applied it) voids only that entry: its files
-# are dropped here and hi2vi's copy pulled, never applied twice.
+# so sikstack's 409 for an entry no longer pending (another checkout applied it) voids only that entry: its files
+# are dropped here and sikstack's copy pulled, never applied twice.
 CLOUD_INBOX_AT = ("next",)  # besides sync, the commands whose begin step applies the inbox
 CLOUD_INBOX_COMMANDS = {"add": "agenda-add", "edit": "agenda-edit", "move": "agenda-move", "defer": "agenda-defer",
                         "solve": "agenda-solve", "drop": "agenda-drop", "reopen": "agenda-reopen",
@@ -2058,8 +2058,8 @@ def _cloud_inbox_undo(undo: dict, snap: dict, pre: dict, cache: dict) -> int:
 
 def cloud_inbox_apply(session: CloudSession, parser: argparse.ArgumentParser, entry: dict) -> tuple:
     """Apply one entry and report it: (outcome, line). Outcomes: applied, refused, pending (no result sent:
-    the entry stays pending) and conflict (hi2vi refused the batch with 409: this checkout's change dropped,
-    hi2vi's copy pulled). A network error mid-push propagates: the batch stays journaled and is resent."""
+    the entry stays pending) and conflict (sikstack refused the batch with 409: this checkout's change dropped,
+    sikstack's copy pulled). A network error mid-push propagates: the batch stays journaled and is resent."""
     eid, kind = entry["id"], entry.get("kind")
     tokens, unrun = cloud_inbox_tokens(entry, parser.prog)
     items = entry.get("items") if isinstance(entry.get("items"), list) else []
@@ -2103,10 +2103,10 @@ def cloud_inbox_apply(session: CloudSession, parser: argparse.ArgumentParser, en
             _cloud_inbox_undo(undo, snap, pre, session.cache)
             session._pull(cloud_scan(session.cache), strict=False)
         gone = [c for c in exc.conflicts if isinstance(c, dict) and c.get("inbox") == eid]
-        why = (f"hi2vi holds it {gone[0].get('state') or 'resolved'} already (another checkout)" if gone
-               else f"hi2vi refused its batch ({len(exc.conflicts)} conflict(s): run sync)")
+        why = (f"sikstack holds it {gone[0].get('state') or 'resolved'} already (another checkout)" if gone
+               else f"sikstack refused its batch ({len(exc.conflicts)} conflict(s): run sync)")
         return "conflict", (f"inbox {eid}: not applied here ({what}): {why}; "
-                            + ("this checkout's change was dropped and hi2vi's copy pulled" if code == 0 else "nothing was sent"))
+                            + ("this checkout's change was dropped and sikstack's copy pulled" if code == 0 else "nothing was sent"))
     except CloudError as exc:
         if session.journal() is not None:  # sent, or about to be: the journal resends it at the next command
             raise
@@ -2147,8 +2147,8 @@ def cloud_inbox_step(session: CloudSession) -> None:
 
 
 def cloud_differences(session: CloudSession, running: bool) -> list:
-    """[(state, rel, here's facts, hi2vi's facts)] for every path that differs between the disk, base.json and
-    hi2vi. States: differs, here only, cloud only, deleted here, deleted in hi2vi, interrupted (a change on
+    """[(state, rel, here's facts, sikstack's facts)] for every path that differs between the disk, base.json and
+    sikstack. States: differs, here only, cloud only, deleted here, deleted in sikstack, interrupted (a change on
     disk left by a command that stopped midway)."""
     manifest = session._ask("GET", f"manifest?since={session.base['head']}")
     changes = {c["path"]: c for c in manifest.get("changes") or [] if isinstance(c, dict) and cloud_truth_rel(c.get("path"))}
@@ -2161,7 +2161,7 @@ def cloud_differences(session: CloudSession, running: bool) -> list:
         if (not here_changed and not cloud_changed) or here == csha:
             continue  # unchanged, or both sides agree (the next command fixes the base)
         if here_changed and cloud_changed:
-            state = "deleted here" if here is None else ("deleted in hi2vi" if csha is None else "differs")
+            state = "deleted here" if here is None else ("deleted in sikstack" if csha is None else "differs")
         elif here_changed:
             state = "interrupted" if running else "here only"
         else:
@@ -2183,7 +2183,7 @@ def cloud_differences(session: CloudSession, running: bool) -> list:
 
 
 def cloud_sync(args: argparse.Namespace) -> int:
-    """sync: pull clean hi2vi changes, push clean local ones, apply the agenda inbox, list what remains (exit 1
+    """sync: pull clean sikstack changes, push clean local ones, apply the agenda inbox, list what remains (exit 1
     while anything differs). --diff <path>, --keep local|cloud <path>..., --status. Never resolves a mismatch on
     its own."""
     if not cloud_linked():
@@ -2211,7 +2211,7 @@ def cloud_sync(args: argparse.Namespace) -> int:
 def _cloud_sync_head(session: CloudSession) -> dict:
     info = session._ask("GET", "head")
     if str(info.get("project_id")) != session.link.project:
-        raise CloudError(f"hi2vi answered for project {info.get('project_id')}, not {session.link.project}: "
+        raise CloudError(f"sikstack answered for project {info.get('project_id')}, not {session.link.project}: "
                          "this checkout's link is broken, and nothing was changed")
     session.inbox_pending = info.get("inbox_pending")
     return info
@@ -2222,7 +2222,7 @@ def cloud_sync_status(session: CloudSession) -> int:
     entry = session.journal()
     rows = cloud_differences(session, bool(entry and entry.get("state") == "running"))
     here = sum(1 for r in rows if r[0] in ("here only", "interrupted"))
-    differ = sum(1 for r in rows if r[0] in ("differs", "deleted here", "deleted in hi2vi"))
+    differ = sum(1 for r in rows if r[0] in ("differs", "deleted here", "deleted in sikstack"))
     print(f"store=cloud server={session.link.server} project={session.link.project} head=r{info.get('head')} "
           f"base=r{session.base['head']} here={here} differ={differ} inbox={info.get('inbox_pending', 0)}"
           + (f" journal={entry.get('state')}" if entry else ""))
@@ -2237,7 +2237,7 @@ def cloud_sync_diff(session: CloudSession, rel: str) -> int:
     if item is not None and here == cloud and path.is_file():
         print(f"no difference: {rel} (r{item.get('rev')})")
         return 0
-    left = f"hi2vi/{rel} " + (f"(r{item.get('rev')})" if item is not None else "(no record)")
+    left = f"sikstack/{rel} " + (f"(r{item.get('rev')})" if item is not None else "(no record)")
     right = f"here/{rel}" + ("" if path.is_file() else " (absent)")
     try:
         a, b = cloud.decode("utf-8").splitlines(keepends=True), here.decode("utf-8").splitlines(keepends=True)
@@ -2251,7 +2251,7 @@ def cloud_sync_diff(session: CloudSession, rel: str) -> int:
 
 def cloud_keep(session: CloudSession, side: str, paths: list, running) -> None:
     """sync --keep local|cloud <path>...: the operator's choice, path by path. local pushes the disk's copy
-    over hi2vi's current revision (a deliberate overwrite, recorded with this command); cloud writes hi2vi's
+    over sikstack's current revision (a deliberate overwrite, recorded with this command); cloud writes sikstack's
     copy over the disk."""
     got, files = session.fetch(paths), session.base["files"]
     if side == "cloud":
@@ -2275,7 +2275,7 @@ def cloud_keep(session: CloudSession, side: str, paths: list, running) -> None:
                              f"{done} path(s) before it are kept; fix it, then run sync --keep cloud again")
         session.save_base()
         cloud_rebuild(paths)
-        print(f"kept hi2vi's copy of {len(paths)} path(s): the disk holds it now")
+        print(f"kept sikstack's copy of {len(paths)} path(s): the disk holds it now")
         return
     planned, session.pre = [], {}
     for rel in paths:
@@ -2305,7 +2305,7 @@ def cloud_keep(session: CloudSession, side: str, paths: list, running) -> None:
     session.save_base()
     if planned:
         session.send(planned, resume=running)
-    print(f"kept this checkout's copy of {len(paths)} path(s): hi2vi holds it now")
+    print(f"kept this checkout's copy of {len(paths)} path(s): sikstack holds it now")
 
 
 def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
@@ -2315,7 +2315,7 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
     notes = []
     entry = session.journal()
     if entry and entry.get("state") == "pushing" and isinstance(entry.get("batches"), list):
-        try:  # the last command's push, resent with its batch ids (hi2vi applies each once)
+        try:  # the last command's push, resent with its batch ids (sikstack applies each once)
             session._push([str(b) for b in entry["batches"]])
         except CloudError as exc:
             notes.append(str(exc))
@@ -2325,7 +2325,7 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
         cloud_keep(session, keep, paths, running)
         entry = session.journal()
         running = entry if entry and entry.get("state") == "running" else None
-        session._pull(cloud_scan(session.cache), strict=False)  # hi2vi's clean changes, so the base catches up
+        session._pull(cloud_scan(session.cache), strict=False)  # sikstack's clean changes, so the base catches up
     else:
         mismatch = session._pull(cloud_scan(session.cache), strict=False)
         if running is None:  # an interrupted command's changes wait for the operator's --keep
@@ -2346,9 +2346,9 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
     for note in notes:
         print(note)
     for state, rel, here_fact, cloud_fact in rows:
-        print(f"{state}  {rel}  here: {here_fact}  hi2vi: {cloud_fact}")
+        print(f"{state}  {rel}  here: {here_fact}  sikstack: {cloud_fact}")
     if rows:
-        print(f"{len(rows)} path(s) differ between this checkout and hi2vi: sync --diff <path> shows one, "
+        print(f"{len(rows)} path(s) differ between this checkout and sikstack: sync --diff <path> shows one, "
               "sync --keep local|cloud <path>... resolves it")
         return 1
     print(f"in sync: head=r{session.cloud_head} base=r{session.base['head']}")
@@ -2357,7 +2357,7 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
 
 def add_cloud_parsers(sub) -> None:
     """Link, sign-in, unlink, sync: this part's commands, registered by the entry's build_parser in their place."""
-    p = sub.add_parser("link", help="Link this checkout to hi2vi (cloud mode): hi2vi becomes the truth for works/ and docs/, and every command syncs at its boundary. Takes the project's page address; the workspace key is pasted at a prompt (one stdin line when not a terminal), never on the command line, and kept in $XDG_CONFIG_HOME/sikstack/workspace-keys.json (folder 0700, file 0600; a key the pre-plugin engine kept in $XDG_CONFIG_HOME/hi2vi/workspace-keys.json is still read). The link itself is the [cloud] table of .sikstack/config.toml. An empty project in hi2vi gets this checkout's files; one that already holds files is joined only from an unused install or an equal set, else the differences are listed. Refused, nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree, with uncommitted changes in the workflow repo, when already linked, http:// to a non-local host, a key file open to group or others. Prints store=cloud server= project= head=")
+    p = sub.add_parser("link", help="Link this checkout to sikstack (cloud mode): sikstack becomes the truth for works/ and docs/, and every command syncs at its boundary. Takes the project's page address; the workspace key is pasted at a prompt (one stdin line when not a terminal), never on the command line, and kept in $XDG_CONFIG_HOME/sikstack/workspace-keys.json (folder 0700, file 0600; a key the pre-plugin engine kept in $XDG_CONFIG_HOME/hi2vi/workspace-keys.json is still read). The link itself is the [cloud] table of .sikstack/config.toml. An empty project in sikstack gets this checkout's files; one that already holds files is joined only from an unused install or an equal set, else the differences are listed. Refused, nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree, with uncommitted changes in the workflow repo, when already linked, http:// to a non-local host, a key file open to group or others. Prints store=cloud server= project= head=")
     p.add_argument("address", help="the project's page address: <server>/projects/<project-id>")
     p.set_defaults(func=cloud_link)
     _one_line_usage_errors(p)
@@ -2369,13 +2369,13 @@ def add_cloud_parsers(sub) -> None:
     p.set_defaults(func=cloud_sign_in)
     _one_line_usage_errors(p)
 
-    p = sub.add_parser("unlink", help="Return a linked checkout to local mode: pull to hi2vi's head (refused on a mismatch: sync first), push what is here, remove .hi2vi/; then commit the workflow repo once. The key stays in user config (revoke it on the project's page). --from-disk: offline, keep the disk as it is and say what it cannot hold")
+    p = sub.add_parser("unlink", help="Return a linked checkout to local mode: pull to sikstack's head (refused on a mismatch: sync first), push what is here, remove .hi2vi/; then commit the workflow repo once. The key stays in user config (revoke it on the project's page). --from-disk: offline, keep the disk as it is and say what it cannot hold")
     p.add_argument("--from-disk", action="store_true", dest="from_disk", help="the offline way back: no request; the disk becomes the truth as it is")
     p.set_defaults(func=cloud_unlink)
     _one_line_usage_errors(p)
 
-    p = sub.add_parser("sync", help="A linked checkout's mismatch tool: pull clean hi2vi changes, push clean local ones, apply the web's pending agenda changes (each as its agenda command, one line each; next applies them too), then list what remains, one line per path (differs, here only, cloud only, deleted here, deleted in hi2vi, interrupted), exit 1 while anything differs. --diff PATH: a unified diff of hi2vi's copy against the disk. --keep local|cloud PATH...: resolve those paths only (local pushes the disk's copy over hi2vi's revision, cloud writes hi2vi's copy over the disk); never without a path. --status: one line, store=cloud server= project= head= base= here= differ= inbox=")
-    p.add_argument("--diff", metavar="PATH", help="show hi2vi's copy against the disk for one path")
+    p = sub.add_parser("sync", help="A linked checkout's mismatch tool: pull clean sikstack changes, push clean local ones, apply the web's pending agenda changes (each as its agenda command, one line each; next applies them too), then list what remains, one line per path (differs, here only, cloud only, deleted here, deleted in sikstack, interrupted), exit 1 while anything differs. --diff PATH: a unified diff of sikstack's copy against the disk. --keep local|cloud PATH...: resolve those paths only (local pushes the disk's copy over sikstack's revision, cloud writes sikstack's copy over the disk); never without a path. --status: one line, store=cloud server= project= head= base= here= differ= inbox=")
+    p.add_argument("--diff", metavar="PATH", help="show sikstack's copy against the disk for one path")
     p.add_argument("--keep", choices=("local", "cloud"), help="resolve the named paths with this side's copy")
     p.add_argument("--status", action="store_true", help="one line: the head, the base and the counts")
     p.add_argument("paths", nargs="*", help="--keep only: the paths to resolve")

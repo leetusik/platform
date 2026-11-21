@@ -175,7 +175,7 @@ export function signInToSaveHref(
 export const LIBRARY_HREF = "/library";
 
 /**
- * hi2vi Library (`03-library` round 02, F321, F324) — a list's place in its address. The library
+ * sikstack Library (`03-library` round 02, F321, F324) — a list's place in its address. The library
  * has two views (By project, the default, and All documents); a project's page has `page` and `q`.
  * Each part is optional; an omitted or default part is omitted from the address.
  */

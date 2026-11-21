@@ -1,6 +1,6 @@
 ---
 name: explain
-description: Explain what code in the current repo does, a code change in it, or a subject a research phase covered, as a document in your own knowledge base (the one /knowledge:setup configured), written only from the code and from what the workflow workspace's phases recorded, a research phase's findings included. Records-only, with no research of its own: no web search, no research agents, nothing from outside the code and the records; whenever the records lack what the reader needs (a subject no phase covers, one with no code in this repo, or a covered subject whose reader needs outside basics no record states), it offers a research phase first (it reads the code, the web or your own material and records findings), it always honours your own "research first" whatever the coverage, and the explain's confirmation comes back by itself when that research passes. /knowledge:explain suggests the reader and the shape and asks one confirmation (a standalone document by default; a book or a chapter of a book only when asked) and, on your yes, hands it to the workspace's create-phase, which runs it as an explain phase in its own worktree: one writer drafts a native chapter traced sentence by sentence to the code and the records (visuals first, next steps from what is still open in the workspace, a quiz only when the subject earns one), one critic on a second model checks it, then a private publish. Needs a workflow workspace v96 or later; without one it refuses and runs nothing. Use ONLY when the user wants an explanation persisted as a document (explain and document, write this up, document what we just changed, teach me X and save it) — NOT for ordinary questions that deserve a normal chat answer.
+description: Explain what code in the current repo does, a code change in it, or a subject a research phase covered, as a document in your own knowledge base (the one /explain:setup configured), written only from the code and from what the workflow workspace's phases recorded, a research phase's findings included. Records-only, with no research of its own: no web search, no research agents, nothing from outside the code and the records; whenever the records lack what the reader needs (a subject no phase covers, one with no code in this repo, or a covered subject whose reader needs outside basics no record states), it offers a research phase first (it reads the code, the web or your own material and records findings), it always honours your own "research first" whatever the coverage, and the explain's confirmation comes back by itself when that research passes. /explain:explain suggests the reader and the shape and asks one confirmation (a standalone document by default; a book or a chapter of a book only when asked) and, on your yes, hands it to the workspace's create-phase, which runs it as an explain phase in its own worktree: one writer drafts a native chapter traced sentence by sentence to the code and the records (visuals first, next steps from what is still open in the workspace, a quiz only when the subject earns one), one critic on a second model checks it, then a private publish. Needs a workflow workspace v96 or later; without one it refuses and runs nothing. Use ONLY when the user wants an explanation persisted as a document (explain and document, write this up, document what we just changed, teach me X and save it) — NOT for ordinary questions that deserve a normal chat answer.
 argument-hint: <topic or change-ref> [book=<slug>] [lang=<xx>] [from=P<N>]
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash(curl -sS --max-time 5:*), Bash(curl -sS --max-time 30:*), Bash(python3 -c:*), Bash(python3 -I *knowledge-kb/explain/tools/pagetext.py *), Bash(knowledge --base-url:*), Bash(knowledge --version:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git grep:*), Bash(git blame:*), Bash(git status:*), Bash(shasum -a 256:*), Bash(sha256sum:*), Bash(mktemp -d:*)
 ---
@@ -12,7 +12,7 @@ blocks (figures, diagrams, SVG, quizzes, sources) that the knowledge base render
 itself — about a topic **or a code change** in the current repository, or a **subject** a
 research phase covered: what its code does, or what the subject is, told from the code and
 from what the workspace's phases recorded, a research phase's findings included. It
-files the chapter in **your** personal knowledge base (the one `/knowledge:setup`
+files the chapter in **your** personal knowledge base (the one `/explain:setup`
 created). Explain is **records-only**: it never researches by itself. Whenever the records
 lack what the reader needs (a subject no phase covers, code or not, or a covered subject
 that rests on outside basics no record states), a research phase is offered first, an
@@ -31,7 +31,7 @@ it in its own worktree, and its executors read the code and the phases' records,
 check and publish it private. This file is both the phase's front door and the method those executors
 follow. **Where you start depends on how you got here:**
 
-- **Invoked as `/knowledge:explain`**, or loaded because the user asked for an
+- **Invoked as `/explain:explain`**, or loaded because the user asked for an
   explanation to be saved: you are the **front door**. Go to §1 and follow it to its
   end: it finds the workspace, drafts the one confirmation and, on the operator's
   literal yes, hands the request to the workspace's `create-phase`. Nothing else in this
@@ -120,7 +120,7 @@ order) and remember each:
   operator names one (`lang=ko`, or "in Korean" in their own words).
 - `from=P<N>` → FROM: the research phase a chained explain is drawn from (`P58`,
   `P58-pm`). create-phase's *The research route* passes it, **When it passes**, as
-  `/knowledge:explain <subject> from=<P>`; the operator may type it too. That phase covers
+  `/explain:explain <subject> from=<P>`; the operator may type it too. That phase covers
   the subject (COVERAGE): it goes on `phases:`, and the explain proposal its `intent.md`
   recorded before the research ran is the starting draft (the front door's step 5).
 
@@ -649,13 +649,13 @@ artifact.
    tool: print `/create-phase` with the request, the block and the proposal, to paste.
    The explain's confirmation then comes back by itself: create-phase's
    *The research route* runs the research phase at once and, **When it passes**, invokes
-   this front door as `/knowledge:explain <subject> from=<P>`, which redraws the
+   this front door as `/explain:explain <subject> from=<P>`, which redraws the
    confirmation from the findings (step 5) and shows it as step 7 does. It still waits
    for the operator's literal yes, and only that yes hands it on as above: headless
    prints it and creates nothing, and under `/do-whole-phases` the run's closing report
    carries it and nothing is parked (no phase exists until the yes). A research phase
    that does not pass shows nothing, and a "no" leaves its findings as records, which a
-   later `/knowledge:explain` finds by COVERAGE.
+   later `/explain:explain` finds by COVERAGE.
 
 ## 2. Resolve the knowledge base configuration
 
@@ -707,8 +707,8 @@ CLI reads the key itself. Never read, print or pass that file's contents or the 
         b_root = b_api = b_token = b_site = None
     kb_root = env_root or b_root or ""
     api_base = env_api or b_api or "http://localhost:8766"
-    if urlsplit(api_base).hostname == "knowledge.hi2vi.com":
-        api_base = "https://hi2vi.com"
+    if urlsplit(api_base).hostname in ("knowledge.hi2vi.com", "hi2vi.com"):
+        api_base = "https://sikstack.com"
     token = env_token or b_token or ""
     site_base = b_site or "http://localhost:8765"
     kb_root = os.path.expanduser(kb_root) if kb_root else ""
@@ -746,7 +746,7 @@ CLI reads the key itself. Never read, print or pass that file's contents or the 
 Read the output:
 
 - `KB_STATUS=unconfigured` → **STOP**. Tell the user no knowledge base is configured
-  and to run `/knowledge:setup` (or set the `KB_ROOT` / `KB_API_BASE_URL` /
+  and to run `/explain:setup` (or set the `KB_ROOT` / `KB_API_BASE_URL` /
   `KB_API_TOKEN` env vars). Write no files anywhere, and do not scaffold anything.
 - `KB_STATUS=error` → **STOP** and report the `KB_ERROR` line (the config file exists
   but is unreadable); do not fall back to another source.
@@ -768,11 +768,11 @@ Read the output:
     holds the payload builder (below).
   - `KB_NOW` — the local time, for the run's id.
 
-For reference, per key: the env var wins, then the config file `/knowledge:setup` writes
+For reference, per key: the env var wins, then the config file `/explain:setup` writes
 (`kb_root`, `api.base_url`, `api.token`, `site.base_url`; `kb_root` may be absent), then the
 legacy `~/projects/personal/knowledge/mkdocs.yml` convention; nothing → unconfigured. An API
-base on the old host `knowledge.hi2vi.com` resolves to `https://hi2vi.com`: that host only
-redirects, and a redirect carries neither the bearer nor the POST.
+base on an old host, `knowledge.hi2vi.com` or `hi2vi.com`, resolves to `https://sikstack.com`: those
+hosts only redirect, and a redirect carries neither the bearer nor the POST.
 
 **The run's dossier.** Every run keeps its files in one folder, `<DOSSIER>`: the folder
 its explain phase names, `doc/` in the phase folder for a document or a chapter
@@ -1822,7 +1822,7 @@ A translation goes straight to §5; every other run gets the critic first.
 1. **Dispatch it** (B5) in the foreground, and wait (a headless session stops a background
    agent after ten idle minutes), on a model of the family other than yours, named on the
    call (you on Opus: `sonnet`; otherwise `opus`). How it goes out depends on what you can
-   spawn (B0): **plugin**, `knowledge:explain-critic`, with this block as the prompt;
+   spawn (B0): **plugin**, `explain:explain-critic`, with this block as the prompt;
    **generic** (you can spawn a general subagent, not that one), B0's brief file;
    **alone** (you cannot spawn), you play it, in a separate pass, from the same brief,
    and the critique says `critic_model: lead (degraded)`.
@@ -1994,7 +1994,7 @@ an HTTP error:
 - **401** — the API requires a bearer token and yours is missing or wrong (`KB_API_TOKEN_SET=no`,
   an empty `KB_AUTH_HEADER`, or a key the server refuses): report that a valid API key must
   be configured (via `~/.config/knowledge-kb/config.json` `api.token`, or the
-  `KB_API_TOKEN` env var — re-run `/knowledge:setup` to set it), with step 2's
+  `KB_API_TOKEN` env var — re-run `/explain:setup` to set it), with step 2's
   `KB_AUTH_ERROR` if it printed one. Never print or read the key or the header file to
   check it. Do not fall back.
 
@@ -2064,7 +2064,7 @@ merged back; nothing is written twice. A stopped run's first line is its stop in
    superseded, whose body is kept).
 2. **The writer and the critic:** their models (the critique's `writer_model` and
    `critic_model`), and each degraded mode on a line: the critic on the writer's model, or
-   played by the writer (a defect while `knowledge:explain-critic` was listed), the tools
+   played by the writer (a defect while `explain:explain-critic` was listed), the tools
    fallback (§3.2), a skipped check, a file missing from the record (§4.9).
 3. **The evidence:** the commit; the covering phases read, each with what of it was read,
    or `none: from the code alone`, and any phase `not found`; the entries, `code <n> ·
@@ -2182,7 +2182,7 @@ builder (B12). Part A dispatches the critic and never restates its brief.
   they differ. Edit the brief here, in every copy of this file, and regenerate the agent in
   the same change.
 - **How the brief reaches the critic** depends on what the writer can spawn (§4.10 step 1):
-  - **plugin:** dispatch `knowledge:explain-critic`. The agent already holds its brief, so
+  - **plugin:** dispatch `explain:explain-critic`. The agent already holds its brief, so
     the prompt carries only the "Your dispatch" fields of its section, filled in.
   - **generic:** write the brief once to `<dossier>/briefs/explain-critic.md`, then spawn a
     general subagent, naming its model on the call, with the prompt "Read
@@ -2194,7 +2194,7 @@ builder (B12). Part A dispatches the critic and never restates its brief.
   curl form.
 
 <!-- part-b:begin explain-critic with=dossier -->
-### B5. Critic (`knowledge:explain-critic`)
+### B5. Critic (`explain:explain-critic`)
 
 You are the explain critic: the second pair of eyes on one drafted chapter (a single
 document, or one chapter of a book) in an isolated context. The writer read the subject's

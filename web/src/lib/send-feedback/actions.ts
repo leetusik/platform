@@ -9,7 +9,7 @@ import type { SendFeedbackResult as Result } from "./check";
 import { feedbackSettings, readCaptureKey } from "./config";
 import { postCapture, sendAccountFeedback, sendVisitorFeedback } from "./core";
 
-// hi2vi's own feedback control, as two server actions. A server action posts to the
+// sikstack's own feedback control, as two server actions. A server action posts to the
 // page's own path (`/`, `/dashboard`), which the edge already sends to web, and the
 // capture key stays on this server: the browser sends only the message (and a
 // visitor's optional email), and the integration is fixed by which action runs.

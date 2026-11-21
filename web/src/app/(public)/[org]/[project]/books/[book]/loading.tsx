@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { BookBar } from "@/components/book/book-bar";
 import { BookFrame } from "@/components/book/book-frame";
 import { BookLoading } from "@/components/book/book-states";
-import { requestNonce } from "@/hi2vi/shell/data";
+import { requestNonce } from "@/sikstack/shell/data";
 import { statePlace } from "@/lib/book/place";
 import { REQUEST_PATH_HEADER } from "@/lib/next-path";
 import { getSession } from "@/lib/session";

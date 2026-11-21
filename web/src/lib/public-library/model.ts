@@ -1,5 +1,5 @@
 /**
- * hi2vi Library (`03-library` round 02, `PublicLibrary.dc.html`; `## Build` § Page: public-library;
+ * sikstack Library (`03-library` round 02, `PublicLibrary.dc.html`; `## Build` § Page: public-library;
  * frame.md F71, F321, F324) — an org's public library as data: the head (the org's name, the count),
  * one `Shelf` per public project with something to read, each with its foot link by the viewer, and
  * the list's origin every book and document link carries. Pure (no I/O): `load.ts` does the reads.

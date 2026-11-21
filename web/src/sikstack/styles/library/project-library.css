@@ -1,0 +1,42 @@
+/* sikstack — the Library: a project's library page (`ProjectLibrary.dc.html`). Owner: P63-fk.S5; no other slice edits this file.
+   Pre-created by P63-fk.S1 and imported once by ../index.css (so no page or component imports a sheet of its own).
+   Scoped like the system's sheets (../README.md): unlayered, root rules as `:scope`; colours and gaps are the
+   tokens' roles; the frame's classes are ./frame.css's, never redefined here.
+
+   The rules are the signed board's own (job 03, round 02-one-library, `ProjectLibrary.dc.html`). Not built: its
+   canvas-only rules (the state bar, `.projlib-through` and its `.sc-host`, one copy of the content for both frames). */
+@scope (.ui) to ([data-ui-legacy]) {
+  /* the head: the project's name, public or private, and its count on one first baseline */
+  .projlib-title h1 {
+    overflow-wrap: anywhere;
+  }
+  .projlib-title .meta {
+    font-variant-numeric: tabular-nums;
+  }
+  /* the books: the frame's shelf row (frame.md F68) under a head of their own */
+  .projlib-books .shelf-date {
+    font-variant-numeric: tabular-nums;
+  }
+  /* on this page a book row shares the documents table's edges (frame.md F328): the title and the facts split the row 1.4 : 1, so the
+     facts start where the tags and Continue reading's facts start; the state and the date keep the frame's 10em and 4.5em. A visitor's
+     row has no state, so its date takes the table's 6.5em and ends on the table's date */
+  .projlib-books .shelf-list .shelf-row {
+    grid-template-columns: minmax(12em, 1.4fr) minmax(0, 1fr) 10em 4.5em;
+  }
+  .projlib-books .shelf-list.no-state .shelf-row {
+    grid-template-columns: minmax(12em, 1.4fr) minmax(0, 1fr) 6.5em;
+  }
+  @container shelf (max-width: 46em) {
+    .projlib-books .shelf-list .shelf-row,
+    .projlib-books .shelf-list.no-state .shelf-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* nothing to read: what is missing, then what puts it there, each sentence a line of its own (project-library critique-01 C04) */
+  .projlib-nothing > span {
+    display: block;
+  }
+  .projlib-nothing > span:empty {
+    display: none;
+  }
+}

@@ -6,21 +6,21 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { HeadFacts } from "@/hi2vi/workspace/agenda-item/head";
-import { itemProse } from "@/hi2vi/workspace/agenda-item/prose";
-import { BacklogWaiting } from "@/hi2vi/workspace/backlog";
+import { HeadFacts } from "@/sikstack/workspace/agenda-item/head";
+import { itemProse } from "@/sikstack/workspace/agenda-item/prose";
+import { BacklogWaiting } from "@/sikstack/workspace/backlog";
 import {
   DeferredJob,
   DeferredList,
   readDeferredPlace,
-} from "@/hi2vi/workspace/deferred";
-import { jobTriggers } from "@/hi2vi/workspace/deferred/prose";
-import { DocVersions } from "@/hi2vi/workspace/docs";
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
-import { WsProse } from "@/hi2vi/workspace/frame/prose";
-import { PhaseSlices } from "@/hi2vi/workspace/phase/parts";
-import { SliceHead } from "@/hi2vi/workspace/slice";
-import type { ItemView } from "@/hi2vi/workspace/agenda-item/model";
+} from "@/sikstack/workspace/deferred";
+import { jobTriggers } from "@/sikstack/workspace/deferred/prose";
+import { DocVersions } from "@/sikstack/workspace/docs";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
+import { WsProse } from "@/sikstack/workspace/frame/prose";
+import { PhaseSlices } from "@/sikstack/workspace/phase/parts";
+import { SliceHead } from "@/sikstack/workspace/slice";
+import type { ItemView } from "@/sikstack/workspace/agenda-item/model";
 import type { Job, JobRow, Slice, SliceRow } from "@/lib/workspace/types";
 
 // Stored prose drawn as its Markdown on every Workspace page (frame.md F46, F80): what the workspace and the
@@ -315,7 +315,7 @@ describe("the Markdown renderer stays out of the client bundle", () => {
       /^["']use client["']/.test(readFileSync(p, "utf8")),
     );
     expect(clients.length).toBeGreaterThan(20);
-    const prose = join(src, "hi2vi/workspace/frame/prose.tsx");
+    const prose = join(src, "sikstack/workspace/frame/prose.tsx");
     const offenders: string[] = [];
     for (const client of clients) {
       const seen = new Set<string>();

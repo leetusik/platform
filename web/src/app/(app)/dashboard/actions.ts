@@ -17,7 +17,7 @@ import {
   setTenantSlug,
 } from "@/lib/knowledge/app";
 import { ApiError } from "@/lib/knowledge/client";
-import type { MintInput, MintResult, RevokeResult } from "@/hi2vi/frame";
+import type { MintInput, MintResult, RevokeResult } from "@/sikstack/frame";
 
 import type { CreateProjectResult, SaveSlugResult } from "./org-home-model";
 
@@ -350,7 +350,7 @@ export async function setOrgSlugAction(
 // The signed panels' calls: plain arguments in, a typed answer out, so `Keys` (`mint`, `revoke`), the
 // Projects panel and the Public URL panel take them as props. Each runs the action above and maps its
 // answer by `reason`, never by its copy: the panels show the signed sentences
-// (`@/content/dashboard` `ORG_HOME`, `@/content/hi2vi-frame` `KEYS`).
+// (`@/content/dashboard` `ORG_HOME`, `@/content/sikstack-frame` `KEYS`).
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();

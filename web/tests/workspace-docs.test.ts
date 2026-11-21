@@ -20,9 +20,9 @@ import {
   docsRow,
   docView,
   retiredCount,
-} from "@/hi2vi/workspace/docs";
-import { DocTop } from "@/hi2vi/workspace/docs/top";
-import { wsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/docs";
+import { DocTop } from "@/sikstack/workspace/docs/top";
+import { wsSyncLine } from "@/sikstack/workspace/frame";
 import { dates } from "@/lib/workspace/model";
 import type { Doc, DocRow, WithHead } from "@/lib/workspace/types";
 
@@ -477,7 +477,7 @@ describe("the docs pages' reads", () => {
       get: () => undefined,
     } as never);
     vi.mocked(headers.headers).mockResolvedValue(
-      new Headers({ host: "hi2vi.com" }) as never,
+      new Headers({ host: "sikstack.com" }) as never,
     );
     const guards = await import("@/lib/auth-guards");
     vi.mocked(guards.requireIdentity).mockResolvedValue({
@@ -666,7 +666,7 @@ describe("the docs pages' reads", () => {
 describe("the docs sheet", () => {
   it("holds the boards' rules in the system's scope", () => {
     const sheet = readFileSync(
-      join(web, "src/hi2vi/styles/workspace/docs.css"),
+      join(web, "src/sikstack/styles/workspace/docs.css"),
       "utf8",
     );
     expect(sheet).toContain("@scope (.ui) to ([data-ui-legacy]) {");

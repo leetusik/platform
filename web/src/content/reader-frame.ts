@@ -1,9 +1,9 @@
-// The words of the reader's frame (src/hi2vi/reader/): the head, the end and the foot of a text, the
+// The words of the reader's frame (src/sikstack/reader/): the head, the end and the foot of a text, the
 // reader's sheets and its loading, not found and error screens. Verbatim from the signed boards of
 // Library round 02 (job 03: `Chapter.dc.html`, `ReaderHead.dc.html`, `ReaderEnd.dc.html`,
 // `ReaderFoot.dc.html`, `ReaderChapters.dc.html`; frame.md F54, F55, F64, F89, F92, F94). The shared
 // parts' words (the bar, the sheet's Close, Display, Versions, Sign in to save, a chapter's row) are
-// `@/content/library-frame`; Error's are `@/content/hi2vi-states`. Imported by its own path, never
+// `@/content/library-frame`; Error's are `@/content/sikstack-states`. Imported by its own path, never
 // through `content/index.ts`.
 
 /** U+2007, a figure space: the foot's percentage keeps three figures' width (frame.md F94, FG12). */

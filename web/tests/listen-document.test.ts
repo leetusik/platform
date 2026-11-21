@@ -35,7 +35,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined }),
   headers: async () => new Headers(),
 }));
-vi.mock("@/hi2vi/shell/data", () => ({ requestNonce: async () => "n0" }));
+vi.mock("@/sikstack/shell/data", () => ({ requestNonce: async () => "n0" }));
 vi.mock("@/lib/knowledge/app", async (orig) => ({
   ...(await orig<object>()),
   getDocument: up.getDocument,
@@ -54,8 +54,8 @@ import {
   documentListen,
   renderDocument,
 } from "@/components/reader/document-page";
-import { DocumentReader } from "@/hi2vi/reader/document";
-import { headOf, holdOf } from "@/hi2vi/listen";
+import { DocumentReader } from "@/sikstack/reader/document";
+import { headOf, holdOf } from "@/sikstack/listen";
 import type { KbListenState } from "@/lib/knowledge/listen";
 import type { KbDocument } from "@/lib/knowledge/types";
 import { noteKey, type ListenKey } from "@/lib/listen/machine";

@@ -8,7 +8,7 @@ import {
   LibraryDocs,
   Shelf,
   type LibraryDocsProps,
-} from "@/hi2vi/library/lists";
+} from "@/sikstack/library/lists";
 import { requireIdentity } from "@/lib/auth-guards";
 import type { FormatOptions } from "@/lib/format";
 import type { ListOrigin } from "@/lib/library/from";

@@ -4,8 +4,8 @@ import {
   AgendaLoading,
   workspaceHrefs,
   workspaceProjectId,
-} from "@/hi2vi/workspace/agenda";
-import { WsNav, type WsSyncLine } from "@/hi2vi/workspace/frame";
+} from "@/sikstack/workspace/agenda";
+import { WsNav, type WsSyncLine } from "@/sikstack/workspace/frame";
 import { REQUEST_PATH_HEADER } from "@/lib/next-path";
 
 // The Agenda while it loads (`Agenda.dc.html`, Loading; frame.md F49): the Shell is complete, `WsNav` stands with

@@ -405,7 +405,7 @@
   html .rd-root .pp-notice__printed { margin-top: 8px; font: 12px/1.45 var(--pp-mono); color: var(--pp-sec); }
   html .rd-root .pp-notice :lang(ko) { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
   /* P63-fk.S13: an html document now opens in its Original layout on the Library's frame (`.ui`; the frame and the
-     rest of the page are hidden on paper by its own sheets, `hi2vi/styles/library/document.css` and `reader.css`).
+     rest of the page are hidden on paper by its own sheets, `sikstack/styles/library/document.css` and `reader.css`).
      That page has no bar under the document and no Print · new tab, so the notice's last line, which points at
      them, does not print there; the address above it still says where to print from. An html chapter's legacy
      reader (no `.ui`) prints the notice whole, as before. */
