@@ -27,7 +27,7 @@ def _pay(rel):  # an old payload/ path, mapped into the plugin
     return root / rel
 root = Path(sys.argv[1])
 skills = {p.parent.name for p in (root / "skills").glob("*/SKILL.md")}
-assert len(skills) == 17, len(skills)  # 1.0.0: update-workspace and retrofit retired with the installer, sik-mode added
+assert len(skills) == 18, len(skills)  # 1.0.0: update-workspace and retrofit retired with the installer, sik-mode and setup added
 def engine_src():  # the engine's source: every module, payload/scripts/*.py (the shell's engine_src)
     return "".join(f.read_text(encoding="utf-8") for f in sorted((root / "scripts").glob("*.py")))
 def skill_dir_text(name):

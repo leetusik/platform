@@ -33,8 +33,36 @@ integer version per release, `## v<N>` below; that history continues here.
   `tests/static_pins.py`, and a new test covers the finder, `init`, both hooks and the shipped text. Platform CI
   (`.github/workflows/sikstack-ci.yml`) runs it on every change under `plugins/sikstack/**` and fails one that leaves
   this version unmoved.
-- **Migration notes.** An existing `workflow/` install keeps running its own engine until `sikstack migrate` (next
-  release) moves it into `.sikstack/`; nothing reads the old layout meanwhile.
+- **`/sikstack:setup`, once per machine.** The plugin declares a `userConfig.email` option (the install dialog asks
+  for it). The skill saves the email with `claude plugin configure` and runs `sikstack setup --email <e> --data-dir
+  ${CLAUDE_PLUGIN_DATA}`, which keeps one install id in the plugin's data folder (`install.json`), registers
+  `{install_id, email, plugin_version}` with `POST <server>/api/installs` (the server is `https://sikstack.com`, or
+  `SIKSTACK_SERVER`; a short timeout; an email already registered there is not sent again) and sets
+  `autoCompactWindow: 500000` in the user's Claude Code settings, changing nothing else in that file. When the server
+  cannot be reached it still finishes and marks the registration pending (`registration.json`).
+- **The rules card is a SessionStart hook** (`startup|resume`; the compact-resume hook stays on `compact`). Inside a
+  repo with `.sikstack/` it prints the plugin's `contract.md` plus one line on starting with `/sikstack:sik-mode`
+  (under 4,096 B); elsewhere one line saying sikstack is installed (or, above an old install, naming `sikstack
+  migrate`). It first retries a pending registration once, with a short timeout, and never blocks or fails the session.
+- **`sikstack migrate`** moves an old `workflow/` install (v102, the last installer release; an older one is refused
+  with its `--update` step) into `.sikstack/`. A dry run by default; `--apply` renames `workflow/` to `.sikstack/` (its
+  history and untracked files go with it) and makes one cleanup commit there: the engine's copies, the old contract, the
+  version file, `works/backlog.md` and the unedited v102 templates leave, `executors.toml` becomes `config.toml`'s route
+  rows, `.hi2vi/link.json` becomes its `[cloud]` table, and the generated files are rebuilt (each active `phase.md`'s
+  generated `## Slices` header now names `sikstack check`; the marker and every phase record stay byte for byte). On
+  the host it rewrites only the installer's blocks in `.git/info/exclude` and `CLAUDE.local.md`, removes the old
+  installer's skill and agent copies that still match what v102 shipped (an edited one is kept and listed), and drops
+  the old compact-resume hook from `.claude/settings.local.json`. An at-root install gets a seeded `.sikstack/` with one
+  import commit and the `git rm` to run. It refuses uncommitted tracked changes, a target with `.sikstack/`, other
+  worktrees of the state repo and an interrupted cloud command; then it runs `next` and `check` and lists what it kept
+  and what is left for you (such as a symlink into `workflow/`).
+- **The cloud link lives in `config.toml`.** `link` writes the `[cloud]` table (and commits that one change in
+  `.sikstack/`), `unlink` removes it; `.hi2vi/` keeps only the sync's bookkeeping. The workspace key is kept in
+  `$XDG_CONFIG_HOME/sikstack/workspace-keys.json`; a key the older engine kept in `…/hi2vi/workspace-keys.json` is still
+  read.
+- **Migration notes.** Run `/sikstack:setup` once per machine. An existing `workflow/` install keeps running its own
+  engine until `sikstack migrate --apply` moves it into `.sikstack/` (run the bare `sikstack migrate` first to read the
+  plan); nothing reads the old layout meanwhile.
 
 ## v102 — 2026-11-20
 

@@ -3816,7 +3816,7 @@ def cmd_close(args: argparse.Namespace) -> int:
                 stop("check", f"fix what check names: {' '.join(out)[:600]}; {rerun}")
             done("check")
         import wf_store
-        dirty = None if wf_store.cloud_link_file().exists() or not _git_available() else \
+        dirty = None if wf_store.cloud_linked() or not _git_available() else \
             _git(["status", "--porcelain", "--", "works"], check=False).stdout.strip()
         if dirty:
             stop("commit", "stop what the phase started (pr skill close.md: Clean up), then one workflow commit holding the close's "

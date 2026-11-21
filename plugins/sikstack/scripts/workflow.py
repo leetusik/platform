@@ -26,6 +26,12 @@ if sys.path[:1] != [_HERE]:
 if __name__ == "__main__" and sys.argv[1:2] == ["init"]:  # before the finder: there is no workspace yet
     import wf_init  # noqa: E402
     raise SystemExit(wf_init.init_main(sys.argv[2:]))
+if __name__ == "__main__" and sys.argv[1:2] == ["setup"]:  # per machine: needs no workspace
+    import wf_setup  # noqa: E402
+    raise SystemExit(wf_setup.setup_main(sys.argv[2:]))
+if __name__ == "__main__" and sys.argv[1:2] == ["migrate"]:  # reads an old workflow/ install, which the finder refuses
+    import wf_migrate  # noqa: E402
+    raise SystemExit(wf_migrate.migrate_main(sys.argv[2:]))
 
 import wf_store  # noqa: E402 -- first: it finds the workspace, or exits 2 with one line
 import wf_git  # noqa: E402
@@ -51,7 +57,7 @@ from wf_design import (  # noqa: E402
     add_design_parsers,
 )
 from wf_cloud import (  # noqa: E402
-    add_cloud_parsers, cloud_link_file, CLOUD_OWN, cloud_refusal, cloud_run, mark_committed,
+    add_cloud_parsers, cloud_linked, CLOUD_OWN, cloud_refusal, cloud_run, mark_committed,
 )
 
 
@@ -63,6 +69,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("init", help="Make this repo's (or multi-repo host's) .sikstack/ workspace: works/, docs/current/, config.toml, "
                    "its own git repo and a /.sikstack/ line in .git/info/exclude; a second run repairs what is missing and "
                    "changes nothing else. Runs before any workspace exists, so it is handled ahead of this parser")
+    sub.add_parser("setup", help="Once per machine (the /sikstack:setup skill runs it): --email E --data-dir <the plugin's data "
+                   "folder>; keeps one install id there, registers {install_id, email, plugin_version} with the server "
+                   "(SIKSTACK_SERVER, default https://sikstack.com; pending when unreachable, retried by the session-start "
+                   "hook) and sets autoCompactWindow 500000 in the user's Claude Code settings. Needs no workspace")
+    sub.add_parser("migrate", help="Move an old workflow/ install (nested, single- or multi-repo host, or at-root) into "
+                   ".sikstack/: a dry run by default that prints the plan and writes nothing; --apply makes the move "
+                   "(the history kept, one cleanup commit), rewrites the host's exclude block and CLAUDE.local.md block, "
+                   "removes the old installer's unedited skill and agent copies, and runs next and check. Refuses "
+                   "uncommitted tracked changes, an install older than v102, and a target that already has .sikstack/")
 
     def verbs(name: str, help: str):  # a verb's sub-verbs: main() names the command `<verb> <sub-verb>`
         return sub.add_parser(name, help=help).add_subparsers(dest="verb", required=True).add_parser
@@ -339,7 +354,7 @@ def run(args: argparse.Namespace, tokens: list) -> int:
         # Never fall back to at-root mode on a broken marker: refuse, and let check list it all.
         raise SystemExit(f"{shown(ROOT / NESTED_MARKER)} is malformed, so this nested install cannot run {args.cmd}: "
                          f"{'; '.join(NESTED_PROBLEMS)} -- fix the file (run: {WORKFLOW_CMD} check --no-rebuild)")
-    if not cloud_link_file().exists() or args.cmd in CLOUD_OWN:
+    if not cloud_linked() or args.cmd in CLOUD_OWN:
         # local mode: no link, so the command runs exactly as before; link, unlink and sync each take the lock
         # themselves and never run the begin step. Every typed phase / deferred-id / slice argument becomes its
         # stored id here, once.

@@ -24,6 +24,9 @@ project is 404; X-Hi2vi-Checkout and X-Hi2vi-Engine are required):
 
 Like the server, a body over 8,388,608 B is refused with 413 before it is read.
 
+Also POST /api/installs {install_id, email, plugin_version} (no key) -> 200 {status: "registered"}, setup's
+registration, logged with its whole body (route "installs"), so a test can see exactly what was sent.
+
 Test-only routes (no key, 127.0.0.1 only): GET /_fake/state (the records, no content),
 POST /_fake/write {path, content, kind?, deleted?} or {path, lines} (a change made by another checkout: a revision,
 or its lines appended to an append-only record), GET /_fake/file?path=
@@ -88,6 +91,7 @@ class Store:
         self.events = []    # P6 lines with their sequence number
         self.derived = {}   # P9: path -> {head, content}
         self.lock = threading.Lock()
+        self.installs = {}  # POST /api/installs: install_id -> the last body (setup's registration, S4's pre-user row)
         self.inbox = []     # the web's agenda changes: {id, created_at, kind, items, fields, minted_id, state, ...}
         self.control = {"offline": False, "commit": None, "race": None, "gate": None, "fetch_page": None,
                         "inbox_race": None, "break": None, "slow": 0, "drip": 0, "drip_route": None,
@@ -374,6 +378,21 @@ def make_handler(store: Store, key: str, log_path: str):
             url = urlparse(self.path)
             parts = url.path.strip("/").split("/")
             self.broken, self.drip, self.rate, self.raw = None, 0, 0, None
+            if url.path == "/api/installs" and method == "POST":  # setup's registration: no key, logged whole
+                try:
+                    body = self._body()
+                except ValueError:
+                    body = None
+                with store.lock:
+                    self._log({"method": method, "path": url.path, "route": "installs", "body": body,
+                               "content_type": self.headers.get("Content-Type"),
+                               "authorization": self.headers.get("Authorization")})
+                    if not isinstance(body, dict) or not body.get("install_id"):
+                        self.reply = (422, {"error": "install_id, email and plugin_version are required"})
+                        return
+                    store.installs[str(body["install_id"])] = body
+                self.reply = (200, {"status": "registered"})
+                return
             if parts[:1] != ["_fake"]:
                 with store.lock:
                     offline = store.control.get("offline")
@@ -528,6 +547,7 @@ def main() -> int:
     parser.add_argument("--key-file", required=True, help="the one workspace key this fake accepts (never on argv)")
     parser.add_argument("--project", required=True)
     parser.add_argument("--org", required=True)
+    parser.add_argument("--port", type=int, default=0, help="the port to bind (default: a free one)")
     parser.add_argument("--lifetime", type=float, default=900.0, help="exit after this many seconds (a stray fake never outlives its test)")
     args = parser.parse_args()
     with open(args.key_file, encoding="utf-8") as f:
@@ -542,7 +562,7 @@ def main() -> int:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)  # inherited by each connection
             super().server_bind()
 
-    server = Server(("127.0.0.1", 0), make_handler(store, key, os.path.join(args.dir, "requests.jsonl")))
+    server = Server(("127.0.0.1", args.port), make_handler(store, key, os.path.join(args.dir, "requests.jsonl")))
     tmp = args.port_file + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(str(server.server_address[1]))

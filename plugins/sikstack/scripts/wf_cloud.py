@@ -40,7 +40,8 @@ SEAMS = {
 
 # ---------------------------------------------------------------------------
 # Cloud mode: hi2vi holds this workspace's truth and the disk is its copy. A checkout is linked exactly
-# when `<ROOT>/.hi2vi/link.json` exists ({schema, server, org_id, project_id, linked_at}; no key). Without
+# when `.sikstack/config.toml` holds a [cloud] table ({schema, server, org_id, project_id, linked_at}; no key; the
+# bookkeeping below stays in `.hi2vi/`, which only `sikstack migrate` reads a link.json from). Without
 # it `main()` calls the command exactly as before: nothing below is read, imported or run, and no socket
 # is opened. With it, the command boundary syncs: before the command, a fast-forward pull of what changed
 # in hi2vi (then the generated files are rebuilt); the command runs unchanged against the disk; after it,
@@ -420,8 +421,118 @@ class CloudLock:
         return False
 
 
-def cloud_link_file() -> Path:
-    return ROOT / CLOUD_DIR / "link.json"
+CLOUD_TABLE = "cloud"  # config.toml's [cloud] table is the link
+CLOUD_TABLE_NOTE = "# This checkout's link (sikstack link and unlink write it; it holds no key)."
+
+
+def cloud_config_file() -> Path:
+    return ROOT / "config.toml"
+
+
+def _toml_scalar(raw: str):
+    """A [cloud] value: a basic double-quoted string (with \\, \\" escapes), an integer or a boolean."""
+    raw = raw.strip()
+    m = re.fullmatch(r'"((?:[^"\\]|\\.)*)"\s*(?:#.*)?', raw)
+    if m:
+        return json.loads('"' + m.group(1) + '"')
+    m = re.fullmatch(r"(-?[0-9]+|true|false)\s*(?:#.*)?", raw)
+    if m:
+        return json.loads(m.group(1))
+    raise ValueError(f"cannot read {raw!r} (a [cloud] value is a double-quoted string, an integer or true/false)")
+
+
+def _cloud_table_span(lines: list):
+    """(start, end) line indexes of config.toml's [cloud] table (its header to the next table header), or None."""
+    start = None
+    for i, line in enumerate(lines):
+        bare = line.strip()
+        if not bare.startswith("["):
+            continue
+        if start is not None:
+            return start, i
+        if re.fullmatch(r"\[\s*" + CLOUD_TABLE + r"\s*\]\s*(?:#.*)?", bare):
+            start = i
+    return (start, len(lines)) if start is not None else None
+
+
+def cloud_read_link():
+    """The link, config.toml's [cloud] table as a dict, or None when there is none. A table that cannot be read raises
+    ValueError (the link is broken: still linked, and CloudLink says so)."""
+    try:
+        text = cloud_config_file().read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    lines = text.splitlines()
+    span = _cloud_table_span(lines)
+    if span is None:
+        return None
+    link = {}
+    for n in range(span[0] + 1, span[1]):
+        line = lines[n].strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.fullmatch(r"([A-Za-z0-9_-]+)\s*=\s*(.+)", line)
+        if not m:
+            raise ValueError(f"config.toml line {n + 1}: cannot read {line!r} in [{CLOUD_TABLE}]")
+        link[m.group(1)] = _toml_scalar(m.group(2))
+    return link
+
+
+def cloud_linked() -> bool:
+    """True when this checkout is linked: config.toml holds a [cloud] table (a broken one counts: it refuses loudly)."""
+    try:
+        return cloud_read_link() is not None
+    except (OSError, ValueError):
+        return True
+
+
+def _cloud_link_lines(link: dict) -> list:
+    out = []
+    for key in ("schema", "server", "org_id", "project_id", "linked_at", "checkout"):
+        value = link.get(key)
+        if value is None:
+            continue
+        if isinstance(value, int) and not isinstance(value, bool):
+            out.append(f"{key} = {value}")
+        else:
+            out.append(f"{key} = {json.dumps(value if isinstance(value, str) else str(value))}")
+    return out
+
+
+def cloud_write_link(link: dict) -> None:
+    """Write the link as config.toml's [cloud] table, replacing one that is there; every other line stays."""
+    path = cloud_config_file()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        text = ""
+    lines = cloud_drop_link_lines(text.splitlines())
+    while lines and not lines[-1].strip():
+        lines.pop()
+    block = ([""] if lines else []) + [f"[{CLOUD_TABLE}]", CLOUD_TABLE_NOTE] + _cloud_link_lines(link)
+    write_text(path, "\n".join(lines + block) + "\n")
+
+
+def cloud_drop_link_lines(lines: list) -> list:
+    span = _cloud_table_span(lines)
+    if span is None:
+        return list(lines)
+    start = span[0]
+    while start > 0 and not lines[start - 1].strip():
+        start -= 1  # the blank line cloud_write_link put before the table
+    rest = lines[span[1]:]
+    return lines[:start] + ([""] + rest if rest and start > 0 else rest)
+
+
+def cloud_drop_link() -> None:
+    """Remove config.toml's [cloud] table: local mode again. Every other line stays."""
+    path = cloud_config_file()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return
+    lines = cloud_drop_link_lines(text.splitlines())
+    write_text(path, "\n".join(lines) + ("\n" if lines else ""))
 
 
 def cloud_kind(rel: str) -> str:
@@ -534,9 +645,19 @@ def _cloud_content(data: bytes) -> tuple:
         return "base64", base64.b64encode(data).decode("ascii")
 
 
-def cloud_key_file() -> Path:
+def _config_home() -> Path:
     cfg = os.environ.get("XDG_CONFIG_HOME") or ""
-    return (Path(cfg) if os.path.isabs(cfg) else Path.home() / ".config") / "hi2vi" / "workspace-keys.json"
+    return Path(cfg) if os.path.isabs(cfg) else Path.home() / ".config"
+
+
+def cloud_key_file() -> Path:
+    """The key file sikstack writes: `$XDG_CONFIG_HOME/sikstack/workspace-keys.json`."""
+    return _config_home() / "sikstack" / "workspace-keys.json"
+
+
+def cloud_old_key_file() -> Path:
+    """The pre-plugin engine's key file, read when the sikstack one holds no key for the link (never written)."""
+    return _config_home() / "hi2vi" / "workspace-keys.json"
 
 
 def cloud_key_problem(path: Path):
@@ -576,13 +697,13 @@ class CloudLink:
 
     def __init__(self, link=None, key=None) -> None:
         if link is None:
-            path = cloud_link_file()
+            path = cloud_config_file()
             try:
-                link = read_json(path)
+                link = cloud_read_link()
             except (OSError, ValueError) as exc:
-                raise CloudError(f"{shown(path)} is unreadable ({exc.__class__.__name__}): this checkout's link is broken")
+                raise CloudError(f"{shown(path)}'s [{CLOUD_TABLE}] table is unreadable ({exc}): this checkout's link is broken")
             if not isinstance(link, dict) or not isinstance(link.get("server"), str) or not link.get("project_id"):
-                raise CloudError(f"{shown(path)} lacks its server or project_id: this checkout's link is broken")
+                raise CloudError(f"{shown(path)}'s [{CLOUD_TABLE}] table lacks its server or project_id: this checkout's link is broken")
         self.server = cloud_server_check(link["server"].rstrip("/"))
         self.project = str(link["project_id"])
         host = (urlparse(self.server).hostname or "").lower()
@@ -598,20 +719,28 @@ class CloudLink:
         self.deadline = None  # time.monotonic() past which no request is made (the session hook's budget)
 
     def _read_key(self, raw_server: str) -> str:
-        path = cloud_key_file()
-        problem = cloud_key_problem(path)
-        if problem:
-            raise CloudError(problem)
-        try:
-            data = read_json(path)
-        except (OSError, ValueError):
-            raise CloudError(f"no workspace key for this checkout: {path} is missing or unreadable (run link again)")
-        servers = data if isinstance(data, dict) else {}
-        projects = servers.get(raw_server) or servers.get(self.server)
-        entry = projects.get(self.project) if isinstance(projects, dict) else None
-        key = entry.get("key") if isinstance(entry, dict) else None
+        """The key from the sikstack key file, else (a key a pre-plugin link saved) the old hi2vi one."""
+        path, key = cloud_key_file(), None
+        for candidate in (cloud_key_file(), cloud_old_key_file()):
+            if not candidate.exists():
+                continue
+            path = candidate
+            problem = cloud_key_problem(candidate)
+            if problem:
+                raise CloudError(problem)
+            try:
+                data = read_json(candidate)
+            except (OSError, ValueError):
+                raise CloudError(f"no workspace key for this checkout: {candidate} is unreadable (run link again)")
+            servers = data if isinstance(data, dict) else {}
+            projects = servers.get(raw_server) or servers.get(self.server)
+            entry = projects.get(self.project) if isinstance(projects, dict) else None
+            key = entry.get("key") if isinstance(entry, dict) else None
+            if isinstance(key, str) and key.strip():
+                break
         if not isinstance(key, str) or not key.strip():
-            raise CloudError(f"no workspace key for {self.server} project {self.project} in {path} (run link again)")
+            raise CloudError(f"no workspace key for {self.server} project {self.project} in {cloud_key_file()} "
+                             f"(or the older {cloud_old_key_file()}) (run link again)")
         if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in key.strip()):
             raise CloudError(f"the workspace key for {self.server} project {self.project} in {path} holds spaces or "
                              "control characters, so it is not a key (run link again): nothing was changed")
@@ -1302,7 +1431,7 @@ def cloud_refusal(args: argparse.Namespace):
 def cloud_store_line() -> str:
     """`next`'s line in a linked checkout: the skills skip the workflow repo's commit when they see it."""
     try:
-        link = read_json(cloud_link_file())
+        link = cloud_read_link() or {}
     except (OSError, ValueError):
         return "store=cloud link=unreadable"
     return f"store=cloud server={link.get('server')} project={link.get('project_id')}"
@@ -1314,7 +1443,7 @@ def cloud_store_line() -> str:
 # `committed_at` into slice.json (a truth file: it syncs) after the slice's product commit, or right after its
 # finish when it changed no product file. A slice leaving `done` loses it; a second finish keeps it (as a second
 # slice finish after a commit never waits in git). Slices done before the link were committed (link refuses an
-# unclean workflow repo), so only those finished at or after link.json's `linked_at` can wait. Local mode never
+# unclean workflow repo), so only those finished at or after the link's `linked_at` can wait. Local mode never
 # reads, writes or prints any of it.
 COMMITTED_AT = "committed_at"
 
@@ -1323,7 +1452,7 @@ def cloud_commits_waiting(phases=None) -> list:
     """The ids of the done slices without `committed_at`, finished at or after the link, in finish order, across
     every active phase (a linked checkout runs no streams)."""
     try:
-        linked_at = _meter_ts(read_json(cloud_link_file()).get("linked_at"))
+        linked_at = _meter_ts((cloud_read_link() or {}).get("linked_at"))
     except (OSError, ValueError, AttributeError):
         linked_at = None  # an unreadable link: every unmarked done slice is listed, the conservative answer
     rows = []
@@ -1346,7 +1475,7 @@ def cloud_commits_waiting_line(phases=None) -> str:
 
 def mark_committed(args: argparse.Namespace) -> None:
     """A linked checkout's waiting-commit record: `committed_at` on each named done slice. All or nothing."""
-    if not cloud_link_file().exists():
+    if not cloud_linked():
         raise SystemExit("mark-committed is for a linked checkout: in local mode the workflow repo's commit of a slice's "
                          "slice.json is the record (nothing was written)")
     targets, problems = [], []
@@ -1412,7 +1541,7 @@ def cloud_link_refusal():
     """The one line refusing a link before anything is read or written, or None: at root, in a phase's
     worktree, with a phase in flight on a stream or another worktree, with a dirty workflow repo (its last
     commit is the known point before the link), or already linked."""
-    if cloud_link_file().exists():
+    if cloud_linked():
         return f"this checkout is already linked ({cloud_store_line()}): run unlink first (nothing was written)"
     if NESTED is None:
         return ("link refuses an at-root install: cloud mode needs the nested layout, whose phase scope reads the "
@@ -1464,7 +1593,7 @@ def cloud_read_key() -> str:
 
 
 def cloud_save_key(server: str, project: str, org, key: str) -> None:
-    """Keep the key in the user's config, `$XDG_CONFIG_HOME/hi2vi/workspace-keys.json`: the folder 0700, the
+    """Keep the key in the user's config, `$XDG_CONFIG_HOME/sikstack/workspace-keys.json`: the folder 0700, the
     file 0600 from its first byte (a temp file made owner-only, then renamed over)."""
     path = cloud_key_file()
     path.parent.parent.mkdir(parents=True, exist_ok=True)
@@ -1567,8 +1696,13 @@ def cloud_link(args: argparse.Namespace) -> int:
     cloud_exclude()
     shutil.rmtree(str(ROOT / CLOUD_DIR), ignore_errors=True)  # bookkeeping left with no link names nothing
     (ROOT / CLOUD_DIR).mkdir()
-    write_json(cloud_link_file(), {"schema": CLOUD_SCHEMA, "server": server, "org_id": info.get("org_id"),
-                                   "project_id": project, "linked_at": now_iso()})
+    cloud_write_link({"schema": CLOUD_SCHEMA, "server": server, "org_id": info.get("org_id"),
+                      "project_id": project, "linked_at": now_iso()})
+    # The workflow repo was clean (link refuses otherwise), so the link's config.toml line is its one change: commit it
+    # alone, so the checkout stays clean while linked. No git identity there: say so, and leave it to the user.
+    if _git(["add", "--", "config.toml"], check=False).returncode != 0 or \
+            _git(["commit", "-q", "-m", f"chore(sikstack): link this checkout to {server}"], check=False).returncode != 0:
+        print(f"note: config.toml's [{CLOUD_TABLE}] table is not committed in the workflow repo; commit it ({cloud_commit_hint()})")
     try:
         with CloudLock():
             session = CloudSession(["link", f"{server}/projects/{project}"])
@@ -1581,7 +1715,7 @@ def cloud_link(args: argparse.Namespace) -> int:
             session.begin()
             sent = session.commit()
     except Exception as exc:  # noqa: BLE001 - one line, whatever stopped the first sync
-        raise SystemExit(f"{cloud_stop_line(exc, 'link')} (the link is made: {shown(cloud_link_file())})")
+        raise SystemExit(f"{cloud_stop_line(exc, 'link')} (the link is made: [{CLOUD_TABLE}] in {shown(cloud_config_file())})")
     if mode == "upload":
         print(f"linked: {sent} file(s) sent to hi2vi")
     else:
@@ -1595,8 +1729,8 @@ def cloud_link(args: argparse.Namespace) -> int:
 def cloud_unlink(args: argparse.Namespace) -> int:
     """unlink: pull to hi2vi's head (refused on a mismatch), push what is here, remove `.hi2vi/`; local mode
     again. --from-disk: the one offline command, which keeps the disk as it is."""
-    if not cloud_link_file().exists():
-        raise SystemExit("this checkout is not linked (no .hi2vi/link.json): it is in local mode already")
+    if not cloud_linked():
+        raise SystemExit("this checkout is not linked (no [cloud] table in config.toml): it is in local mode already")
     if args.from_disk:
         return cloud_unlink_from_disk()
     lock = CloudLock()
@@ -1612,6 +1746,7 @@ def cloud_unlink(args: argparse.Namespace) -> int:
         raise SystemExit(f"unlink refused, the checkout is still linked{offline}: {line}")
     try:
         shutil.rmtree(str(ROOT / CLOUD_DIR))
+        cloud_drop_link()
     finally:
         lock.release()
     print(f"unlinked from {session.link.server} project {session.link.project} at r{session.base['head']}")
@@ -1636,6 +1771,7 @@ def cloud_unlink_from_disk() -> int:
     try:
         with CloudLock(CLOUD_HOOK_LOCK_WAIT):
             shutil.rmtree(str(folder))
+            cloud_drop_link()
     except CloudError as exc:
         raise SystemExit(f"unlink --from-disk refused, the checkout is still linked: {exc}")
     print(f"unlinked from the disk, offline: changes made in hi2vi after r{head} are not on this disk"
@@ -1942,8 +2078,8 @@ def cloud_sync(args: argparse.Namespace) -> int:
     """sync: pull clean hi2vi changes, push clean local ones, apply the agenda inbox, list what remains (exit 1
     while anything differs). --diff <path>, --keep local|cloud <path>..., --status. Never resolves a mismatch on
     its own."""
-    if not cloud_link_file().exists():
-        raise SystemExit("this checkout is not linked (no .hi2vi/link.json): sync is for a linked checkout")
+    if not cloud_linked():
+        raise SystemExit("this checkout is not linked (no [cloud] table in config.toml): sync is for a linked checkout")
     if sum(bool(x) for x in (args.diff is not None, args.keep is not None, args.status)) > 1:
         raise SystemExit("sync takes one of --diff, --keep and --status at a time")
     if args.keep is not None and not args.paths:
@@ -2113,7 +2249,7 @@ def cloud_sync_run(session: CloudSession, keep, paths: list) -> int:
 
 def add_cloud_parsers(sub) -> None:
     """Link, unlink, sync: this part's commands, registered by the entry's build_parser in their place."""
-    p = sub.add_parser("link", help="Link this checkout to hi2vi (cloud mode): hi2vi becomes the truth for works/ and docs/, and every command syncs at its boundary. Takes the project's page address; the workspace key is pasted at a prompt (one stdin line when not a terminal), never on the command line, and kept in $XDG_CONFIG_HOME/hi2vi/workspace-keys.json (folder 0700, file 0600). An empty project in hi2vi gets this checkout's files; one that already holds files is joined only from an unused install or an equal set, else the differences are listed. Refused, nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree, with uncommitted changes in the workflow repo, when already linked, http:// to a non-local host, a key file open to group or others. Prints store=cloud server= project= head=")
+    p = sub.add_parser("link", help="Link this checkout to hi2vi (cloud mode): hi2vi becomes the truth for works/ and docs/, and every command syncs at its boundary. Takes the project's page address; the workspace key is pasted at a prompt (one stdin line when not a terminal), never on the command line, and kept in $XDG_CONFIG_HOME/sikstack/workspace-keys.json (folder 0700, file 0600; a key the pre-plugin engine kept in $XDG_CONFIG_HOME/hi2vi/workspace-keys.json is still read). The link itself is the [cloud] table of .sikstack/config.toml. An empty project in hi2vi gets this checkout's files; one that already holds files is joined only from an unused install or an equal set, else the differences are listed. Refused, nothing written: at root, in a phase's worktree, with a phase in flight on a stream or another worktree, with uncommitted changes in the workflow repo, when already linked, http:// to a non-local host, a key file open to group or others. Prints store=cloud server= project= head=")
     p.add_argument("address", help="the project's page address: <server>/projects/<project-id>")
     p.set_defaults(func=cloud_link)
     _one_line_usage_errors(p)

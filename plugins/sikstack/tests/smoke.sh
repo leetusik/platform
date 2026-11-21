@@ -13,7 +13,8 @@
 #   6-7 (dual-apply and the built installer), 8 (--with-explain), 15-16 (--nested installs and their --update),
 #   12 (the at-root worktree: there is no at-root workspace any more; the nested worktree is 11, 14, 17 and 28),
 #   and the install/--update/--to-multi-repo parts of 5, 17, 19, 23 and 25. Test 0's pins moved to
-#   tests/static_pins.py, less the installer's own; Test 29 is new (the finder, init, the hooks, the shipped text).
+#   tests/static_pins.py, less the installer's own; Test 29 is new (the finder, init, the hooks, the shipped text), and
+#   so are Test 30 (setup, the registration retry, the rules card) and Test 31 (migrate from an old install).
 #
 # Usage:  bash plugins/sikstack/tests/smoke.sh        (alone in its shell call: never chained)
 # Exit 0 if every check passes; non-zero otherwise. Re-runnable; self-cleaning.
@@ -63,6 +64,14 @@ mkhost() {
 # mkws <var>: a workspace for a test that once ran on an at-root install. The variable names a folder to make
 # (or an empty one); the repo goes there and the variable is set to its `.sikstack/`, the state folder.
 mkws() { local _h="${!1}"; mkhost "$_h" || return 1; printf -v "$1" '%s' "$_h/.sikstack"; }
+# set_link <.sikstack> <server>: write the cloud link the way `link` does, as config.toml's [cloud] table (replacing one).
+set_link() { python3 - "$1/config.toml" "$2" <<'PY'
+import re, sys
+path, server = sys.argv[1:]
+text = re.sub(r"\n*\[cloud\]\n(?:[^\[\n][^\n]*\n|\n)*", "\n", open(path).read()).rstrip("\n") + "\n"
+open(path, "w").write(text + f'\n[cloud]\nschema = 1\nserver = "{server}"\norg_id = "org-1"\nproject_id = "proj-1"\nlinked_at = "2026-11-18T00:00:00Z"\n')
+PY
+}
 
 command -v git >/dev/null 2>&1 || { echo "git is required to run this smoke test"; exit 2; }
 
@@ -196,7 +205,7 @@ printf '[claude.high]\nmodel = "claude-opus-5-5"\n' > "$F/config.toml"
 hi_out=$( cd "$F" && python3 "$ADP" route 2>&1 ); hi_rc=$?
 [ "$hi_rc" -ne 0 ] && printf '%s\n' "$hi_out" | grep -q 'must be an Agent-tool alias' \
   && ok "a full model id on any row is refused (every row is passed per dispatch, so an alias only)" || bad "[claude.high] full id not refused (rc=$hi_rc): $hi_out"
-printf '[cloud]\nserver = "https://example.invalid"\n\n[claude.mid]\nmodel = "sonnet"\n' > "$F/config.toml"; er_out=$(er)
+printf '[notes]\nserver = "https://example.invalid"\n\n[claude.mid]\nmodel = "sonnet"\n' > "$F/config.toml"; er_out=$(er)
 printf '%s\n' "$er_out" | grep -qE '^mid +sikstack:slice-executor +sonnet +medium +model config.toml / effort default$' \
   && ok "config.toml's other tables are skipped whole; its [claude.mid] row is read" || bad "a foreign table in config.toml broke route: $er_out"
 printf 'mode = "flex"\n' > "$F/config.toml"
@@ -523,8 +532,9 @@ design = {"design-init", "design-system", "design-open", "design-check", "design
 agenda = {"deferred", "defer-job", "promote-deferred", "drop-deferred", "agenda", "agenda-add", "agenda-edit", "agenda-move",
           "agenda-defer", "agenda-solve", "agenda-drop", "agenda-reopen", "agenda-delete", "agenda-link", "agenda-unlink"}
 cloud = {"link", "unlink", "sync", "mark-committed"}
-assert len(names) == 42 and set(names) == verbs | design | agenda | cloud, sorted(set(names) ^ (verbs | design | agenda | cloud))
-' ) && ok "the engine's --help lists 41 commands: the eleven verbs plus the design, agenda and cloud parts' own, no adapter command" \
+machine = {"setup", "migrate"}  # beside init, run before any workspace is found
+assert len(names) == 44 and set(names) == verbs | design | agenda | cloud | machine, sorted(set(names) ^ (verbs | design | agenda | cloud | machine))
+' ) && ok "the engine's --help lists 44 commands: init and the eleven verbs, setup and migrate, plus the design, agenda and cloud parts' own, no adapter command" \
   || bad "the engine's command list moved -- $(printf '%s\n' "$cg_help" | sed -n 2p)"
 card_ok() { # card_ok <text>: at most 2,048 bytes, no re-read, the pointer, the next action and the file paths
   [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -le 2048 ] && ! printf '%s\n' "$1" | grep -qi 're-read' \
@@ -2654,7 +2664,7 @@ if ! printf '%s\n' "$fp1$fpb" | grep -q 'fix_passes=' && printf '%s\n' "$fp1" | 
 else bad "the fix-pass count is wrong ($fp2n/$fppn/$fp3n) -- $fp1 / $fpb / $fp2 / $fpp / $fp3"; fi
 
 # ---------------------------------------------------------------------------
-echo "== Test 21: cloud mode at the command boundary -- inert without .hi2vi/link.json (no socket opened, no .hi2vi written); with a link, against a local fake hi2vi: one batch after a command (its own files origin command, an agent's result.md origin carried, the P9 records, both headers, the key only as a Bearer), equal content sends nothing, an archive goes as move ops and events.jsonl only as appends, a cloud-only change is pulled at the next command and the generated files rebuilt =="
+echo "== Test 21: cloud mode at the command boundary -- inert without a [cloud] link in config.toml (no socket opened, no .hi2vi written); with a link, against a local fake hi2vi: one batch after a command (its own files origin command, an agent's result.md origin carried, the P9 records, both headers, the key only as a Bearer), equal content sends nothing, an archive goes as move ops and events.jsonl only as appends, a cloud-only change is pulled at the next command and the generated files rebuilt =="
 cl_t0=$(date +%s)
 newtmp CLW; CL="$CLW/host"; CLX="$CLW/xdg"; CL_OUT="$CLW/out.txt"; : > "$CL_OUT"
 cl() { ( cd "$CL" && XDG_CONFIG_HOME="$CLX" python3 "$ENG" "$@" ) 2>&1 | tee -a "$CL_OUT"; }
@@ -2684,7 +2694,7 @@ for c in "next" "phase new --phase P1 --name One --objective toy" "phase new --p
   cl_nosock $c > "$CLW/nosock.txt" 2>&1; [ "$?" = 97 ] && cl_in="$cl_in [$c: $(tail -1 "$CLW/nosock.txt")]"
 done
 [ -z "$cl_in" ] && [ ! -e "$CL/.sikstack/.hi2vi" ] && [ -d "$CL/.sikstack/works/phases/active/P2" ] \
-  && ok "local mode: with no .hi2vi/link.json, next, phase new, defer-job, agenda-add, check, check --no-rebuild and next --card open no socket and write no .hi2vi/" \
+  && ok "local mode: with no [cloud] link, next, phase new, defer-job, agenda-add, check, check --no-rebuild and next --card open no socket and write no .hi2vi/" \
   || bad "local mode reached the network or wrote .hi2vi/ --$cl_in $(ls -a "$CL/.sikstack/.hi2vi" 2>/dev/null)"
 # (b) link the checkout by hand to a fake hi2vi on a free port (the link command itself is not part of this check).
 CLK="cloud-smoke-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
@@ -2694,12 +2704,11 @@ python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$CLW/fake" --port-file "$CLW/por
 CL_PID=$!
 for _ in $(seq 1 100); do [ -s "$CLW/port" ] && break; sleep 0.1; done
 CLS="http://127.0.0.1:$(cat "$CLW/port" 2>/dev/null)"
-mkdir -p "$CL/.sikstack/.hi2vi" "$CLX/hi2vi" && chmod 700 "$CLX/hi2vi"
-python3 - "$CL/.sikstack/.hi2vi/link.json" "$CLX/hi2vi/workspace-keys.json" "$CLS" "$CLW/key" <<'PY' || bad "cloud probe: could not write the link"
+# The key sits in the pre-plugin engine's key file ($XDG_CONFIG_HOME/hi2vi/), which the engine still reads.
+mkdir -p "$CL/.sikstack/.hi2vi" "$CLX/hi2vi" && chmod 700 "$CLX/hi2vi" && set_link "$CL/.sikstack" "$CLS"
+python3 - "$CLX/hi2vi/workspace-keys.json" "$CLS" "$CLW/key" <<'PY' || bad "cloud probe: could not write the link"
 import json, os, sys
-link, keys, server, keyfile = sys.argv[1:]
-with open(link, "w") as f:
-    json.dump({"schema": 1, "server": server, "org_id": "org-1", "project_id": "proj-1", "linked_at": "2026-11-18T00:00:00Z"}, f)
+keys, server, keyfile = sys.argv[1:]
 with open(keyfile) as f:
     key = f.read().strip()
 fd = os.open(keys, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -2860,12 +2869,10 @@ python3 "$REPO_ROOT/tests/fake_hi2vi.py" --dir "$SFW/fake" --port-file "$SFW/por
 SF_PID=$!
 for _ in $(seq 1 100); do [ -s "$SFW/port" ] && break; sleep 0.1; done
 SFS="http://127.0.0.1:$(cat "$SFW/port" 2>/dev/null)"
-mkdir -p "$SF/.sikstack/.hi2vi" "$SFX/hi2vi" && chmod 700 "$SFX/hi2vi"
-python3 - "$SF/.sikstack/.hi2vi/link.json" "$SFX/hi2vi/workspace-keys.json" "$SFS" "$SFW/key" <<'PY' || bad "cloud safety probe: could not write the link"
+mkdir -p "$SF/.sikstack/.hi2vi" "$SFX/sikstack" && chmod 700 "$SFX/sikstack" && set_link "$SF/.sikstack" "$SFS"
+python3 - "$SFX/sikstack/workspace-keys.json" "$SFS" "$SFW/key" <<'PY' || bad "cloud safety probe: could not write the link"
 import json, os, sys
-link, keys, server, keyfile = sys.argv[1:]
-with open(link, "w") as f:
-    json.dump({"schema": 1, "server": server, "org_id": "org-1", "project_id": "proj-1", "linked_at": "2026-11-18T00:00:00Z"}, f)
+keys, server, keyfile = sys.argv[1:]
 with open(keyfile) as f:
     key = f.read().strip()
 fd = os.open(keys, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -3436,11 +3443,11 @@ for sf_k in late drip; do
   python3 "$SFW/proxy.py" "$SFW/px-$sf_k" "$sf_k" > /dev/null 2>&1 & sf_px_pids+=($!)
 done
 for _ in $(seq 1 50); do [ -s "$SFW/px-late" ] && [ -s "$SFW/px-drip" ] && break; sleep 0.1; done
-cp "$SF/.sikstack/.hi2vi/link.json" "$SFW/link.bak"; cp "$SFX/hi2vi/workspace-keys.json" "$SFW/keys2.bak"
-python3 - "$SF/.sikstack/.hi2vi/link.json" "$SFX/hi2vi/workspace-keys.json" <<'PY'
+cp "$SF/.sikstack/config.toml" "$SFW/link.bak"; cp "$SFX/sikstack/workspace-keys.json" "$SFW/keys2.bak"
+set_link "$SF/.sikstack" "https://hi2vi.invalid"
+python3 - "$SFX/sikstack/workspace-keys.json" "$SFS" <<'PY'
 import json, sys
-link, keys = sys.argv[1:]
-d = json.load(open(link)); old = d["server"]; d["server"] = "https://hi2vi.invalid"; json.dump(d, open(link, "w"))
+keys, old = sys.argv[1:]
 k = json.load(open(keys)); k["https://hi2vi.invalid"] = k[old]; json.dump(k, open(keys, "w"))
 PY
 sf_bad=""
@@ -3456,7 +3463,7 @@ for sf_k in late drip; do
     || sf_bad="$sf_bad [$sf_k next: rc=$sf_rc ${sf_s}s $(head -1 "$SFW/p-$sf_k-next.txt")]"
 done
 kill "${sf_px_pids[@]}" 2>/dev/null; wait "${sf_px_pids[@]}" 2>/dev/null
-cp "$SFW/link.bak" "$SF/.sikstack/.hi2vi/link.json"; cp "$SFW/keys2.bak" "$SFX/hi2vi/workspace-keys.json"; chmod 600 "$SFX/hi2vi/workspace-keys.json"
+cp "$SFW/link.bak" "$SF/.sikstack/config.toml"; cp "$SFW/keys2.bak" "$SFX/sikstack/workspace-keys.json"; chmod 600 "$SFX/sikstack/workspace-keys.json"
 # The set-up floor counts only the peer's bytes, whatever this machine's TLS library sends (a ClientHello is about
 # 200 B on LibreSSL, over 1,500 B on OpenSSL 3.5). In-process, the limit at 2 s: a peer answers 39 B at 1.2 s and then
 # swallows a 2,000 B ClientHello; the floor ends the set-up at 2 s (counting our own bytes, the idle limit at 3.2 s).
@@ -3599,7 +3606,7 @@ sf next > "$SFW/j4.txt"; sf_rc4=$?
 rm -f "$SF/.sikstack/.hi2vi/journal.json"; sf_m=$(sf_mark); sf next >/dev/null; sf_rc=$?; sf_r=$(sf_check "$sf_m" synced)
 [ "$sf_rc" = 0 ] && [ "$sf_r" = ok ] || bad "the checkout did not settle after the simulated failure -- rc=$sf_rc $sf_r"
 # A key in the key file that holds a control character is refused, and never quoted in the line.
-sf_kf="$SFX/hi2vi/workspace-keys.json"; cp "$sf_kf" "$SFW/keys.bak"
+sf_kf="$SFX/sikstack/workspace-keys.json"; cp "$sf_kf" "$SFW/keys.bak"
 python3 - "$sf_kf" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
@@ -3723,9 +3730,11 @@ elif check == "upload":
     ops = [op for c in C for op in c["batch"]["ops"]]
     need(all(op["op"] in ("put", "append") and op.get("base_rev") is None for op in ops), "the first upload only adds")
     need(len([p for p in live if "/topics/big-" in p]) == 3 and "works/phases/active/P1/phase.json" in live, "a file is missing in hi2vi")
-    link = json.loads((hi / "link.json").read_text())
-    need(link.get("server") == server and link.get("org_id") == "org-1" and link.get("project_id") == "proj-1" and "key" not in link,
-         f"link.json: {link}")
+    import re as _re
+    table = _re.search(r"(?ms)^\[cloud\]\n(.*?)(?=^\[|\Z)", (root / "config.toml").read_text())
+    link = dict(_re.findall(r'(?m)^(\w+) = "?([^"\n]*)"?$', table.group(1))) if table else {}
+    need(link.get("server") == server and link.get("org_id") == "org-1" and link.get("project_id") == "proj-1" and "key" not in link
+         and not (hi / "link.json").exists(), f"config.toml's [cloud] link: {link}")
     synced()
 elif check == "next":  # extra: the line next printed
     heads = [r for r in R if r["path"].endswith("/head")]
@@ -3813,21 +3822,21 @@ PY
 lk_commit "$LKC" stamp
 lk_ref "while a phase is in flight on its own stream" '^link refuses while a phase is in flight on its own stream \(P1\)' "$LKC/.sikstack" "$LKC/.sikstack/scripts/workflow.py" link "$LKU"
 git -C "$LKC/.sikstack" reset -q --hard HEAD~1
-mkdir -p "$LKX/hi2vi" && chmod 700 "$LKX/hi2vi" && printf '{"https://elsewhere.example": {"p": {"key": "%s"}}}\n' "$LKO" > "$LKX/hi2vi/workspace-keys.json" && chmod 644 "$LKX/hi2vi/workspace-keys.json"
+mkdir -p "$LKX/sikstack" && chmod 700 "$LKX/sikstack" && printf '{"https://elsewhere.example": {"p": {"key": "%s"}}}\n' "$LKO" > "$LKX/sikstack/workspace-keys.json" && chmod 644 "$LKX/sikstack/workspace-keys.json"
 lk_ref "a key file open to group or others (with the chmod fix, never the key)" "workspace-keys\.json can be read by group or others \(mode 0644\), and it holds workspace keys: run chmod 600 .*workspace-keys\.json, then run this again" "$LKA/.sikstack" "$LKA/.sikstack/scripts/workflow.py" link "$LKU"
 grep -qF "$LKO" "$LKW/ref.txt" && bad "the 0644 refusal printed a key"
-chmod 600 "$LKX/hi2vi/workspace-keys.json"
+chmod 600 "$LKX/sikstack/workspace-keys.json"
 lk_t1=$(lk_tree "$LKA/.sikstack"); printf 'not-the-key\n' | lk "$LKA" link "$LKU" > "$LKW/a6.txt"; lk_rc=$?; lk_t2=$(lk_tree "$LKA/.sikstack")
 [ "$lk_rc" = 1 ] && grep -qx "hi2vi refused this key (HTTP 401): make a workspace key under Keys on the project's page: nothing was written" "$LKW/a6.txt" && [ "$lk_t1" = "$lk_t2" ] && [ ! -e "$LKA/.sikstack/.hi2vi" ] \
   && ok "link refuses a key hi2vi does not take (401) with one line and writes nothing (no .hi2vi/, the key file unchanged)" \
   || bad "a wrong key was not refused cleanly -- rc=$lk_rc $(tail -2 "$LKW/a6.txt")"
 # (b) the link: the key from stdin, kept owner-only beside the other server's; the truth set uploaded in batches.
 lk_m=$(lk_mark); printf '%s\n' "$LKK" | lk "$LKA" link "$LKU" > "$LKW/b.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" upload)
-lk_modes=$(python3 -c 'import os, stat, sys; print("%o %o" % (stat.S_IMODE(os.stat(sys.argv[1]).st_mode), stat.S_IMODE(os.stat(sys.argv[2]).st_mode)))' "$LKX/hi2vi" "$LKX/hi2vi/workspace-keys.json")
-lk_keys=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(sorted(d), d[sys.argv[2]]["proj-1"]["key"] == sys.argv[3], d[sys.argv[2]]["proj-1"]["org_id"])' "$LKX/hi2vi/workspace-keys.json" "$LKS" "$LKK")
+lk_modes=$(python3 -c 'import os, stat, sys; print("%o %o" % (stat.S_IMODE(os.stat(sys.argv[1]).st_mode), stat.S_IMODE(os.stat(sys.argv[2]).st_mode)))' "$LKX/sikstack" "$LKX/sikstack/workspace-keys.json")
+lk_keys=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(sorted(d), d[sys.argv[2]]["proj-1"]["key"] == sys.argv[3], d[sys.argv[2]]["proj-1"]["org_id"])' "$LKX/sikstack/workspace-keys.json" "$LKS" "$LKK")
 [ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && [ "$lk_modes" = "700 600" ] && [ "$lk_keys" = "['$LKS', 'https://elsewhere.example'] True org-1" ] \
   && grep -qxE "store=cloud server=$LKS project=proj-1 head=r[0-9]+" "$LKW/b.txt" && [ -z "$(git -C "$LKA/.sikstack" status --porcelain)" ] \
-  && ok "link reads the key from stdin, verifies it by head, keeps it in a 0700 folder's 0600 file beside the other server's key, writes link.json without it and uploads the truth set as several batches under 8,000,000 B; the workflow repo stays clean (.hi2vi/ excluded)" \
+  && ok "link reads the key from stdin, verifies it by head, keeps it in a 0700 folder's 0600 file beside the other server's key, writes the link as config.toml's [cloud] table without it (committed alone) and uploads the truth set as several batches under 8,000,000 B; the workflow repo stays clean (.hi2vi/ excluded)" \
   || bad "the link upload wrong -- rc=$lk_rc $lk_r modes=$lk_modes keys=$lk_keys $(tail -2 "$LKW/b.txt") $(git -C "$LKA/.sikstack" status --porcelain | head -3)"
 lk_m=$(lk_mark); lk "$LKA" next > "$LKW/b2.txt"; lk_rc=$?; lk_r=$(lk_check "$LKA/.sikstack" "$lk_m" next "$(grep '^store=' "$LKW/b2.txt")")
 [ "$lk_rc" = 0 ] && [ "$lk_r" = ok ] && ok "next prints store=cloud server=<server> project=<id> in a linked checkout, and its head request sends X-Hi2vi-Base: <synced head>" \
@@ -3983,7 +3992,7 @@ lk_m=$(lk_mark); lk "$LKA" next >/dev/null; lk_rc2=$?; lk_r=$(lk_check "$LKA/.si
 printf 'one more\n' >> "$LKA/.sikstack/$lk_p"
 lk_ctl "{\"race\": {\"path\": \"$lk_p\", \"content\": \"and another\\n\"}}"; lk "$LKA" next >/dev/null
 lk "$LKA" unlink > "$LKW/g.txt"; lk_rc=$?
-[ "$lk_rc" = 1 ] && [ -f "$LKA/.sikstack/.hi2vi/link.json" ] && grep -q '^unlink refused, the checkout is still linked: 1 files differ between this checkout and hi2vi' "$LKW/g.txt" \
+[ "$lk_rc" = 1 ] && grep -qx '\[cloud\]' "$LKA/.sikstack/config.toml" && grep -q '^unlink refused, the checkout is still linked: 1 files differ between this checkout and hi2vi' "$LKW/g.txt" \
   && ok "unlink refuses on a mismatch with one line, and the checkout stays linked" || bad "unlink did not refuse on a mismatch -- rc=$lk_rc $(head -2 "$LKW/g.txt")"
 lk "$LKA" sync --keep local "$lk_p" >/dev/null
 lk_m=$(lk_mark); lk "$LKA" unlink > "$LKW/g2.txt"; lk_rc=$?
@@ -3992,12 +4001,12 @@ lk_in=""; for c in "next" "phase new --phase P2 --name Two --objective toy" "def
   # shellcheck disable=SC2086
   lk_nosock "$LKA/.sikstack/scripts/workflow.py" $c > "$LKW/g4.txt"; [ "$?" = 97 ] && lk_in="$lk_in [$c]"
 done
-[ "$lk_rc" = 0 ] && [ ! -e "$LKA/.sikstack/.hi2vi" ] && grep -qx 'local mode: the files on disk are the truth again; commit them (git -C .sikstack add -A && git -C .sikstack commit)' "$LKW/g2.txt" \
-  && [ "$lk_rc2" = 0 ] && [ -z "$lk_in" ] && [ -d "$LKA/.sikstack/works/phases/active/P2" ] && grep -qF "$LKS" "$LKX/hi2vi/workspace-keys.json" \
-  && ok "unlink pulls and pushes, removes .hi2vi/ and prints the one-commit line; the tree validates, local commands open no socket, and the key stays in user config" \
+[ "$lk_rc" = 0 ] && [ ! -e "$LKA/.sikstack/.hi2vi" ] && ! grep -qx '\[cloud\]' "$LKA/.sikstack/config.toml" && grep -qx 'local mode: the files on disk are the truth again; commit them (git -C .sikstack add -A && git -C .sikstack commit)' "$LKW/g2.txt" \
+  && [ "$lk_rc2" = 0 ] && [ -z "$lk_in" ] && [ -d "$LKA/.sikstack/works/phases/active/P2" ] && grep -qF "$LKS" "$LKX/sikstack/workspace-keys.json" \
+  && ok "unlink pulls and pushes, removes .hi2vi/ and the [cloud] table and prints the one-commit line; the tree validates, local commands open no socket, and the key stays in user config" \
   || bad "unlink wrong -- rc=$lk_rc/$lk_rc2 nosock:$lk_in $(head -3 "$LKW/g2.txt") / $(tail -2 "$LKW/g3.txt")"
 # The key file's mode is checked at every linked command too (B is linked): 0644 refuses before any request.
-chmod 644 "$LKX/hi2vi/workspace-keys.json"; lk_m=$(lk_mark); lk "$LKB" next > "$LKW/k.txt"; lk_rc=$?; chmod 600 "$LKX/hi2vi/workspace-keys.json"
+chmod 644 "$LKX/sikstack/workspace-keys.json"; lk_m=$(lk_mark); lk "$LKB" next > "$LKW/k.txt"; lk_rc=$?; chmod 600 "$LKX/sikstack/workspace-keys.json"
 [ "$lk_rc" = 1 ] && grep -q 'workspace-keys.json can be read by group or others (mode 0644)' "$LKW/k.txt" && [ "$(lk_check "$LKB/.sikstack" "$lk_m" nothing)" = ok ] \
   && ok "a linked command with the key file at 0644 is refused with the chmod fix, before any request" \
   || bad "a 0644 key file was used by a linked command -- rc=$lk_rc $(head -2 "$LKW/k.txt")"
@@ -4663,7 +4672,7 @@ done
 gd_reason=$(python3 -c 'import json; print(json.dumps({"tool_name":"Bash","tool_input":{"command":"rm -rf x"}}))' | python3 "$PLUGIN/hooks/guard.py")
 gd_junk=$(printf 'not json' | python3 "$PLUGIN/hooks/guard.py"; echo "rc=$?")
 [ -z "$gd_bad" ] && printf '%s\n' "$gd_reason" | python3 -c 'import json,sys; o=json.load(sys.stdin)["hookSpecificOutput"]; assert o["hookEventName"]=="PreToolUse" and o["permissionDecisionReason"].startswith("sikstack guard: ") and "\n" not in o["permissionDecisionReason"], o' \
-  && [ "$gd_junk" = "rc=0" ] && python3 -c 'import json,sys; h=json.load(open(sys.argv[1]))["hooks"]; assert [m["matcher"] for m in h["PreToolUse"]] == ["Bash"] and [m["matcher"] for m in h["SessionStart"]] == ["compact"], h' "$PLUGIN/hooks/hooks.json" \
+  && [ "$gd_junk" = "rc=0" ] && python3 -c 'import json,sys; h=json.load(open(sys.argv[1]))["hooks"]; assert [m["matcher"] for m in h["PreToolUse"]] == ["Bash"] and [m["matcher"] for m in h["SessionStart"]] == ["startup|resume", "compact"], h' "$PLUGIN/hooks/hooks.json" \
   && ok "the guard denies every force-push form (--force, -f, --force-with-lease, a +refspec) and rm -rf / -fr / -r -f, each with a one-line reason; allows playwright-cli and its pinned install alone; passes the rest, other tools and bad input through" \
   || bad "the guard hook decided wrong --$gd_bad / $gd_reason / $gd_junk"
 # (d) the compact-resume hook: silent outside any workspace, the card inside one (from the session's cwd).
@@ -4710,6 +4719,245 @@ if command -v claude >/dev/null 2>&1; then
   pv=$(claude plugin validate "$PLUGIN" 2>&1); pv_rc=$?
   [ "$pv_rc" = 0 ] && ok "claude plugin validate passes on the plugin folder" || bad "claude plugin validate failed (rc $pv_rc) -- $(printf '%s\n' "$pv" | tail -3)"
 else echo "note: claude CLI not installed; plugin validate skipped"; fi
+
+# ---------------------------------------------------------------------------
+echo "== Test 30: setup, the registration retry and the rules card -- setup registers {install_id, email, plugin_version} once per new email under one install id and sets only autoCompactWindow in the user settings; with the server down it finishes, marks the registration pending, and the next SessionStart hook run registers it and clears the mark; the card is the contract inside a .sikstack/ repo (at most 4,096 B) and one line elsewhere =="
+newtmp SUW; printf 'setup-smoke\n' > "$SUW/key"
+su_fake() {  # su_fake <name> [port]: a fake server logging into $SUW/<name>/, its port in $SUW/<name>.port; prints its PID
+  python3 "$PLUGIN/tests/fake_hi2vi.py" --dir "$SUW/$1" --port-file "$SUW/$1.port" --key-file "$SUW/key" --project p --org o \
+    --lifetime 300 ${2:+--port "$2"} > "$SUW/$1.txt" 2>&1 &
+  _p=$!; for _ in $(seq 1 100); do [ -s "$SUW/$1.port" ] && break; sleep 0.1; done; echo "$_p"
+}
+su_reqs() { [ -f "$SUW/$1/requests.jsonl" ] && grep -c '"route": "installs"' "$SUW/$1/requests.jsonl" || echo 0; }
+su_setup() { CLAUDE_CONFIG_DIR="$SUW/cfg" SIKSTACK_SERVER="$1" python3 "$ENG" setup --email "$2" --data-dir "$3"; }
+mkdir -p "$SUW/cfg" && printf '{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(ls:*)"\n    ]\n  },\n  "enabledPlugins": {\n    "x@y": true\n  }\n}\n' > "$SUW/cfg/settings.json"
+cp "$SUW/cfg/settings.json" "$SUW/settings.before"
+su_up=$(su_fake up); SUS="http://127.0.0.1:$(cat "$SUW/up.port")"
+# (a) server up: one registration with exactly the three fields; the settings gain one line; a re-run sends nothing and
+# keeps the id; a new email registers again under the same id.
+( cd "$SUW" && su_setup "$SUS" a@example.com "$SUW/data" ) > "$SUW/a1.txt" 2>&1; su_rc=$?
+su_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["install_id"])' "$SUW/data/install.json" 2>/dev/null)
+( cd "$SUW" && su_setup "$SUS" a@example.com "$SUW/data" ) > "$SUW/a2.txt" 2>&1; su_rc2=$?; su_n2=$(su_reqs up)
+( cd "$SUW" && su_setup "$SUS" b@example.com "$SUW/data" ) > "$SUW/a3.txt" 2>&1; su_rc3=$?
+su_id3=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["install_id"])' "$SUW/data/install.json" 2>/dev/null)
+su_body=$(python3 - "$SUW/up/requests.jsonl" "$su_id" "$PLUGIN/.claude-plugin/plugin.json" <<'PY'
+import json, sys
+reqs = [json.loads(l) for l in open(sys.argv[1]) if '"route": "installs"' in l]
+version = json.load(open(sys.argv[3]))["version"]
+want = [{"install_id": sys.argv[2], "email": e, "plugin_version": version} for e in ("a@example.com", "b@example.com")]
+ok = [r["body"] for r in reqs] == want and all(r["authorization"] is None and r["content_type"] == "application/json" for r in reqs)
+print("ok" if ok else f"bad {[r['body'] for r in reqs]} want {want}")
+PY
+)
+su_diff=$(diff "$SUW/settings.before" "$SUW/cfg/settings.json" | grep '^[<>]')
+su_json=$(python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); a["autoCompactWindow"]=500000; print(a==b)' "$SUW/settings.before" "$SUW/cfg/settings.json")
+[ "$su_rc" = 0 ] && [ "$su_rc2" = 0 ] && [ "$su_rc3" = 0 ] && [ -n "$su_id" ] && [ "$su_id" = "$su_id3" ] && [ "$su_n2" = 1 ] && [ "$su_body" = ok ] \
+  && grep -q '^registration: a@example.com registered with ' "$SUW/a1.txt" && grep -q 'already registered' "$SUW/a2.txt" \
+  && [ "$su_diff" = '>   "autoCompactWindow": 500000,' ] && [ "$su_json" = True ] && grep -q 'autoCompactWindow: already 500000' "$SUW/a2.txt" \
+  && [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["state"])' "$SUW/data/registration.json")" = registered ] \
+  && ok "setup registers exactly {install_id, email, plugin_version} (no auth) once per new email under one install id, and adds only the autoCompactWindow line to the user settings" \
+  || bad "setup with the server up -- rc=$su_rc/$su_rc2/$su_rc3 id=$su_id/$su_id3 reqs-after-rerun=$su_n2 body=$su_body diff=[$su_diff] json=$su_json $(cat "$SUW/a1.txt")"
+# (b) server down: setup still exits 0 and marks the registration pending; the next SessionStart hook run (the server up
+# again at that address) registers it and clears the mark; a later run sends nothing.
+su_gone=$(su_fake gone); su_gp=$(cat "$SUW/gone.port"); kill "$su_gone" 2>/dev/null; wait "$su_gone" 2>/dev/null
+( cd "$SUW" && su_setup "http://127.0.0.1:$su_gp" c@example.com "$SUW/data2" ) > "$SUW/b1.txt" 2>&1; su_rc=$?
+su_state=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["state"])' "$SUW/data2/registration.json" 2>/dev/null)
+su_back=$(su_fake back "$su_gp")
+su_hook() { printf '{"source":"startup","cwd":"%s"}' "$SUW" | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$SUW/data2" python3 "$PLUGIN/hooks/session_start.py"; }
+su_h1=$(su_hook; echo "rc=$?"); su_n1=$(su_reqs back)
+su_state2=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["state"])' "$SUW/data2/registration.json" 2>/dev/null)
+su_h2=$(su_hook; echo "rc=$?"); su_nb=$(su_reqs back)
+kill "$su_back" "$su_up" 2>/dev/null; wait "$su_back" "$su_up" 2>/dev/null
+su_id2=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["install_id"])' "$SUW/data2/install.json" 2>/dev/null)
+[ "$su_rc" = 0 ] && grep -q '^registration: pending -- ' "$SUW/b1.txt" && [ "$su_state" = pending ] \
+  && [ "$(printf '%s\n' "$su_h1" | tail -1)" = rc=0 ] && [ "$su_n1" = 1 ] && [ "$su_state2" = registered ] && [ "$su_nb" = 1 ] \
+  && grep -q "\"install_id\": \"$su_id2\", \"email\": \"c@example.com\"" "$SUW/back/requests.jsonl" \
+  && ok "with the server down setup exits 0 and marks the registration pending; the next SessionStart hook run registers it once and clears the mark" \
+  || bad "the pending registration -- rc=$su_rc state=$su_state/$su_state2 reqs=$su_n1/$su_nb hook=$su_h1 $(cat "$SUW/b1.txt")"
+# (c) a missing settings file is made with the one key; a bad email or an unsubstituted data folder is refused, unwritten.
+mkdir -p "$SUW/cfg2"; ( cd "$SUW" && CLAUDE_CONFIG_DIR="$SUW/cfg2" SIKSTACK_SERVER="http://127.0.0.1:$su_gp" python3 "$ENG" setup --email d@example.com --data-dir "$SUW/data3" ) >/dev/null 2>&1
+su_bad=$( cd "$SUW" && python3 "$ENG" setup --email nope --data-dir "$SUW/data4" 2>&1; echo "rc=$?" )
+su_bad2=$( cd "$SUW" && python3 "$ENG" setup --email e@example.com --data-dir '${CLAUDE_PLUGIN_DATA}' 2>&1; echo "rc=$?" )
+[ "$(cat "$SUW/cfg2/settings.json")" = "$(printf '{\n  "autoCompactWindow": 500000\n}')" ] \
+  && printf '%s\n' "$su_bad" | grep -q 'rc=2' && printf '%s\n' "$su_bad2" | grep -q 'rc=2' && [ ! -e "$SUW/data4" ] && [ ! -e "$SUW/\${CLAUDE_PLUGIN_DATA}" ] \
+  && ok "setup makes a missing settings file with the one key, and refuses a bad email or an unsubstituted data folder with nothing written" \
+  || bad "setup's edges -- $(cat "$SUW/cfg2/settings.json" 2>&1) / $su_bad / $su_bad2"
+# (d) the card: the contract plus the start line inside a .sikstack/ repo (from a subfolder too), at most 4,096 B; one
+# line outside any workspace and one naming migrate above an old install; the hook never fails on bad input.
+mkhost "$SUW/repo" && mkdir -p "$SUW/repo/src/deep" "$SUW/none" "$SUW/old/workflow" && printf '{"schema": 1}\n' > "$SUW/old/workflow/.agentic-nested.json"
+su_card() { printf '{"source":"startup","cwd":"%s"}' "$1" | env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_DATA python3 "$PLUGIN/hooks/session_start.py"; }
+su_card "$SUW/repo/src/deep" > "$SUW/card.txt"; su_card "$SUW/none" > "$SUW/out.txt"; su_card "$SUW/old" > "$SUW/old.txt"
+su_junk=$(printf 'not json' | env -u CLAUDE_PROJECT_DIR python3 "$PLUGIN/hooks/session_start.py" >/dev/null; echo "rc=$?")
+su_bytes=$(wc -c < "$SUW/card.txt" | tr -d ' ')
+python3 - "$SUW/card.txt" "$PLUGIN/contract.md" <<'PY' && su_cc=ok || su_cc=bad
+import sys
+card, contract = open(sys.argv[1]).read(), open(sys.argv[2]).read().rstrip("\n")
+assert card.startswith(contract + "\n\n"), "the card does not open with the contract"
+rest = card[len(contract) + 2:]
+assert rest.count("\n") == 1 and "/sikstack:sik-mode" in rest, rest
+for rule in ("Nothing is pushed, merged or paid for without the operator's word", "A sign-off is the operator's literal words",
+             "The operator's own work is never touched", "Reports are truthful", "## Principles (steer by name)"):
+    assert rule in card, rule
+PY
+[ "$su_cc" = ok ] && [ "$su_bytes" -le 4096 ] && [ "$(grep -c '' "$SUW/out.txt")" = 1 ] && grep -q 'sikstack is installed.*/sikstack:sik-mode' "$SUW/out.txt" \
+  && [ "$(grep -c '' "$SUW/old.txt")" = 1 ] && grep -q 'sikstack migrate' "$SUW/old.txt" && [ "$su_junk" = rc=0 ] \
+  && ok "the SessionStart card is the contract plus one start line inside a .sikstack/ repo ($su_bytes B <= 4,096), one line outside, one naming migrate above an old install; bad input exits 0" \
+  || bad "the card -- contract=$su_cc bytes=$su_bytes out=$(cat "$SUW/out.txt") old=$(cat "$SUW/old.txt") junk=$su_junk"
+
+# ---------------------------------------------------------------------------
+echo "== Test 31: sikstack migrate -- refusals (uncommitted tracked changes, an install before v102, a target with .sikstack/) write nothing; the dry run writes nothing (a tree hash, the host's files and both .git folders included); --apply on a nested multi-repo host moves workflow/ to .sikstack/ (history kept: one cleanup commit, untracked files moved, the marker and every phase record byte for byte), carries executors.toml and link.json into config.toml, rewrites the exclude and CLAUDE.local.md blocks only, removes only the installer copies that match what it shipped, and next and check run; an at-root install gets a seeded .sikstack/ with one import commit =="
+newtmp MGW; cp -R "$PLUGIN" "$MGW/plugin"; ME="$MGW/plugin/scripts/workflow.py"; MGA="$MGW/plugin/adapters/claude_code/adapter.py"
+mg_tree() { python3 - "$1" <<'PY'
+import hashlib, os, sys
+root = sys.argv[1]; h = hashlib.sha256()
+for d, dirs, files in os.walk(root):
+    dirs.sort()
+    for n in sorted(dirs + files):
+        p = os.path.join(d, n)
+        body = ("L" + os.readlink(p)).encode() if os.path.islink(p) else b"D" if os.path.isdir(p) else b"F" + open(p, "rb").read()
+        h.update(os.path.relpath(p, root).encode() + oct(os.lstat(p).st_mode).encode() + hashlib.sha256(body).digest())
+print(h.hexdigest())
+PY
+}
+# The fixture: a multi-repo host made by the plugin (Tests 17's shape), then aged into a v102 nested install.
+MGH="$MGW/host"; mkdir -p "$MGH" && git -C "$MGH" init -q && git -C "$MGH" commit -q --allow-empty -m start
+for r in alpha beta; do mkdir -p "$MGH/$r" && git -C "$MGH/$r" init -q && printf '# rules\n' > "$MGH/$r/CLAUDE.md" && git -C "$MGH/$r" add -A && git -C "$MGH/$r" commit -qm init; done
+( cd "$MGH" && python3 "$ENG" init && python3 "$ENG" repo add alpha && python3 "$ENG" repo add beta && python3 "$ENG" init \
+  && python3 "$ENG" phase new --phase P1 --name Move --objective o && python3 "$ENG" slice new --phase P1 --slice S1 --name Build --risk low ) > "$MGW/mk.txt" 2>&1 || bad "migrate fixture: could not build the host -- $(tail -3 "$MGW/mk.txt")"
+mg_next0=$( cd "$MGH" && python3 "$ENG" next 2>&1 | grep -E '^(current_phase|current_slice|next_slice)=' )
+git -C "$MGH/.sikstack" add -A && git -C "$MGH/.sikstack" commit -qm "phase P1"
+mv "$MGH/.sikstack" "$MGH/workflow"
+python3 - "$MGH" "$MGW/plugin/scripts/migrate_v102.json" <<'PY'
+import hashlib, json, os, sys
+from pathlib import Path
+host, manifest = Path(sys.argv[1]), Path(sys.argv[2])
+w = host / "workflow"
+sha = lambda t: hashlib.sha256(t.encode()).hexdigest()
+def put(p, t):
+    p.parent.mkdir(parents=True, exist_ok=True); p.write_text(t)
+for f in ("scripts/workflow.py", "scripts/wf_store.py", "adapters/claude_code/adapter.py"):
+    put(w / f, "# the old engine\n")
+put(w / "CLAUDE.workspace.md", "# the old contract\n")
+put(w / "executors.toml", '# routes\n[claude.mid]\nmodel = "sonnet"   # cheaper\neffort = "high"\n')
+put(w / "works/.workspace-version.json", json.dumps({"workspace_version": 102}) + "\n")
+os.replace(w / "backlog.md", w / "works/backlog.md")
+(w / "config.toml").unlink()
+put(w / "works/templates/intent.md", "shipped intent\n")
+put(w / "works/templates/phase.md", "an edited phase template\n")
+marker = json.loads((w / ".agentic-nested.json").read_text())
+marker["installed"] = {"skills": ["agenda", "commit"], "agents": ["slice-executor"]}
+(w / ".agentic-nested.json").write_text(json.dumps(marker, indent=2) + "\n")
+put(host / ".claude/skills/commit/SKILL.md", "shipped commit skill\n"); put(host / ".claude/skills/commit/.gitignore", "*\n")
+put(host / ".claude/skills/agenda/SKILL.md", "an edited agenda skill\n"); put(host / ".claude/skills/agenda/.gitignore", "*\n")
+put(host / ".claude/agents/slice-executor.md", "shipped executor\n")
+os.symlink("../../workflow/tools/mine", host / ".claude/skills/mine")
+hook = 'cd "$CLAUDE_PROJECT_DIR" && python3 workflow/adapters/claude_code/adapter.py compact-resume || true'
+put(host / ".claude/settings.local.json", json.dumps({"autoCompactWindow": 500000, "permissions": {"allow": ["Bash(python3 workflow/scripts/workflow.py:*)", "Read"]},
+    "hooks": {"SessionStart": [{"matcher": "compact", "hooks": [{"type": "command", "command": hook, "timeout": 15}]}]}}, indent=2) + "\n")
+put(host / "CLAUDE.local.md", "# my own notes, workflow/ stays here\n\n<!-- BEGIN agentic-workspace (nested) -->\nA private install of the agentic workspace: `workflow/` (its own git repo).\n\n@workflow/CLAUDE.workspace.md\n\n- Run `python3 workflow/scripts/workflow.py next`; commit with `git -C workflow commit`.\n<!-- END agentic-workspace (nested) -->\nmy tail line names workflow/ too\n")
+ex = host / ".git/info/exclude"
+ex.write_text("# git's own lines\n/mine-outside/\n# BEGIN agentic-workspace (nested)\n/workflow/\n/CLAUDE.local.md\n/.claude/settings.local.json\n"
+              "/.claude/skills/agenda/\n/.claude/skills/commit/\n/.claude/skills/run-loop/\n/.claude/agents/slice-executor.md\n/alpha/\n/beta/\n# END agentic-workspace (nested)\n/.claude/skills/mine\n")
+m = json.loads(manifest.read_text())
+m["skills"] = {"commit": {"SKILL.md": sha("shipped commit skill\n"), ".gitignore": sha("*\n")},
+               "agenda": {"SKILL.md": sha("the agenda skill as shipped\n"), ".gitignore": sha("*\n")}}
+m["agents"] = {"slice-executor": sha("shipped executor\n")}
+m["templates"] = {"intent.md": sha("shipped intent\n"), "phase.md": sha("the phase template as shipped\n")}
+manifest.write_text(json.dumps(m))
+PY
+git -C "$MGH/workflow" add -A && git -C "$MGH/workflow" commit -qm "the old install"
+mkdir -p "$MGH/workflow/notes" && printf 'mine, untracked\n' > "$MGH/workflow/notes/mine.md"
+mg_count=$(git -C "$MGH/workflow" rev-list --count HEAD)
+mg_marker=$(sha "$MGH/workflow/.agentic-nested.json")
+mg_phases=$( cd "$MGH/workflow" && find works/phases -type f | LC_ALL=C sort | while read -r f; do printf '%s %s\n' "$f" "$(sha "$f")"; done )
+mg_local0=$(cat "$MGH/CLAUDE.local.md")
+# (a) the refusals, each writing nothing.
+mg_t0=$(mg_tree "$MGH"); printf 'x\n' >> "$MGH/workflow/works/events.jsonl"; mg_t1=$(mg_tree "$MGH")
+mg_r1=$( cd "$MGH/alpha" && python3 "$ME" migrate --apply 2>&1; echo "rc=$?" ); mg_t2=$(mg_tree "$MGH")
+git -C "$MGH/workflow" checkout -q -- works/events.jsonl
+newtmp MGO; mkdir -p "$MGO/workflow/works" && git -C "$MGO" init -q && git -C "$MGO/workflow" init -q && printf '{"schema": 1}\n' > "$MGO/workflow/.agentic-nested.json" \
+  && printf '{"workspace_version": 95}\n' > "$MGO/workflow/works/.workspace-version.json" && git -C "$MGO/workflow" add -A && git -C "$MGO/workflow" commit -qm v95
+mg_o0=$(mg_tree "$MGO"); mg_r2=$( cd "$MGO" && python3 "$ME" migrate --apply 2>&1; echo "rc=$?" ); mg_o1=$(mg_tree "$MGO")
+printf '{"workspace_version": 102}\n' > "$MGO/workflow/works/.workspace-version.json" && git -C "$MGO/workflow" commit -qam v102 && mkdir "$MGO/.sikstack"
+mg_o2=$(mg_tree "$MGO"); mg_r3=$( cd "$MGO" && python3 "$ME" migrate 2>&1; echo "rc=$?" ); mg_o3=$(mg_tree "$MGO")
+[ "$mg_t1" = "$mg_t2" ] && printf '%s\n' "$mg_r1" | grep -q 'refused -- the old state repo workflow/ has uncommitted tracked changes (1 path(s), first works/events.jsonl)' && printf '%s\n' "$mg_r1" | grep -qx 'rc=1' \
+  && [ "$mg_o0" = "$mg_o1" ] && printf '%s\n' "$mg_r2" | grep -q 'refused -- this install is v95, and migrate reads only the last bootstrap release, v102: update it first with that installer.s --update' \
+  && [ "$mg_o2" = "$mg_o3" ] && printf '%s\n' "$mg_r3" | grep -q 'refused -- .*\.sikstack already exists' \
+  && ok "migrate refuses uncommitted tracked changes, a v95 install (naming the installer's --update) and a target with .sikstack/, each writing nothing" \
+  || bad "migrate's refusals -- $mg_r1 / $mg_r2 / $mg_r3"
+# (b) the dry run writes nothing, the host's files and both .git folders included.
+mg_t0=$(mg_tree "$MGH"); mg_d=$( cd "$MGH" && python3 "$ME" migrate 2>&1; echo "rc=$?" ); mg_t3=$(mg_tree "$MGH")
+[ "$mg_t3" = "$mg_t0" ] && printf '%s\n' "$mg_d" | grep -qx 'rc=0' && printf '%s\n' "$mg_d" | grep -q '^dry run: nothing was written' \
+  && printf '%s\n' "$mg_d" | grep -q '^- workflow/ -> .sikstack/, a rename' \
+  && ok "migrate with no flag prints the plan and writes nothing (a tree hash of the host, its .git and the state repo's, before and after)" \
+  || bad "the dry run wrote or failed -- $(printf '%s\n' "$mg_d" | tail -3)"
+# (c) --apply on the nested multi-repo host.
+( cd "$MGH" && python3 "$ME" migrate --apply ) > "$MGW/apply.txt" 2>&1; mg_rc=$?
+MGS="$MGH/.sikstack"
+mg_phases2=$( cd "$MGS" && find works/phases -type f | LC_ALL=C sort | while read -r f; do printf '%s %s\n' "$f" "$(sha "$f")"; done )
+mg_next1=$( cd "$MGH/beta" && python3 "$ME" next 2>&1 | grep -E '^(current_phase|current_slice|next_slice)=' )
+mg_route=$( cd "$MGH" && python3 "$MGA" route 2>&1 | grep -x 'override=mid sonnet@high (default opus@medium)' )
+mg_problems=""
+[ "$mg_rc" = 0 ] || mg_problems="$mg_problems [rc=$mg_rc]"
+[ ! -e "$MGH/workflow" ] && [ -d "$MGS/.git" ] || mg_problems="$mg_problems [moved]"
+[ "$(git -C "$MGS" rev-list --count HEAD)" = $((mg_count + 1)) ] || mg_problems="$mg_problems [history $(git -C "$MGS" rev-list --count HEAD) vs $mg_count+1]"
+[ "$(cat "$MGS/notes/mine.md")" = "mine, untracked" ] || mg_problems="$mg_problems [untracked file]"
+for f in scripts adapters CLAUDE.workspace.md executors.toml works/.workspace-version.json works/backlog.md works/templates/intent.md; do
+  [ ! -e "$MGS/$f" ] || mg_problems="$mg_problems [left $f]"; done
+[ "$(cat "$MGS/works/templates/phase.md")" = "an edited phase template" ] && [ -f "$MGS/backlog.md" ] || mg_problems="$mg_problems [kept template/backlog]"
+[ -n "$mg_route" ] || mg_problems="$mg_problems [route: no mid override]"
+[ "$(sha "$MGS/.agentic-nested.json")" = "$mg_marker" ] && [ "$mg_phases2" = "$mg_phases" ] || mg_problems="$mg_problems [records changed]"
+[ "$mg_next1" = "$mg_next0" ] && [ -n "$mg_next0" ] || mg_problems="$mg_problems [next: $mg_next1 vs $mg_next0]"
+( cd "$MGH" && python3 "$ME" check --no-rebuild >/dev/null 2>&1 ) || mg_problems="$mg_problems [check]"
+[ -z "$(git -C "$MGS" status --porcelain --untracked-files=no)" ] && [ -z "$(git -C "$MGH" status --porcelain)" ] || mg_problems="$mg_problems [dirty: $(git -C "$MGS" status --porcelain --untracked-files=no | head -2) $(git -C "$MGH" status --porcelain | head -2)]"
+[ "$(sed -n '/# BEGIN/,/# END/p' "$MGH/.git/info/exclude" | tr '\n' ' ')" = "# BEGIN agentic-workspace (nested) /.sikstack/ /CLAUDE.local.md /.claude/settings.local.json /.claude/skills/agenda/ /alpha/ /beta/ # END agentic-workspace (nested) " ] \
+  && grep -qx '/mine-outside/' "$MGH/.git/info/exclude" && grep -qx '/.claude/skills/mine' "$MGH/.git/info/exclude" || mg_problems="$mg_problems [exclude: $(tr '\n' ' ' < "$MGH/.git/info/exclude")]"
+python3 - "$MGH/CLAUDE.local.md" "$mg_local0" <<'PY' || mg_problems="$mg_problems [CLAUDE.local.md]"
+import sys
+new, old = open(sys.argv[1]).read(), sys.argv[2] + "\n"
+b, e = "<!-- BEGIN agentic-workspace (nested) -->", "<!-- END agentic-workspace (nested) -->"
+assert new.split(b)[0] == old.split(b)[0] and new.split(e)[1] == old.split(e)[1], "text outside the markers changed"
+inner = new.split(b)[1].split(e)[0]
+assert "workflow/" not in inner and "@workflow" not in inner and "`sikstack next`" in inner and "git -C .sikstack commit" in inner and "`.sikstack/`" in inner, inner
+PY
+[ ! -e "$MGH/.claude/skills/commit" ] && [ ! -e "$MGH/.claude/agents/slice-executor.md" ] && [ "$(cat "$MGH/.claude/skills/agenda/SKILL.md")" = "an edited agenda skill" ] \
+  && [ -L "$MGH/.claude/skills/mine" ] || mg_problems="$mg_problems [host copies]"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert "hooks" not in d and d["permissions"]["allow"]==["Bash(python3 workflow/scripts/workflow.py:*)","Read"] and d["autoCompactWindow"]==500000, d' "$MGH/.claude/settings.local.json" || mg_problems="$mg_problems [settings]"
+grep -q '^keep: .claude/skills/agenda/ (edited since v102 shipped it' "$MGW/apply.txt" && grep -q '^left for you: .claude/skills/mine is a link into workflow/' "$MGW/apply.txt" \
+  && grep -q '^sikstack check --no-rebuild: passed' "$MGW/apply.txt" && grep -q '^migrate=done' "$MGW/apply.txt" || mg_problems="$mg_problems [report]"
+[ -z "$mg_problems" ] \
+  && ok "migrate --apply on a nested multi-repo host: workflow/ renamed to .sikstack/ with its history (+1 cleanup commit) and untracked files, engine copies gone, executors.toml's override in config.toml, the marker and phase records byte for byte, the exclude and CLAUDE.local.md blocks rewritten and nothing outside them, only the matching installer copies removed, the old hook dropped, next unchanged and check passing" \
+  || bad "migrate --apply (nested) --$mg_problems $(tail -5 "$MGW/apply.txt")"
+# (d) a linked install: link.json becomes config.toml's [cloud] table, which the engine reads as the link (with no key
+# in a scratch XDG_CONFIG_HOME, its next names that server and project and stops, so the migrate reports a problem).
+newtmp MGL; newtmp MGX; mkhost "$MGL" >/dev/null 2>&1 && mv "$MGL/.sikstack" "$MGL/workflow" && rm -f "$MGL/workflow/config.toml" && mkdir -p "$MGL/workflow/.hi2vi" \
+  && printf '{"workspace_version": 102}\n' > "$MGL/workflow/works/.workspace-version.json" \
+  && printf '{"schema": 1, "server": "https://kb.example", "org_id": "org-9", "project_id": "proj-9", "linked_at": "2026-11-01T00:00:00Z"}\n' > "$MGL/workflow/.hi2vi/link.json" \
+  && git -C "$MGL/workflow" add -A && git -C "$MGL/workflow" commit -qm old
+( cd "$MGL" && XDG_CONFIG_HOME="$MGX" python3 "$ME" migrate --apply ) > "$MGW/linked.txt" 2>&1; mg_rc=$?
+[ "$mg_rc" = 1 ] && [ ! -e "$MGL/.sikstack/.hi2vi/link.json" ] && grep -qx '\[cloud\]' "$MGL/.sikstack/config.toml" && grep -qx 'server = "https://kb.example"' "$MGL/.sikstack/config.toml" \
+  && grep -qx 'org_id = "org-9"' "$MGL/.sikstack/config.toml" && grep -qx 'project_id = "proj-9"' "$MGL/.sikstack/config.toml" && grep -qx 'schema = 1' "$MGL/.sikstack/config.toml" \
+  && grep -q "^  no workspace key for https://kb.example project proj-9 in $MGX/sikstack/workspace-keys.json (or the older $MGX/hi2vi/workspace-keys.json)" "$MGW/linked.txt" \
+  && grep -q '^migrate=done-with-problems' "$MGW/linked.txt" && grep -qx '/.hi2vi/' "$MGL/.sikstack/.git/info/exclude" \
+  && ok "migrate moves a linked install's .hi2vi/link.json into config.toml's [cloud] table, which the engine then reads as the link (no key here: next names its server and project, and migrate says it is done with problems)" \
+  || bad "migrate (linked) -- rc=$mg_rc $(tail -6 "$MGW/linked.txt")"
+# (e) an at-root install: a seeded .sikstack/ with one import commit; the repo's tracked files untouched.
+MGR="$MGW/atroot"; mkhost "$MGW/seed" >/dev/null 2>&1 && ( cd "$MGW/seed" && python3 "$ENG" phase new --phase P3 --name Root --objective o >/dev/null )
+mkdir -p "$MGR" && git -C "$MGR" init -q && cp -R "$MGW/seed/.sikstack/works" "$MGR/works" && mkdir -p "$MGR/docs" && cp -R "$MGW/seed/.sikstack/docs/current" "$MGR/docs/current" \
+  && mkdir -p "$MGR/scripts" && printf '# old engine\n' > "$MGR/scripts/workflow.py" && printf '# CLAUDE.md\n' > "$MGR/CLAUDE.md" && printf 'app\n' > "$MGR/app.py" \
+  && printf '{"workspace_version": 102}\n' > "$MGR/works/.workspace-version.json" && cp "$MGW/seed/.sikstack/backlog.md" "$MGR/works/backlog.md" \
+  && printf '[claude.high]\nmodel = "fable"\n' > "$MGR/executors.toml" && git -C "$MGR" add -A && git -C "$MGR" commit -qm "at-root workspace"
+mg_src=$(git -C "$MGR" rev-parse HEAD); mg_ls0=$(git -C "$MGR" ls-files | LC_ALL=C sort | while read -r f; do printf '%s %s\n' "$f" "$(sha "$MGR/$f")"; done)
+( cd "$MGR" && python3 "$ME" migrate --apply ) > "$MGW/root.txt" 2>&1; mg_rc=$?
+mg_ls1=$(git -C "$MGR" ls-files | LC_ALL=C sort | while read -r f; do printf '%s %s\n' "$f" "$(sha "$MGR/$f")"; done)
+mg_rn=$( cd "$MGR" && python3 "$ME" next 2>&1 | grep -x 'current_phase=P3' )
+[ "$mg_rc" = 0 ] && [ "$(git -C "$MGR/.sikstack" rev-list --count HEAD)" = 1 ] && git -C "$MGR/.sikstack" log -1 --format=%s | grep -q "import the workspace from atroot at ${mg_src:0:12}" \
+  && [ "$mg_ls0" = "$mg_ls1" ] && [ -z "$(git -C "$MGR" status --porcelain)" ] && [ "$(git -C "$MGR" rev-parse HEAD)" = "$mg_src" ] && [ -n "$mg_rn" ] \
+  && grep -qx 'model = "fable"' "$MGR/.sikstack/config.toml" && [ ! -e "$MGR/.sikstack/works/.workspace-version.json" ] && [ ! -e "$MGR/.sikstack/works/backlog.md" ] \
+  && grep -q '^left for you: the at-root files are still tracked in the repo; when you are ready: git rm -r -q -- .*scripts/workflow.py.*works' "$MGW/root.txt" \
+  && [ -z "$(git -C "$MGR/.sikstack" status --porcelain)" ] && grep -q '^migrate=done' "$MGW/root.txt" \
+  && ok "migrate --apply on an at-root install seeds .sikstack/ (one import commit naming the source commit, the routes carried), leaves every tracked file and the repo's HEAD as they were, and prints the git rm to run" \
+  || bad "migrate --apply (at-root) -- rc=$mg_rc $(tail -6 "$MGW/root.txt")"
 
 # ---------------------------------------------------------------------------
 echo

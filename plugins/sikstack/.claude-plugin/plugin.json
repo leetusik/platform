@@ -8,5 +8,18 @@
   "homepage": "https://github.com/leetusik/sikstack",
   "repository": "https://github.com/leetusik/sikstack",
   "license": "MIT",
-  "keywords": ["workflow", "phases", "agents", "planning", "review"]
+  "keywords": [
+    "workflow",
+    "phases",
+    "agents",
+    "planning",
+    "review"
+  ],
+  "userConfig": {
+    "email": {
+      "type": "string",
+      "title": "Email",
+      "description": "The address /sikstack:setup registers this install under (one setup per machine); sign-in later claims the install with it."
+    }
+  }
 }

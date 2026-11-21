@@ -32,7 +32,7 @@ SEAMS = {
         'rebuild_deferred_dashboard', 'validate_agenda',
     ),
     "wf_cloud": (
-        'cloud_commits_waiting_line', 'cloud_link_file', 'cloud_store_line', 'COMMITTED_AT',
+        'cloud_commits_waiting_line', 'cloud_linked', 'cloud_store_line', 'COMMITTED_AT',
     ),
 }
 
@@ -3655,7 +3655,7 @@ def _drive_review_slices(pdir: Path, verdict: str) -> list:
         sdata = read_json(sdir / "slice.json")
         if sdata.get("kind") == "review":
             old = _set_slice_status(sdir, slice_verdict)
-            if slice_verdict == "done" and cloud_link_file().exists():
+            if slice_verdict == "done" and cloud_linked():
                 # a REVIEW changes no product file, so its only commit is the workflow state's, which a linked
                 # checkout never makes: its commit record is written with the verdict
                 closed = read_json(sdir / "slice.json")
@@ -3996,7 +3996,7 @@ def cmd_next(args: argparse.Namespace) -> None:
     # confirmed the host's commit convention. Printed before every return below; silent at root.
     for line in nested_next_lines():
         print(line)
-    if cloud_link_file().exists():  # cloud mode: hi2vi's revisions are the history, so no workflow-repo commit
+    if cloud_linked():  # cloud mode: hi2vi's revisions are the history, so no workflow-repo commit
         print(cloud_store_line())
         print(cloud_commits_waiting_line())  # the waiting-commit record git gives in local mode
     # Stream context. Both lines are silent on the default stream with no parallel
